@@ -26,6 +26,7 @@ workflow FilterVariants {
         Boolean run_realignment_filter = true
         Boolean run_realignment_filter_only_on_high_confidence_variants = false
 
+        Boolean keep_germline = true
         Boolean compress_output = true
 
         # arguments
@@ -113,7 +114,7 @@ workflow FilterVariants {
             vcf = FilterMutectCalls.filtered_vcf,
             vcf_idx = FilterMutectCalls.filtered_vcf_idx,
             select_passing = true,
-            keep_germline = true,
+            keep_germline = keep_germline,
             compress_output = compress_output,
             select_variants_extra_args = select_variants_extra_args,
             runtime_params = select_variants_runtime
@@ -200,7 +201,7 @@ workflow FilterVariants {
                 vcf = MergeRealignmentFilteredVCFs.merged_vcf,
                 vcf_idx = MergeRealignmentFilteredVCFs.merged_vcf_idx,
                 select_passing = true,
-                keep_germline = true,
+                keep_germline = keep_germline,
                 compress_output = compress_output,
                 select_variants_extra_args = select_variants_extra_args,
                 runtime_params = select_variants_runtime
