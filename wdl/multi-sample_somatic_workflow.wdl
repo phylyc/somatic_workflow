@@ -530,6 +530,7 @@ workflow MultiSampleSomaticWorkflow {
                 vcf = select_first([FilterVariants.filtered_vcf, CallVariants.vcf]),
                 vcf_idx = select_first([FilterVariants.filtered_vcf_idx, CallVariants.vcf_idx]),
                 individual_id = individual_id,
+                samples = Patient.samples,
                 reference_version = funcotator_reference_version,
                 output_format = funcotator_output_format,
                 variant_type = funcotator_variant_type,

@@ -32,7 +32,7 @@ workflow CallVariants {
         String individual_id
         Array[File]+ tumor_bams
         Array[File]+ tumor_bais
-        Array[String]+ tumor_bam_names
+        Array[String]? tumor_bam_names
         Array[File]? normal_bams
         Array[File]? normal_bais
         Array[String]? normal_bam_names

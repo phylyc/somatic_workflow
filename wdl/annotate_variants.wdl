@@ -18,7 +18,6 @@ workflow AnnotateVariants {
         Array[Sample] samples
 
         String reference_version = "hg19"
-        String output_base_name
         String output_format = "MAF"
         String variant_type = "somatic"  # alternative: germline
         String transcript_selection_mode = "CANONICAL"  # GATK default: "CANONICAL"
