@@ -10,6 +10,7 @@ workflow CollectReadCounts {
 
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
 
         File bam
         File bai
@@ -69,6 +70,7 @@ workflow CollectReadCounts {
 			interval_list = interval_list,
             ref_fasta = ref_fasta,
 			ref_fasta_index = ref_fasta_index,
+            ref_dict = ref_dict,
             bam = bam,
             bai = bai,
             format = format,
@@ -101,6 +103,7 @@ task CollectReadCounts {
         File interval_list
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
         File bam
         File bai
         String sample_name
@@ -115,6 +118,7 @@ task CollectReadCounts {
         interval_list: {localization_optional: true}
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
         bam: {localization_optional: true}
         bai: {localization_optional: true}
     }

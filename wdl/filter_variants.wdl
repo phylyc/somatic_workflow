@@ -9,6 +9,7 @@ workflow FilterVariants {
         Array[File] scattered_interval_list
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
 
         Array[File]? tumor_bams
         Array[File]? tumor_bais
@@ -95,6 +96,7 @@ workflow FilterVariants {
         input:
             ref_fasta = ref_fasta,
             ref_fasta_index = ref_fasta_index,
+            ref_dict = ref_dict,
             vcf = vcf,
             vcf_idx = vcf_idx,
             orientation_bias = orientation_bias,
@@ -165,6 +167,7 @@ workflow FilterVariants {
                     interval_list = interval_list,
                     ref_fasta = ref_fasta,
                     ref_fasta_index = ref_fasta_index,
+                    ref_dict = ref_dict,
                     vcf = variants_to_realign,
                     vcf_idx = variants_to_realign_idx,
                     compress_output = compress_output,
@@ -175,6 +178,7 @@ workflow FilterVariants {
                 input:
                     ref_fasta = ref_fasta,
                     ref_fasta_index = ref_fasta_index,
+                    ref_dict = ref_dict,
                     tumor_bams = select_first([tumor_bams]),
                     tumor_bais = select_first([tumor_bais]),
                     vcf = SelectPreRealignmentVariants.selected_vcf,
@@ -274,6 +278,7 @@ task FilterMutectCalls {
     input {
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
 
         File vcf
         File vcf_idx
@@ -296,6 +301,7 @@ task FilterMutectCalls {
     parameter_meta{
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
         vcf: {localization_optional: true}
         vcf_idx: {localization_optional: true}
         # orientation_bias: {localization_optional: true}
@@ -363,6 +369,7 @@ task FilterAlignmentArtifacts {
     input {
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
         File vcf
         File vcf_idx
         Array[File] tumor_bams
@@ -384,6 +391,7 @@ task FilterAlignmentArtifacts {
         tumor_bais: {localization_optional: true}
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
         # bwa_mem_index_image: {localization_optional: true}  # needs to be localized
     }
 

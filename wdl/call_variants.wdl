@@ -28,6 +28,7 @@ workflow CallVariants {
         Array[File] scattered_interval_list
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
 
         String individual_id
         Array[File]+ tumor_bams
@@ -128,6 +129,7 @@ workflow CallVariants {
                 interval_list = interval_list,
                 ref_fasta = ref_fasta,
                 ref_fasta_index = ref_fasta_index,
+                ref_dict = ref_dict,
                 individual_id = individual_id,
                 tumor_bams = tumor_bams,
                 tumor_bais = tumor_bais,
@@ -169,6 +171,7 @@ workflow CallVariants {
             input:
                 ref_fasta = ref_fasta,
                 ref_fasta_index = ref_fasta_index,
+                ref_dict = ref_dict,
                 bams = select_all(Mutect2.bam),
                 bais = select_all(Mutect2.bai),
                 merged_bam_name = individual_id + ".Mutect2.out.",
@@ -208,6 +211,7 @@ task Mutect2 {
         File? interval_list
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
 
         String individual_id
         Array[File] tumor_bams
@@ -249,6 +253,7 @@ task Mutect2 {
         interval_list: {localization_optional: true}
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
         tumor_bams: {localization_optional: true}
         tumor_bais: {localization_optional: true}
         normal_bams: {localization_optional: true}

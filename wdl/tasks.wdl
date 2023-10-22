@@ -47,6 +47,7 @@ task PreprocessIntervals {
         Array[File]? interval_lists
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
 
         Int bin_length = 0
         Int padding = 0
@@ -100,6 +101,7 @@ task SplitIntervals {
         File? interval_list
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
 
         Int scatter_count
         String? split_intervals_extra_args
@@ -147,6 +149,7 @@ task SplitIntervals {
         interval_list: {localization_optional: true}
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
     }
 }
 
@@ -155,6 +158,7 @@ task SelectVariants {
         String? interval_list
         File? ref_fasta
         File? ref_fasta_index
+        File? ref_dict
         File vcf
         File vcf_idx
         Boolean select_passing = false
@@ -170,6 +174,7 @@ task SelectVariants {
     parameter_meta {
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
         vcf: {localization_optional: true}
         vcf_idx: {localization_optional: true}
     }
@@ -334,6 +339,7 @@ task MergeBams {
     input {
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
         Array[File]+ bams
         Array[File]+ bais
         String merged_bam_name
@@ -344,6 +350,7 @@ task MergeBams {
     parameter_meta {
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
         # bams: {localization_optional: true}  # samtools requires localization
     }
 
