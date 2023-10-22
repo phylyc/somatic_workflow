@@ -181,8 +181,8 @@ task CalculateContamination {
 
     String tumor_sample_id = basename(tumor_pileups, ".pileup")
     String normal_sample_id = if defined(normal_pileups) then "." + basename(select_first([normal_pileups]), ".pileup") else ""
-    String output_contamination = tumor_sample_id + normal_sample_id + ".contamination"
-    String output_segments = tumor_sample_id + normal_sample_id + ".segments"
+    String output_contamination = tumor_sample_id + ".contamination"
+    String output_segments = tumor_sample_id + ".segments"
 
     command <<<
         set -e
