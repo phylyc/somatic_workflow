@@ -184,7 +184,7 @@ task SelectVariants {
     String output_base_name = base_name + ".selected"
     String uncompressed_output_vcf = output_base_name + ".tmp.vcf"
     String uncompressed_selected_vcf = output_base_name + ".vcf"
-    String output_vcf = uncompressed_output_vcf + if compress_output then ".gz" else ""
+    String output_vcf = uncompressed_selected_vcf + if compress_output then ".gz" else ""
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
 
     String dollar = "$"
@@ -259,11 +259,12 @@ task SelectVariants {
         grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l > num_selected_vars.txt
 
         # Selecting both PASSing and germline variants can lead to unsorted vcf.
-        mv '~{uncompressed_selected_vcf}' 'unsorted.~{uncompressed_output_vcf}'
+        mv '~{uncompressed_selected_vcf}' 'unsorted.~{uncompressed_selected_vcf}'
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             SortVcf \
             -I 'unsorted.~{uncompressed_selected_vcf}' \
-            -O '~{uncompressed_selected_vcf}'
+            -O '~{uncompressed_selected_vcf}' \
+            ~{"-SD '" +  ref_dict + "'"}
 
         if ~{compress_output} ; then
             echo ">> Compressing selected vcf."
