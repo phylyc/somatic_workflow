@@ -313,8 +313,8 @@ task FilterMutectCalls {
     Int disk = (
         ceil(size(vcf, "GB"))
         + ceil(size(orientation_bias, "GB"))
-        + if defined(contamination_tables) then ceil(size(contamination_tables, "GB")) else 0
-        + if defined(tumor_segmentation) then ceil(size(tumor_segmentation, "GB")) else 0
+        + if defined(contamination_tables) then ceil(size(select_first([contamination_tables]), "GB")) else 0
+        + if defined(tumor_segmentation) then ceil(size(select_first([tumor_segmentation]), "GB")) else 0
         + ceil(size(mutect_stats, "GB"))
         + runtime_params.disk
     )
