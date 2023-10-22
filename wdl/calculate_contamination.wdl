@@ -159,9 +159,13 @@ workflow CalculateContamination {
             runtime_params = calculate_contamination_runtime,
     }
 
+    if (defined(normal_pileups) || defined(normal_bam)) {
+        File? defined_optional_normal_pileup_summaries = select_first([normal_pileups, NormalPileupSummaries.pileup_summaries])
+    }
+
     output {
         File tumor_pileup_summaries = select_first([tumor_pileups, TumorPileupSummaries.pileup_summaries])
-        File? normal_pileup_summaries = select_first([normal_pileups, NormalPileupSummaries.pileup_summaries])
+        File? normal_pileup_summaries = defined_optional_normal_pileup_summaries
         File contamination_table = CalculateContamination.contamination_table
         File segmentation = CalculateContamination.segmentation
     }
