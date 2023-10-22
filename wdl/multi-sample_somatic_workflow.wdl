@@ -422,6 +422,7 @@ workflow MultiSampleSomaticWorkflow {
             scattered_interval_list = SplitIntervals.interval_files,
             ref_fasta = ref_fasta,
             ref_fasta_index = ref_fasta_index,
+            ref_dict = ref_dict,
             individual_id = individual_id,
             tumor_bams = tumor_bams,
             tumor_bais = tumor_bais,
@@ -461,6 +462,7 @@ workflow MultiSampleSomaticWorkflow {
                 scattered_interval_list = SplitIntervals.interval_files,
                 ref_fasta = ref_fasta,
                 ref_fasta_index = ref_fasta_index,
+                ref_dict = ref_dict,
                 tumor_bams = tumor_bams,
                 tumor_bais = tumor_bais,
                 vcf = CallVariants.vcf,
@@ -529,6 +531,7 @@ workflow MultiSampleSomaticWorkflow {
             input:
                 ref_fasta = ref_fasta,
                 ref_fasta_index = ref_fasta_index,
+                ref_dict = ref_dict,
                 interval_list = PreprocessIntervals.preprocessed_interval_list,
                 vcf = select_first([FilterVariants.filtered_vcf, CallVariants.vcf]),
                 vcf_idx = select_first([FilterVariants.filtered_vcf_idx, CallVariants.vcf_idx]),
