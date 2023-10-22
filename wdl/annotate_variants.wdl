@@ -9,6 +9,7 @@ workflow AnnotateVariants {
     input {
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
         File? interval_list
 
         File vcf
@@ -104,6 +105,7 @@ workflow AnnotateVariants {
             input:
                 ref_fasta = ref_fasta,
                 ref_fasta_index = ref_fasta_index,
+                ref_dict = ref_dict,
                 interval_list = interval_list,
                 vcf = SelectSampleVariants.selected_vcf,
                 vcf_idx = SelectSampleVariants.selected_vcf_idx,
@@ -138,6 +140,7 @@ task Funcotate {
     input {
         File ref_fasta
         File ref_fasta_index
+        File ref_dict
         File? interval_list
 
         File vcf
@@ -169,6 +172,7 @@ task Funcotate {
     parameter_meta {
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
         interval_list: {localization_optional: true}
         vcf: {localization_optional: true}
         vcf_idx: {localization_optional: true}
