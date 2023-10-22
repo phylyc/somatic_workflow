@@ -258,6 +258,13 @@ task SelectVariants {
 
         grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l > num_selected_vars.txt
 
+        # Selecting both PASSing and germline variants can lead to unsorted vcf.
+        mv '~{uncompressed_selected_vcf}' 'unsorted.~{uncompressed_output_vcf}'
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            SortVcf \
+            -I 'unsorted.~{uncompressed_selected_vcf}' \
+            -O '~{uncompressed_selected_vcf}'
+
         if ~{compress_output} ; then
             echo ">> Compressing selected vcf."
             bgzip -c '~{uncompressed_selected_vcf}' > '~{output_vcf}'
