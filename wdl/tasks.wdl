@@ -155,7 +155,7 @@ task SplitIntervals {
 
 task SelectVariants {
     input {
-        String? interval_list
+        File? interval_list
         File? ref_fasta
         File? ref_fasta_index
         File? ref_dict
@@ -172,6 +172,7 @@ task SelectVariants {
     }
 
     parameter_meta {
+        interval_list: {localization_optional: true}
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
         ref_dict: {localization_optional: true}
