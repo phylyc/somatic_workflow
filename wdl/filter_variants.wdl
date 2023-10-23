@@ -240,15 +240,17 @@ workflow FilterVariants {
         SelectPassingVariants.selected_vcf_idx,
     ])
 
-    call tasks.SelectVariants as SelectGermlineVariants {
-        input:
-            vcf = selected_vcf,
-            vcf_idx = selected_vcf_idx,
-            select_passing = false,
-            keep_germline = true,
-            compress_output = compress_output,
-            select_variants_extra_args = select_variants_extra_args,
-            runtime_params = select_variants_runtime
+    if (keep_germline) {
+        call tasks.SelectVariants as SelectGermlineVariants {
+            input:
+                vcf = selected_vcf,
+                vcf_idx = selected_vcf_idx,
+                select_passing = false,
+                keep_germline = true,
+                compress_output = compress_output,
+                select_variants_extra_args = select_variants_extra_args,
+                runtime_params = select_variants_runtime
+        }
     }
 
     call tasks.SelectVariants as SelectSomaticVariants {
