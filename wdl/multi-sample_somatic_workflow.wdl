@@ -493,19 +493,21 @@ workflow MultiSampleSomaticWorkflow {
 
         if (run_final_pileup_summaries) {
             scatter (sample in Patient.samples) {
-                call cac.CollectAllelicCounts as GermlineAllelicCounts {
-                    input:
-                        scattered_interval_list = SplitIntervals.interval_files,
-                        bam = sample.bam,
-                        bai = sample.bai,
-                        ref_dict = ref_dict,
-                        vcf = FilterVariants.germline_vcf,
-                        vcf_idx = FilterVariants.germline_vcf_idx,
-                        getpileupsummaries_extra_args = getpileupsummaries_extra_args,
-                        output_base_name = sample.assigned_sample_name + ".germline",
-                        vcf_to_pileup_variants_runtime = Runtimes.vcf_to_pileup_variants_runtime,
-                        get_pileup_summaries_runtime = Runtimes.get_pileup_summaries_runtime,
-                        gather_pileup_summaries_runtime = Runtimes.gather_pileup_summaries_runtime,
+                if (keep_germline) {
+                    call cac.CollectAllelicCounts as GermlineAllelicCounts {
+                        input:
+                            scattered_interval_list = SplitIntervals.interval_files,
+                            bam = sample.bam,
+                            bai = sample.bai,
+                            ref_dict = ref_dict,
+                            vcf = FilterVariants.germline_vcf,
+                            vcf_idx = FilterVariants.germline_vcf_idx,
+                            getpileupsummaries_extra_args = getpileupsummaries_extra_args,
+                            output_base_name = sample.assigned_sample_name + ".germline",
+                            vcf_to_pileup_variants_runtime = Runtimes.vcf_to_pileup_variants_runtime,
+                            get_pileup_summaries_runtime = Runtimes.get_pileup_summaries_runtime,
+                            gather_pileup_summaries_runtime = Runtimes.gather_pileup_summaries_runtime,
+                    }
                 }
 
                 call cac.CollectAllelicCounts as SomaticAllelicCounts {
