@@ -577,7 +577,7 @@ workflow MultiSampleSomaticWorkflow {
         Array[File]? annotated_variants = AnnotateVariants.annotated_variants
         Array[File?]? annotated_variants_idx = AnnotateVariants.annotated_variants_idx
         Array[File]? somatic_allelic_counts = SomaticAllelicCounts.pileup_summaries
-        Array[File]? germline_allelic_counts = GermlineAllelicCounts.pileup_summaries
+        Array[File?]? germline_allelic_counts = GermlineAllelicCounts.pileup_summaries
         Array[File]? panel_allelic_counts = panel_pileup_summaries
         Array[File]? contamination_table = contamination_tables
         Array[File]? segmentation_table = segmentation_tables
