@@ -260,7 +260,7 @@ task Funcotate {
             ~{true="--exclude-field " false="" defined(exclude_fields)}~{default="" sep=" --exclude-field " exclude_fields} \
             ~{funcotate_extra_args}
 
-        rm -r datasources_dir
+        rm -rf datasources_dir
     >>>
 
     output {

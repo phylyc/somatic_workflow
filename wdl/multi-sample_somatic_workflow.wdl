@@ -129,7 +129,7 @@ workflow MultiSampleSomaticWorkflow {
         Int mem_filter_mutect_calls = 4096
         Int mem_select_variants = 2048
         Int mem_filter_alignment_artifacts_base = 2048  # needs to be increased in some cases
-        Int mem_merge_vcfs = 256
+        Int mem_merge_vcfs = 2048
         Int mem_merge_mutect_stats = 256 # 64
         Int mem_merge_bams = 8192  # wants at least 6G
         Int mem_cnn_scoring = 4096

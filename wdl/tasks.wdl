@@ -236,8 +236,10 @@ task SelectVariants {
         fi
 
         if ~{!(select_passing || keep_germline)} ; then
-            mv '~{select_variants_output_vcf}' '~{uncompressed_selected_vcf}'
+            cp '~{select_variants_output_vcf}' '~{uncompressed_selected_vcf}'
         fi
+
+        rm -f '~{select_variants_output_vcf}' '~{select_variants_output_vcf_idx}'
 
         # =======================================
         # Hack to correct a SelectVariants output bug. When selecting for samples, this
@@ -266,7 +268,7 @@ task SelectVariants {
             -I 'unsorted.~{uncompressed_selected_vcf}' \
             -O '~{uncompressed_selected_vcf}' \
             ~{"-SD '" +  ref_dict + "'"}
-        rm 'unsorted.~{uncompressed_selected_vcf}' '~{select_variants_output_vcf}' '~{select_variants_output_vcf_idx}'
+        rm -f 'unsorted.~{uncompressed_selected_vcf}'
 
         grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l > num_selected_vars.txt
 
@@ -277,7 +279,7 @@ task SelectVariants {
                 IndexFeatureFile \
                 --input '~{output_vcf}' \
                 --output '~{output_vcf_idx}'
-            rm '~{uncompressed_selected_vcf}'
+            rm -f '~{uncompressed_selected_vcf}'
         fi
     >>>
 
