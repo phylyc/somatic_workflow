@@ -183,7 +183,9 @@ task SelectVariants {
     String uncompressed_input_vcf = basename(vcf, ".gz")
     String base_name = if defined(tumor_sample_name) then sub(select_first([tumor_sample_name, ""]), " ", "+") else basename(uncompressed_input_vcf, ".vcf")
     String output_base_name = base_name + ".selected"
-    String uncompressed_output_vcf = output_base_name + ".tmp.vcf"
+    
+    String select_variants_output_vcf = output_base_name + ".tmp.vcf"
+    String select_variants_output_vcf_idx = select_variants_output_vcf + ".idx"
     String uncompressed_selected_vcf = output_base_name + ".vcf"
     String output_vcf = uncompressed_selected_vcf + if compress_output then ".gz" else ""
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
@@ -207,7 +209,7 @@ task SelectVariants {
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-L '" + interval_list + "'"} \
             -V '~{vcf}' \
-            --output '~{uncompressed_output_vcf}' \
+            --output '~{select_variants_output_vcf}' \
             --exclude-filtered false \
             ~{"--sample-name '" + tumor_sample_name + "'"} \
             ~{"--sample-name '" + normal_sample_name + "'"} \
@@ -217,24 +219,24 @@ task SelectVariants {
         # =======================================
         # We do the selection step using grep to also select germline variants.
 
-        grep "^#" '~{uncompressed_output_vcf}' > '~{uncompressed_selected_vcf}'
-        num_vars=~{dollar}(grep -v "^#" '~{uncompressed_output_vcf}' | wc -l)
+        grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
+        num_vars=~{dollar}(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
 
         if ~{select_passing} ; then
             echo ">> Selecting PASSing variants ... "
-            grep -v "^#" '~{uncompressed_output_vcf}' | grep "PASS" >> '~{uncompressed_selected_vcf}'
+            grep -v "^#" '~{select_variants_output_vcf}' | grep "PASS" >> '~{uncompressed_selected_vcf}'
             num_selected_vars=~{dollar}(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
             echo ">> Selected ~{dollar}num_selected_vars PASSing out of ~{dollar}num_vars variants."
         fi
         if ~{keep_germline} ; then
             echo ">> Selecting germline variants ... "
-            grep -v "^#" '~{uncompressed_output_vcf}' | grep "\tgermline\t" >> '~{uncompressed_selected_vcf}'
+            grep -v "^#" '~{select_variants_output_vcf}' | grep "\tgermline\t" >> '~{uncompressed_selected_vcf}'
             num_selected_vars=~{dollar}(grep "\tgermline\t" '~{uncompressed_selected_vcf}' | wc -l)
             echo ">> Selected ~{dollar}num_selected_vars germline out of ~{dollar}num_vars variants."
         fi
 
         if ~{!(select_passing || keep_germline)} ; then
-            mv '~{uncompressed_output_vcf}' '~{uncompressed_selected_vcf}'
+            mv '~{select_variants_output_vcf}' '~{uncompressed_selected_vcf}'
         fi
 
         # =======================================
@@ -264,6 +266,7 @@ task SelectVariants {
             -I 'unsorted.~{uncompressed_selected_vcf}' \
             -O '~{uncompressed_selected_vcf}' \
             ~{"-SD '" +  ref_dict + "'"}
+        rm 'unsorted.~{uncompressed_selected_vcf}' '~{select_variants_output_vcf}' '~{select_variants_output_vcf_idx}'
 
         grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l > num_selected_vars.txt
 
@@ -275,7 +278,6 @@ task SelectVariants {
                 --input '~{output_vcf}' \
                 --output '~{output_vcf_idx}'
             rm '~{uncompressed_selected_vcf}'
-            rm '~{uncompressed_output_vcf}.idx'
         fi
     >>>
 
