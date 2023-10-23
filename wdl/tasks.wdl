@@ -218,22 +218,22 @@ task SelectVariants {
         # We do the selection step using grep to also select germline variants.
 
         grep "^#" '~{uncompressed_output_vcf}' > '~{uncompressed_selected_vcf}'
+        num_vars=~{dollar}(grep -v "^#" '~{uncompressed_output_vcf}' | wc -l)
+
         if ~{select_passing} ; then
             echo ">> Selecting PASSing variants ... "
             grep "PASS" '~{uncompressed_output_vcf}' >> '~{uncompressed_selected_vcf}'
-            num_vars=~{dollar}(grep -v "^#" '~{uncompressed_output_vcf}' | wc -l)
             num_selected_vars=~{dollar}(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
             echo ">> Selected ~{dollar}num_selected_vars PASSing out of ~{dollar}num_vars variants."
         fi
         if ~{keep_germline} ; then
             echo ">> Selecting germline variants ... "
             grep -P "\tgermline\t" '~{uncompressed_output_vcf}' >> '~{uncompressed_selected_vcf}'
-            num_vars=~{dollar}(grep -v "^#" '~{uncompressed_output_vcf}' | wc -l)
             num_selected_vars=~{dollar}(grep -P "\tgermline\t" '~{uncompressed_selected_vcf}' | wc -l)
             echo ">> Selected ~{dollar}num_selected_vars germline out of ~{dollar}num_vars variants."
         fi
 
-        if ~{!select_passing} || ~{!keep_germline} ; then
+        if ~{!(select_passing || keep_germline)} ; then
             mv '~{uncompressed_output_vcf}' '~{uncompressed_selected_vcf}'
         fi
 
@@ -257,8 +257,6 @@ task SelectVariants {
             sed -i "s/~{dollar}input_header/~{dollar}corrected_header/g" '~{uncompressed_selected_vcf}'
         fi
 
-        grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l > num_selected_vars.txt
-
         # Selecting both PASSing and germline variants can lead to unsorted vcf.
         mv '~{uncompressed_selected_vcf}' 'unsorted.~{uncompressed_selected_vcf}'
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
@@ -266,6 +264,8 @@ task SelectVariants {
             -I 'unsorted.~{uncompressed_selected_vcf}' \
             -O '~{uncompressed_selected_vcf}' \
             ~{"-SD '" +  ref_dict + "'"}
+
+        grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l > num_selected_vars.txt
 
         if ~{compress_output} ; then
             echo ">> Compressing selected vcf."
