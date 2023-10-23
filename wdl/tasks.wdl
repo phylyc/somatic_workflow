@@ -222,14 +222,14 @@ task SelectVariants {
 
         if ~{select_passing} ; then
             echo ">> Selecting PASSing variants ... "
-            grep "PASS" '~{uncompressed_output_vcf}' >> '~{uncompressed_selected_vcf}'
+            grep -v "^#" '~{uncompressed_output_vcf}' | grep "PASS" >> '~{uncompressed_selected_vcf}'
             num_selected_vars=~{dollar}(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
             echo ">> Selected ~{dollar}num_selected_vars PASSing out of ~{dollar}num_vars variants."
         fi
         if ~{keep_germline} ; then
             echo ">> Selecting germline variants ... "
-            grep -P "\tgermline\t" '~{uncompressed_output_vcf}' >> '~{uncompressed_selected_vcf}'
-            num_selected_vars=~{dollar}(grep -P "\tgermline\t" '~{uncompressed_selected_vcf}' | wc -l)
+            grep -v "^#" '~{uncompressed_output_vcf}' | grep "\tgermline\t" >> '~{uncompressed_selected_vcf}'
+            num_selected_vars=~{dollar}(grep "\tgermline\t" '~{uncompressed_selected_vcf}' | wc -l)
             echo ">> Selected ~{dollar}num_selected_vars germline out of ~{dollar}num_vars variants."
         fi
 
