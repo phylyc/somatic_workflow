@@ -197,7 +197,7 @@ workflow FilterVariants {
                 vcfs_idx = FilterAlignmentArtifacts.filtered_vcf_idx,
                 output_name = vcf_name + ".filtered.selected.realignmentfiltered",
                 compress_output = compress_output,
-                runtime_params = select_variants_runtime
+                runtime_params = merge_vcfs_runtime
         }
 
         call tasks.SelectVariants as SelectPostRealignmentVariants {
