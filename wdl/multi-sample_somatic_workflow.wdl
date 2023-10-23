@@ -112,10 +112,11 @@ workflow MultiSampleSomaticWorkflow {
         Int disk_sizeGB = 1
 
         # memory assignments in MB
+        Int mem_machine_overhead = 512
         Int mem_additional_per_sample = 256  # this depends on bam size (WES vs WGS)
-        Int mem_get_sample_name = 512
+        Int mem_get_sample_name = 256
         Int mem_preprocess_intervals = 2048
-        Int mem_split_intervals = 512
+        Int mem_split_intervals = 256
         Int mem_collect_covered_regions = 8192
         Int mem_collect_read_counts = 2048
         Int mem_denoise_read_counts = 2048
@@ -128,8 +129,8 @@ workflow MultiSampleSomaticWorkflow {
         Int mem_filter_mutect_calls = 4096
         Int mem_select_variants = 2048
         Int mem_filter_alignment_artifacts_base = 2048  # needs to be increased in some cases
-        Int mem_merge_vcfs = 512
-        Int mem_merge_mutect_stats = 512 # 64
+        Int mem_merge_vcfs = 256
+        Int mem_merge_mutect_stats = 256 # 64
         Int mem_merge_bams = 8192  # wants at least 6G
         Int mem_cnn_scoring = 4096
         Int mem_funcotate = 6144
@@ -185,6 +186,7 @@ workflow MultiSampleSomaticWorkflow {
             cpu = cpu,
             disk_sizeGB = disk_sizeGB,
 
+            mem_machine_overhead = mem_machine_overhead,
             mem_additional_per_sample = mem_additional_per_sample,
             mem_get_sample_name = mem_get_sample_name,
             mem_preprocess_intervals = mem_preprocess_intervals,

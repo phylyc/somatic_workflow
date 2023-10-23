@@ -71,13 +71,13 @@ workflow DefineRuntimes {
         # Derived from reasonable maximum values amongst >1000 patients.
         # Increasing cpus likely increases costs by the same factor.
 
-        Int machine_mem_command_mem_diff = 256
+        Int mem_machine_overhead = 512
         Int mem_additional_per_sample = 256  # this depends on bam size (WES vs WGS)
 
         Int time_startup = 10
 
         # gatk: GetSampleName
-        Int mem_get_sample_name = 512
+        Int mem_get_sample_name = 256
         Int time_get_sample_name = 1
 
         # gatk: PreprocessIntervals
@@ -85,7 +85,7 @@ workflow DefineRuntimes {
         Int time_preprocess_intervals = 60
 
         # gatk: SplitIntervals
-        Int mem_split_intervals = 512
+        Int mem_split_intervals = 256
         Int time_split_intervals = 1
 
         # CollectCoveredRegions
@@ -101,7 +101,7 @@ workflow DefineRuntimes {
         Int time_denoise_read_counts = 120
 
         # VcfToPileupVariants
-        Int mem_vcf_to_pileup_variants = 512
+        Int mem_vcf_to_pileup_variants = 256
         Int time_vcf_to_pileup_variants = 5
 
         # gatk: GetPileupSummaries
@@ -109,11 +109,11 @@ workflow DefineRuntimes {
         Int time_get_pileup_summaries = 4500  # 3 d / scatter_count
 
         # gatk: GatherPileupSummaries
-        Int mem_gather_pileup_summaries = 512  # 64
+        Int mem_gather_pileup_summaries = 256  # 64
         Int time_gather_pileup_summaries = 5
 
         # SelectPileupSummaries
-        Int mem_select_pileup_summaries = 521
+        Int mem_select_pileup_summaries = 256
         Int time_select_pileup_summaries = 5
 
         # gatk: CalculateContamination
@@ -127,11 +127,11 @@ workflow DefineRuntimes {
         Int disk_variant_call = 0
 
         # gatk: MergeVcfs
-        Int mem_merge_vcfs = 512
+        Int mem_merge_vcfs = 256
         Int time_merge_vcfs = 10
 
         # gatk: MergeMutectStats
-        Int mem_merge_mutect_stats = 512 # 64
+        Int mem_merge_mutect_stats = 256 # 64
         Int time_merge_mutect_stats = 1
 
         # gatk: MergeBams
@@ -152,7 +152,7 @@ workflow DefineRuntimes {
         Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count
 
         # gatk: SelectVariants
-        Int mem_select_variants = 1024
+        Int mem_select_variants = 2048
         Int time_select_variants = 5
 
         # gatk: CNNScoreVariants
@@ -174,8 +174,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_get_sample_name,
-        "command_mem": mem_get_sample_name - machine_mem_command_mem_diff,
+        "machine_mem": mem_get_sample_name + mem_machine_overhead,
+        "command_mem": mem_get_sample_name,
         "runtime_minutes": time_startup + time_get_sample_name,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -187,8 +187,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_preprocess_intervals,
-        "command_mem": mem_preprocess_intervals - machine_mem_command_mem_diff,
+        "machine_mem": mem_preprocess_intervals + mem_machine_overhead,
+        "command_mem": mem_preprocess_intervals,
         "runtime_minutes": time_startup + time_preprocess_intervals,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -200,8 +200,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_split_intervals,
-        "command_mem": mem_split_intervals - machine_mem_command_mem_diff,
+        "machine_mem": mem_split_intervals + mem_machine_overhead,
+        "command_mem": mem_split_intervals,
         "runtime_minutes": time_startup + time_split_intervals,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -213,8 +213,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_collect_covered_regions,
-        "command_mem": mem_collect_covered_regions - machine_mem_command_mem_diff,
+        "machine_mem": mem_collect_covered_regions + mem_machine_overhead,
+        "command_mem": mem_collect_covered_regions,
         "runtime_minutes": time_startup + time_collect_covered_regions,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -226,8 +226,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_collect_read_counts,
-        "command_mem": mem_collect_read_counts - machine_mem_command_mem_diff,
+        "machine_mem": mem_collect_read_counts + mem_machine_overhead,
+        "command_mem": mem_collect_read_counts,
         "runtime_minutes": time_startup + time_collect_read_counts,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -239,8 +239,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_denoise_read_counts,
-        "command_mem": mem_denoise_read_counts - machine_mem_command_mem_diff,
+        "machine_mem": mem_denoise_read_counts + mem_machine_overhead,
+        "command_mem": mem_denoise_read_counts,
         "runtime_minutes": time_startup + time_denoise_read_counts,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -251,8 +251,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_vcf_to_pileup_variants,
-        "command_mem": mem_vcf_to_pileup_variants - machine_mem_command_mem_diff,
+        "machine_mem": mem_vcf_to_pileup_variants + mem_machine_overhead,
+        "command_mem": mem_vcf_to_pileup_variants,
         "runtime_minutes": time_startup + time_vcf_to_pileup_variants,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -264,8 +264,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_get_pileup_summaries,
-        "command_mem": mem_get_pileup_summaries - machine_mem_command_mem_diff,
+        "machine_mem": mem_get_pileup_summaries + mem_machine_overhead,
+        "command_mem": mem_get_pileup_summaries,
         "runtime_minutes": time_startup + ceil(time_get_pileup_summaries / scatter_count),
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -277,8 +277,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_gather_pileup_summaries,
-        "command_mem": mem_gather_pileup_summaries - machine_mem_command_mem_diff,
+        "machine_mem": mem_gather_pileup_summaries + mem_machine_overhead,
+        "command_mem": mem_gather_pileup_summaries,
         "runtime_minutes": time_startup + time_gather_pileup_summaries,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -289,8 +289,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_select_pileup_summaries,
-        "command_mem": mem_select_pileup_summaries - machine_mem_command_mem_diff,
+        "machine_mem": mem_select_pileup_summaries + mem_machine_overhead,
+        "command_mem": mem_select_pileup_summaries,
         "runtime_minutes": time_startup + time_select_pileup_summaries,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -302,8 +302,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_calculate_contamination,
-        "command_mem": mem_calculate_contamination - machine_mem_command_mem_diff,
+        "machine_mem": mem_calculate_contamination + mem_machine_overhead,
+        "command_mem": mem_calculate_contamination,
         "runtime_minutes": time_startup + time_calculate_contamination,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -316,8 +316,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu_variant_call,
-        "machine_mem": mem_variant_call,
-        "command_mem": mem_variant_call - machine_mem_command_mem_diff,
+        "machine_mem": mem_variant_call + mem_machine_overhead,
+        "command_mem": mem_variant_call,
         "runtime_minutes": time_startup + ceil(time_variant_call_total / scatter_count),
         "disk": disk + disk_variant_call,
         "boot_disk_size": boot_disk_size
@@ -330,8 +330,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_learn_read_orientation_model,
-        "command_mem": mem_learn_read_orientation_model - machine_mem_command_mem_diff,
+        "machine_mem": mem_learn_read_orientation_model + mem_machine_overhead,
+        "command_mem": mem_learn_read_orientation_model,
         "runtime_minutes": time_startup + time_learn_read_orientation_model,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -343,8 +343,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_merge_vcfs,
-        "command_mem": mem_merge_vcfs - machine_mem_command_mem_diff,
+        "machine_mem": mem_merge_vcfs + mem_machine_overhead,
+        "command_mem": mem_merge_vcfs,
         "runtime_minutes": time_startup + time_merge_vcfs,
         "disk": 1 + disk,
         "boot_disk_size": boot_disk_size
@@ -356,8 +356,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_merge_mutect_stats,
-        "command_mem": mem_merge_mutect_stats - machine_mem_command_mem_diff,
+        "machine_mem": mem_merge_mutect_stats + mem_machine_overhead,
+        "command_mem": mem_merge_mutect_stats,
         "runtime_minutes": time_startup + time_merge_mutect_stats,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -369,8 +369,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_merge_bams,
-        "command_mem": mem_merge_bams - machine_mem_command_mem_diff,
+        "machine_mem": mem_merge_bams + mem_machine_overhead,
+        "command_mem": mem_merge_bams,
         "runtime_minutes": time_startup + time_merge_bams,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -382,8 +382,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_filter_mutect_calls,
-        "command_mem": mem_filter_mutect_calls - machine_mem_command_mem_diff,
+        "machine_mem": mem_filter_mutect_calls + mem_machine_overhead,
+        "command_mem": mem_filter_mutect_calls,
         "runtime_minutes": time_startup + time_filter_mutect_calls,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -396,8 +396,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu_filter_alignment_artifacts,
-        "machine_mem": mem_filter_alignment_artifacts,
-        "command_mem": mem_filter_alignment_artifacts - machine_mem_command_mem_diff,
+        "machine_mem": mem_filter_alignment_artifacts + mem_machine_overhead,
+        "command_mem": mem_filter_alignment_artifacts,
         "runtime_minutes": time_startup + ceil(time_filter_alignment_artifacts_total / scatter_count),
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -409,8 +409,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_select_variants,
-        "command_mem": mem_select_variants - machine_mem_command_mem_diff,
+        "machine_mem": mem_select_variants + mem_machine_overhead,
+        "command_mem": mem_select_variants,
         "runtime_minutes": time_startup + time_select_variants,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -422,8 +422,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu_cnn_scoring,
-        "machine_mem": mem_cnn_scoring,
-        "command_mem": mem_cnn_scoring - machine_mem_command_mem_diff,
+        "machine_mem": mem_cnn_scoring + mem_machine_overhead,
+        "command_mem": mem_cnn_scoring,
         "runtime_minutes": time_startup + time_cnn_scoring,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -435,8 +435,8 @@ workflow DefineRuntimes {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_funcotate,
-        "command_mem": mem_funcotate - machine_mem_command_mem_diff,
+        "machine_mem": mem_funcotate + mem_machine_overhead,
+        "command_mem": mem_funcotate,
         "runtime_minutes": time_startup + time_funcotate,
         "disk": disk,
         "boot_disk_size": boot_disk_size
