@@ -269,8 +269,8 @@ workflow FilterVariants {
         File filtered_vcf_idx = FilterMutectCalls.filtered_vcf_idx
         File somatic_vcf = SelectSomaticVariants.selected_vcf
         File somatic_vcf_idx = SelectSomaticVariants.selected_vcf_idx
-        File germline_vcf = SelectGermlineVariants.selected_vcf
-        File germline_vcf_idx = SelectGermlineVariants.selected_vcf_idx
+        File? germline_vcf = SelectGermlineVariants.selected_vcf
+        File? germline_vcf_idx = SelectGermlineVariants.selected_vcf_idx
         File filtering_stats = FilterMutectCalls.filtering_stats
 
     }
