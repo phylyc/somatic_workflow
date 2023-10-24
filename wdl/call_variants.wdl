@@ -174,7 +174,7 @@ workflow CallVariants {
                 ref_dict = ref_dict,
                 bams = select_all(Mutect2.bam),
                 bais = select_all(Mutect2.bai),
-                merged_bam_name = individual_id + ".Mutect2.out.",
+                merged_bam_name = individual_id + ".Mutect2.out",
                 runtime_params = merge_bams_runtime
         }
     }
@@ -270,13 +270,10 @@ task Mutect2 {
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
     String output_stats = output_vcf + ".stats"
 
-#    Int germline_resource_size = if defined(germline_resource) then ceil(size(germline_resource, "GB")) else 0
-#    Int disk_space = disk_spaceGB + germline_resource_size
-
-    String output_bam = individual_id + "_bamout.bam"
-    String output_bai = individual_id + "_bamout.bai"
+    String output_bam = individual_id + ".bamout.bam"
+    String output_bai = individual_id + ".bamout.bai"
     String make_bamout_arg = if make_bamout then "--bam-output " + output_bam else ""
-    String output_artifact_priors = individual_id + "_f1r2_counts.tar.gz"
+    String output_artifact_priors = individual_id + ".f1r2_counts.tar.gz"
     String run_ob_filter_arg = if get_orientation_bias_priors then "--f1r2-tar-gz " + output_artifact_priors else ""
 
     command <<<
@@ -342,7 +339,7 @@ task MergeMutectStats {
     #     stats: {localization_optional: true}
     # }
 
-    String output_name = individual_id + "_merged.stats"
+    String output_name = individual_id + ".merged.stats"
 
     command <<<
         set -e
@@ -392,7 +389,7 @@ task LearnReadOrientationModel {
     #     f1r2_counts: {localization_optional: true}
     # }
 
-    String output_name = individual_id + "_artifact_priors.tar.gz"
+    String output_name = individual_id + ".artifact_priors.tar.gz"
     Boolean f1r2_counts_empty = (length(f1r2_counts) == 0)
 
     command <<<
