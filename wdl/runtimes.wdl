@@ -163,6 +163,11 @@ workflow DefineRuntimes {
         # gatk: Funcotator
         Int mem_funcotate = 6144
         Int time_funcotate = 500  # 8 h
+
+        # gatk: GenomicsDBImport / CreateSomaticPanelOfNormals
+        Int mem_create_panel = 16384
+        Int time_create_panel = 1200  # 20 h
+        Int disk_create_panel = 0
     }
 
     Int gatk_override_size = ceil(size(gatk_override, "GB"))
@@ -442,6 +447,19 @@ workflow DefineRuntimes {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime create_panel = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_create_panel + mem_machine_overhead,
+        "command_mem": mem_create_panel,
+        "runtime_minutes": time_startup + time_create_panel,
+        "disk": disk + disk_create_panel,
+        "boot_disk_size": boot_disk_size
+    }
+
     output {
         Runtime get_sample_name_runtime = get_sample_name
         Runtime preprocess_intervals_runtime = preprocess_intervals
@@ -464,5 +482,6 @@ workflow DefineRuntimes {
         Runtime select_variants_runtime = select_variants
         Runtime cnn_scoring_runtime = cnn_scoring
         Runtime funcotate_runtime = funcotate
+        Runtime create_panel_runtime = create_panel
     }
 }
