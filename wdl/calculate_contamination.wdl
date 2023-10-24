@@ -50,7 +50,7 @@ workflow CalculateContamination {
         Runtime select_pileup_summaries_runtime = Runtimes.select_pileup_summaries_runtime
         Runtime calculate_contamination_runtime = Runtimes.calculate_contamination_runtime
 
-        String bcf_tools_docker = "dceoy/bcftools"
+        String bcftools_docker = "stephb/bcftools"
         String gatk_docker = "broadinstitute/gatk"
         String ubuntu_docker = "ubuntu"
         File? gatk_override
@@ -79,7 +79,7 @@ workflow CalculateContamination {
     call runtimes.DefineRuntimes as Runtimes {
         input:
             scatter_count = scatter_count,
-            bcf_tools_docker = bcf_tools_docker,
+            bcftools_docker = bcftools_docker,
             gatk_docker = gatk_docker,
             ubuntu_docker = ubuntu_docker,
             gatk_override = gatk_override,
