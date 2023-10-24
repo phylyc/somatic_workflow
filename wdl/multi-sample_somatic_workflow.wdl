@@ -27,7 +27,7 @@ workflow MultiSampleSomaticWorkflow {
         Array[File]+ tumor_bams
         Array[File]+ tumor_bais
         Array[File]+ tumor_target_intervals
-        Array[String]+ tumor_sample_names
+        Array[String]? tumor_sample_names
         Array[File]? normal_bams
         Array[File]? normal_bais
         Array[File]? normal_target_intervals
@@ -261,12 +261,12 @@ workflow MultiSampleSomaticWorkflow {
             tumor_bais = tumor_bais,
             tumor_target_intervals = tumor_target_intervals,
             tumor_bam_names = GetTumorSampleName.sample_name,
-            tumor_sample_names = tumor_sample_names,
+            tumor_sample_names = select_first([tumor_sample_names, GetTumorSampleName.sample_name]),
             normal_bams = normal_bams,
             normal_bais = normal_bais,
             normal_target_intervals = normal_target_intervals,
             normal_bam_names = GetNormalSampleName.sample_name,
-            normal_sample_names = normal_sample_names,
+            normal_sample_names = select_first([normal_sample_names, GetNormalSampleName.sample_name]),
     }
 
     call tasks.PreprocessIntervals {
