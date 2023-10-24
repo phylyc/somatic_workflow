@@ -57,7 +57,7 @@ workflow DefineRuntimes {
         # todo: find smaller image. This one takes ~13 mins to spin up.
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB
         String gatk_docker = "broadinstitute/gatk"
-        String bcf_tools_docker = "dceoy/bcftools"
+        String bcftools_docker = "staphb/bcftools"
         String ubuntu_docker = "ubuntu"
         File? gatk_override
         Int preemptible = 1
@@ -247,7 +247,7 @@ workflow DefineRuntimes {
     }
 
     Runtime vcf_to_pileup_variants = {
-        "docker": bcf_tools_docker,
+        "docker": bcftools_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,

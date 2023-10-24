@@ -104,7 +104,7 @@ workflow MultiSampleSomaticWorkflow {
         # todo: find smaller image. This one takes ~13 mins to spin up.
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB
         String gatk_docker = "broadinstitute/gatk"
-        String bcf_tools_docker = "dceoy/bcftools"
+        String bcftools_docker = "staphb/bcftools"
         String ubuntu_docker = "ubuntu"
         File? gatk_override
         Int preemptible = 1
@@ -178,7 +178,7 @@ workflow MultiSampleSomaticWorkflow {
             scatter_count = scatter_count,
             jupyter_docker = jupyter_docker,
             gatk_docker = gatk_docker,
-            bcf_tools_docker = bcf_tools_docker,
+            bcftools_docker = bcftools_docker,
             ubuntu_docker = ubuntu_docker,
             gatk_override = gatk_override,
             preemptible = preemptible,
