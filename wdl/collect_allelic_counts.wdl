@@ -163,7 +163,7 @@ task VcfToPileupVariants {
     String output_base_name = basename(basename(basename(vcf, ".gz"), ".bgz"), ".vcf")
     String tmp_vcf = output_base_name + ".tmp.vcf"
     String uncompressed_vcf = output_base_name + ".af_only.vcf"
-    String af_only_vcf = uncompressed_vcf + ".gz"
+    String af_only_vcf = output_base_name + ".af_only.vcf.gz"
     String af_only_vcf_idx = af_only_vcf + ".tbi"
 
     String dollar = "$"
@@ -186,11 +186,11 @@ task VcfToPileupVariants {
             | awk 'BEGIN {OFS="\t"} {~{dollar}8 = "AF=~{AF}"; print}' \
             >> '~{uncompressed_vcf}'
 
-        # Compress the modified VCF file using bgzip
-        bgzip -c '~{uncompressed_vcf}' > '~{af_only_vcf}'
+        # Compress the modified VCF file (bgzip is not available)
+        bcftools convert -O z -o '~{af_only_vcf}' '~{uncompressed_vcf}'
 
         # Index the compressed VCF file
-        bcftools index -t -o ~{af_only_vcf_idx} ~{af_only_vcf}
+        bcftools index -t -o '~{af_only_vcf_idx}' '~{af_only_vcf}'
 
         # Clean up temporary files
         rm -f '~{tmp_vcf}' '~{uncompressed_vcf}'
@@ -358,15 +358,15 @@ task SelectPileups {
         set -e
 
         # Extract leading comment lines
-        grep '^#' ~{pileup_summaries} > ~{output_file}
+        grep '^#' '~{pileup_summaries}' > '~{output_file}'
 
         # Extract column headers
-        grep -v '^#' ~{pileup_summaries} | head -n 1 >> ~{output_file}
+        grep -v '^#' '~{pileup_summaries}' | head -n 1 >> '~{output_file}'
 
         # Extract table and select lines with read depth >= min_read_depth
-        grep -v '^#' ~{pileup_summaries} | tail -n +2 \
+        grep -v '^#' '~{pileup_summaries}' | tail -n +2 \
             | awk -F"\t" '~{dollar}3 + ~{dollar}4 + ~{dollar}5 >= ~{minimum_read_depth}' \
-            >> ~{output_file}
+            >> '~{output_file}'
     >>>
 
     output {
