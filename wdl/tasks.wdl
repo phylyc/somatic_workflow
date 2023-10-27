@@ -348,6 +348,53 @@ task MergeVCFs {
     }
 }
 
+task MergeMAFs {
+    # This tasks assumes that all mafs have the same header (weak) and the same column order (strong).
+
+	input {
+        Array[File] mafs
+        String output_name
+
+        Runtime runtime_params
+    }
+
+    String output_maf = output_name + ".maf"
+    String dollar = "$"
+
+    command <<<
+        set -e
+
+        # Convert WDL array to shell array (file names may contain spaces)
+        read -ra mafs <<< "~{sep=" " mafs}"
+
+        # Extract leading comment lines from first file
+        grep "^#" '~{dollar}{mafs[0]}' > '~{output_maf}'
+
+        # Extract column headers from first file
+        grep -v '^#' '~{dollar}{mafs[0]}' | head -n 1 >> '~{output_maf}'
+
+        # Extract variants
+        for maf in "~{dollar}{mafs[@]}" ; do
+            grep -v "^#" '~{dollar}maf' | tail -n +2 >> '~{output_maf}'
+        done
+    >>>
+
+    output {
+    	File merged_maf = output_maf
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+}
+
 task MergeBams {
     input {
         File ref_fasta

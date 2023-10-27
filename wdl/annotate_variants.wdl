@@ -7,10 +7,11 @@ import "tasks.wdl"
     
 workflow AnnotateVariants {
     input {
+        File? interval_list
+        Array[File]? scattered_interval_list
         File ref_fasta
         File ref_fasta_index
         File ref_dict
-        File? interval_list
 
         File vcf
         File vcf_idx
@@ -19,7 +20,7 @@ workflow AnnotateVariants {
         Array[Sample] samples
 
         String reference_version = "hg19"
-        String output_format = "MAF"
+        String output_format = "MAF"  # MAF or VCF
         String variant_type = "somatic"  # alternative: germline
         String transcript_selection_mode = "CANONICAL"  # GATK default: "CANONICAL"
         File? transcript_list
@@ -35,8 +36,11 @@ workflow AnnotateVariants {
 
         Runtime select_variants_runtime = Runtimes.select_variants_runtime
         Runtime funcotate_runtime = Runtimes.funcotate_runtime
+        Runtime merge_vcfs_runtime = Runtimes.merge_vcfs_runtime
+        Runtime merge_mafs_runtime = Runtimes.merge_mafs_runtime
 
         String gatk_docker = "broadinstitute/gatk"
+        String ubuntu_docker = "ubuntu"
         File? gatk_override
         Int preemptible = 1
         Int max_retries = 1
@@ -45,14 +49,22 @@ workflow AnnotateVariants {
 
         Int mem_select_variants = 1024
         Int mem_funcotate = 6144
+        Int mem_merge_vcfs = 2048
+        Int mem_merge_mafs = 256
         Int time_startup = 10
         Int time_select_variants = 5
-        Int time_funcotate = 500  # 8 h
+        Int time_funcotate = 500  # 8 h / scatter_count
+        Int time_merge_vcfs = 5
+        Int time_merge_mafs = 5
     }
+
+    Int scatter_count = if defined(scattered_interval_list) then length(select_first([scattered_interval_list])) else 1
 
     call runtimes.DefineRuntimes as Runtimes {
         input:
+            scatter_count = scatter_count,
             gatk_docker = gatk_docker,
+            ubuntu_docker = ubuntu_docker,
             gatk_override = gatk_override,
             max_retries = max_retries,
             preemptible = preemptible,
@@ -60,9 +72,13 @@ workflow AnnotateVariants {
             disk_sizeGB = disk_sizeGB,
             mem_select_variants = mem_select_variants,
             mem_funcotate = mem_funcotate,
+            mem_merge_vcfs = mem_merge_vcfs,
+            mem_merge_mafs = mem_merge_mafs,
             time_startup = time_startup,
             time_select_variants = time_select_variants,
-            time_funcotate = time_funcotate
+            time_funcotate = time_funcotate,
+            time_merge_vcfs = time_merge_vcfs,
+            time_merge_mafs = time_merge_mafs
     }
 
     scatter (sample in samples) {
@@ -90,49 +106,74 @@ workflow AnnotateVariants {
             String? matched_normal_sample_name = select_first(normal_sample_name)
         }
 
-        call tasks.SelectVariants as SelectSampleVariants {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                tumor_sample_name = sample.bam_sample_name,
-                normal_sample_name = matched_normal_bam_name,
-                compress_output = compress_output,
-                select_variants_extra_args = select_variants_extra_args,
-                runtime_params = select_variants_runtime
+        Array[File] scattered_intervals = select_all(select_first([scattered_interval_list, [interval_list]]))
+        scatter (intervals in scattered_intervals) {
+            call tasks.SelectVariants as SelectSampleVariants {
+                input:
+                    interval_list = intervals,
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    tumor_sample_name = sample.bam_sample_name,
+                    normal_sample_name = matched_normal_bam_name,
+                    compress_output = compress_output,
+                    select_variants_extra_args = select_variants_extra_args,
+                    runtime_params = select_variants_runtime
+            }
+
+            call Funcotate {
+                input:
+                    ref_fasta = ref_fasta,
+                    ref_fasta_index = ref_fasta_index,
+                    ref_dict = ref_dict,
+                    interval_list = intervals,
+                    vcf = SelectSampleVariants.selected_vcf,
+                    vcf_idx = SelectSampleVariants.selected_vcf_idx,
+                    individual_id = individual_id,
+                    tumor_sample_name = sample.assigned_sample_name,
+                    normal_sample_name = matched_normal_sample_name,
+                    reference_version = reference_version,
+                    output_base_name = sample.assigned_sample_name + ".annotated",
+                    output_format = output_format,
+                    variant_type = variant_type,
+                    transcript_selection_mode = transcript_selection_mode,
+                    transcript_list = transcript_list,
+                    data_sources_tar_gz = data_sources_tar_gz,
+                    use_gnomad = use_gnomad,
+                    compress_output = compress_output,
+                    data_sources_paths = data_sources_paths,
+                    annotation_defaults = annotation_defaults,
+                    annotation_overrides = annotation_overrides,
+                    exclude_fields = exclude_fields,
+                    funcotate_extra_args = funcotate_extra_args,
+                    runtime_params = funcotate_runtime
+            }
         }
 
-        call Funcotate {
-            input:
-                ref_fasta = ref_fasta,
-                ref_fasta_index = ref_fasta_index,
-                ref_dict = ref_dict,
-                interval_list = interval_list,
-                vcf = SelectSampleVariants.selected_vcf,
-                vcf_idx = SelectSampleVariants.selected_vcf_idx,
-                individual_id = individual_id,
-                tumor_sample_name = sample.assigned_sample_name,
-                normal_sample_name = matched_normal_sample_name,
-                reference_version = reference_version,
-                output_base_name = sample.assigned_sample_name + ".annotated",
-                output_format = output_format,
-                variant_type = variant_type,
-                transcript_selection_mode = transcript_selection_mode,
-                transcript_list = transcript_list,
-                data_sources_tar_gz = data_sources_tar_gz,
-                use_gnomad = use_gnomad,
-                compress_output = compress_output,
-                data_sources_paths = data_sources_paths,
-                annotation_defaults = annotation_defaults,
-                annotation_overrides = annotation_overrides,
-                exclude_fields = exclude_fields,
-                funcotate_extra_args = funcotate_extra_args,
-                runtime_params = funcotate_runtime
+        if (output_format == "VCF") {
+            call tasks.MergeVCFs {
+                input:
+                    vcfs = Funcotate.annotations,
+                    vcfs_idx = select_all(Funcotate.annotations_idx),
+                    output_name = sample.assigned_sample_name + ".annotated",
+                    runtime_params = merge_vcfs_runtime
+            }
         }
+        if (output_format == "MAF") {
+            call tasks.MergeMAFs {
+                input:
+                    mafs = Funcotate.annotations,
+                    output_name = sample.assigned_sample_name + ".annotated",
+                    runtime_params = merge_mafs_runtime
+            }
+        }
+
+        File annotations = select_first(select_all([MergeVCFs.merged_vcf, MergeMAFs.merged_maf]))
+        File? annotations_idx = MergeVCFs.merged_vcf_idx
     }
 
     output {
-        Array[File] annotated_variants = Funcotate.annotations
-        Array[File?] annotated_variants_idx = Funcotate.annotations_idx
+        Array[File] annotated_variants = annotations
+        Array[File?] annotated_variants_idx = annotations_idx
     }
 }
 

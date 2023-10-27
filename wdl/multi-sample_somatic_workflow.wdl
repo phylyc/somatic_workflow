@@ -55,8 +55,8 @@ workflow MultiSampleSomaticWorkflow {
         Boolean run_variant_filter = true
         Boolean run_realignment_filter = true
         Boolean run_realignment_filter_only_on_high_confidence_variants = false
-        Boolean run_final_pileup_summaries = true
         Boolean run_annotate_variants = true
+        Boolean run_final_pileup_summaries = false
 
         Boolean keep_germline = true
         Boolean compress_output = true
@@ -103,8 +103,10 @@ workflow MultiSampleSomaticWorkflow {
         # Needs docker image with bedtools, samtools, and gatk
         # todo: find smaller image. This one takes ~13 mins to spin up.
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB
-        String gatk_docker = "broadinstitute/gatk"
+        String gatk_docker = "broadinstitute/gatk:4.3.0.0"
         String bcftools_docker = "staphb/bcftools"
+#        String whathap_docker = "hangsuunc/whatshap:v1"
+#        String shapeit_docker = "yussab/shapeit4:4.2.2"
         String ubuntu_docker = "ubuntu"
         File? gatk_override
         Int preemptible = 1
@@ -116,7 +118,7 @@ workflow MultiSampleSomaticWorkflow {
         Int mem_additional_per_sample = 256  # this depends on bam size (WES vs WGS)
         Int mem_get_sample_name = 256
         Int mem_preprocess_intervals = 2048
-        Int mem_split_intervals = 256
+        Int mem_split_intervals = 512
         Int mem_collect_covered_regions = 8192
         Int mem_collect_read_counts = 2048
         Int mem_denoise_read_counts = 2048
@@ -130,6 +132,7 @@ workflow MultiSampleSomaticWorkflow {
         Int mem_select_variants = 2048
         Int mem_filter_alignment_artifacts_base = 2048  # needs to be increased in some cases
         Int mem_merge_vcfs = 2048
+        Int mem_merge_mafs = 256
         Int mem_merge_mutect_stats = 256 # 64
         Int mem_merge_bams = 8192  # wants at least 6G
         Int mem_cnn_scoring = 4096
@@ -154,12 +157,12 @@ workflow MultiSampleSomaticWorkflow {
         Int time_select_variants = 5
         Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count
         Int time_merge_vcfs = 10
+        Int time_merge_mafs = 5
         Int time_merge_mutect_stats = 1
         Int time_merge_bams = 60
         Int time_cnn_scoring = 10
         Int time_funcotate = 500  # 8 h
 
-        # Increasing cpus likely increases costs by the same factor.
         Int cpu = 1
         Int cpu_variant_call = 1  # good for PairHMM: 2
         Int cpu_filter_alignment_artifacts = 1  # good for PairHMM: 4
@@ -204,6 +207,7 @@ workflow MultiSampleSomaticWorkflow {
             mem_select_variants = mem_select_variants,
             mem_filter_alignment_artifacts_base = mem_filter_alignment_artifacts_base,
             mem_merge_vcfs = mem_merge_vcfs,
+            mem_merge_mafs = mem_merge_mafs,
             mem_merge_mutect_stats = mem_merge_mutect_stats,
             mem_merge_bams = mem_merge_bams,
             mem_cnn_scoring = mem_cnn_scoring,
@@ -226,6 +230,7 @@ workflow MultiSampleSomaticWorkflow {
             time_select_variants = time_select_variants,
             time_filter_alignment_artifacts_total = time_filter_alignment_artifacts_total,
             time_merge_vcfs = time_merge_vcfs,
+            time_merge_mafs = time_merge_mafs,
             time_merge_mutect_stats = time_merge_mutect_stats,
             time_merge_bams = time_merge_bams,
             time_cnn_scoring = time_cnn_scoring,
@@ -533,10 +538,10 @@ workflow MultiSampleSomaticWorkflow {
     if (run_annotate_variants) {
         call av.AnnotateVariants {
             input:
+                scattered_interval_list = SplitIntervals.interval_files,
                 ref_fasta = ref_fasta,
                 ref_fasta_index = ref_fasta_index,
                 ref_dict = ref_dict,
-                interval_list = PreprocessIntervals.preprocessed_interval_list,
                 vcf = select_first([FilterVariants.filtered_vcf, CallVariants.vcf]),
                 vcf_idx = select_first([FilterVariants.filtered_vcf_idx, CallVariants.vcf_idx]),
                 individual_id = individual_id,
@@ -559,6 +564,8 @@ workflow MultiSampleSomaticWorkflow {
 
                 select_variants_runtime = Runtimes.select_variants_runtime,
                 funcotate_runtime = Runtimes.funcotate_runtime,
+                merge_vcfs_runtime = Runtimes.merge_vcfs_runtime,
+                merge_mafs_runtime = Runtimes.merge_mafs_runtime,
         }
     }
 

@@ -1,4 +1,11 @@
 version development
+
+# Asking for a machine on gcp with specified cpu and memory will make gcp provide
+# a machine with AT LEAST that much cpu and memory. E.g. a request for a machine
+# with 4 cpus and 64GB mem can result in a delivered machine with 10 cpus. Thus,
+# tasks should not necessarily request a specific number of threads, but use
+# $(nproc) instead. That said, tasks with more threads might need higher memory.
+
     
 struct Runtime {
     String docker
@@ -126,9 +133,13 @@ workflow DefineRuntimes {
         Int time_variant_call_total = 10000  # 6 d / scatter_count
         Int disk_variant_call = 0
 
-        # gatk: MergeVcfs
+        # gatk: MergeVCFs
         Int mem_merge_vcfs = 256
         Int time_merge_vcfs = 10
+
+        # gatk: MergeMAFs
+        Int mem_merge_mafs = 256
+        Int time_merge_mafs = 5
 
         # gatk: MergeMutectStats
         Int mem_merge_mutect_stats = 256 # 64
@@ -171,7 +182,7 @@ workflow DefineRuntimes {
     }
 
     Int gatk_override_size = ceil(size(gatk_override, "GB"))
-    Int disk = 1 + gatk_override_size + disk_sizeGB
+    Int disk = 2 + gatk_override_size + disk_sizeGB
 
     Runtime get_sample_name = {
         "docker": gatk_docker,
@@ -355,6 +366,18 @@ workflow DefineRuntimes {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime merge_mafs = {
+        "docker": ubuntu_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_merge_mafs + mem_machine_overhead,
+        "command_mem": mem_merge_mafs,
+        "runtime_minutes": time_startup + time_merge_mafs,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Runtime merge_mutect_stats = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
@@ -442,7 +465,7 @@ workflow DefineRuntimes {
         "cpu": cpu,
         "machine_mem": mem_funcotate + mem_machine_overhead,
         "command_mem": mem_funcotate,
-        "runtime_minutes": time_startup + time_funcotate,
+        "runtime_minutes": time_startup + ceil(time_funcotate / scatter_count),
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -475,6 +498,7 @@ workflow DefineRuntimes {
         Runtime variant_call_runtime = variant_call
         Runtime learn_read_orientation_model_runtime = learn_read_orientation_model
         Runtime merge_vcfs_runtime = merge_vcfs
+        Runtime merge_mafs_runtime = merge_mafs
         Runtime merge_mutect_stats_runtime = merge_mutect_stats
         Runtime merge_bams_runtime = merge_bams
         Runtime filter_mutect_calls_runtime = filter_mutect_calls
