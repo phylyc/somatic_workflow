@@ -130,10 +130,10 @@ workflow MultiSampleSomaticWorkflow {
         Int mem_calculate_contamination = 8192  # depends on the variants_for_contamination resource
         Int mem_filter_mutect_calls = 4096
         Int mem_select_variants = 2048
-        Int mem_filter_alignment_artifacts_base = 2048  # needs to be increased in some cases
+        Int mem_filter_alignment_artifacts_base = 2048 # needs to be increased in some cases
         Int mem_merge_vcfs = 2048
         Int mem_merge_mafs = 256
-        Int mem_merge_mutect_stats = 256 # 64
+        Int mem_merge_mutect_stats = 512 # 64
         Int mem_merge_bams = 8192  # wants at least 6G
         Int mem_cnn_scoring = 4096
         Int mem_funcotate = 6144
@@ -161,7 +161,7 @@ workflow MultiSampleSomaticWorkflow {
         Int time_merge_mutect_stats = 1
         Int time_merge_bams = 60
         Int time_cnn_scoring = 10
-        Int time_funcotate = 500  # 8 h
+        Int time_funcotate = 720  # 12 h
 
         Int cpu = 1
         Int cpu_variant_call = 1  # good for PairHMM: 2
