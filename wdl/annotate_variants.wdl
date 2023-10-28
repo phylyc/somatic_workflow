@@ -17,7 +17,11 @@ workflow AnnotateVariants {
         File vcf_idx
 
         String? individual_id
-        Array[Sample] samples
+        Array[Sample]? samples
+        Array[String]? tumor_bam_names
+        Array[String]? tumor_sample_names
+        Array[String]? normal_bam_names
+        Array[String]? normal_sample_names
 
         String reference_version = "hg19"
         String output_format = "MAF"  # MAF or VCF
@@ -81,30 +85,48 @@ workflow AnnotateVariants {
             time_merge_mafs = time_merge_mafs
     }
 
-    scatter (sample in samples) {
-        if (sample.is_tumor) {
-            String? tumor_bam_name = sample.bam_sample_name
-            String? tumor_sample_name = sample.assigned_sample_name
-        }
-        if (!sample.is_tumor) {
-            String? normal_bam_name = sample.bam_sample_name
-            String? normal_sample_name = sample.assigned_sample_name
+    if (defined(samples)) {
+        scatter (sample in select_first([samples])) {
+            if (sample.is_tumor) {
+                String? tumor_bam_name = sample.bam_sample_name
+                String? tumor_sample_name = sample.assigned_sample_name
+            }
+            if (!sample.is_tumor) {
+                String? normal_bam_name = sample.bam_sample_name
+                String? normal_sample_name = sample.assigned_sample_name
+            }
         }
     }
 
-    scatter (sample in samples) {
-        # We select the first normal sample to be the matched normal.
-        # todo: select normal with greatest sequencing depth
+    Array[String] t_bam_names = select_all(select_first([tumor_bam_name, tumor_bam_names]))
+    Array[String] t_sample_names = select_all(select_first([tumor_sample_name, tumor_sample_names]))
+    Array[String] n_bam_names = select_all(select_first([normal_bam_name, normal_bam_names]))
+    Array[String] n_sample_names = select_all(select_first([normal_sample_name, normal_sample_names]))
+
+    Array[String] bam_names = flatten([t_bam_names, n_bam_names])
+    Array[String] sample_names =  flatten([t_sample_names, n_sample_names])
+
+#    scatter (sample in samples) {
+    scatter (sample in zip(bam_names, sample_names)) {
+        String bam_name = sample.left
+        String sample_name = sample.right
         # The default CNNScoreVariant model should not be used on VCFs with
         # annotations from a joint call-set. If the user chooses to run the CNN model,
         # we remove the matched normal sample from the VCF annotations. This only
         # results in the normal sample allelic coverage not being available for each
         # annotated variant.
 
-        if (length(select_all(normal_bam_name)) > 0 && sample.is_tumor) {
-            String? matched_normal_bam_name = select_first(normal_bam_name)
-            String? matched_normal_sample_name = select_first(normal_sample_name)
+        # We select the first normal sample to be the matched normal.
+        # todo: select normal with greatest sequencing depth
+        if (length(n_bam_names) > 0 && bam_name != select_first(n_bam_names)) {
+            String? matched_normal_bam_name = select_first(n_bam_names)
+            String? matched_normal_sample_name = select_first(n_sample_names)
         }
+
+#        if (length(select_all(normal_bam_name)) > 0 && sample.is_tumor) {
+#            String? matched_normal_bam_name = select_first(normal_bam_name)
+#            String? matched_normal_sample_name = select_first(normal_sample_name)
+#        }
 
         Array[File] scattered_intervals = select_all(select_first([scattered_interval_list, [interval_list]]))
         scatter (intervals in scattered_intervals) {
@@ -113,7 +135,7 @@ workflow AnnotateVariants {
                     interval_list = intervals,
                     vcf = vcf,
                     vcf_idx = vcf_idx,
-                    tumor_sample_name = sample.bam_sample_name,
+                    tumor_sample_name = bam_name,
                     normal_sample_name = matched_normal_bam_name,
                     compress_output = compress_output,
                     select_variants_extra_args = select_variants_extra_args,
@@ -129,10 +151,10 @@ workflow AnnotateVariants {
                     vcf = SelectSampleVariants.selected_vcf,
                     vcf_idx = SelectSampleVariants.selected_vcf_idx,
                     individual_id = individual_id,
-                    tumor_sample_name = sample.assigned_sample_name,
+                    tumor_sample_name = sample_name,
                     normal_sample_name = matched_normal_sample_name,
                     reference_version = reference_version,
-                    output_base_name = sample.assigned_sample_name + ".annotated",
+                    output_base_name = sample_name + ".annotated",
                     output_format = output_format,
                     variant_type = variant_type,
                     transcript_selection_mode = transcript_selection_mode,
@@ -154,7 +176,7 @@ workflow AnnotateVariants {
                 input:
                     vcfs = Funcotate.annotations,
                     vcfs_idx = select_all(Funcotate.annotations_idx),
-                    output_name = sample.assigned_sample_name + ".annotated",
+                    output_name = sample_name + ".annotated",
                     runtime_params = merge_vcfs_runtime
             }
         }
@@ -162,7 +184,7 @@ workflow AnnotateVariants {
             call tasks.MergeMAFs {
                 input:
                     mafs = Funcotate.annotations,
-                    output_name = sample.assigned_sample_name + ".annotated",
+                    output_name = sample_name + ".annotated",
                     runtime_params = merge_mafs_runtime
             }
         }
@@ -208,7 +230,7 @@ task Funcotate {
         Runtime runtime_params
     }
 
-    # TODO: Annotate genotype / phase
+    # TODO: Annotate phase
 
     parameter_meta {
         ref_fasta: {localization_optional: true}
