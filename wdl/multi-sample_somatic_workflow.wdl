@@ -536,36 +536,45 @@ workflow MultiSampleSomaticWorkflow {
     }
 
     if (run_annotate_variants) {
-        call av.AnnotateVariants {
-            input:
-                scattered_interval_list = SplitIntervals.interval_files,
-                ref_fasta = ref_fasta,
-                ref_fasta_index = ref_fasta_index,
-                ref_dict = ref_dict,
-                vcf = select_first([FilterVariants.filtered_vcf, CallVariants.vcf]),
-                vcf_idx = select_first([FilterVariants.filtered_vcf_idx, CallVariants.vcf_idx]),
-                individual_id = individual_id,
-                samples = Patient.samples,
+        scatter (sample in Patient.samples) {
+            if (sample.is_tumor && Patient.has_normal) {
+                # We select the first normal sample to be the matched normal.
+                # todo: select normal with greatest sequencing depth
+                Sample? matched_normal_sample = select_first(Patient.normal_samples)
+            }
 
-                reference_version = funcotator_reference_version,
-                output_format = funcotator_output_format,
-                variant_type = funcotator_variant_type,
-                transcript_selection_mode = funcotator_transcript_selection_mode,
-                transcript_list = funcotator_transcript_list,
-                data_sources_tar_gz = funcotator_data_sources_tar_gz,
-                use_gnomad = funcotator_use_gnomad,
-                compress_output = compress_output,
-                data_sources_paths = funcotator_data_sources_paths,
-                annotation_defaults = funcotator_annotation_defaults,
-                annotation_overrides = funcotator_annotation_overrides,
-                exclude_fields = funcotator_exclude_fields,
-                select_variants_extra_args = select_variants_extra_args,
-                funcotate_extra_args = funcotate_extra_args,
+            call av.AnnotateVariants {
+                input:
+                    scattered_interval_list = SplitIntervals.interval_files,
+                    ref_fasta = ref_fasta,
+                    ref_fasta_index = ref_fasta_index,
+                    ref_dict = ref_dict,
+                    vcf = select_first([FilterVariants.filtered_vcf, CallVariants.vcf]),
+                    vcf_idx = select_first([FilterVariants.filtered_vcf_idx, CallVariants.vcf_idx]),
+                    individual_id = individual_id,
+                    tumor_sample = sample,
+                    matched_normal_sample = matched_normal_sample,
 
-                select_variants_runtime = Runtimes.select_variants_runtime,
-                funcotate_runtime = Runtimes.funcotate_runtime,
-                merge_vcfs_runtime = Runtimes.merge_vcfs_runtime,
-                merge_mafs_runtime = Runtimes.merge_mafs_runtime,
+                    reference_version = funcotator_reference_version,
+                    output_format = funcotator_output_format,
+                    variant_type = funcotator_variant_type,
+                    transcript_selection_mode = funcotator_transcript_selection_mode,
+                    transcript_list = funcotator_transcript_list,
+                    data_sources_tar_gz = funcotator_data_sources_tar_gz,
+                    use_gnomad = funcotator_use_gnomad,
+                    compress_output = compress_output,
+                    data_sources_paths = funcotator_data_sources_paths,
+                    annotation_defaults = funcotator_annotation_defaults,
+                    annotation_overrides = funcotator_annotation_overrides,
+                    exclude_fields = funcotator_exclude_fields,
+                    select_variants_extra_args = select_variants_extra_args,
+                    funcotate_extra_args = funcotate_extra_args,
+
+                    select_variants_runtime = Runtimes.select_variants_runtime,
+                    funcotate_runtime = Runtimes.funcotate_runtime,
+                    merge_vcfs_runtime = Runtimes.merge_vcfs_runtime,
+                    merge_mafs_runtime = Runtimes.merge_mafs_runtime,
+            }
         }
     }
 

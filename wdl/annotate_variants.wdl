@@ -17,11 +17,12 @@ workflow AnnotateVariants {
         File vcf_idx
 
         String? individual_id
-        Array[Sample]? samples
-        Array[String]? tumor_bam_names
-        Array[String]? tumor_sample_names
-        Array[String]? normal_bam_names
-        Array[String]? normal_sample_names
+        Sample? tumor_sample
+        Sample? matched_normal_sample
+        String? tumor_bam_name
+        String? tumor_sample_name
+        String? normal_bam_name
+        String? normal_sample_name
 
         String reference_version = "hg19"
         String output_format = "MAF"  # MAF or VCF
@@ -62,6 +63,8 @@ workflow AnnotateVariants {
         Int time_merge_mafs = 5
     }
 
+    # todo: assert either tumor_sample or tumor_bam_name and tumor_sample_name is defined
+
     Int scatter_count = if defined(scattered_interval_list) then length(select_first([scattered_interval_list])) else 1
 
     call runtimes.DefineRuntimes as Runtimes {
@@ -85,117 +88,84 @@ workflow AnnotateVariants {
             time_merge_mafs = time_merge_mafs
     }
 
-    if (defined(samples)) {
-        scatter (sample in select_first([samples])) {
-            if (sample.is_tumor) {
-                String? tumor_bam_name = sample.bam_sample_name
-                String? tumor_sample_name = sample.assigned_sample_name
-            }
-            if (!sample.is_tumor) {
-                String? normal_bam_name = sample.bam_sample_name
-                String? normal_sample_name = sample.assigned_sample_name
-            }
+    if (defined(tumor_sample)) {
+        Sample this_tumor_sample = select_first([tumor_sample])
+        String? this_tumor_bam_name = this_tumor_sample.bam_sample_name
+        String? this_tumor_sample_name = this_tumor_sample.assigned_sample_name
+    }
+    String bam_name = select_first([this_tumor_bam_name, tumor_bam_name])
+    String sample_name = select_first([this_tumor_sample_name, tumor_sample_name])
+    if (defined(matched_normal_sample)) {
+        Sample this_matched_normal_sample = select_first([matched_normal_sample])
+        String? this_matched_normal_bam_name = this_matched_normal_sample.bam_sample_name
+        String? this_matched_normal_sample_name = this_matched_normal_sample.assigned_sample_name
+    }
+    String? matched_normal_bam_name = select_first([this_matched_normal_bam_name, normal_bam_name])
+    String? matched_normal_sample_name = select_first([this_matched_normal_sample_name, normal_sample_name])
+
+    scatter (intervals in select_all(select_first([scattered_interval_list, [interval_list]]))) {
+        call tasks.SelectVariants as SelectSampleVariants {
+            input:
+                interval_list = intervals,
+                vcf = vcf,
+                vcf_idx = vcf_idx,
+                tumor_sample_name = bam_name,
+                normal_sample_name = matched_normal_bam_name,
+                compress_output = compress_output,
+                select_variants_extra_args = select_variants_extra_args,
+                runtime_params = select_variants_runtime
+        }
+
+        call Funcotate {
+            input:
+                ref_fasta = ref_fasta,
+                ref_fasta_index = ref_fasta_index,
+                ref_dict = ref_dict,
+                interval_list = intervals,
+                vcf = SelectSampleVariants.selected_vcf,
+                vcf_idx = SelectSampleVariants.selected_vcf_idx,
+                individual_id = individual_id,
+                tumor_sample_name = sample_name,
+                normal_sample_name = matched_normal_sample_name,
+                reference_version = reference_version,
+                output_base_name = sample_name + ".annotated",
+                output_format = output_format,
+                variant_type = variant_type,
+                transcript_selection_mode = transcript_selection_mode,
+                transcript_list = transcript_list,
+                data_sources_tar_gz = data_sources_tar_gz,
+                use_gnomad = use_gnomad,
+                compress_output = compress_output,
+                data_sources_paths = data_sources_paths,
+                annotation_defaults = annotation_defaults,
+                annotation_overrides = annotation_overrides,
+                exclude_fields = exclude_fields,
+                funcotate_extra_args = funcotate_extra_args,
+                runtime_params = funcotate_runtime
         }
     }
 
-    Array[String] t_bam_names = select_all(select_first([tumor_bam_name, tumor_bam_names]))
-    Array[String] t_sample_names = select_all(select_first([tumor_sample_name, tumor_sample_names]))
-    Array[String] n_bam_names = select_all(select_first([normal_bam_name, normal_bam_names]))
-    Array[String] n_sample_names = select_all(select_first([normal_sample_name, normal_sample_names]))
-
-    Array[String] bam_names = flatten([t_bam_names, n_bam_names])
-    Array[String] sample_names =  flatten([t_sample_names, n_sample_names])
-
-#    scatter (sample in samples) {
-    scatter (sample in zip(bam_names, sample_names)) {
-        String bam_name = sample.left
-        String sample_name = sample.right
-        # The default CNNScoreVariant model should not be used on VCFs with
-        # annotations from a joint call-set. If the user chooses to run the CNN model,
-        # we remove the matched normal sample from the VCF annotations. This only
-        # results in the normal sample allelic coverage not being available for each
-        # annotated variant.
-
-        # We select the first normal sample to be the matched normal.
-        # todo: select normal with greatest sequencing depth
-        if (length(n_bam_names) > 0 && bam_name != select_first(n_bam_names)) {
-            String? matched_normal_bam_name = select_first(n_bam_names)
-            String? matched_normal_sample_name = select_first(n_sample_names)
+    if (output_format == "VCF") {
+        call tasks.MergeVCFs {
+            input:
+                vcfs = Funcotate.annotations,
+                vcfs_idx = select_all(Funcotate.annotations_idx),
+                output_name = sample_name + ".annotated",
+                runtime_params = merge_vcfs_runtime
         }
-
-#        if (length(select_all(normal_bam_name)) > 0 && sample.is_tumor) {
-#            String? matched_normal_bam_name = select_first(normal_bam_name)
-#            String? matched_normal_sample_name = select_first(normal_sample_name)
-#        }
-
-        Array[File] scattered_intervals = select_all(select_first([scattered_interval_list, [interval_list]]))
-        scatter (intervals in scattered_intervals) {
-            call tasks.SelectVariants as SelectSampleVariants {
-                input:
-                    interval_list = intervals,
-                    vcf = vcf,
-                    vcf_idx = vcf_idx,
-                    tumor_sample_name = bam_name,
-                    normal_sample_name = matched_normal_bam_name,
-                    compress_output = compress_output,
-                    select_variants_extra_args = select_variants_extra_args,
-                    runtime_params = select_variants_runtime
-            }
-
-            call Funcotate {
-                input:
-                    ref_fasta = ref_fasta,
-                    ref_fasta_index = ref_fasta_index,
-                    ref_dict = ref_dict,
-                    interval_list = intervals,
-                    vcf = SelectSampleVariants.selected_vcf,
-                    vcf_idx = SelectSampleVariants.selected_vcf_idx,
-                    individual_id = individual_id,
-                    tumor_sample_name = sample_name,
-                    normal_sample_name = matched_normal_sample_name,
-                    reference_version = reference_version,
-                    output_base_name = sample_name + ".annotated",
-                    output_format = output_format,
-                    variant_type = variant_type,
-                    transcript_selection_mode = transcript_selection_mode,
-                    transcript_list = transcript_list,
-                    data_sources_tar_gz = data_sources_tar_gz,
-                    use_gnomad = use_gnomad,
-                    compress_output = compress_output,
-                    data_sources_paths = data_sources_paths,
-                    annotation_defaults = annotation_defaults,
-                    annotation_overrides = annotation_overrides,
-                    exclude_fields = exclude_fields,
-                    funcotate_extra_args = funcotate_extra_args,
-                    runtime_params = funcotate_runtime
-            }
+    }
+    if (output_format == "MAF") {
+        call tasks.MergeMAFs {
+            input:
+                mafs = Funcotate.annotations,
+                output_name = sample_name + ".annotated",
+                runtime_params = merge_mafs_runtime
         }
-
-        if (output_format == "VCF") {
-            call tasks.MergeVCFs {
-                input:
-                    vcfs = Funcotate.annotations,
-                    vcfs_idx = select_all(Funcotate.annotations_idx),
-                    output_name = sample_name + ".annotated",
-                    runtime_params = merge_vcfs_runtime
-            }
-        }
-        if (output_format == "MAF") {
-            call tasks.MergeMAFs {
-                input:
-                    mafs = Funcotate.annotations,
-                    output_name = sample_name + ".annotated",
-                    runtime_params = merge_mafs_runtime
-            }
-        }
-
-        File annotations = select_first(select_all([MergeVCFs.merged_vcf, MergeMAFs.merged_maf]))
-        File? annotations_idx = MergeVCFs.merged_vcf_idx
     }
 
     output {
-        Array[File] annotated_variants = annotations
-        Array[File?] annotated_variants_idx = annotations_idx
+        File annotated_variants = select_first(select_all([MergeVCFs.merged_vcf, MergeMAFs.merged_maf]))
+        File? annotated_variants_idx = MergeVCFs.merged_vcf_idx
     }
 }
 
