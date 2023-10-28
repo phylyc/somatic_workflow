@@ -63,7 +63,7 @@ workflow AnnotateVariants {
         Int time_merge_mafs = 5
     }
 
-    # todo: assert either tumor_sample or tumor_bam_name and tumor_sample_name is defined
+    # todo: assert either interval_list or scattered_interval_list is defined
 
     Int scatter_count = if defined(scattered_interval_list) then length(select_first([scattered_interval_list])) else 1
 
@@ -88,6 +88,8 @@ workflow AnnotateVariants {
             time_merge_mafs = time_merge_mafs
     }
 
+    # todo: assert either tumor_sample or tumor_bam_name and tumor_sample_name is defined
+
     if (defined(tumor_sample)) {
         Sample this_tumor_sample = select_first([tumor_sample])
         String? this_tumor_bam_name = this_tumor_sample.bam_sample_name
@@ -100,8 +102,14 @@ workflow AnnotateVariants {
         String? this_matched_normal_bam_name = this_matched_normal_sample.bam_sample_name
         String? this_matched_normal_sample_name = this_matched_normal_sample.assigned_sample_name
     }
-    String? matched_normal_bam_name = select_first([this_matched_normal_bam_name, normal_bam_name])
-    String? matched_normal_sample_name = select_first([this_matched_normal_sample_name, normal_sample_name])
+    if (defined(this_matched_normal_bam_name) || defined(normal_bam_name)) {
+        String? matched_normal_bam_name = select_first([this_matched_normal_bam_name, normal_bam_name])
+    }
+    if (defined(this_matched_normal_sample_name) || defined(normal_sample_name)) {
+        String? matched_normal_sample_name = select_first([this_matched_normal_sample_name, normal_sample_name])
+    }
+
+    # todo: make interval_lists optional
 
     scatter (intervals in select_all(select_first([scattered_interval_list, [interval_list]]))) {
         call tasks.SelectVariants as SelectSampleVariants {

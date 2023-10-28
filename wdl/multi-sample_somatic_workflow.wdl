@@ -536,6 +536,8 @@ workflow MultiSampleSomaticWorkflow {
     }
 
     if (run_annotate_variants) {
+        # The sample scatter needs to be outside of the call to AnnotateVariants
+        # since cromwell shits the bed for piping optional inputs into a nested scatter.
         scatter (sample in Patient.samples) {
             if (sample.is_tumor && Patient.has_normal) {
                 # We select the first normal sample to be the matched normal.
