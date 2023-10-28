@@ -364,19 +364,24 @@ task MergeMAFs {
     command <<<
         set -e
 
-        # Convert WDL array to shell array (file names may contain spaces)
-        read -ra mafs <<< "~{sep=" " mafs}"
+        # Convert WDL array to a temporary file
+        echo '~{sep='\n' mafs}' > temp_mafs.txt
+
+        # Read temporary file into a shell array
+        mapfile -t mafs < temp_mafs.txt
 
         # Extract leading comment lines from first file
-        grep "^#" '~{dollar}{mafs[0]}' > '~{output_maf}'
+        grep "^#" "~{mafs[0]}" > '~{output_maf}'
 
         # Extract column headers from first file
-        grep -v '^#' '~{dollar}{mafs[0]}' | head -n 1 >> '~{output_maf}'
+        grep -v "^#" "~{mafs[0]}" | head -n 1 >> '~{output_maf}'
 
         # Extract variants
-        for maf in "~{dollar}{mafs[@]}" ; do
-            grep -v "^#" '~{dollar}maf' | tail -n +2 >> '~{output_maf}'
+        for maf in ~{dollar}{mafs[@]} ; do
+            grep -v "^#" "~{dollar}maf" | tail -n +2 >> '~{output_maf}'
         done
+
+        rm -f temp_mafs.txt
     >>>
 
     output {
