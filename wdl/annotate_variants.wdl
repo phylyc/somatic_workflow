@@ -159,6 +159,7 @@ workflow AnnotateVariants {
                 vcfs = Funcotate.annotations,
                 vcfs_idx = select_all(Funcotate.annotations_idx),
                 output_name = sample_name + ".annotated",
+                compress_output = compress_output,
                 runtime_params = merge_vcfs_runtime
         }
     }
@@ -167,6 +168,7 @@ workflow AnnotateVariants {
             input:
                 mafs = Funcotate.annotations,
                 output_name = sample_name + ".annotated",
+                compress_output = compress_output,
                 runtime_params = merge_mafs_runtime
         }
     }
@@ -198,7 +200,7 @@ task Funcotate {
         File? transcript_list
         File? data_sources_tar_gz  # most recent version is downloaded if not chosen
         Boolean use_gnomad = false
-        Boolean compress_output = false
+        Boolean compress_output = false  # ignored if output_format == "MAF"
         Array[String]? data_sources_paths
         Array[String]? annotation_defaults
         Array[String]? annotation_overrides

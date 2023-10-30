@@ -352,13 +352,15 @@ task MergeMAFs {
     # This tasks assumes that all mafs have the same header (weak) and the same column order (strong).
 
 	input {
-        Array[File] mafs
+        Array[File] mafs  # assumes uncompressed
         String output_name
+        Boolean compress_output = false
 
         Runtime runtime_params
     }
 
-    String output_maf = output_name + ".maf"
+    String uncompressed_output_maf = output_name + ".maf"
+    String output_maf = output_name + ".maf" + if compress_output then ".gz" else ""
     String dollar = "$"
 
     command <<<
@@ -371,15 +373,22 @@ task MergeMAFs {
         mapfile -t mafs < temp_mafs.txt
 
         # Extract leading comment lines from first file
-        grep "^#" "~{mafs[0]}" > '~{output_maf}'
+        grep "^#" "~{mafs[0]}" > '~{uncompressed_output_maf}'
 
         # Extract column headers from first file
-        grep -v "^#" "~{mafs[0]}" | head -n 1 >> '~{output_maf}'
+        grep -v "^#" "~{mafs[0]}" | head -n 1 >> '~{uncompressed_output_maf}'
 
         # Extract variants
         for maf in ~{dollar}{mafs[@]} ; do
-            grep -v "^#" "~{dollar}maf" | tail -n +2 >> '~{output_maf}'
+            grep -v "^#" "~{dollar}maf" | tail -n +2 >> '~{uncompressed_output_maf}'
         done
+
+        if ~{compress_output} ; then
+            echo ">> Compressing merged maf."
+            gzip -c '~{uncompressed_output_maf}' > '~{output_maf}'
+            rm -f '~{uncompressed_output_maf}'
+        fi
+        # else: uncompressed_output_maf == output_maf by design
 
         rm -f temp_mafs.txt
     >>>
