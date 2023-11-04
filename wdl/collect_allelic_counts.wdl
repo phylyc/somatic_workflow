@@ -121,6 +121,7 @@ workflow CollectAllelicCounts {
                 input_bam = bam,
                 input_bai = bai,
                 interval_list = interval_list,
+                interval_blacklist = interval_blacklist,
                 output_base_name = output_base_name,
                 variants = select_first([variants, VcfToPileupVariants.variants]),
                 variants_idx = select_first([variants_idx, VcfToPileupVariants.variants_idx]),
