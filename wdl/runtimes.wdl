@@ -88,11 +88,11 @@ workflow DefineRuntimes {
         Int time_get_sample_name = 1
 
         # gatk: PreprocessIntervals
-        Int mem_preprocess_intervals = 2048
+        Int mem_preprocess_intervals = 3072
         Int time_preprocess_intervals = 60
 
         # gatk: SplitIntervals
-        Int mem_split_intervals = 256
+        Int mem_split_intervals = 1024
         Int time_split_intervals = 1
 
         # CollectCoveredRegions
@@ -108,7 +108,7 @@ workflow DefineRuntimes {
         Int time_denoise_read_counts = 120
 
         # VcfToPileupVariants
-        Int mem_vcf_to_pileup_variants = 256
+        Int mem_vcf_to_pileup_variants = 512
         Int time_vcf_to_pileup_variants = 5
 
         # gatk: GetPileupSummaries
@@ -116,33 +116,33 @@ workflow DefineRuntimes {
         Int time_get_pileup_summaries = 4500  # 3 d / scatter_count
 
         # gatk: GatherPileupSummaries
-        Int mem_gather_pileup_summaries = 256  # 64
+        Int mem_gather_pileup_summaries = 512  # 64
         Int time_gather_pileup_summaries = 5
 
         # SelectPileupSummaries
-        Int mem_select_pileup_summaries = 256
+        Int mem_select_pileup_summaries = 512
         Int time_select_pileup_summaries = 5
 
         # gatk: CalculateContamination
-        Int mem_calculate_contamination = 8192  # depends on the variants_for_contamination resource
+        Int mem_calculate_contamination = 3072  # depends on the variants_for_contamination resource
         Int time_calculate_contamination = 10
 
         # gatk: Mutect2
         Int cpu_variant_call = 1  # good for PairHMM: 2
-        Int mem_variant_call_base = 4096
+        Int mem_variant_call_base = 3072
         Int time_variant_call_total = 10000  # 6 d / scatter_count
         Int disk_variant_call = 0
 
         # gatk: MergeVCFs
-        Int mem_merge_vcfs = 256
+        Int mem_merge_vcfs = 2048
         Int time_merge_vcfs = 10
 
         # gatk: MergeMAFs
-        Int mem_merge_mafs = 256
+        Int mem_merge_mafs = 512
         Int time_merge_mafs = 5
 
         # gatk: MergeMutectStats
-        Int mem_merge_mutect_stats = 256 # 64
+        Int mem_merge_mutect_stats = 512 # 64
         Int time_merge_mutect_stats = 1
 
         # gatk: MergeBams
@@ -150,7 +150,7 @@ workflow DefineRuntimes {
         Int time_merge_bams = 60
 
         # gatk: LearnReadOrientationModel
-        Int mem_learn_read_orientation_model_base = 6144
+        Int mem_learn_read_orientation_model_base = 4096
         Int time_learn_read_orientation_model = 180  # 3 h
 
         # gatk: FilterMutectCalls
@@ -159,11 +159,11 @@ workflow DefineRuntimes {
 
         # gatk: FilterAlignmentArtifacts
         Int cpu_filter_alignment_artifacts = 1  # good for PairHMM: 4
-        Int mem_filter_alignment_artifacts_base = 2048  # needs to be increased in some cases
+        Int mem_filter_alignment_artifacts_base = 3072  # needs to be increased in some cases
         Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count
 
         # gatk: SelectVariants
-        Int mem_select_variants = 2048
+        Int mem_select_variants = 3072
         Int time_select_variants = 5
 
         # gatk: CNNScoreVariants
