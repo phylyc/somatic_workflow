@@ -315,6 +315,7 @@ task GatherPileupSummaries {
     #     ref_dict: {localization_optional: true}
     # }
 
+    String sample_id = output_base_name
     String output_file = output_base_name + ".pileup"
 
     command <<<
@@ -325,6 +326,12 @@ task GatherPileupSummaries {
             --sequence-dictionary '~{ref_dict}' \
             ~{sep="' " prefix("-I '", input_tables)}' \
             -O '~{output_file}'
+
+        # Gathering pileup summaries does not propagate the sample name to the output file :(
+        (echo "#<METADATA>SAMPLE=~{sample_id}" && cat '~{output_file}') \
+            > "tmp" \
+            && mv "tmp" '~{output_file}'
+        rm -f "tmp"
     >>>
 
     output {
@@ -356,8 +363,6 @@ task SelectPileups {
     String dollar = "$"
 
     command <<<
-        set -e
-
         # Extract leading comment lines
         grep '^#' '~{pileup_summaries}' > '~{output_file}'
 
