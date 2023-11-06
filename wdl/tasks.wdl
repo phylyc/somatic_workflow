@@ -187,6 +187,7 @@ task SelectVariants {
     String select_variants_output_vcf = output_base_name + ".tmp.vcf"
     String select_variants_output_vcf_idx = select_variants_output_vcf + ".idx"
     String uncompressed_selected_vcf = output_base_name + ".vcf"
+    String uncompressed_selected_vcf_idx = uncompressed_selected_vcf + ".idx"
     String output_vcf = uncompressed_selected_vcf + if compress_output then ".gz" else ""
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
 
@@ -279,7 +280,7 @@ task SelectVariants {
                 IndexFeatureFile \
                 --input '~{output_vcf}' \
                 --output '~{output_vcf_idx}'
-            rm -f '~{uncompressed_selected_vcf}'
+            rm -f '~{uncompressed_selected_vcf}' '~{uncompressed_selected_vcf_idx}'
         fi
     >>>
 
@@ -305,6 +306,9 @@ task MergeVCFs {
     # Consider replacing MergeVcfs with GatherVcfsCloud once the latter is out of beta.
 
 	input {
+        File? ref_fasta
+        File? ref_fasta_index
+        File? ref_dict
         Array[File] vcfs
         Array[File] vcfs_idx
         String output_name
@@ -328,6 +332,8 @@ task MergeVCFs {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             MergeVcfs \
             ~{sep="' " prefix("-I '", vcfs)}' \
+            ~{"-R " + ref_fasta} \
+            ~{"-D " + ref_dict} \
             -O '~{output_vcf}'
     >>>
 
@@ -349,7 +355,8 @@ task MergeVCFs {
 }
 
 task MergeMAFs {
-    # This tasks assumes that all mafs have the same header (weak) and the same column order (strong).
+    # This tasks weakly assumes that all mafs have the same header
+    # and stronly assumes the same column order.
 
 	input {
         Array[File] mafs  # assumes uncompressed

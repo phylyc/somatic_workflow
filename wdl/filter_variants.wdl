@@ -113,6 +113,9 @@ workflow FilterVariants {
 
     call tasks.SelectVariants as SelectPassingVariants {
         input:
+            ref_fasta = ref_fasta,
+            ref_fasta_index = ref_fasta_index,
+            ref_dict = ref_dict,
             vcf = FilterMutectCalls.filtered_vcf,
             vcf_idx = FilterMutectCalls.filtered_vcf_idx,
             select_passing = true,
@@ -134,6 +137,9 @@ workflow FilterVariants {
         if (run_realignment_filter_only_on_high_confidence_variants) {
             call tasks.SelectVariants as SelectLowConfidenceVariants {
                 input:
+                    ref_fasta = ref_fasta,
+                    ref_fasta_index = ref_fasta_index,
+                    ref_dict = ref_dict,
                     vcf = SelectPassingVariants.selected_vcf,
                     vcf_idx = SelectPassingVariants.selected_vcf_idx,
                     compress_output = compress_output,
@@ -143,6 +149,9 @@ workflow FilterVariants {
 
             call tasks.SelectVariants as SelectHighConfidenceVariants {
                 input:
+                    ref_fasta = ref_fasta,
+                    ref_fasta_index = ref_fasta_index,
+                    ref_dict = ref_dict,
                     vcf = SelectPassingVariants.selected_vcf,
                     vcf_idx = SelectPassingVariants.selected_vcf_idx,
                     compress_output = compress_output,
@@ -202,6 +211,9 @@ workflow FilterVariants {
 
         call tasks.SelectVariants as SelectPostRealignmentVariants {
             input:
+                ref_fasta = ref_fasta,
+                ref_fasta_index = ref_fasta_index,
+                ref_dict = ref_dict,
                 vcf = MergeRealignmentFilteredVCFs.merged_vcf,
                 vcf_idx = MergeRealignmentFilteredVCFs.merged_vcf_idx,
                 select_passing = true,
@@ -243,6 +255,9 @@ workflow FilterVariants {
     if (keep_germline) {
         call tasks.SelectVariants as SelectGermlineVariants {
             input:
+                ref_fasta = ref_fasta,
+                ref_fasta_index = ref_fasta_index,
+                ref_dict = ref_dict,
                 vcf = selected_vcf,
                 vcf_idx = selected_vcf_idx,
                 select_passing = false,
@@ -255,6 +270,9 @@ workflow FilterVariants {
 
     call tasks.SelectVariants as SelectSomaticVariants {
         input:
+            ref_fasta = ref_fasta,
+            ref_fasta_index = ref_fasta_index,
+            ref_dict = ref_dict,
             vcf = selected_vcf,
             vcf_idx = selected_vcf_idx,
             select_passing = true,

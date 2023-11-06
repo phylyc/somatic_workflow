@@ -114,6 +114,9 @@ workflow AnnotateVariants {
     scatter (intervals in select_all(select_first([scattered_interval_list, [interval_list]]))) {
         call tasks.SelectVariants as SelectSampleVariants {
             input:
+                ref_fasta = ref_fasta,
+                ref_fasta_index = ref_fasta_index,
+                ref_dict = ref_dict,
                 interval_list = intervals,
                 vcf = vcf,
                 vcf_idx = vcf_idx,
