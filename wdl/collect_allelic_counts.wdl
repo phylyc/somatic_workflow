@@ -328,8 +328,7 @@ task GatherPileupSummaries {
             -O '~{output_file}'
 
         # Gathering pileup summaries does not propagate the sample name to the output file :(
-        (echo "#<METADATA>SAMPLE=~{sample_id}" && cat '~{output_file}') \
-            > "tmp" \
+        (echo "#<METADATA>SAMPLE=~{sample_id}" && cat '~{output_file}') > "tmp" \
             && mv "tmp" '~{output_file}'
         rm -f "tmp"
     >>>
@@ -366,13 +365,13 @@ task SelectPileups {
         # Extract leading comment lines
         grep '^#' '~{pileup_summaries}' > '~{output_file}'
 
+        # Extract column headers
+        grep -v '^#' '~{pileup_summaries}' | head -n 1 >> '~{output_file}'
+
         # Count the number of lines that are not comments (headers)
         num_variants_plus_one=~{dollar}(grep -vc '^#' '~{pileup_summaries}')
 
         if [ "~{dollar}num_variants_plus_one" -gt 1 ]; then
-            # Extract column headers
-            grep -v '^#' '~{pileup_summaries}' | head -n 1 >> '~{output_file}'
-
             # Extract table and select lines with read depth >= min_read_depth
             grep -v '^#' '~{pileup_summaries}' | tail -n +2 \
                 | awk -F"\t" '~{dollar}3 + ~{dollar}4 + ~{dollar}5 >= ~{minimum_read_depth}' \
