@@ -10,10 +10,10 @@ workflow GenotypeVariants {
         String individual_id
         File variants  # SNP panel used to get pileups and estimate contamination
         File variants_idx
-        Array[String] sample_names
+        Array[String]? sample_names
         Array[File] pileups
-        Array[File] contamination_tables
-        Array[File] segmentation_tables
+        Array[File]? contamination_tables
+        Array[File]? segmentation_tables
 
         Int min_read_depth = 10
         Float min_genotype_likelihood = 0.90
@@ -120,7 +120,7 @@ task GenotypeVariants {
             --variant '~{variants}' \
             --patient '~{individual_id}' \
             ~{true="--sample '" false="" defined(sample_names)}~{default="" sep="' --sample '" sample_names}~{true="'" false="" defined(sample_names)} \
-            ~{sep="' " prefix("-I '", pileups)}' \
+            ~{sep="' " prefix("-P '", pileups)}' \
             ~{true="-S '" false="" defined(segmentation_tables)}~{default="" sep="' -S '" segmentation_tables}~{true="'" false="" defined(segmentation_tables)} \
             ~{true="-C '" false="" defined(contamination_tables)}~{default="" sep="' -C '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
             --min_read_depth ~{min_read_depth} \

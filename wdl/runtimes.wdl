@@ -65,7 +65,7 @@ workflow DefineRuntimes {
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
         String ubuntu_docker = "ubuntu"
         String bcftools_docker = "staphb/bcftools"
-        String genotype_docker = jupyter_docker
+        String genotype_docker = "civisanalytics/datascience-python:latest"
         String whathap_docker = "hangsuunc/whatshap:v1"
         String shapeit4_docker = "yussab/shapeit4:4.2.2"
         String shapeit5_docker = "lindonkambule/shapeit5_2023-05-05_d6ce1e2"
