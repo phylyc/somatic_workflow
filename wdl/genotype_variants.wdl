@@ -135,10 +135,11 @@ task GenotypeVariants {
         if ~{save_sample_genotype_likelihoods} ; then
             touch sample_genotype_likelihoods.txt
             for sample in ~{sep=" " sample_names} ; do
-                echo $sample.likelihoods.pileup >> sample_genotype_likelihoods.txt
+                echo "~{output_dir}/~{dollar}sample.likelihoods.pileup" >> sample_genotype_likelihoods_files.txt
             done
         fi
 
+        # tabix not in docker
         touch '~{output_vcf_idx}'
     >>>
 
@@ -149,7 +150,7 @@ task GenotypeVariants {
         File alt_counts = output_alt_counts
         File other_alt_counts = output_other_alt_counts
         File sample_correlation = output_sample_correlation
-        Array[File]? sample_genotype_likelihoods = if save_sample_genotype_likelihoods then read_lines("sample_genotype_likelihoods.txt") else None
+        Array[File]? sample_genotype_likelihoods = if save_sample_genotype_likelihoods then read_lines("sample_genotype_likelihoods_files.txt") else None
     }
 
     runtime {
