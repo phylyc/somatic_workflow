@@ -63,6 +63,7 @@ workflow DefineRuntimes {
         # Needs docker image with bedtools, samtools, and gatk
         # todo: find smaller image. This one takes ~13 mins to spin up.
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB
+        String genotype_docker = jupyter_docker
         String gatk_docker = "broadinstitute/gatk"
         String bcftools_docker = "staphb/bcftools"
         String ubuntu_docker = "ubuntu"
@@ -127,6 +128,10 @@ workflow DefineRuntimes {
         Int mem_calculate_contamination = 3072  # depends on the variants_for_contamination resource
         Int time_calculate_contamination = 10
 
+        # custom genotyping script based on CalculateContamination model
+        Int mem_genotype_variants = 8192
+        Int time_genotype_variants = 30
+
         # gatk: Mutect2
         Int cpu_variant_call = 1  # good for PairHMM: 2
         Int mem_variant_call_base = 3072
@@ -173,7 +178,7 @@ workflow DefineRuntimes {
 
         # gatk: Funcotator
         Int mem_funcotate = 6144
-        Int time_funcotate = 500  # 8 h
+        Int time_funcotate = 1440  # 24 h
 
         # gatk: GenomicsDBImport / CreateSomaticPanelOfNormals
         Int mem_create_panel = 16384
@@ -321,6 +326,18 @@ workflow DefineRuntimes {
         "machine_mem": mem_calculate_contamination + mem_machine_overhead,
         "command_mem": mem_calculate_contamination,
         "runtime_minutes": time_startup + time_calculate_contamination,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime genotype_variants = {
+        "docker": genotype_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_genotype_variants + mem_machine_overhead,
+        "command_mem": mem_genotype_variants,
+        "runtime_minutes": time_startup + time_genotype_variants,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
