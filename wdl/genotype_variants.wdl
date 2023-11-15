@@ -10,7 +10,7 @@ workflow GenotypeVariants {
         String individual_id
         File variants  # SNP panel used to get pileups and estimate contamination
         File variants_idx
-        Array[String]? sample_names
+        Array[String] sample_names
         Array[File] pileups
         Array[File]? contamination_tables
         Array[File]? segmentation_tables
@@ -84,7 +84,7 @@ task GenotypeVariants {
         String individual_id
         File variants  # SNP panel used to get pileups (and estimate contamination)
         File variants_idx
-        Array[String]? sample_names
+        Array[String] sample_names
         Array[File] pileups
         Array[File]? contamination_tables
         Array[File]? segmentation_tables
@@ -103,12 +103,17 @@ task GenotypeVariants {
 
     String output_dir = "output"
 
-    String output_ref_counts = output_dir + "/" + individual_id + ".hets.ref_counts.tsv"
-    String output_alt_counts = output_dir + "/" + individual_id + ".hets.alt_counts.tsv"
-    String output_other_alt_counts = output_dir + "/" + individual_id + ".hets.other_alt_counts.tsv"
+    String output_ref_counts = output_dir + "/" + individual_id + ".hets.ref_count.tsv"
+    String output_alt_counts = output_dir + "/" + individual_id + ".hets.alt_count.tsv"
+    String output_other_alt_counts = output_dir + "/" + individual_id + ".hets.other_alt_count.tsv"
     String output_sample_correlation = output_dir + "/" + individual_id + ".sample_correlation.tsv"
     String output_vcf = output_dir + "/" + individual_id + ".hets.vcf"
     String output_vcf_idx = output_vcf + ".idx"
+    Array[File]? output_sample_genotype_likelihoods = (
+        if save_sample_genotype_likelihoods
+        then suffix(".likelihoods.pileup", sample_names)
+        else None
+    )
 
     String dollar = "$"
 
@@ -119,7 +124,7 @@ task GenotypeVariants {
             --output_dir '~{output_dir}' \
             --variant '~{variants}' \
             --patient '~{individual_id}' \
-            ~{true="--sample '" false="" defined(sample_names)}~{default="" sep="' --sample '" sample_names}~{true="'" false="" defined(sample_names)} \
+            ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("-P '", pileups)}' \
             ~{true="-S '" false="" defined(segmentation_tables)}~{default="" sep="' -S '" segmentation_tables}~{true="'" false="" defined(segmentation_tables)} \
             ~{true="-C '" false="" defined(contamination_tables)}~{default="" sep="' -C '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
@@ -141,7 +146,7 @@ task GenotypeVariants {
         File alt_counts = output_alt_counts
         File other_alt_counts = output_other_alt_counts
         File sample_correlation = output_sample_correlation
-        Array[File]? sample_genotype_likelihoods = glob(output_dir + "/*.likelihoods.pileup")
+        Array[File]? sample_genotype_likelihoods = output_sample_genotype_likelihoods
     }
 
     runtime {
