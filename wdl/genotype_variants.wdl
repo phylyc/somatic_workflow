@@ -109,11 +109,6 @@ task GenotypeVariants {
     String output_sample_correlation = output_dir + "/" + individual_id + ".sample_correlation.tsv"
     String output_vcf = output_dir + "/" + individual_id + ".hets.vcf"
     String output_vcf_idx = output_vcf + ".idx"
-    Array[File]? output_sample_genotype_likelihoods = (
-        if save_sample_genotype_likelihoods
-        then suffix(".likelihoods.pileup", sample_names)
-        else None
-    )
 
     String dollar = "$"
 
@@ -136,6 +131,14 @@ task GenotypeVariants {
             ~{true="--save_sample_genotype_likelihoods " false="" save_sample_genotype_likelihoods} \
             ~{true="--verbose " false="" verbose}
 
+        # Prepare optional array of output files
+        if ~{save_sample_genotype_likelihoods} ; then
+            touch sample_genotype_likelihoods.txt
+            for sample in ~{sep=" " sample_names} ; do
+                echo $sample.likelihoods.pileup >> sample_genotype_likelihoods.txt
+            done
+        fi
+
         touch '~{output_vcf_idx}'
     >>>
 
@@ -146,7 +149,7 @@ task GenotypeVariants {
         File alt_counts = output_alt_counts
         File other_alt_counts = output_other_alt_counts
         File sample_correlation = output_sample_correlation
-        Array[File]? sample_genotype_likelihoods = output_sample_genotype_likelihoods
+        Array[File]? sample_genotype_likelihoods = if save_sample_genotype_likelihoods then read_lines("sample_genotype_likelihoods.txt") else None
     }
 
     runtime {
