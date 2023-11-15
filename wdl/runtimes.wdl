@@ -60,13 +60,15 @@ workflow DefineRuntimes {
         Int num_bams = 1
 
         Int scatter_count = 10
-        # Needs docker image with bedtools, samtools, and gatk
-        # todo: find smaller image. This one takes ~13 mins to spin up.
-        String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB
-        String genotype_docker = jupyter_docker
         String gatk_docker = "broadinstitute/gatk"
-        String bcftools_docker = "staphb/bcftools"
+        # Needs docker image with bedtools, samtools, and gatk
+        String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
         String ubuntu_docker = "ubuntu"
+        String bcftools_docker = "staphb/bcftools"
+        String genotype_docker = jupyter_docker
+        String whathap_docker = "hangsuunc/whatshap:v1"
+        String shapeit4_docker = "yussab/shapeit4:4.2.2"
+        String shapeit5_docker = "lindonkambule/shapeit5_2023-05-05_d6ce1e2"
         File? gatk_override
         Int preemptible = 1
         Int max_retries = 1
@@ -512,6 +514,7 @@ workflow DefineRuntimes {
         Runtime gather_pileup_summaries_runtime = gather_pileup_summaries
         Runtime select_pileup_summaries_runtime = select_pileup_summaries
         Runtime calculate_contamination_runtime = calculate_contamination
+        Runtime genotype_variants_runtime = genotype_variants
         Runtime variant_call_runtime = variant_call
         Runtime learn_read_orientation_model_runtime = learn_read_orientation_model
         Runtime merge_vcfs_runtime = merge_vcfs

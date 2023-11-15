@@ -22,7 +22,7 @@ workflow GenotypeVariants {
         Boolean save_sample_genotype_likelihoods = false
         Boolean verbose = true
 
-        Runtime genotype_variants_runtime = Runtimes.genotype_variants
+        Runtime genotype_variants_runtime = Runtimes.genotype_variants_runtime
 
         String genotype_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"
         Int preemptible = 1
