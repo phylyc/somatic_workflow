@@ -44,6 +44,7 @@ task GetSampleName {
 task PreprocessIntervals {
     input {
         File? interval_list
+        File? interval_blacklist
         Array[File]? interval_lists
         File ref_fasta
         File ref_fasta_index
@@ -65,7 +66,8 @@ task PreprocessIntervals {
             PreprocessIntervals \
             -R '~{ref_fasta}' \
             ~{"-L '" + interval_list + "'"} \
-            ~{true="-I '" false="" defined(interval_lists)}~{default="" sep="' -I '" interval_lists}~{true="'" false="" defined(interval_lists)} \
+            ~{"-XL '" + interval_blacklist + "'"} \
+            ~{true="-L '" false="" defined(interval_lists)}~{default="" sep="' -L '" interval_lists}~{true="'" false="" defined(interval_lists)} \
             --bin-length ~{bin_length} \
             --padding ~{padding} \
             --interval-merging-rule OVERLAPPING_ONLY \
@@ -202,6 +204,7 @@ task SelectVariants {
         else ""
     )
 
+    # todo: make empty input vcf not fail the task
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
