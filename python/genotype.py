@@ -17,19 +17,19 @@ def parse_args():
             It uses allelic pileup data (GATK GetPileupSummaries), segments data (GATK CalculateContamination), and contamination estimates (GATK CalculateContamination), 
             to compute genotype likelihoods under specified models (binomial or beta-binomial). 
             Variant genotype correlation between all samples is computed. 
-            Outputs 1) a VCF with patient genotype information, 2) allelic count matrices for each allele, and (optionally) 3) sample pileups with genotype likelihood annotations.
+            Outputs 1) a VCF with patient genotype information, 2) allelic count matrices for each allele, 3) sample correlation matrix, and (optionally) 4) sample pileups with genotype likelihood annotations.
         """,
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "genotype.py -O <output_dir> -V <variant> --patient <patient> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-S <segments> ...] [-C <contamination> ...] [-M <model>] [-D <min_read_depth>] [-p <min_genotype_likelihood>] [-F <format>] [--select_hets] [--save_sample_genotype_likelihoods] [--verbose]"
+    parser.usage = "genotype.py -O <output_dir> -V <variant> --patient <patient> --sample <sample> [--sample <sample> ...]-P <pileup> [-P <pileup> ...] [-S <segments> ...] [-C <contamination> ...] [-M <model>] [-D <min_read_depth>] [-p <min_genotype_likelihood>] [-F <format>] [--select_hets] [--save_sample_genotype_likelihoods] [--verbose]"
     parser.add_argument("-O", "--output_dir",                   type=str,   required=True,  help="Path to the output directory.")
     parser.add_argument("-V", "--variant",                      type=str,   required=True,  help="A VCF file containing common germline variants and population allele frequencies. (Used to get pileup summaries.)")
     parser.add_argument("--patient",                            type=str,   required=True,  help="Name of the patient.")
+    parser.add_argument("--sample",                             type=str,   required=True,  action="append",    help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file.")
     parser.add_argument("-P", "--pileup",                       type=str,   required=True,  action="append",    help="Path to the allelic pileup input file (output of GATK's GetPileupSummaries; used for CalculateContamination).")
     parser.add_argument("-S", "--segments",                     type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation input file (output of GATK's CalculateContamination).")
     parser.add_argument("-C", "--contamination",                type=str,   default=None,   action="append",    help="Path to the contamination estimate input file (output of GATK's CalculateContamination).")
-    parser.add_argument("--sample",                             type=str,   default=None,   action="append",    help="Assigned name of the sample. Does not have to coincide with the sample name in the other supplied files. If not supplied, it will be inferred from the pileup file name.")
     parser.add_argument("-M", "--model",                        type=str,   default="betabinom", choices=["binom", "betabinom"], help="Genotype likelihood model.")
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
     parser.add_argument("-p", "--min_genotype_likelihood",      type=float, default=0.95,   help="Probability threshold for calling and retaining genotypes.")
@@ -37,7 +37,6 @@ def parse_args():
     parser.add_argument("--select_hets",                                    default=False,  action="store_true", help="Keep only heterozygous sites.")
     parser.add_argument("--save_sample_genotype_likelihoods",               default=False,  action="store_true", help="Save genotype likelihoods to file for each sample.")
     parser.add_argument("--verbose",                                        default=False,  action="store_true", help="Print information to stdout during execution.")
-    # todo: add compress_output option
     return parser.parse_args()
 
 
@@ -50,8 +49,7 @@ def main():
         select_hets=args.select_hets
     )
     pileup_likelihoods = []
-    samples = args.sample if args.sample is not None else [os.path.basename(pileup_file).removesuffix(".pileup") for pileup_file in args.pileup]
-    for assigned_sample_name, pileup_file, segments_file, contamination_file in zip(samples, args.pileup, args.segments, args.contamination):
+    for assigned_sample_name, pileup_file, segments_file, contamination_file in zip(args.sample, args.pileup, args.segments, args.contamination):
         pileup = Pileup(file_path=pileup_file, min_read_depth=args.min_read_depth)
         segments = Segments(file_path=segments_file)
         contamination = Contamination(file_path=contamination_file)
@@ -69,7 +67,7 @@ def main():
         )
     data = GenotypeData(pileup_likelihoods=pileup_likelihoods, variant=args.variant, individual_id=args.patient)
     data.sample_correlation = data.validate_sample_correlation(verbose=args.verbose)
-    data.joint_genotype_likelihood = genotyper.get_joint_genotype_likelihood(pileup_likelihoods=pileup_likelihoods)
+    data.joint_genotype_likelihood = genotyper.get_joint_genotype_likelihood(pileup_likelihoods=data.pileup_likelihoods)
     data.subset_data()
     data.write_output(output_dir=args.output_dir, vcf_format=args.format, args=args)
 
@@ -136,12 +134,15 @@ class PileupLikelihood(object):
     """
 
     def __init__(self, pileup_likelihood: pd.DataFrame, assigned_sample_name: str, bam_sample_name: str):
-        self.df = pileup_likelihood
+        self.df = pileup_likelihood.set_index(["contig", "position"])
         self.assigned_sample_name = assigned_sample_name
         self.bam_sample_name = bam_sample_name
 
     def reindex(self, *args, **kwargs):
         self.df = self.df.reindex(*args, **kwargs)
+        self.df["./."].fillna(1.0, inplace=True)  # Declare missing loci as outliers.
+        self.df.fillna(0, inplace=True)
+        self.df = self.df.astype({"ref_count": int, "alt_count": int, "other_alt_count": int})
         return self
 
 
@@ -260,13 +261,13 @@ class VCF(object):
             if file_path is not None
             else pd.DataFrame(columns=self.columns)
         )
-        self.df = self.df.astype({"CHROM": str, "POS": int, "ID": str, "REF": str, "ALT": str, "QUAL": float, "FILTER": str, "INFO": str})
+        self.df = self.df.astype({"CHROM": str, "POS": int, "ID": str, "REF": str, "ALT": str, "INFO": str})
         # GetPileupSummaries only supports SNVs well.
         # CAUTION: the input vcf may contain multi-allelic sites and other stuff!!!! (removed here)
         snv_mask = (self.df["REF"].apply(len) == 1) & (self.df["ALT"].apply(len) == 1) & ~self.df["REF"].isin(["-", "."]) & ~self.df["ALT"].isin(["-", "."])
         self.df = self.df.loc[snv_mask].drop_duplicates(subset=["CHROM", "POS"], keep=False)
         self.df = self.df.set_index(["CHROM", "POS"])
-        self.df.index.names = ["contig", "position"]  # align to pileup index names
+        self.df.index.names = ["contig", "position"]  # align to PileupLikelihood index names
 
     def get_vcf_sequence_dict(self):
         """
@@ -359,6 +360,10 @@ class GenotypeData(object):
             ],
             axis=1
         ).fillna("./.")
+
+        if sample_genotypes.empty:
+            return pd.DataFrame(columns=[pl.assigned_sample_name for pl in self.pileup_likelihoods])
+
         # Subset to loci with at least one alternate allele in at least one sample.
         sample_genotypes = sample_genotypes.loc[sample_genotypes.apply(lambda row: any(["1" in gt for gt in row.values]), axis=1)]
         sample_genotypes = sample_genotypes.replace("0/0", 0).replace("0/1", 1).replace("1/1", 2).replace("./.", np.nan)
@@ -379,6 +384,26 @@ class GenotypeData(object):
             warnings.warn(message)
         return sample_correlation
 
+    @staticmethod
+    def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
+        """
+        Sorts a MultiIndex by genomic positions ('contig' and 'position' levels).
+
+        Genomic contigs are sorted numerically and then by 'X', 'Y', 'MT'. Positions
+        within contigs are sorted numerically.
+
+        Args:
+            index (pd.MultiIndex): MultiIndex to be sorted, expected to have 'contig' and 'position' levels.
+
+        Returns:
+            pd.MultiIndex: Sorted MultiIndex.
+        """
+        contig_order = [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+        temp_df = pd.DataFrame(index=index).reset_index()
+        temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contig_order, ordered=True)
+        temp_df.sort_values(by=["contig", "position"], inplace=True)
+        return pd.MultiIndex.from_frame(temp_df[["contig", "position"]])
+
     def subset_data(self):
         """
         Subsets the data to the intersection of all pileup and variant input files.
@@ -387,7 +412,12 @@ class GenotypeData(object):
         to both the pileup and variant data.
         """
         index = self.joint_genotype_likelihood.index.join(self.vcf.df.index, how="inner")
+        index = self.sort_genomic_positions(index=index)
         self.pileup_likelihoods = [pl.reindex(index) for pl in self.pileup_likelihoods]
+        # If pileup summaries of one sample do not cover a locus in another pileup,
+        # the allele frequency is set to 0. This is rescuing those allele frequencies:
+        for pl in self.pileup_likelihoods:
+            pl.df["allele_frequency"] = self.joint_genotype_likelihood["allele_frequency"]
         self.joint_genotype_likelihood = self.joint_genotype_likelihood.loc[index]
         self.vcf.df = self.vcf.df.loc[index]
 
@@ -508,25 +538,6 @@ class Genotyper(object):
         self.select_hets = select_hets
 
     @staticmethod
-    def sort_genomic_positions(df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Sorts a DataFrame by genomic positions (contigs and positions).
-
-        Genomic contigs are sorted numerically and then by 'X', 'Y', 'MT'. Positions
-        within contigs are sorted numerically.
-
-        Args:
-            df (pd.DataFrame): DataFrame to be sorted, containing 'contig' and 'position' columns.
-
-        Returns:
-            pd.DataFrame: Sorted DataFrame.
-        """
-        contig_order = [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
-        df["contig"] = pd.Categorical(df["contig"].astype(str), categories=contig_order, ordered=True)
-        by = [col for col in ["contig", "position", "start_pos", "end_pos"] if col in df.columns]
-        return df.sort_values(by=by)
-
-    @staticmethod
     def get_error_prob(pileup: pd.DataFrame, min_error: float = 1e-6, max_error: float = 1e-1) -> float:
         """
         Estimates the error probability based on the pileup data.
@@ -544,7 +555,7 @@ class Genotyper(object):
         """
         other_alt_counts = pileup["other_alt_count"].sum()
         total_counts = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1).sum()
-        return np.clip(1.5 * other_alt_counts / total_counts, a_min=min_error, a_max=max_error)
+        return np.clip(1.5 * other_alt_counts / min(1, total_counts), a_min=min_error, a_max=max_error)
 
     def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, segments: pd.DataFrame = None, contamination: float = 0) -> pd.DataFrame:
         """
@@ -558,6 +569,9 @@ class Genotyper(object):
         Returns:
             pd.DataFrame: DataFrame with genotype likelihoods for each genomic position.
         """
+        if pileup.empty:
+            return pd.DataFrame(columns=["contig", "position", "ref_count", "alt_count", "other_alt_count", "allele_frequency", "0/0", "0/1", "1/1", "./."])
+
         error = self.get_error_prob(pileup=pileup)
 
         likelihoods = []
@@ -586,24 +600,19 @@ class Genotyper(object):
                 )
             )
 
-        genotype_likelihoods = (
-            self.sort_genomic_positions(pd.concat(likelihoods)).astype(
-                {
-                    "contig": str,
-                    "position": int,
-                    "ref_count": int,
-                    "alt_count": int,
-                    "other_alt_count": int,
-                    "0/0": float,
-                    "0/1": float,
-                    "1/1": float,
-                    "./.": float,
-                }
-            )
-            if len(likelihoods)
-            else pd.DataFrame(columns=["contig", "position", "ref_count", "alt_count", "other_alt_count", "0/0", "0/1", "1/1", "./."])
+        genotype_likelihoods = pd.concat(likelihoods).astype(
+            {
+                "contig": str,
+                "position": int,
+                "ref_count": int,
+                "alt_count": int,
+                "other_alt_count": int,
+                "0/0": float,
+                "0/1": float,
+                "1/1": float,
+                "./.": float,
+            }
         )
-        genotype_likelihoods.set_index(["contig", "position"], inplace=True)
         return genotype_likelihoods
 
     def calculate_genotype_likelihoods_per_segment(self, pileup, minor_af: float = 0.5, contamination: float = 0, error: float = 0.01) -> pd.DataFrame:
