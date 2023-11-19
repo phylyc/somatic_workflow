@@ -40,6 +40,7 @@ python -u genotype.py \
   --min_genotype_likelihood 0.95 \
   --model "betabinom" \
   --format "GT:AD:DP:PL" \
+  --threads 4 \
   --save_sample_genotype_likelihoods \
   --verbose \
   > $output_dir/$individual_id.log \

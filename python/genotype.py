@@ -2,6 +2,7 @@ import argparse
 from functools import reduce
 from itertools import combinations
 import gzip
+import multiprocessing as mp
 import numpy as np
 import os
 import pandas as pd
@@ -34,6 +35,7 @@ def parse_args():
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
     parser.add_argument("-p", "--min_genotype_likelihood",      type=float, default=0.95,   help="Probability threshold for calling and retaining genotypes.")
     parser.add_argument("-F", "--format",                       type=str,   default="GT",   help="VCF format field. (GT: genotype; AD: allele depth; DP: total depth; PL: phred-scaled genotype likelihoods.)")
+    parser.add_argument("--threads",                            type=int,   default=1,      help="Number of threads to use for parallelization.")
     parser.add_argument("--select_hets",                                    default=False,  action="store_true", help="Keep only heterozygous sites.")
     parser.add_argument("--save_sample_genotype_likelihoods",               default=False,  action="store_true", help="Save genotype likelihoods to file for each sample.")
     parser.add_argument("--verbose",                                        default=False,  action="store_true", help="Print information to stdout during execution.")
@@ -48,24 +50,17 @@ def main():
         min_genotype_likelihood=args.min_genotype_likelihood,
         select_hets=args.select_hets
     )
-    pileup_likelihoods = []
-    for assigned_sample_name, pileup_file, segments_file, contamination_file in zip(args.sample, args.pileup, args.segments, args.contamination):
-        pileup = Pileup(file_path=pileup_file, min_read_depth=args.min_read_depth)
-        segments = Segments(file_path=segments_file)
-        contamination = Contamination(file_path=contamination_file)
-        bam_sample_name = cross_check_sample_name(pileup, segments, contamination)
-        pileup_likelihoods.append(
-            PileupLikelihood(
-                pileup_likelihood=genotyper.calculate_genotype_likelihoods(
-                    pileup=pileup.df,
-                    segments=segments.df,
-                    contamination=contamination.value,
-                ),
-                assigned_sample_name=assigned_sample_name,
-                bam_sample_name=bam_sample_name
-            )
-        )
-    data = GenotypeData(pileup_likelihoods=pileup_likelihoods, variant=args.variant, individual_id=args.patient)
+    data = GenotypeData(
+        individual_id=args.patient,
+        samples=args.sample,
+        variant=args.variant,
+        pileup=args.pileup,
+        segments=args.segments,
+        contamination=args.contamination,
+        min_read_depth=args.min_read_depth,
+    )
+    data.pileup_likelihoods = data.get_pileup_likelihoods_parallel(genotyper=genotyper, max_processes=args.threads)
+    data.validate_pileup_likelihood_allele_frequencies()
     data.sample_correlation = data.validate_sample_correlation(verbose=args.verbose)
     data.joint_genotype_likelihood = genotyper.get_joint_genotype_likelihood(pileup_likelihoods=data.pileup_likelihoods)
     data.subset_data()
@@ -291,229 +286,6 @@ class VCF(object):
         return ref_dict
 
 
-class GenotypeData(object):
-    """
-    Manages genotype likelihood calculations and output generation.
-
-    This class handles the workflow of processing genotype likelihoods, correlating
-    sample genotypes, sub-setting data, and writing outputs for genomic analysis.
-
-    Attributes:
-        pileup_likelihoods (list[PileupLikelihood]): List of PileupLikelihood objects containing genotype likelihoods.
-        vcf (VCF): VCF object containing variant data.
-        individual_id (str): Identifier for the individual.
-        sample_correlation (pandas.DataFrame, optional): DataFrame containing sample genotype correlations.
-        joint_genotype_likelihood (pandas.DataFrame, optional): DataFrame containing joint genotype likelihoods.
-
-    Args:
-        pileup_likelihoods (list[PileupLikelihood]): List of PileupLikelihood objects.
-        variant (str): Path to the variant file.
-        individual_id (str): Identifier for the individual.
-    """
-
-    def __init__(self, pileup_likelihoods: list[PileupLikelihood], variant: str, individual_id: str):
-        self.pileup_likelihoods = pileup_likelihoods
-        self.validate_pileup_likelihood_allele_frequencies()
-        self.vcf = VCF(file_path=variant)
-        self.individual_id = individual_id
-        self.sample_correlation = None
-        self.joint_genotype_likelihood = None
-
-    def validate_pileup_likelihood_allele_frequencies(self):
-        """
-        Validates the consistency of population allele frequencies in pileup likelihoods.
-
-        Checks if allele frequencies are the same across all samples for each locus
-        and issues a warning if inconsistencies are found. (Allele frequencies should
-        be the same across samples for each locus as they are derived from the
-        SNP panel used for generating the allelic pileups.)
-
-        Raises:
-            Warning: If allele frequencies are not consistent across samples.
-        """
-        allele_frequency = pd.concat([pl.df["allele_frequency"] for pl in self.pileup_likelihoods], axis=1)
-        is_same = allele_frequency.apply(lambda row: row.nunique() == 1, axis=1)
-        if not is_same.all():
-            warnings.warn("Allele frequencies in pileups are not the same across samples for each locus (though they should)! Please check your inputs!")
-
-    def validate_sample_correlation(self, correlation_threshold: float = 0.95, verbose=False) -> pd.DataFrame:
-        """
-        Validates the correlation of sample genotypes.
-
-        Calculates the Kendall-tau correlation of variant genotypes between samples
-        and warns if the correlation is below a specified threshold.
-
-        Args:
-            correlation_threshold (float, optional): Threshold for genotype correlation.
-            verbose (bool, optional): If True, prints detailed correlation information.
-
-        Returns:
-            pandas.DataFrame: DataFrame containing the sample correlation matrix.
-
-        Raises:
-            Warning: If genotype correlations between samples are below the threshold.
-        """
-        sample_genotypes = pd.concat(
-            [
-                pl.df[["0/0", "0/1", "1/1", "./."]].idxmax(axis=1).to_frame(pl.assigned_sample_name)
-                for pl in self.pileup_likelihoods
-            ],
-            axis=1
-        ).fillna("./.")
-
-        if sample_genotypes.empty:
-            return pd.DataFrame(columns=[pl.assigned_sample_name for pl in self.pileup_likelihoods])
-
-        # Subset to loci with at least one alternate allele in at least one sample.
-        sample_genotypes = sample_genotypes.loc[sample_genotypes.apply(lambda row: any(["1" in gt for gt in row.values]), axis=1)]
-        sample_genotypes = sample_genotypes.replace("0/0", 0).replace("0/1", 1).replace("1/1", 2).replace("./.", np.nan)
-        sample_correlation = sample_genotypes.corr(method="kendall")
-        # sample_correlation.sort_values(by=sample_correlation.columns[0], axis=0, ascending=False, inplace=True)
-        # sample_correlation = sample_correlation.reindex(sample_correlation.index, axis=1)
-        if verbose:
-            print(f"Concordance of samples is evaluated at {sample_genotypes.dropna().shape[0]} to {sample_genotypes.shape[0]} variant loci.")
-            print("Kendall-tau correlation of variant genotypes between samples:")
-            print(sample_correlation.round(3))
-        if sample_correlation.lt(correlation_threshold).any().any():
-            message = (
-                f"\n\n"
-                f"\tGenotypes between samples are not well correlated (< {correlation_threshold})!\n"
-                f"\tIt is likely that not all samples are from the same individual.\n"
-                f"\tPlease check your inputs!\n"
-            )
-            warnings.warn(message)
-        return sample_correlation
-
-    @staticmethod
-    def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
-        """
-        Sorts a MultiIndex by genomic positions ('contig' and 'position' levels).
-
-        Genomic contigs are sorted numerically and then by 'X', 'Y', 'MT'. Positions
-        within contigs are sorted numerically.
-
-        Args:
-            index (pd.MultiIndex): MultiIndex to be sorted, expected to have 'contig' and 'position' levels.
-
-        Returns:
-            pd.MultiIndex: Sorted MultiIndex.
-        """
-        contig_order = [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
-        temp_df = pd.DataFrame(index=index).reset_index()
-        temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contig_order, ordered=True)
-        temp_df.sort_values(by=["contig", "position"], inplace=True)
-        return pd.MultiIndex.from_frame(temp_df[["contig", "position"]])
-
-    def subset_data(self):
-        """
-        Subsets the data to the intersection of all pileup and variant input files.
-
-        Aligns and trims the data to ensure it only contains information relevant
-        to both the pileup and variant data.
-        """
-        index = self.joint_genotype_likelihood.index.join(self.vcf.df.index, how="inner")
-        index = self.sort_genomic_positions(index=index)
-        self.pileup_likelihoods = [pl.reindex(index) for pl in self.pileup_likelihoods]
-        # If pileup summaries of one sample do not cover a locus in another pileup,
-        # the allele frequency is set to 0. This is rescuing those allele frequencies:
-        for pl in self.pileup_likelihoods:
-            pl.df["allele_frequency"] = self.joint_genotype_likelihood["allele_frequency"]
-        self.joint_genotype_likelihood = self.joint_genotype_likelihood.loc[index]
-        self.vcf.df = self.vcf.df.loc[index]
-
-    def write_output(self, output_dir: str, vcf_format: str = "GT", args: argparse.Namespace = None):
-        """
-        Writes the processed data to output files.
-
-        Generates and saves various output files based on the processed data,
-        including (optional) sample genotype likelihoods and VCF files.
-
-        Args:
-            output_dir (str): Directory where the output files will be saved.
-            vcf_format (str, optional): Format of the VCF FORMAT output.
-            args (argparse.Namespace, optional): Arguments passed to the script, used for additional information in the output.
-        """
-        print(f"Writing output to {output_dir} ...") if args.verbose else None
-        os.makedirs(output_dir, exist_ok=True)
-        if args.save_sample_genotype_likelihoods:
-            for pl in self.pileup_likelihoods:
-                sample_file = f"{output_dir}/{pl.assigned_sample_name}.likelihoods.pileup"
-                with open(sample_file, "w") as output_file:
-                    output_file.write(f"#<METADATA>SAMPLE={pl.bam_sample_name}\n")
-                    pl.df.to_csv(output_file, sep="\t")
-                print(f"  {sample_file}") if args.verbose else None
-
-        self.sample_correlation.to_csv(f"{output_dir}/{self.individual_id}.sample_correlation.tsv", sep="\t")
-        print(f"  {output_dir}/{self.individual_id}.sample_correlation.tsv") if args.verbose else None
-
-        for count in ["ref_count", "alt_count", "other_alt_count"]:
-            pd.concat(
-                [pl.df[count].to_frame(pl.assigned_sample_name) for pl in self.pileup_likelihoods],
-                axis=1
-            ).fillna(0).astype(int).to_csv(f"{output_dir}/{self.individual_id}.hets.{count}.tsv", sep="\t", index=False)
-            print(f"  {output_dir}/{self.individual_id}.hets.{count}.tsv") if args.verbose else None
-
-        self.to_vcf(output=f"{output_dir}/{self.individual_id}.hets.vcf", vcf_format=vcf_format, args=args)
-        print(f"  {output_dir}/{self.individual_id}.hets.vcf") if args.verbose else None
-
-    def to_vcf(self, output: str, vcf_format: str = "GT", args: argparse.Namespace = None):
-        """
-        Converts the genotype data to VCF format and writes to a file.
-
-        Args:
-            output (str): Path to the output VCF file.
-            vcf_format (str, optional): The format for the VCF FORMAT output.
-            args (argparse.Namespace, optional): Arguments namespace containing additional information for VCF header.
-        """
-        df = self.joint_genotype_likelihood
-
-        df["id"] = "."
-        df["ref"] = self.vcf.df["REF"]
-        df["alt"] = self.vcf.df["ALT"]
-        df["qual"] = "."
-        df["filter"] = "."
-        df["info"] = df["allele_frequency"].apply(lambda af: f"AF={af:.6f}")
-        # df["info"] = self.variant.df["INFO"]  # may contain more than AF (e.g. AN, AC, AF, etc.)
-        df["format"] = vcf_format
-
-        # create fields for "SAMPLE" column:
-        df["GT"] = df[['0/0', '0/1', '1/1', './.']].astype(float).idxmax(axis=1)
-        if "AD" in vcf_format:
-            df["AD"] = df[['ref_count', 'alt_count']].astype(int).apply(lambda row: f"{row['ref_count']},{row['alt_count']}", axis=1)
-        if "DP" in vcf_format:
-            df["DP"] = df[['ref_count', 'alt_count', 'other_alt_count']].sum(axis=1).astype(int).astype(str)
-        if "PL" in vcf_format:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=RuntimeWarning)
-                phred = np.clip(-10 * np.log(df[['0/0', '0/1', '1/1', './.']]), 0, 99).astype(int)
-            pl_min = phred.min(axis=1)
-            df["PL"] = phred.sub(pl_min, axis=0).apply(lambda row: ",".join([str(p) for p in row]), axis=1)
-        df["sample"] = df[vcf_format.split(":")].apply(lambda row: ":".join([str(f) for f in row]), axis=1)
-
-        with open(output, "w") as vcf:
-            vcf.write("##fileformat=VCFv4.2\n")
-            vcf.write("##FILTER=<ID=PASS,Description=\"All filters passed\">\n")
-            vcf.write("##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele Frequency, for each ALT allele, in the same order as listed\">\n")
-            if "AD" in vcf_format:
-                vcf.write("##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allelic depths for the ref and alt alleles in the order listed\">\n")
-            if "DP" in vcf_format:
-                vcf.write("##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Approximate read depth; some reads may have been filtered\">\n")
-            if "GQ" in vcf_format:
-                vcf.write("##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype Quality\">\n")
-            vcf.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
-            if "PL" in vcf_format:
-                vcf.write("##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification\">\n")
-            for ref_line in self.vcf.ref_dict:
-                vcf.write(f"{ref_line}\n")
-            source_comment = "##source=genotype.py"
-            if args is not None:
-                for key, value in vars(args).items():
-                    source_comment += f" --{key} {value}"
-            vcf.write(f"{source_comment}\n")
-            vcf.write(f"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{self.individual_id}\n")
-            df.reset_index()[["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "sample"]].to_csv(vcf, sep="\t", index=False, header=False, na_rep=".")
-
-
 class Genotyper(object):
     """
     Performs genotype likelihood calculations using specified statistical models.
@@ -733,6 +505,276 @@ class Genotyper(object):
             df = df.loc[df["0/1"] >= self.min_genotype_likelihood]
 
         return df
+
+
+class GenotypeData(object):
+    """
+    Manages genotype likelihood calculations and output generation.
+
+    This class handles the workflow of processing genotype likelihoods, correlating
+    sample genotypes, sub-setting data, and writing outputs for genomic analysis.
+
+    Attributes:
+        individual_id (str): Identifier for the individual.
+        samples (list[str]): List of sample names.
+        vcf (VCF): VCF object.
+        pileups (list[Pileup]): List of Pileup objects.
+        segments (list[Segments]): List of Segments objects.
+        contaminations (list[Contamination]): List of Contamination objects.
+        pileup_likelihoods (list[PileupLikelihood]): List of PileupLikelihood objects.
+        sample_correlation (pandas.DataFrame): DataFrame containing sample genotype correlation matrix.
+        joint_genotype_likelihood (pandas.DataFrame): DataFrame containing joint genotype likelihoods.
+
+    Args:
+        individual_id (str): Identifier for the individual.
+        samples (list[str]): List of sample names.
+        variant (str): Path to the VCF file containing common germline variants and population allele frequencies.
+        pileup (list[str]): List of paths to the allelic pileup input files (output of GATK's GetPileupSummaries; used for CalculateContamination).
+        segments (list[str], optional): List of paths to the allelic copy ratio segmentation input files (output of GATK's CalculateContamination).
+        contamination (list[str], optional): List of paths to the contamination estimate input files (output of GATK's CalculateContamination).
+        min_read_depth (int, optional): Minimum read depth threshold for filtering data.
+    """
+
+    def __init__(self, individual_id: str, samples: list[str], variant: str, pileup: list[str], segments: list[str] = None, contamination: list[str] = None, min_read_depth: int = 10):
+        self.individual_id = individual_id
+        self.samples = samples
+        self.vcf = VCF(file_path=variant)
+        self.pileups = [Pileup(file_path=p, min_read_depth=min_read_depth) for p in pileup]
+        self.segments = [Segments(file_path=s) for s in segments] if segments is not None else [Segments() for _ in pileup]
+        self.contaminations = [Contamination(file_path=c) for c in contamination] if contamination is not None else [Contamination() for _ in pileup]
+        self.pileup_likelihoods = None
+        self.sample_correlation = None
+        self.joint_genotype_likelihood = None
+
+    @staticmethod
+    def get_pileup_likelihood(genotyper: Genotyper, assigned_sample_name: str, pileup: Pileup, segments: Segments, contamination: Contamination) -> PileupLikelihood:
+        pileup_likelihood = PileupLikelihood(
+            pileup_likelihood=genotyper.calculate_genotype_likelihoods(
+                pileup=pileup.df,
+                segments=segments.df,
+                contamination=contamination.value,
+            ),
+            assigned_sample_name=assigned_sample_name,
+            bam_sample_name=cross_check_sample_name(pileup, segments, contamination)
+        )
+        print(".", end="", flush=True)
+        return pileup_likelihood
+
+    def get_pileup_likelihoods_parallel(self, genotyper: Genotyper, max_processes: int = 1) -> list[PileupLikelihood]:
+        processes = np.min([max_processes, len(self.samples), os.cpu_count()])
+        try:
+            print(f"Parallel execution with {processes} processes: ", end="")
+            with mp.Pool(processes=processes) as pool:
+                pileup_likelihoods = pool.starmap(
+                    func=self.get_pileup_likelihood,
+                    iterable=[
+                        (genotyper, assigned_sample_name, pileup, segments, contamination)
+                        for assigned_sample_name, pileup, segments, contamination in zip(self.samples, self.pileups, self.segments, self.contaminations)
+                    ]
+                )
+            print()
+            return pileup_likelihoods
+        except Exception as e:
+            print(f"Error in parallel execution: {e}")
+            print("Falling back to serial execution.")
+            return [
+                self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, segments, contamination)
+                for assigned_sample_name, pileup, segments, contamination in zip(self.samples, self.pileups, self.segments, self.contaminations)
+            ]
+
+    def validate_pileup_likelihood_allele_frequencies(self):
+        """
+        Validates the consistency of population allele frequencies in pileup likelihoods.
+
+        Checks if allele frequencies are the same across all samples for each locus
+        and issues a warning if inconsistencies are found. (Allele frequencies should
+        be the same across samples for each locus as they are derived from the
+        SNP panel used for generating the allelic pileups.)
+
+        Raises:
+            Warning: If allele frequencies are not consistent across samples.
+        """
+        allele_frequency = pd.concat([pl.df["allele_frequency"] for pl in self.pileup_likelihoods], axis=1)
+        is_same = allele_frequency.apply(lambda row: row.nunique() == 1, axis=1)
+        if not is_same.all():
+            warnings.warn("Allele frequencies in pileups are not the same across samples for each locus (though they should)! Please check your inputs!")
+
+    def validate_sample_correlation(self, correlation_threshold: float = 0.95, verbose=False) -> pd.DataFrame:
+        """
+        Validates the correlation of sample genotypes.
+
+        Calculates the Kendall-tau correlation of variant genotypes between samples
+        and warns if the correlation is below a specified threshold.
+
+        Args:
+            correlation_threshold (float, optional): Threshold for genotype correlation.
+            verbose (bool, optional): If True, prints detailed correlation information.
+
+        Returns:
+            pandas.DataFrame: DataFrame containing the sample correlation matrix.
+
+        Raises:
+            Warning: If genotype correlations between samples are below the threshold.
+        """
+        sample_genotypes = pd.concat(
+            [
+                pl.df[["0/0", "0/1", "1/1", "./."]].idxmax(axis=1).to_frame(pl.assigned_sample_name)
+                for pl in self.pileup_likelihoods
+            ],
+            axis=1
+        ).fillna("./.")
+
+        if sample_genotypes.empty:
+            return pd.DataFrame(columns=[pl.assigned_sample_name for pl in self.pileup_likelihoods])
+
+        # Subset to loci with at least one alternate allele in at least one sample.
+        sample_genotypes = sample_genotypes.loc[sample_genotypes.apply(lambda row: any(["1" in gt for gt in row.values]), axis=1)]
+        sample_genotypes = sample_genotypes.replace("0/0", 0).replace("0/1", 1).replace("1/1", 2).replace("./.", np.nan)
+        sample_correlation = sample_genotypes.corr(method="kendall")
+        # sample_correlation.sort_values(by=sample_correlation.columns[0], axis=0, ascending=False, inplace=True)
+        # sample_correlation = sample_correlation.reindex(sample_correlation.index, axis=1)
+        if verbose:
+            print(f"Concordance of samples is evaluated at {sample_genotypes.dropna().shape[0]} to {sample_genotypes.shape[0]} variant loci.")
+            print("Kendall-tau correlation of variant genotypes between samples:")
+            print(sample_correlation.round(3))
+        if sample_correlation.lt(correlation_threshold).any().any():
+            message = (
+                f"\n\n"
+                f"\tGenotypes between samples are not well correlated (< {correlation_threshold})!\n"
+                f"\tIt is likely that not all samples are from the same individual.\n"
+                f"\tPlease check your inputs!\n"
+            )
+            warnings.warn(message)
+        return sample_correlation
+
+    @staticmethod
+    def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
+        """
+        Sorts a MultiIndex by genomic positions ('contig' and 'position' levels).
+
+        Genomic contigs are sorted numerically and then by 'X', 'Y', 'MT'. Positions
+        within contigs are sorted numerically.
+
+        Args:
+            index (pd.MultiIndex): MultiIndex to be sorted, expected to have 'contig' and 'position' levels.
+
+        Returns:
+            pd.MultiIndex: Sorted MultiIndex.
+        """
+        contig_order = [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+        temp_df = pd.DataFrame(index=index).reset_index()
+        temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contig_order, ordered=True)
+        temp_df.sort_values(by=["contig", "position"], inplace=True)
+        return pd.MultiIndex.from_frame(temp_df[["contig", "position"]])
+
+    def subset_data(self):
+        """
+        Subsets the data to the intersection of all pileup and variant input files.
+
+        Aligns and trims the data to ensure it only contains information relevant
+        to both the pileup and variant data.
+        """
+        index = self.joint_genotype_likelihood.index.join(self.vcf.df.index, how="inner")
+        index = self.sort_genomic_positions(index=index)
+        self.pileup_likelihoods = [pl.reindex(index) for pl in self.pileup_likelihoods]
+        # If pileup summaries of one sample do not cover a locus in another pileup,
+        # the allele frequency is set to 0. This is rescuing those allele frequencies:
+        for pl in self.pileup_likelihoods:
+            pl.df["allele_frequency"] = self.joint_genotype_likelihood["allele_frequency"]
+        self.joint_genotype_likelihood = self.joint_genotype_likelihood.loc[index]
+        self.vcf.df = self.vcf.df.loc[index]
+
+    def write_output(self, output_dir: str, vcf_format: str = "GT", args: argparse.Namespace = None):
+        """
+        Writes the processed data to output files.
+
+        Generates and saves various output files based on the processed data,
+        including (optional) sample genotype likelihoods and VCF files.
+
+        Args:
+            output_dir (str): Directory where the output files will be saved.
+            vcf_format (str, optional): Format of the VCF FORMAT output.
+            args (argparse.Namespace, optional): Arguments passed to the script, used for additional information in the output.
+        """
+        print(f"Writing output to {output_dir} ...") if args.verbose else None
+        os.makedirs(output_dir, exist_ok=True)
+        if args.save_sample_genotype_likelihoods:
+            for pl in self.pileup_likelihoods:
+                sample_file = f"{output_dir}/{pl.assigned_sample_name}.likelihoods.pileup"
+                with open(sample_file, "w") as output_file:
+                    output_file.write(f"#<METADATA>SAMPLE={pl.bam_sample_name}\n")
+                    pl.df.to_csv(output_file, sep="\t")
+                print(f"  {sample_file}") if args.verbose else None
+
+        self.sample_correlation.to_csv(f"{output_dir}/{self.individual_id}.sample_correlation.tsv", sep="\t")
+        print(f"  {output_dir}/{self.individual_id}.sample_correlation.tsv") if args.verbose else None
+
+        for count in ["ref_count", "alt_count", "other_alt_count"]:
+            pd.concat(
+                [pl.df[count].to_frame(pl.assigned_sample_name) for pl in self.pileup_likelihoods],
+                axis=1
+            ).fillna(0).astype(int).to_csv(f"{output_dir}/{self.individual_id}.hets.{count}.tsv", sep="\t", index=False)
+            print(f"  {output_dir}/{self.individual_id}.hets.{count}.tsv") if args.verbose else None
+
+        self.to_vcf(output=f"{output_dir}/{self.individual_id}.hets.vcf", vcf_format=vcf_format, args=args)
+        print(f"  {output_dir}/{self.individual_id}.hets.vcf") if args.verbose else None
+
+    def to_vcf(self, output: str, vcf_format: str = "GT", args: argparse.Namespace = None):
+        """
+        Converts the genotype data to VCF format and writes to a file.
+
+        Args:
+            output (str): Path to the output VCF file.
+            vcf_format (str, optional): The format for the VCF FORMAT output.
+            args (argparse.Namespace, optional): Arguments namespace containing additional information for VCF header.
+        """
+        df = self.joint_genotype_likelihood
+
+        df["id"] = "."
+        df["ref"] = self.vcf.df["REF"]
+        df["alt"] = self.vcf.df["ALT"]
+        df["qual"] = "."
+        df["filter"] = "."
+        df["info"] = df["allele_frequency"].apply(lambda af: f"AF={af:.6f}")
+        # df["info"] = self.variant.df["INFO"]  # may contain more than AF (e.g. AN, AC, AF, etc.)
+        df["format"] = vcf_format
+
+        # create fields for "SAMPLE" column:
+        df["GT"] = df[['0/0', '0/1', '1/1', './.']].astype(float).idxmax(axis=1)
+        if "AD" in vcf_format:
+            df["AD"] = df[['ref_count', 'alt_count']].astype(int).apply(lambda row: f"{row['ref_count']},{row['alt_count']}", axis=1)
+        if "DP" in vcf_format:
+            df["DP"] = df[['ref_count', 'alt_count', 'other_alt_count']].sum(axis=1).astype(int).astype(str)
+        if "PL" in vcf_format:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                phred = np.clip(-10 * np.log(df[['0/0', '0/1', '1/1', './.']]), 0, 99).astype(int)
+            pl_min = phred.min(axis=1)
+            df["PL"] = phred.sub(pl_min, axis=0).apply(lambda row: ",".join([str(p) for p in row]), axis=1)
+        df["sample"] = df[vcf_format.split(":")].apply(lambda row: ":".join([str(f) for f in row]), axis=1)
+
+        with open(output, "w") as vcf:
+            vcf.write("##fileformat=VCFv4.2\n")
+            vcf.write("##FILTER=<ID=PASS,Description=\"All filters passed\">\n")
+            vcf.write("##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele Frequency, for each ALT allele, in the same order as listed\">\n")
+            if "AD" in vcf_format:
+                vcf.write("##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allelic depths for the ref and alt alleles in the order listed\">\n")
+            if "DP" in vcf_format:
+                vcf.write("##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Approximate read depth; some reads may have been filtered\">\n")
+            if "GQ" in vcf_format:
+                vcf.write("##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype Quality\">\n")
+            vcf.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
+            if "PL" in vcf_format:
+                vcf.write("##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification\">\n")
+            for ref_line in self.vcf.ref_dict:
+                vcf.write(f"{ref_line}\n")
+            source_comment = "##source=genotype.py"
+            if args is not None:
+                for key, value in vars(args).items():
+                    source_comment += f" --{key} {value}"
+            vcf.write(f"{source_comment}\n")
+            vcf.write(f"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{self.individual_id}\n")
+            df.reset_index()[["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "sample"]].to_csv(vcf, sep="\t", index=False, header=False, na_rep=".")
 
 
 if __name__ == "__main__":
