@@ -389,7 +389,7 @@ class Genotyper(object):
         )
         return genotype_likelihoods
 
-    def calculate_genotype_likelihoods_per_segment(self, pileup: pd.DataFrame, minor_af: float = 0.5, contamination: float = 0, error: float = 0.01) -> pd.DataFrame:
+    def calculate_genotype_likelihoods_per_segment(self, pileup: pd.DataFrame, minor_af: float = 0.4434, contamination: float = 0, error: float = 0.01) -> pd.DataFrame:
         """
         Calculates genotype likelihoods for a specific segment of pileup data.
 
@@ -397,8 +397,8 @@ class Genotyper(object):
         likelihoods, based on the model specified during the initialization of the
         Genotyper.
 
-        Note: Median minor allele frequency is 0.43 across a several thousand samples.
-        Potentially better to use this as a default.
+        Note: Median minor allele frequency as inferred by the GATK's CalculateContamination
+              is 0.4434 across a thousand normal samples.
 
         Args:
             pileup (pd.DataFrame): DataFrame containing pileup data for the segment.
