@@ -38,6 +38,7 @@ def parse_args():
     parser.add_argument("--threads",                            type=int,   default=1,      help="Number of threads to use for parallelization.")
     parser.add_argument("--select_hets",                                    default=False,  action="store_true", help="Keep only heterozygous sites.")
     parser.add_argument("--save_sample_genotype_likelihoods",               default=False,  action="store_true", help="Save genotype likelihoods to file for each sample.")
+    parser.add_argument("--compress_output",                                default=False,  action="store_true", help="Compress output files.")
     parser.add_argument("--verbose",                                        default=False,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
 
@@ -389,7 +390,7 @@ class Genotyper(object):
         )
         return genotype_likelihoods
 
-    def calculate_genotype_likelihoods_per_segment(self, pileup: pd.DataFrame, minor_af: float = 0.4434, contamination: float = 0, error: float = 0.01) -> pd.DataFrame:
+    def calculate_genotype_likelihoods_per_segment(self, pileup: pd.DataFrame, minor_af: float = 0.4434, contamination: float = 0.0014, error: float = 0.01) -> pd.DataFrame:
         """
         Calculates genotype likelihoods for a specific segment of pileup data.
 
@@ -397,8 +398,9 @@ class Genotyper(object):
         likelihoods, based on the model specified during the initialization of the
         Genotyper.
 
-        Note: Median minor allele frequency as inferred by the GATK's CalculateContamination
-              is 0.4434 across a thousand normal samples.
+        Note: Across a thousand normal samples as inferred by GATK's CalculateContamination:
+              - median minor allele fraction is 0.4434
+              - median contamination is 0.0014
 
         Args:
             pileup (pd.DataFrame): DataFrame containing pileup data for the segment.
@@ -633,8 +635,6 @@ class GenotypeData(object):
         sample_genotypes = sample_genotypes.loc[sample_genotypes.apply(lambda row: any(["1" in gt for gt in row.values]), axis=1)]
         sample_genotypes = sample_genotypes.replace("0/0", 0).replace("0/1", 1).replace("1/1", 2).replace("./.", np.nan)
         sample_correlation = sample_genotypes.corr(method="kendall")
-        # sample_correlation.sort_values(by=sample_correlation.columns[0], axis=0, ascending=False, inplace=True)
-        # sample_correlation = sample_correlation.reindex(sample_correlation.index, axis=1)
         if verbose:
             print(f"Concordance of samples is evaluated at {sample_genotypes.dropna().shape[0]} to {sample_genotypes.shape[0]} variant loci.")
             print("Kendall-tau correlation of variant genotypes between samples:")
@@ -705,36 +705,47 @@ class GenotypeData(object):
         """
         print(f"Writing output to {output_dir} ...") if args.verbose else None
         os.makedirs(output_dir, exist_ok=True)
+        self.write_sample_likelihoods(output_dir=output_dir, args=args)
+        self.write_sample_correlation(output_dir=output_dir, args=args)
+        self.write_counts_tables(output_dir=output_dir, args=args)
+        self.write_genotype_vcf(output_dir=output_dir, vcf_format=vcf_format, args=args)
+
+    def write_sample_likelihoods(self, output_dir: str, args: argparse.Namespace = None):
         if args.save_sample_genotype_likelihoods:
             for pl in self.pileup_likelihoods:
-                sample_file = f"{output_dir}/{pl.assigned_sample_name}.likelihoods.pileup"
-                with open(sample_file, "w") as output_file:
+                sample_file = f"{output_dir}/{pl.assigned_sample_name}.likelihoods.pileup" + (".gz" if args.compress_output else "")
+                open_func = gzip.open if args.compress_output else open
+                with open_func(sample_file, "wt") as output_file:
                     output_file.write(f"#<METADATA>SAMPLE={pl.bam_sample_name}\n")
                     pl.df.to_csv(output_file, sep="\t")
                 print(f"  {sample_file}") if args.verbose else None
 
-        self.sample_correlation.to_csv(f"{output_dir}/{self.individual_id}.sample_correlation.tsv", sep="\t")
-        print(f"  {output_dir}/{self.individual_id}.sample_correlation.tsv") if args.verbose else None
+    def write_sample_correlation(self, output_dir: str, args: argparse.Namespace = None):
+        file = f"{output_dir}/{self.individual_id}.sample_correlation.tsv" + (".gz" if args.compress_output else "")
+        self.sample_correlation.to_csv(file, sep="\t")
+        print(f"  {file}") if args.verbose else None
 
+    def write_counts_tables(self, output_dir: str, args: argparse.Namespace = None):
         for count in ["ref_count", "alt_count", "other_alt_count"]:
-            pd.concat(
+            table = pd.concat(
                 [pl.df[count].to_frame(pl.assigned_sample_name) for pl in self.pileup_likelihoods],
                 axis=1
-            ).fillna(0).astype(int).to_csv(f"{output_dir}/{self.individual_id}.hets.{count}.tsv", sep="\t", index=False)
-            print(f"  {output_dir}/{self.individual_id}.hets.{count}.tsv") if args.verbose else None
+            ).fillna(0).astype(int)
+            file = f"{output_dir}/{self.individual_id}.hets.{count}.tsv" + (".gz" if args.compress_output else "")
+            table.to_csv(file, sep="\t", index=False)
+            print(f"  {file}") if args.verbose else None
 
-        self.to_vcf(output=f"{output_dir}/{self.individual_id}.hets.vcf", vcf_format=vcf_format, args=args)
-        print(f"  {output_dir}/{self.individual_id}.hets.vcf") if args.verbose else None
-
-    def to_vcf(self, output: str, vcf_format: str = "GT", args: argparse.Namespace = None):
+    def write_genotype_vcf(self, output_dir: str, vcf_format: str = "GT", args: argparse.Namespace = None):
         """
         Converts the genotype data to VCF format and writes to a file.
 
         Args:
-            output (str): Path to the output VCF file.
+            output_dir (str): Directory where the output files will be saved.
             vcf_format (str, optional): The format for the VCF FORMAT output.
             args (argparse.Namespace, optional): Arguments namespace containing additional information for VCF header.
         """
+        file = f"{output_dir}/{self.individual_id}.hets.vcf" + (".gz" if args.compress_output else "")
+
         df = self.joint_genotype_likelihood
 
         df["id"] = "."
@@ -743,7 +754,6 @@ class GenotypeData(object):
         df["qual"] = "."
         df["filter"] = "."
         df["info"] = df["allele_frequency"].apply(lambda af: f"AF={af:.6f}")
-        # df["info"] = self.variant.df["INFO"]  # may contain more than AF (e.g. AN, AC, AF, etc.)
         df["format"] = vcf_format
 
         # create fields for "SAMPLE" column:
@@ -760,7 +770,8 @@ class GenotypeData(object):
             df["PL"] = phred.sub(pl_min, axis=0).apply(lambda row: ",".join([str(p) for p in row]), axis=1)
         df["sample"] = df[vcf_format.split(":")].apply(lambda row: ":".join([str(f) for f in row]), axis=1)
 
-        with open(output, "w") as vcf:
+        open_func = gzip.open if args.compress_output else open
+        with open_func(file, "wt") as vcf:
             vcf.write("##fileformat=VCFv4.2\n")
             vcf.write("##FILTER=<ID=PASS,Description=\"All filters passed\">\n")
             vcf.write("##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele Frequency, for each ALT allele, in the same order as listed\">\n")
@@ -782,6 +793,8 @@ class GenotypeData(object):
             vcf.write(f"{source_comment}\n")
             vcf.write(f"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{self.individual_id}\n")
             df.reset_index()[["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "sample"]].to_csv(vcf, sep="\t", index=False, header=False, na_rep=".")
+
+        print(f"  {file}") if args.verbose else None
 
 
 if __name__ == "__main__":

@@ -42,6 +42,7 @@ python -u genotype.py \
   --format "GT:AD:DP:PL" \
   --threads 4 \
   --save_sample_genotype_likelihoods \
+  --compress_output \
   --verbose \
   > $output_dir/$individual_id.log \
   2>&1

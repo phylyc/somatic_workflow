@@ -8,12 +8,12 @@ workflow GenotypeVariants {
         String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
 
         String individual_id
-        File variants  # SNP panel used to get pileups and estimate contamination
-        File variants_idx
         Array[String] sample_names
         Array[File] pileups
         Array[File]? contamination_tables
         Array[File]? segmentation_tables
+        File? common_germline_alleles  # SNP panel used to get pileups and estimate contamination
+        File? common_germline_alleles_idx
 
         Int min_read_depth = 10
         Float min_genotype_likelihood = 0.90
@@ -22,9 +22,11 @@ workflow GenotypeVariants {
         Boolean save_sample_genotype_likelihoods = false
         Boolean verbose = true
 
+        Boolean compress_output = false
+
         Runtime genotype_variants_runtime = Runtimes.genotype_variants_runtime
 
-        String genotype_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"
+        String genotype_docker = "civisanalytics/datascience-python:latest"
         Int preemptible = 1
         Int max_retries = 1
         Int disk_sizeGB = 1
@@ -51,8 +53,8 @@ workflow GenotypeVariants {
         input:
             script = script,
             individual_id = individual_id,
-            variants = variants,
-            variants_idx = variants_idx,
+            common_germline_alleles = common_germline_alleles,
+            common_germline_alleles_idx = common_germline_alleles_idx,
             sample_names = sample_names,
             pileups = pileups,
             contamination_tables = contamination_tables,
@@ -63,6 +65,7 @@ workflow GenotypeVariants {
             select_hets = select_hets,
             save_sample_genotype_likelihoods = save_sample_genotype_likelihoods,
             verbose = verbose,
+            compress_output = compress_output,
             runtime_params = genotype_variants_runtime
     }
 
@@ -82,13 +85,12 @@ task GenotypeVariants {
         String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
 
         String individual_id
-        File variants  # SNP panel used to get pileups (and estimate contamination)
-        File variants_idx
         Array[String] sample_names
         Array[File] pileups
         Array[File]? contamination_tables
         Array[File]? segmentation_tables
-        # todo: add compress_output option
+        File? common_germline_alleles  # SNP panel used to get pileups (and estimate contamination)
+        File? common_germline_alleles_idx
 
         Int min_read_depth = 10
         Float min_genotype_likelihood = 0.90
@@ -96,6 +98,7 @@ task GenotypeVariants {
         String format = "GT"
         Boolean select_hets = false
         Boolean save_sample_genotype_likelihoods = false
+        Boolean compress_output = false
         Boolean verbose = true
 
         Runtime runtime_params
@@ -103,12 +106,12 @@ task GenotypeVariants {
 
     String output_dir = "output"
 
-    String output_ref_counts = output_dir + "/" + individual_id + ".hets.ref_count.tsv"
-    String output_alt_counts = output_dir + "/" + individual_id + ".hets.alt_count.tsv"
-    String output_other_alt_counts = output_dir + "/" + individual_id + ".hets.other_alt_count.tsv"
-    String output_sample_correlation = output_dir + "/" + individual_id + ".sample_correlation.tsv"
-    String output_vcf = output_dir + "/" + individual_id + ".hets.vcf"
-    String output_vcf_idx = output_vcf + ".idx"
+    String output_ref_counts = output_dir + "/" + individual_id + ".hets.ref_count.tsv" + (if compress_output then ".gz" else "")
+    String output_alt_counts = output_dir + "/" + individual_id + ".hets.alt_count.tsv" + (if compress_output then ".gz" else "")
+    String output_other_alt_counts = output_dir + "/" + individual_id + ".hets.other_alt_count.tsv" + (if compress_output then ".gz" else "")
+    String output_sample_correlation = output_dir + "/" + individual_id + ".sample_correlation.tsv" + (if compress_output then ".gz" else "")
+    String output_vcf = output_dir + "/" + individual_id + ".hets.vcf" + (if compress_output then ".gz" else "")
+    String output_vcf_idx = output_vcf + (if compress_output then ".tbi" else ".idx")
 
     String dollar = "$"
 
@@ -117,7 +120,7 @@ task GenotypeVariants {
         wget -O genotype.py ~{script}
         python genotype.py \
             --output_dir '~{output_dir}' \
-            --variant '~{variants}' \
+            ~{"--variant '" + common_germline_alleles + "'"} \
             --patient '~{individual_id}' \
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("-P '", pileups)}' \
@@ -129,6 +132,7 @@ task GenotypeVariants {
             --format ~{format} \
             ~{true="--select_hets " false="" select_hets} \
             ~{true="--save_sample_genotype_likelihoods " false="" save_sample_genotype_likelihoods} \
+            ~{true="--compress_output " false="" compress_output} \
             ~{true="--verbose " false="" verbose}
 
         # Prepare optional array of output files
