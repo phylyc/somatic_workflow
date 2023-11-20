@@ -26,8 +26,8 @@ workflow CollectAllelicCounts {
         File ref_dict
         String output_base_name
 
-        File? variants
-        File? variants_idx
+        File? common_germline_alleles
+        File? common_germline_alleles_idx
         File? vcf
         File? vcf_idx
         String? getpileupsummaries_extra_args
@@ -80,7 +80,7 @@ workflow CollectAllelicCounts {
             time_select_pileup_summaries = time_select_pileup_summaries,
     }
 
-    if (defined(vcf) && !defined(variants)) {
+    if (defined(vcf) && !defined(common_germline_alleles)) {
         call VcfToPileupVariants {
             input:
                 vcf = select_first([vcf]),
@@ -98,8 +98,8 @@ workflow CollectAllelicCounts {
                     interval_list = interval_list,
                     interval_blacklist = interval_blacklist,
                     scattered_intervals = scattered_intervals,
-                    variants = select_first([variants, VcfToPileupVariants.variants]),
-                    variants_idx = select_first([variants_idx, VcfToPileupVariants.variants_idx]),
+                    common_germline_alleles = select_first([common_germline_alleles, VcfToPileupVariants.common_germline_alleles]),
+                    common_germline_alleles_idx = select_first([common_germline_alleles_idx, VcfToPileupVariants.common_germline_alleles_idx]),
                     minimum_population_allele_frequency = minimum_population_allele_frequency,
                     maximum_population_allele_frequency = maximum_population_allele_frequency,
                     runtime_params = get_pileup_summaries_runtime,
@@ -123,8 +123,8 @@ workflow CollectAllelicCounts {
                 interval_list = interval_list,
                 interval_blacklist = interval_blacklist,
                 output_base_name = output_base_name,
-                variants = select_first([variants, VcfToPileupVariants.variants]),
-                variants_idx = select_first([variants_idx, VcfToPileupVariants.variants_idx]),
+                common_germline_alleles = select_first([common_germline_alleles, VcfToPileupVariants.common_germline_alleles]),
+                common_germline_alleles_idx = select_first([common_germline_alleles_idx, VcfToPileupVariants.common_germline_alleles_idx]),
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
                 maximum_population_allele_frequency = maximum_population_allele_frequency,
                 runtime_params = get_pileup_summaries_runtime,
@@ -148,7 +148,7 @@ workflow CollectAllelicCounts {
 
 task VcfToPileupVariants {
     # Input: a (multi-sample) VCF, e.g. from Mutect2
-    # create a VCF with AF for all variants in the input VCF, dropping all
+    # create a VCF with AF for all common_germline_alleles in the input VCF, dropping all
     # samples, resulting in a gnomad-style VCF with only AF in the INFO field.
 
     input {
@@ -198,8 +198,8 @@ task VcfToPileupVariants {
     >>>
 
     output {
-        File variants = af_only_vcf
-        File variants_idx = af_only_vcf_idx
+        File common_germline_alleles = af_only_vcf
+        File common_germline_alleles_idx = af_only_vcf_idx
     }
 
     runtime {
@@ -215,7 +215,7 @@ task VcfToPileupVariants {
 }
 
 task GetPileupSummaries {
-    # If the variants for contamination and the intervals for this scatter don't
+    # If the common_germline_alleles for contamination and the intervals for this scatter don't
     # intersect, GetPileupSummaries throws an error. However, there is nothing wrong
     # with an empty intersection for our purposes; it simply doesn't contribute to the
     # merged pileup summaries that we create downstream. We implement this by creating
@@ -228,8 +228,8 @@ task GetPileupSummaries {
         File? scattered_intervals
         File input_bam
         File input_bai
-        File? variants
-        File? variants_idx
+        File common_germline_alleles
+        File common_germline_alleles_idx
         String? output_base_name
         String? getpileupsummaries_extra_args
 
@@ -244,8 +244,8 @@ task GetPileupSummaries {
         interval_list: {localization_optional: true}
         input_bam: {localization_optional: true}
         input_bai: {localization_optional: true}
-        variants: {localization_optional: true}
-        variants_idx: {localization_optional: true}
+        common_germline_alleles: {localization_optional: true}
+        common_germline_alleles_idx: {localization_optional: true}
     }
 
     String sample_id = if defined(output_base_name) then output_base_name else basename(input_bam, ".bam")
@@ -255,13 +255,8 @@ task GetPileupSummaries {
         set +e
         export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
 
-        if ~{!defined(variants)} ; then
-            echo "ERROR: variants must be supplied."
-            exit 1
-        fi
-
-        # Create an empty pileup file if there are no variants in the intersection
-        # between the variants and the intervals. Will be overwritten by GetPileupSummaries
+        # Create an empty pileup file if there are no common_germline_alleles in the intersection
+        # between the common_germline_alleles and the intervals. Will be overwritten by GetPileupSummaries
         echo "#<METADATA>SAMPLE=~{sample_id}" > '~{output_file}'
         echo "contig\tposition\tref_count\talt_count\tother_alt_count\tallele_frequency" >> '~{output_file}'
 
@@ -271,16 +266,16 @@ task GetPileupSummaries {
             ~{"--intervals '" +  interval_list + "'"} \
             ~{"--intervals '" +  scattered_intervals + "'"} \
             ~{"--exclude-intervals '" +  interval_blacklist + "'"} \
-            --intervals '~{variants}' \
+            --intervals '~{common_germline_alleles}' \
             --interval-set-rule INTERSECTION \
-            --variant '~{variants}' \
+            --variant '~{common_germline_alleles}' \
             -min-af '~{minimum_population_allele_frequency}' \
             -max-af '~{maximum_population_allele_frequency}' \
             --min-mapping-quality ~{min_mapping_quality} \
             --output '~{output_file}' \
             ~{getpileupsummaries_extra_args}
 
-        # It only fails due to empty intersection between variants and intervals, which is ok.
+        # It only fails due to empty intersection between common_germline_alleles and intervals, which is ok.
         exit 0
     >>>
 
@@ -326,11 +321,6 @@ task GatherPileupSummaries {
             --sequence-dictionary '~{ref_dict}' \
             ~{sep="' " prefix("-I '", input_tables)}' \
             -O '~{output_file}'
-
-        # Gathering pileup summaries does not propagate the sample name to the output file :(
-        (echo "#<METADATA>SAMPLE=~{sample_id}" && cat '~{output_file}') > "tmp" \
-            && mv "tmp" '~{output_file}'
-        rm -f "tmp"
     >>>
 
     output {
