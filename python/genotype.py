@@ -6,7 +6,6 @@ import multiprocessing as mp
 import numpy as np
 import os
 import pandas as pd
-from tqdm import tqdm
 import scipy.stats as st
 import warnings
 
@@ -567,24 +566,23 @@ class GenotypeData(object):
 
         print("  Variants") if verbose else None
         self.vcf = VCF(file_path=variant)
-
-        self.pileups = []
-        for p in tqdm(pileup, desc="  Pileups", disable=not verbose):
-            self.pileups.append(Pileup(file_path=p, min_read_depth=min_read_depth))
-
-        if segments is None:
-            self.segments = [Segments()] * len(pileup)
-        else:
-            self.segments = []
-            for s in tqdm(segments, desc="  Segments", disable=not verbose):
-                self.segments.append(Segments(file_path=s))
-
-        if contamination is None:
-            self.contaminations = [Contamination()] * len(pileup)
-        else:
-            self.contaminations = []
-            for c in tqdm(contamination, desc="  Contaminations", disable=not verbose):
-                self.contaminations.append(Contamination(file_path=c))
+        print("  Pileups") if verbose else None
+        self.pileups = [
+            Pileup(file_path=p, min_read_depth=min_read_depth)
+            for p in pileup
+        ]
+        print("  Segments") if verbose else None
+        self.segments = (
+            [Segments()] * len(pileup)
+            if segments is None
+            else [Segments(file_path=s) for s in segments]
+        )
+        print("  Contamination") if verbose else None
+        self.contaminations = (
+            [Contamination()] * len(pileup)
+            if contamination is None
+            else [Contamination(file_path=c) for c in contamination]
+        )
 
         self.pileup_likelihoods = None
         self.sample_correlation = None
