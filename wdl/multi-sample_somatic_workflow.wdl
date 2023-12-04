@@ -7,8 +7,7 @@ import "calculate_contamination.wdl" as cc
 import "collect_allelic_counts.wdl" as cac
 import "collect_covered_regions.wdl" as ccr
 import "collect_read_counts.wdl" as crc
-#import "genotype_variants.wdl" as gv
-#import "phase_variants.wdl" as ph
+import "genotype_variants.wdl" as gv
 import "call_variants.wdl" as cv
 import "filter_variants.wdl" as fv
 import "annotate_variants.wdl" as av
@@ -17,7 +16,7 @@ import "annotate_variants.wdl" as av
 workflow MultiSampleSomaticWorkflow {
     input {
         File? interval_list
-        File? interval_blacklist  # For CalculateContamination
+        File? interval_blacklist
         Array[File]? interval_lists
         File ref_fasta
         File ref_fasta_index
@@ -41,24 +40,26 @@ workflow MultiSampleSomaticWorkflow {
         File? read_count_panel_of_normals
         File? germline_resource
         File? germline_resource_tbi
-        File? variants_for_contamination
-        File? variants_for_contamination_idx
+        File? common_germline_alleles
+        File? common_germline_alleles_idx
         File? bwa_mem_index_image
         File? funcotator_transcript_list
         File? funcotator_data_sources_tar_gz
 
         # workflow options
-        Boolean run_collect_coverage = false
+        Boolean run_collect_covered_regions = false
+        Boolean run_collect_target_coverage = true
+        Boolean run_collect_allelic_coverage = true
         Boolean run_contamination_model = true
-        Boolean run_phase_hets = false
         Boolean run_orientation_bias_mixture_model = true
+        Boolean run_variant_calling = true
         Boolean run_variant_filter = true
         Boolean run_realignment_filter = true
         Boolean run_realignment_filter_only_on_high_confidence_variants = false
-        Boolean run_annotate_variants = true
-        Boolean run_final_pileup_summaries = false
+        Boolean run_collect_called_variants_allelic_coverage = true
+        Boolean run_variant_annotation = true
 
-        Boolean keep_germline = true
+        Boolean keep_germline = false
         Boolean compress_output = true
         Boolean make_bamout = false
 
@@ -66,6 +67,7 @@ workflow MultiSampleSomaticWorkflow {
         Int preprocess_intervals_bin_length = 0
         Int preprocess_intervals_padding = 0
         Int min_read_depth_threshold = 1
+        Boolean genotype_variants_save_sample_genotype_likelihoods = false
         Boolean mutect2_native_pair_hmm_use_double_precision = true
         Boolean mutect2_use_linked_de_bruijn_graph = true
         Boolean mutect2_recover_all_dangling_branches = true
@@ -105,8 +107,7 @@ workflow MultiSampleSomaticWorkflow {
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB
         String gatk_docker = "broadinstitute/gatk:4.3.0.0"
         String bcftools_docker = "staphb/bcftools"
-#        String whathap_docker = "hangsuunc/whatshap:v1"
-#        String shapeit_docker = "yussab/shapeit4:4.2.2"
+        String genotype_docker = "civisanalytics/datascience-python:latest"
         String ubuntu_docker = "ubuntu"
         File? gatk_override
         Int preemptible = 1
@@ -127,7 +128,8 @@ workflow MultiSampleSomaticWorkflow {
         Int mem_get_pileup_summaries = 4096  # needs at least 2G
         Int mem_gather_pileup_summaries = 512  # 64
         Int mem_select_pileup_summaries = 512  # 64
-        Int mem_calculate_contamination = 4096  # depends on the variants_for_contamination resource
+        Int mem_calculate_contamination = 4096  # depends on the common_germline_alleles resource
+        Int mem_genotype_variants = 4096
         Int mem_filter_mutect_calls = 4096
         Int mem_select_variants = 3072
         Int mem_filter_alignment_artifacts_base = 3072 # needs to be increased in some cases
@@ -153,6 +155,7 @@ workflow MultiSampleSomaticWorkflow {
         Int time_gather_pileup_summaries = 5
         Int time_select_pileup_summaries = 5
         Int time_calculate_contamination = 10
+        Int time_genotype_variants = 30
         Int time_filter_mutect_calls = 800  # 13 h
         Int time_select_variants = 5
         Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count
@@ -161,7 +164,7 @@ workflow MultiSampleSomaticWorkflow {
         Int time_merge_mutect_stats = 1
         Int time_merge_bams = 60
         Int time_cnn_scoring = 10
-        Int time_funcotate = 720  # 12 h
+        Int time_funcotate = 1440  # 24 h
 
         Int cpu = 1
         Int cpu_variant_call = 1  # good for PairHMM: 2
@@ -181,6 +184,7 @@ workflow MultiSampleSomaticWorkflow {
             scatter_count = scatter_count,
             jupyter_docker = jupyter_docker,
             gatk_docker = gatk_docker,
+            genotype_docker = genotype_docker,
             bcftools_docker = bcftools_docker,
             ubuntu_docker = ubuntu_docker,
             gatk_override = gatk_override,
@@ -203,6 +207,7 @@ workflow MultiSampleSomaticWorkflow {
             mem_gather_pileup_summaries = mem_gather_pileup_summaries,
             mem_select_pileup_summaries = mem_select_pileup_summaries,
             mem_calculate_contamination = mem_calculate_contamination,
+            mem_genotype_variants = mem_genotype_variants,
             mem_filter_mutect_calls = mem_filter_mutect_calls,
             mem_select_variants = mem_select_variants,
             mem_filter_alignment_artifacts_base = mem_filter_alignment_artifacts_base,
@@ -226,6 +231,7 @@ workflow MultiSampleSomaticWorkflow {
             time_gather_pileup_summaries = time_gather_pileup_summaries,
             time_select_pileup_summaries = time_select_pileup_summaries,
             time_calculate_contamination = time_calculate_contamination,
+            time_genotype_variants = time_genotype_variants,
             time_filter_mutect_calls = time_filter_mutect_calls,
             time_select_variants = time_select_variants,
             time_filter_alignment_artifacts_total = time_filter_alignment_artifacts_total,
@@ -274,9 +280,29 @@ workflow MultiSampleSomaticWorkflow {
             normal_sample_names = select_first([normal_sample_names, GetNormalSampleName.sample_name]),
     }
 
+    if (run_collect_covered_regions) {
+        scatter (sample in Patient.samples) {
+            call ccr.CollectCoveredRegions {
+                input:
+                    interval_list = sample.target_intervals,
+                    ref_fasta = ref_fasta,
+                    ref_fasta_index = ref_fasta_index,
+                    ref_dict = ref_dict,
+                    bam = sample.bam,
+                    bai = sample.bai,
+                    sample_name = sample.assigned_sample_name,
+                    min_read_depth_threshold = min_read_depth_threshold,
+                    paired_end = sample.paired_end,
+                    output_format = "bam",
+                    collect_covered_regions_runtime = Runtimes.collect_covered_regions_runtime,
+            }
+        }
+    }
+
     call tasks.PreprocessIntervals {
         input:
             interval_list = interval_list,
+            interval_blacklist = interval_blacklist,
             interval_lists = interval_lists,
             ref_fasta = ref_fasta,
             ref_fasta_index = ref_fasta_index,
@@ -297,23 +323,8 @@ workflow MultiSampleSomaticWorkflow {
             runtime_params = Runtimes.split_intervals_runtime,
     }
 
-    if (run_collect_coverage) {
+    if (run_collect_target_coverage) {
         scatter (sample in Patient.samples) {
-            call ccr.CollectCoveredRegions {
-                input:
-                    interval_list = sample.target_intervals,
-                    ref_fasta = ref_fasta,
-                    ref_fasta_index = ref_fasta_index,
-                    ref_dict = ref_dict,
-                    bam = sample.bam,
-                    bai = sample.bai,
-                    sample_name = sample.assigned_sample_name,
-                    min_read_depth_threshold = min_read_depth_threshold,
-                    paired_end = sample.paired_end,
-                    output_format = "bam",
-                    collect_covered_regions_runtime = Runtimes.collect_covered_regions_runtime,
-            }
-
             call crc.CollectReadCounts {
                 input:
                     interval_list = sample.target_intervals,
@@ -332,19 +343,20 @@ workflow MultiSampleSomaticWorkflow {
         }
     }
 
-    if (run_contamination_model) {
+    if ((run_collect_allelic_coverage || run_contamination_model)
+        && defined(common_germline_alleles) && defined(common_germline_alleles_idx)
+    ) {
         scatter (normal in Patient.normal_samples) {
             call cc.CalculateContamination as CalculateNormalContamination {
                 input:
                     interval_list = normal.target_intervals,
-                    interval_blacklist = interval_blacklist,
                     scattered_interval_list = SplitIntervals.interval_files,
                     ref_dict = ref_dict,
                     tumor_bam = normal.bam,
                     tumor_bai = normal.bai,
                     tumor_sample_name = normal.assigned_sample_name,
-                    variants = variants_for_contamination,
-                    variants_idx = variants_for_contamination_idx,
+                    common_germline_alleles = common_germline_alleles,
+                    common_germline_alleles_idx = common_germline_alleles_idx,
                     getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                     get_pileup_summaries_runtime = Runtimes.get_pileup_summaries_runtime,
                     gather_pileup_summaries_runtime = Runtimes.gather_pileup_summaries_runtime,
@@ -364,15 +376,14 @@ workflow MultiSampleSomaticWorkflow {
             call cc.CalculateContamination as CalculateTumorContamination {
                 input:
                     interval_list = tumor.target_intervals,
-                    interval_blacklist = interval_blacklist,
                     scattered_interval_list = SplitIntervals.interval_files,
                     ref_dict = ref_dict,
                     tumor_bam = tumor.bam,
                     tumor_bai = tumor.bai,
                     tumor_sample_name = tumor.assigned_sample_name,
                     normal_pileups = normal_pileups,
-                    variants = variants_for_contamination,
-                    variants_idx = variants_for_contamination_idx,
+                    common_germline_alleles = common_germline_alleles,
+                    common_germline_alleles_idx = common_germline_alleles_idx,
                     getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                     get_pileup_summaries_runtime = Runtimes.get_pileup_summaries_runtime,
                     gather_pileup_summaries_runtime = Runtimes.gather_pileup_summaries_runtime,
@@ -381,7 +392,7 @@ workflow MultiSampleSomaticWorkflow {
             }
         }
 
-        Array[File] panel_pileup_summaries = flatten([
+        Array[File] common_germline_allele_pileups = flatten([
             CalculateTumorContamination.tumor_pileup_summaries,
             select_first([CalculateNormalContamination.tumor_pileup_summaries, []])
         ])
@@ -395,195 +406,185 @@ workflow MultiSampleSomaticWorkflow {
             select_first([CalculateNormalContamination.segmentation, []])
         ])
 
-#        call gv.GenotypeVariants {
-#            input:
-#                pileups = panel_pileup_summaries,
-#                contamination_tables = contamination_tables,
-#                segmentation_tables = segmentation_tables,
-#                runtime_params = standard_runtime,
-#        }
-#
-#        call SelectVariants as SelectHETs {
-#            input:
-#                input_vcf = GenotypeVariants.vcf,
-#                input_vcf_idx = GenotypeVariants.vcf_idx,
-#                select_variants_extra_args = select_variants_extra_args,
-#                runtime_params = standard_runtime,
-#                mem_select_variants = mem_select_variants,
-#                time_select_variants = time_startup + time_select_variants
-#        }
-#
-#        if (run_phase_hets) {
-#            call pv.PhaseVariants as PhaseHETs {
-#                input:
-#                    bams = Patient.bams,
-#                    bais = Patient.bais,
-#                    vcf = SelectHETs.vcf,
-#                    vcf_idx = SelectHETs.vcf_idx,
-#            }
-#        }
+        call gv.GenotypeVariants as GenotypeSNPArrayVariants {
+            input:
+                individual_id = individual_id,
+                common_germline_alleles = select_first([common_germline_alleles]),
+                common_germline_alleles_idx = select_first([common_germline_alleles_idx]),
+                sample_names = Patient.sample_names,
+                pileups = common_germline_allele_pileups,
+                contamination_tables = contamination_tables,
+                segmentation_tables = segmentation_tables,
+                compress_output = compress_output,
+                select_hets = false,
+                save_sample_genotype_likelihoods = genotype_variants_save_sample_genotype_likelihoods,
+                verbose = true,
+                genotype_variants_runtime = Runtimes.genotype_variants_runtime,
+        }
     }
 
-    call cv.CallVariants {
-        input:
-            scattered_interval_list = SplitIntervals.interval_files,
-            ref_fasta = ref_fasta,
-            ref_fasta_index = ref_fasta_index,
-            ref_dict = ref_dict,
-            individual_id = individual_id,
-            tumor_bams = tumor_bams,
-            tumor_bais = tumor_bais,
-            normal_bams = normal_bams,
-            normal_bais = normal_bais,
-            normal_bam_names = GetNormalSampleName.sample_name,
-
-            force_call_alleles = force_call_alleles,
-            force_call_alleles_idx = force_call_alleles_idx,
-            panel_of_normals = panel_of_normals,
-            panel_of_normals_idx = panel_of_normals_idx,
-            germline_resource = germline_resource,
-            germline_resource_tbi = germline_resource_tbi,
-            make_bamout = make_bamout,
-            run_orientation_bias_mixture_model = run_orientation_bias_mixture_model,
-            compress_output = compress_output,
-
-            genotype_germline_sites = mutect2_genotype_germline_sites,
-            native_pair_hmm_use_double_precision = mutect2_native_pair_hmm_use_double_precision,
-            use_linked_de_bruijn_graph = mutect2_use_linked_de_bruijn_graph,
-            recover_all_dangling_branches = mutect2_recover_all_dangling_branches,
-            pileup_detection = mutect2_pileup_detection,
-            downsampling_stride = mutect2_downsampling_stride,
-            max_reads_per_alignment_start = mutect2_max_reads_per_alignment_start,
-            mutect2_extra_args = mutect2_extra_args,
-
-            variant_call_runtime = Runtimes.variant_call_runtime,
-            merge_vcfs_runtime = Runtimes.merge_vcfs_runtime,
-            merge_mutect_stats_runtime = Runtimes.merge_mutect_stats_runtime,
-            merge_bams_runtime = Runtimes.merge_bams_runtime,
-            learn_read_orientation_model_runtime = Runtimes.learn_read_orientation_model_runtime,
-    }
-
-    if (run_variant_filter) {
-        call fv.FilterVariants {
+    if (run_variant_calling) {
+        call cv.CallVariants {
             input:
                 scattered_interval_list = SplitIntervals.interval_files,
                 ref_fasta = ref_fasta,
                 ref_fasta_index = ref_fasta_index,
                 ref_dict = ref_dict,
+                individual_id = individual_id,
                 tumor_bams = tumor_bams,
                 tumor_bais = tumor_bais,
-                vcf = CallVariants.vcf,
-                vcf_idx = CallVariants.vcf_idx,
-                mutect_stats = CallVariants.mutect_stats,
-                orientation_bias = CallVariants.orientation_bias,
-                contamination_tables = contamination_tables,
-                segmentation_tables = segmentation_tables,
-                bwa_mem_index_image = bwa_mem_index_image,
-                run_realignment_filter = run_realignment_filter,
-                run_realignment_filter_only_on_high_confidence_variants = run_realignment_filter_only_on_high_confidence_variants,
-                keep_germline = keep_germline,
+                normal_bams = normal_bams,
+                normal_bais = normal_bais,
+                normal_bam_names = GetNormalSampleName.sample_name,
+
+                force_call_alleles = force_call_alleles,
+                force_call_alleles_idx = force_call_alleles_idx,
+                panel_of_normals = panel_of_normals,
+                panel_of_normals_idx = panel_of_normals_idx,
+                germline_resource = germline_resource,
+                germline_resource_tbi = germline_resource_tbi,
+                make_bamout = make_bamout,
+                run_orientation_bias_mixture_model = run_orientation_bias_mixture_model,
                 compress_output = compress_output,
-                max_median_fragment_length_difference = filter_mutect2_max_median_fragment_length_difference,
-                min_alt_median_base_quality = filter_mutect2_min_alt_median_base_quality,
-                min_alt_median_mapping_quality = filter_mutect2_min_alt_median_mapping_quality,
-                max_reasonable_fragment_length = filter_alignment_artifacts_max_reasonable_fragment_length,
-                filter_mutect2_extra_args = filter_mutect2_extra_args,
-                select_variants_extra_args = select_variants_extra_args,
-                select_low_conficence_variants_jexl_arg = select_low_conficence_variants_jexl_arg,
-                realignment_extra_args = realignment_extra_args,
 
-                filter_mutect_calls_runtime = Runtimes.filter_mutect_calls_runtime,
-                filter_alignment_artifacts_runtime = Runtimes.filter_alignment_artifacts_runtime,
-                select_variants_runtime = Runtimes.select_variants_runtime,
+                genotype_germline_sites = mutect2_genotype_germline_sites,
+                native_pair_hmm_use_double_precision = mutect2_native_pair_hmm_use_double_precision,
+                use_linked_de_bruijn_graph = mutect2_use_linked_de_bruijn_graph,
+                recover_all_dangling_branches = mutect2_recover_all_dangling_branches,
+                pileup_detection = mutect2_pileup_detection,
+                downsampling_stride = mutect2_downsampling_stride,
+                max_reads_per_alignment_start = mutect2_max_reads_per_alignment_start,
+                mutect2_extra_args = mutect2_extra_args,
+
+                variant_call_runtime = Runtimes.variant_call_runtime,
                 merge_vcfs_runtime = Runtimes.merge_vcfs_runtime,
+                merge_mutect_stats_runtime = Runtimes.merge_mutect_stats_runtime,
+                merge_bams_runtime = Runtimes.merge_bams_runtime,
+                learn_read_orientation_model_runtime = Runtimes.learn_read_orientation_model_runtime,
         }
 
-        if (run_final_pileup_summaries) {
-            scatter (sample in Patient.samples) {
-                if (keep_germline) {
-                    call cac.CollectAllelicCounts as GermlineAllelicCounts {
-                        input:
-                            scattered_interval_list = SplitIntervals.interval_files,
-                            bam = sample.bam,
-                            bai = sample.bai,
-                            ref_dict = ref_dict,
-                            vcf = FilterVariants.germline_vcf,
-                            vcf_idx = FilterVariants.germline_vcf_idx,
-                            getpileupsummaries_extra_args = getpileupsummaries_extra_args,
-                            output_base_name = sample.assigned_sample_name + ".germline",
-                            vcf_to_pileup_variants_runtime = Runtimes.vcf_to_pileup_variants_runtime,
-                            get_pileup_summaries_runtime = Runtimes.get_pileup_summaries_runtime,
-                            gather_pileup_summaries_runtime = Runtimes.gather_pileup_summaries_runtime,
-                    }
-                }
-
-                call cac.CollectAllelicCounts as SomaticAllelicCounts {
-                    input:
-                        scattered_interval_list = SplitIntervals.interval_files,
-                        bam = sample.bam,
-                        bai = sample.bai,
-                        ref_dict = ref_dict,
-                        vcf = FilterVariants.somatic_vcf,
-                        vcf_idx = FilterVariants.somatic_vcf_idx,
-                        getpileupsummaries_extra_args = getpileupsummaries_extra_args,
-                        output_base_name = sample.assigned_sample_name + ".somatic",
-                        vcf_to_pileup_variants_runtime = Runtimes.vcf_to_pileup_variants_runtime,
-                        get_pileup_summaries_runtime = Runtimes.get_pileup_summaries_runtime,
-                        gather_pileup_summaries_runtime = Runtimes.gather_pileup_summaries_runtime,
-                }
-            }
-        }
-    }
-
-    if (run_annotate_variants) {
-        # The sample scatter needs to be outside of the call to AnnotateVariants
-        # since cromwell shits the bed for piping optional inputs into a nested scatter.
-        scatter (sample in Patient.samples) {
-            if (sample.is_tumor && Patient.has_normal) {
-                # We select the first normal sample to be the matched normal.
-                # todo: select normal with greatest sequencing depth
-                Sample? matched_normal_sample = select_first(Patient.normal_samples)
-            }
-
-            call av.AnnotateVariants {
+        if (run_variant_filter) {
+            call fv.FilterVariants {
                 input:
                     scattered_interval_list = SplitIntervals.interval_files,
                     ref_fasta = ref_fasta,
                     ref_fasta_index = ref_fasta_index,
                     ref_dict = ref_dict,
-                    vcf = select_first([FilterVariants.filtered_vcf, CallVariants.vcf]),
-                    vcf_idx = select_first([FilterVariants.filtered_vcf_idx, CallVariants.vcf_idx]),
-                    individual_id = individual_id,
-                    tumor_sample = sample,
-                    matched_normal_sample = matched_normal_sample,
-
-                    reference_version = funcotator_reference_version,
-                    output_format = funcotator_output_format,
-                    variant_type = funcotator_variant_type,
-                    transcript_selection_mode = funcotator_transcript_selection_mode,
-                    transcript_list = funcotator_transcript_list,
-                    data_sources_tar_gz = funcotator_data_sources_tar_gz,
-                    use_gnomad = funcotator_use_gnomad,
+                    tumor_bams = tumor_bams,
+                    tumor_bais = tumor_bais,
+                    vcf = CallVariants.vcf,
+                    vcf_idx = CallVariants.vcf_idx,
+                    mutect_stats = CallVariants.mutect_stats,
+                    orientation_bias = CallVariants.orientation_bias,
+                    contamination_tables = contamination_tables,
+                    segmentation_tables = segmentation_tables,
+                    bwa_mem_index_image = bwa_mem_index_image,
+                    run_realignment_filter = run_realignment_filter,
+                    run_realignment_filter_only_on_high_confidence_variants = run_realignment_filter_only_on_high_confidence_variants,
+                    keep_germline = keep_germline,
                     compress_output = compress_output,
-                    data_sources_paths = funcotator_data_sources_paths,
-                    annotation_defaults = funcotator_annotation_defaults,
-                    annotation_overrides = funcotator_annotation_overrides,
-                    exclude_fields = funcotator_exclude_fields,
+                    max_median_fragment_length_difference = filter_mutect2_max_median_fragment_length_difference,
+                    min_alt_median_base_quality = filter_mutect2_min_alt_median_base_quality,
+                    min_alt_median_mapping_quality = filter_mutect2_min_alt_median_mapping_quality,
+                    max_reasonable_fragment_length = filter_alignment_artifacts_max_reasonable_fragment_length,
+                    filter_mutect2_extra_args = filter_mutect2_extra_args,
                     select_variants_extra_args = select_variants_extra_args,
-                    funcotate_extra_args = funcotate_extra_args,
+                    select_low_conficence_variants_jexl_arg = select_low_conficence_variants_jexl_arg,
+                    realignment_extra_args = realignment_extra_args,
 
+                    filter_mutect_calls_runtime = Runtimes.filter_mutect_calls_runtime,
+                    filter_alignment_artifacts_runtime = Runtimes.filter_alignment_artifacts_runtime,
                     select_variants_runtime = Runtimes.select_variants_runtime,
-                    funcotate_runtime = Runtimes.funcotate_runtime,
                     merge_vcfs_runtime = Runtimes.merge_vcfs_runtime,
-                    merge_mafs_runtime = Runtimes.merge_mafs_runtime,
+            }
+
+            if (run_collect_called_variants_allelic_coverage) {
+                scatter (sample in Patient.samples) {
+                    if (keep_germline) {
+                        call cac.CollectAllelicCounts as GermlineAllelicCounts {
+                            input:
+                                scattered_interval_list = SplitIntervals.interval_files,
+                                bam = sample.bam,
+                                bai = sample.bai,
+                                ref_dict = ref_dict,
+                                vcf = FilterVariants.germline_vcf,
+                                vcf_idx = FilterVariants.germline_vcf_idx,
+                                getpileupsummaries_extra_args = getpileupsummaries_extra_args,
+                                output_base_name = sample.assigned_sample_name + ".germline",
+                                vcf_to_pileup_variants_runtime = Runtimes.vcf_to_pileup_variants_runtime,
+                                get_pileup_summaries_runtime = Runtimes.get_pileup_summaries_runtime,
+                                gather_pileup_summaries_runtime = Runtimes.gather_pileup_summaries_runtime,
+                        }
+                    }
+
+                    call cac.CollectAllelicCounts as SomaticAllelicCounts {
+                        input:
+                            scattered_interval_list = SplitIntervals.interval_files,
+                            bam = sample.bam,
+                            bai = sample.bai,
+                            ref_dict = ref_dict,
+                            vcf = FilterVariants.somatic_vcf,
+                            vcf_idx = FilterVariants.somatic_vcf_idx,
+                            getpileupsummaries_extra_args = getpileupsummaries_extra_args,
+                            output_base_name = sample.assigned_sample_name + ".somatic",
+                            vcf_to_pileup_variants_runtime = Runtimes.vcf_to_pileup_variants_runtime,
+                            get_pileup_summaries_runtime = Runtimes.get_pileup_summaries_runtime,
+                            gather_pileup_summaries_runtime = Runtimes.gather_pileup_summaries_runtime,
+                    }
+                }
+            }
+        }
+
+        if (run_variant_annotation) {
+            # The sample scatter needs to be outside of the call to AnnotateVariants
+            # since cromwell shits the bed for piping optional inputs into a nested scatter.
+            scatter (sample in Patient.samples) {
+                if (sample.is_tumor && Patient.has_normal) {
+                    # We select the first normal sample to be the matched normal.
+                    # todo: select normal with greatest sequencing depth
+                    Sample? matched_normal_sample = select_first(Patient.normal_samples)
+                }
+
+                call av.AnnotateVariants {
+                    input:
+                        scattered_interval_list = SplitIntervals.interval_files,
+                        ref_fasta = ref_fasta,
+                        ref_fasta_index = ref_fasta_index,
+                        ref_dict = ref_dict,
+                        vcf = select_first([FilterVariants.somatic_vcf, CallVariants.vcf]),
+                        vcf_idx = select_first([FilterVariants.somatic_vcf_idx, CallVariants.vcf_idx]),
+                        individual_id = individual_id,
+                        tumor_sample = sample,
+                        matched_normal_sample = matched_normal_sample,
+
+                        reference_version = funcotator_reference_version,
+                        output_format = funcotator_output_format,
+                        variant_type = funcotator_variant_type,
+                        transcript_selection_mode = funcotator_transcript_selection_mode,
+                        transcript_list = funcotator_transcript_list,
+                        data_sources_tar_gz = funcotator_data_sources_tar_gz,
+                        use_gnomad = funcotator_use_gnomad,
+                        compress_output = compress_output,
+                        data_sources_paths = funcotator_data_sources_paths,
+                        annotation_defaults = funcotator_annotation_defaults,
+                        annotation_overrides = funcotator_annotation_overrides,
+                        exclude_fields = funcotator_exclude_fields,
+                        select_variants_extra_args = select_variants_extra_args,
+                        funcotate_extra_args = funcotate_extra_args,
+
+                        select_variants_runtime = Runtimes.select_variants_runtime,
+                        funcotate_runtime = Runtimes.funcotate_runtime,
+                        merge_vcfs_runtime = Runtimes.merge_vcfs_runtime,
+                        merge_mafs_runtime = Runtimes.merge_mafs_runtime,
+                }
             }
         }
     }
 
     output {
-        File unfiltered_vcf = CallVariants.vcf
-        File unfiltered_vcf_idx = CallVariants.vcf_idx
-        File mutect_stats = CallVariants.mutect_stats
+        File? unfiltered_vcf = CallVariants.vcf
+        File? unfiltered_vcf_idx = CallVariants.vcf_idx
+        File? mutect_stats = CallVariants.mutect_stats
         File? bam = CallVariants.bam
         File? bai = CallVariants.bai
         File? orientation_bias = CallVariants.orientation_bias
@@ -594,14 +595,21 @@ workflow MultiSampleSomaticWorkflow {
         File? germline_vcf = FilterVariants.germline_vcf
         File? germline_vcf_idx = FilterVariants.germline_vcf_idx
         File? filtering_stats = FilterVariants.filtering_stats
+        File? genotyped_snparray_vcf = GenotypeSNPArrayVariants.vcf
+        File? genotyped_snparray_vcf_idx = GenotypeSNPArrayVariants.vcf_idx
+        File? snparray_ref_counts = GenotypeSNPArrayVariants.ref_counts
+        File? snparray_alt_counts = GenotypeSNPArrayVariants.alt_counts
+        File? snparray_other_alt_counts = GenotypeSNPArrayVariants.other_alt_counts
+        File? sample_snp_correlation = GenotypeSNPArrayVariants.sample_correlation
+        Array[File]? sample_snparray_genotype_likelihoods = GenotypeSNPArrayVariants.sample_genotype_likelihoods
         Array[File]? annotated_variants = AnnotateVariants.annotated_variants
         Array[File?]? annotated_variants_idx = AnnotateVariants.annotated_variants_idx
-        Array[File]? somatic_allelic_counts = SomaticAllelicCounts.pileup_summaries
-        Array[File?]? germline_allelic_counts = GermlineAllelicCounts.pileup_summaries
-        Array[File]? panel_allelic_counts = panel_pileup_summaries
+        Array[File?]? called_germline_allelic_counts = GermlineAllelicCounts.pileup_summaries
+        Array[File]? called_somatic_allelic_counts = SomaticAllelicCounts.pileup_summaries
+        Array[File]? snparray_allelic_counts = common_germline_allele_pileups
         Array[File]? contamination_table = contamination_tables
         Array[File]? segmentation_table = segmentation_tables
-        Array[File]? read_counts = CollectReadCounts.read_counts
+        Array[File]? target_read_counts = CollectReadCounts.read_counts
         Array[File?]? denoised_copy_ratios = CollectReadCounts.denoised_copy_ratios
         Array[File?]? standardized_copy_ratios = CollectReadCounts.standardized_copy_ratios
         Array[File]? covered_regions_bed = CollectCoveredRegions.regions_bed

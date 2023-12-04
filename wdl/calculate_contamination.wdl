@@ -33,13 +33,13 @@ workflow CalculateContamination {
         String? normal_sample_name
         File? normal_pileups
 
-        File? variants
-        File? variants_idx
+        File? common_germline_alleles
+        File? common_germline_alleles_idx
         File? vcf
         File? vcf_idx
         String? getpileupsummaries_extra_args
 
-        # parameters for GetPileupSummaries to select loci of variants for contamination
+        # parameters for GetPileupSummaries to select loci of common_germline_alleles for contamination
         Float minimum_population_allele_frequency = 0.01
         Float maximum_population_allele_frequency = 0.2
         Int minimum_read_depth = 10
@@ -63,7 +63,7 @@ workflow CalculateContamination {
         Int mem_get_pileup_summaries = 4096  # needs at least 2G
         Int mem_gather_pileup_summaries = 512  # 64
         Int mem_select_pileup_summaries = 256  # 64
-        Int mem_calculate_contamination = 8192  # depends on the variants_for_contamination resource
+        Int mem_calculate_contamination = 8192  # depends on the common_germline_alleles resource
         Int time_startup = 10
         Int time_vcf_to_pileup_variants = 5
         Int time_get_pileup_summaries = 90  # 1.5 h
@@ -102,7 +102,7 @@ workflow CalculateContamination {
 
     if (!defined(tumor_pileups)) {
         # todo: assert ref_dict and output_base_name is defined
-        # todo: assert variants or vcf is defined
+        # todo: assert common_germline_alleles or vcf is defined
         call cac.CollectAllelicCounts as TumorPileupSummaries {
             input:
                 interval_list = interval_list,
@@ -112,8 +112,8 @@ workflow CalculateContamination {
                 bai = select_first(select_all([tumor_bai])),
                 ref_dict = select_first(select_all([ref_dict])),
                 output_base_name = select_first(select_all([tumor_sample_name, "tumor"])),
-                variants = variants,
-                variants_idx = variants_idx,
+                common_germline_alleles = common_germline_alleles,
+                common_germline_alleles_idx = common_germline_alleles_idx,
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
@@ -137,8 +137,8 @@ workflow CalculateContamination {
                 bai = select_first(select_all([normal_bai])),
                 ref_dict = select_first(select_all([ref_dict])),
                 output_base_name = select_first([normal_sample_name, "normal"]),
-                variants = variants,
-                variants_idx = variants_idx,
+                common_germline_alleles = common_germline_alleles,
+                common_germline_alleles_idx = common_germline_alleles_idx,
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
