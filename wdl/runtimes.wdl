@@ -66,7 +66,7 @@ workflow DefineRuntimes {
         String ubuntu_docker = "ubuntu"
         String bcftools_docker = "staphb/bcftools"
         String genotype_docker = "civisanalytics/datascience-python:latest"
-        String whathap_docker = "hangsuunc/whatshap:v1"
+        String whatshap_docker = "hangsuunc/whatshap:v1"
         String shapeit4_docker = "yussab/shapeit4:4.2.2"
         String shapeit5_docker = "lindonkambule/shapeit5_2023-05-05_d6ce1e2"
         File? gatk_override
@@ -186,6 +186,16 @@ workflow DefineRuntimes {
         Int mem_create_panel = 16384
         Int time_create_panel = 1200  # 20 h
         Int disk_create_panel = 0
+
+        # Whatshap
+        Int cpu_whatshap = 1
+        Int mem_whatshap = 4096
+        Int time_whatshap = 60
+
+        # Shapeit
+        Int cpu_shapeit = 4
+        Int mem_shapeit = 4096
+        Int time_shapeit = 60
     }
 
     Int gatk_override_size = ceil(size(gatk_override, "GB"))
@@ -502,6 +512,42 @@ workflow DefineRuntimes {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime whatshap = {
+        "docker": whatshap_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu_whatshap,
+        "machine_mem": mem_whatshap + mem_machine_overhead,
+        "command_mem": mem_whatshap,
+        "runtime_minutes": time_startup + time_whatshap,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime shapeit4 = {
+        "docker": shapeit4_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu_shapeit,
+        "machine_mem": mem_shapeit + mem_machine_overhead,
+        "command_mem": mem_shapeit,
+        "runtime_minutes": time_startup + time_shapeit,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime shapeit5 = {
+        "docker": shapeit5_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu_shapeit,
+        "machine_mem": mem_shapeit + mem_machine_overhead,
+        "command_mem": mem_shapeit,
+        "runtime_minutes": time_startup + time_shapeit,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     output {
         Runtime get_sample_name_runtime = get_sample_name
         Runtime preprocess_intervals_runtime = preprocess_intervals
@@ -527,5 +573,8 @@ workflow DefineRuntimes {
         Runtime cnn_scoring_runtime = cnn_scoring
         Runtime funcotate_runtime = funcotate
         Runtime create_panel_runtime = create_panel
+        Runtime whatshap_runtime = whatshap
+        Runtime shapeit4_runtime = shapeit4
+        Runtime shapeit5_runtime = shapeit5
     }
 }
