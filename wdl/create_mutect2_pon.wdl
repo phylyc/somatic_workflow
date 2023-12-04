@@ -92,15 +92,17 @@ workflow CreateMutect2PoN {
                 tumor_bais = [normal.right],
                 tumor_target_intervals = [target_interval_list],
 
-                run_collect_coverage = false,
+                run_collect_covered_regions = false,
+                run_collect_target_coverage = false,
+                run_collect_allelic_coverage = false,
                 run_contamination_model = false,
-                run_phase_hets = false,
                 run_orientation_bias_mixture_model = false,
+                run_variant_calling = true,
                 run_variant_filter = false,
                 run_realignment_filter = false,
                 run_realignment_filter_only_on_high_confidence_variants = false,
-                run_final_pileup_summaries = false,
-                run_annotate_variants = false,
+                run_collect_called_variants_allelic_coverage = false,
+                run_variant_annotation = false,
 
                 keep_germline = false,
                 compress_output = true,
@@ -151,8 +153,8 @@ workflow CreateMutect2PoN {
     scatter (scattered_intervals in SplitIntervals.interval_files) {
         call CreatePanel {
             input:
-                input_vcfs = MultiSampleSomaticWorkflow.unfiltered_vcf,
-                input_vcf_indices = MultiSampleSomaticWorkflow.unfiltered_vcf_idx,
+                input_vcfs = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf),
+                input_vcf_indices = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf_idx),
                 interval_list = scattered_intervals,
                 ref_fasta = ref_fasta,
                 ref_fasta_index = ref_fasta_index,
@@ -177,8 +179,8 @@ workflow CreateMutect2PoN {
     output {
         File pon = MergeVCFs.merged_vcf
         File pon_idx = MergeVCFs.merged_vcf_idx
-        Array[File] normal_calls = MultiSampleSomaticWorkflow.unfiltered_vcf
-        Array[File] normal_calls_idx = MultiSampleSomaticWorkflow.unfiltered_vcf_idx
+        Array[File] normal_calls = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf)
+        Array[File] normal_calls_idx = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf_idx)
     }
 }
 
