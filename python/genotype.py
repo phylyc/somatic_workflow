@@ -6,6 +6,7 @@ import multiprocessing as mp
 import numpy as np
 import os
 import pandas as pd
+from tqdm import tqdm
 import scipy.stats as st
 import warnings
 
@@ -59,10 +60,11 @@ def main():
         segments=args.segments,
         contamination=args.contamination,
         min_read_depth=args.min_read_depth,
+        verbose=args.verbose
     )
     data.pileup_likelihoods = data.get_pileup_likelihoods_parallel(genotyper=genotyper, max_processes=args.threads)
     data.validate_pileup_likelihood_allele_frequencies()
-    data.sample_correlation = data.validate_sample_correlation(verbose=args.verbose)
+    data.sample_correlation = data.validate_sample_correlation()
     data.joint_genotype_likelihood = genotyper.get_joint_genotype_likelihood(pileup_likelihoods=data.pileup_likelihoods)
     data.subset_data()
     data.write_output(output_dir=args.output_dir, vcf_format=args.format, args=args)
@@ -97,15 +99,21 @@ class Pileup(object):
     def __init__(self, file_path: str = None, min_read_depth: int = 0):
         self.file_path = file_path
         self.columns = ["contig", "position", "ref_count", "alt_count", "other_alt_count", "allele_frequency"]
-        self.df = (
-            pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.columns, low_memory=False)
-            if file_path is not None
-            else pd.DataFrame(columns=self.columns)
-        )
+        try:
+            self.df = (
+                pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.columns, low_memory=False)
+                if file_path is not None
+                else pd.DataFrame(columns=self.columns)
+            )
+        except Exception as e:
+            warnings.warn(f"Exception reading pileup file {file_path}: {e}")
+            warnings.warn(f"Setting pileup to empty DataFrame.")
+            self.df = pd.DataFrame(columns=self.columns)
         self.df = self.df.loc[self.df[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1) >= min_read_depth]
         self.bam_sample_name = None
         if file_path is not None:
-            with open(file_path, "r") as pileup_file:
+            open_func = gzip.open if file_path.endswith(".gz") else open
+            with open_func(file_path, "rt") as pileup_file:
                 pileup_header = pileup_file.readline().strip()
                 if pileup_header.startswith("#<METADATA>SAMPLE="):
                     self.bam_sample_name = pileup_header.removeprefix("#<METADATA>SAMPLE=")
@@ -161,15 +169,22 @@ class Segments(object):
 
     def __init__(self, file_path: str = None):
         self.file_path = file_path
-        self.columns = ["contig", "start_pos", "end_pos", "minor_allele_fraction"]
-        self.df = (
-            pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.columns, low_memory=False)
-            if file_path is not None
-            else pd.DataFrame(columns=self.columns)
-        )
+        self.columns = ["contig", "start", "end", "minor_allele_fraction"]
+        default_df = pd.DataFrame(columns=self.columns)
+        try:
+            self.df = (
+                pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.columns, low_memory=False)
+                if file_path is not None
+                else default_df
+            )
+        except Exception as e:
+            warnings.warn(f"Exception reading segments file {file_path}: {e}")
+            warnings.warn(f"Setting segments to empty DataFrame.")
+            self.df = default_df
         self.bam_sample_name = None
         if file_path is not None:
-            with open(file_path, "r") as segments_file:
+            open_func = gzip.open if file_path.endswith(".gz") else open
+            with open_func(file_path, "rt") as segments_file:
                 segments_header = segments_file.readline().strip()
                 if segments_header.startswith("#<METADATA>SAMPLE="):
                     self.bam_sample_name = segments_header.removeprefix("#<METADATA>SAMPLE=")
@@ -197,11 +212,17 @@ class Contamination(object):
     def __init__(self, file_path: str = None):
         self.file_path = file_path
         self.keys = ["sample", "contamination", "contamination_error"]
-        self.dict = (
-            pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.keys, low_memory=False).loc[0].to_dict()
-            if file_path is not None
-            else {key: default for key, default in zip(self.keys, [None, 0, 0])}
-        )
+        default_dict = {key: default for key, default in zip(self.keys, [None, 0, 0])}
+        try:
+            self.dict = (
+                pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.keys, low_memory=False).loc[0].to_dict()
+                if file_path is not None
+                else default_dict
+            )
+        except Exception as e:
+            warnings.warn(f"Exception reading contamination file {file_path}: {e}")
+            warnings.warn(f"Setting contamination to default dictionary.")
+            self.dict = default_dict
         self.value = self.dict["contamination"]
         self.error = self.dict["contamination_error"]
         self.bam_sample_name = self.dict["sample"]
@@ -350,9 +371,9 @@ class Genotyper(object):
         error = self.get_error_prob(pileup=pileup)
 
         likelihoods = []
-        in_any_seg = False
+        in_any_seg = pd.Series(False, index=pileup.index)
         for _, seg in segments.iterrows():
-            seg_mask = (pileup["contig"] == seg["contig"]) & (seg["start_pos"] <= pileup["position"]) & (pileup["position"] <= seg["end_pos"])
+            seg_mask = (pileup["contig"] == seg["contig"]) & (seg["start"] <= pileup["position"]) & (pileup["position"] <= seg["end"])
             in_any_seg |= seg_mask
             seg_pileup = pileup.loc[seg_mask]
             if seg_pileup.empty:
@@ -390,17 +411,17 @@ class Genotyper(object):
         )
         return genotype_likelihoods
 
-    def calculate_genotype_likelihoods_per_segment(self, pileup: pd.DataFrame, minor_af: float = 0.4434, contamination: float = 0.0014, error: float = 0.01) -> pd.DataFrame:
+    def calculate_genotype_likelihoods_per_segment(self, pileup: pd.DataFrame, minor_af: float = 0.47, contamination: float = 0.001, error: float = 0.01) -> pd.DataFrame:
         """
         Calculates genotype likelihoods for a specific segment of pileup data.
+        https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3167057/
 
         This method applies either a binomial or beta-binomial model to compute the
         likelihoods, based on the model specified during the initialization of the
         Genotyper.
 
-        Note: Across a thousand normal samples as inferred by GATK's CalculateContamination:
-              - median minor allele fraction is 0.4434
-              - median contamination is 0.0014
+        Note: Suppose X[i] ~ Binom(N, .5), and minor_af[i] = min(X[i]/N, 1 - X[i]/N),
+              then median(minor_af) = 0.47 for N = 100 (sequencing depth).
 
         Args:
             pileup (pd.DataFrame): DataFrame containing pileup data for the segment.
@@ -416,7 +437,7 @@ class Genotyper(object):
         alt = pileup["alt_count"]
         f = pileup["allele_frequency"]  # population allele frequency from SNP panel
 
-        f_aa = contamination * f + (1 - contamination) * error / 3  # / 3 is in GATK code
+        f_aa = contamination * f + (1 - contamination) * error / 3
         f_ab = contamination * f + (1 - contamination) * minor_af
         f_ba = contamination * f + (1 - contamination) * (1 - minor_af)
         f_bb = contamination * f + (1 - contamination) * (1 - error)
@@ -539,19 +560,38 @@ class GenotypeData(object):
         min_read_depth (int, optional): Minimum read depth threshold for filtering data.
     """
 
-    def __init__(self, individual_id: str, samples: list[str], variant: str, pileup: list[str], segments: list[str] = None, contamination: list[str] = None, min_read_depth: int = 10):
+    def __init__(self, individual_id: str, samples: list[str], variant: str, pileup: list[str], segments: list[str] = None, contamination: list[str] = None, min_read_depth: int = 10, verbose: bool = False):
+        print("Loading data:") if verbose else None
         self.individual_id = individual_id
         self.samples = samples
+
+        print("  Variants") if verbose else None
         self.vcf = VCF(file_path=variant)
-        self.pileups = [Pileup(file_path=p, min_read_depth=min_read_depth) for p in pileup]
-        self.segments = [Segments(file_path=s) for s in segments] if segments is not None else [Segments() for _ in pileup]
-        self.contaminations = [Contamination(file_path=c) for c in contamination] if contamination is not None else [Contamination() for _ in pileup]
+
+        self.pileups = []
+        for p in tqdm(pileup, desc="  Pileups", disable=not verbose):
+            self.pileups.append(Pileup(file_path=p, min_read_depth=min_read_depth))
+
+        if segments is None:
+            self.segments = [Segments()] * len(pileup)
+        else:
+            self.segments = []
+            for s in tqdm(segments, desc="  Segments", disable=not verbose):
+                self.segments.append(Segments(file_path=s))
+
+        if contamination is None:
+            self.contaminations = [Contamination()] * len(pileup)
+        else:
+            self.contaminations = []
+            for c in tqdm(contamination, desc="  Contaminations", disable=not verbose):
+                self.contaminations.append(Contamination(file_path=c))
+
         self.pileup_likelihoods = None
         self.sample_correlation = None
         self.joint_genotype_likelihood = None
+        self.verbose = verbose
 
-    @staticmethod
-    def get_pileup_likelihood(genotyper: Genotyper, assigned_sample_name: str, pileup: Pileup, segments: Segments, contamination: Contamination) -> PileupLikelihood:
+    def get_pileup_likelihood(self, genotyper: Genotyper, assigned_sample_name: str, pileup: Pileup, segments: Segments, contamination: Contamination) -> PileupLikelihood:
         pileup_likelihood = PileupLikelihood(
             pileup_likelihood=genotyper.calculate_genotype_likelihoods(
                 pileup=pileup.df,
@@ -561,30 +601,34 @@ class GenotypeData(object):
             assigned_sample_name=assigned_sample_name,
             bam_sample_name=cross_check_sample_name(pileup, segments, contamination)
         )
-        print(".", end="", flush=True)
+        print(".", end="", flush=True) if self.verbose else None
         return pileup_likelihood
 
     def get_pileup_likelihoods_parallel(self, genotyper: Genotyper, max_processes: int = 1) -> list[PileupLikelihood]:
         processes = np.min([max_processes, len(self.samples), os.cpu_count()])
-        try:
-            print(f"Parallel execution with {processes} processes: ", end="")
-            with mp.Pool(processes=processes) as pool:
-                pileup_likelihoods = pool.starmap(
-                    func=self.get_pileup_likelihood,
-                    iterable=[
-                        (genotyper, assigned_sample_name, pileup, segments, contamination)
-                        for assigned_sample_name, pileup, segments, contamination in zip(self.samples, self.pileups, self.segments, self.contaminations)
-                    ]
-                )
-            print()
-            return pileup_likelihoods
-        except Exception as e:
-            print(f"Error in parallel execution: {e}")
-            print("Falling back to serial execution.")
-            return [
-                self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, segments, contamination)
-                for assigned_sample_name, pileup, segments, contamination in zip(self.samples, self.pileups, self.segments, self.contaminations)
-            ]
+        if processes > 1:
+            try:
+                print(f"Parallel execution with {processes} processes: ", end="") if self.verbose else None
+                with mp.Pool(processes=processes) as pool:
+                    pileup_likelihoods = pool.starmap(
+                        func=self.get_pileup_likelihood,
+                        iterable=[
+                            (genotyper, assigned_sample_name, pileup, segments, contamination)
+                            for assigned_sample_name, pileup, segments, contamination in zip(self.samples, self.pileups, self.segments, self.contaminations)
+                        ]
+                    )
+                print()
+                return pileup_likelihoods
+
+            except Exception as e:
+                print(f"Error in parallel execution: {e}")
+        print("Serial execution: ", end="") if self.verbose else None
+        pileup_likelihoods = [
+            self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, segments, contamination)
+            for assigned_sample_name, pileup, segments, contamination in zip(self.samples, self.pileups, self.segments, self.contaminations)
+        ]
+        print()
+        return pileup_likelihoods
 
     def validate_pileup_likelihood_allele_frequencies(self):
         """
@@ -603,16 +647,22 @@ class GenotypeData(object):
         if not is_same.all():
             warnings.warn("Allele frequencies in pileups are not the same across samples for each locus (though they should)! Please check your inputs!")
 
-    def validate_sample_correlation(self, correlation_threshold: float = 0.95, verbose=False) -> pd.DataFrame:
+    def validate_sample_correlation(self, correlation_threshold: float = 0.95) -> pd.DataFrame:
         """
         Validates the correlation of sample genotypes.
 
         Calculates the Kendall-tau correlation of variant genotypes between samples
         and warns if the correlation is below a specified threshold.
 
+        Median correlation of samples between unrelated patients: 0.15 (from data)
+        Median correlation of samples between related patients: 0.575
+          0.15 = 0.575 - 0.425, so two unrelated individuals share 57.5% of their variant SNPs
+          children inherit 50% of their SNPs from each parent, so two related individuals share 78.75% of their variant SNPs
+          Kendall tau correlation 0.575 = 0.7875 - (1 - 0.7875)
+        Median correlation of samples within same patient: 0.978 (from data)
+
         Args:
             correlation_threshold (float, optional): Threshold for genotype correlation.
-            verbose (bool, optional): If True, prints detailed correlation information.
 
         Returns:
             pandas.DataFrame: DataFrame containing the sample correlation matrix.
@@ -635,7 +685,7 @@ class GenotypeData(object):
         sample_genotypes = sample_genotypes.loc[sample_genotypes.apply(lambda row: any(["1" in gt for gt in row.values]), axis=1)]
         sample_genotypes = sample_genotypes.replace("0/0", 0).replace("0/1", 1).replace("1/1", 2).replace("./.", np.nan)
         sample_correlation = sample_genotypes.corr(method="kendall")
-        if verbose:
+        if self.verbose:
             print(f"Concordance of samples is evaluated at {sample_genotypes.dropna().shape[0]} to {sample_genotypes.shape[0]} variant loci.")
             print("Kendall-tau correlation of variant genotypes between samples:")
             print(sample_correlation.round(3))
@@ -705,8 +755,8 @@ class GenotypeData(object):
         """
         print(f"Writing output to {output_dir} ...") if args.verbose else None
         os.makedirs(output_dir, exist_ok=True)
-        self.write_sample_likelihoods(output_dir=output_dir, args=args)
         self.write_sample_correlation(output_dir=output_dir, args=args)
+        self.write_sample_likelihoods(output_dir=output_dir, args=args)
         self.write_counts_tables(output_dir=output_dir, args=args)
         self.write_genotype_vcf(output_dir=output_dir, vcf_format=vcf_format, args=args)
 
