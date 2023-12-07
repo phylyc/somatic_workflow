@@ -3,7 +3,7 @@ version development
 import "patient.wdl"
 import "runtimes.wdl"
 import "tasks.wdl"
-    
+
     
 workflow AnnotateVariants {
     input {
@@ -77,6 +77,7 @@ workflow AnnotateVariants {
             preemptible = preemptible,
             cpu = cpu,
             disk_sizeGB = disk_sizeGB,
+            run_variant_anntation_scattered = scatter_count > 1,
             mem_select_variants = mem_select_variants,
             mem_funcotate = mem_funcotate,
             mem_merge_vcfs = mem_merge_vcfs,

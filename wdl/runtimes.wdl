@@ -181,6 +181,7 @@ workflow DefineRuntimes {
         # gatk: Funcotator
         Int mem_funcotate = 6144
         Int time_funcotate = 1440  # 24 h
+        Boolean run_variant_anntation_scattered = false
 
         # gatk: GenomicsDBImport / CreateSomaticPanelOfNormals
         Int mem_create_panel = 16384
@@ -494,7 +495,7 @@ workflow DefineRuntimes {
         "cpu": cpu,
         "machine_mem": mem_funcotate + mem_machine_overhead,
         "command_mem": mem_funcotate,
-        "runtime_minutes": time_startup + ceil(time_funcotate / scatter_count),
+        "runtime_minutes": time_startup + if run_variant_anntation_scattered then ceil(time_funcotate / scatter_count) else time_funcotate,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }

@@ -58,6 +58,7 @@ workflow MultiSampleSomaticWorkflow {
         Boolean run_realignment_filter_only_on_high_confidence_variants = false
         Boolean run_collect_called_variants_allelic_coverage = true
         Boolean run_variant_annotation = true
+        Boolean run_variant_annotation_scattered = false
 
         Boolean keep_germline = false
         Boolean compress_output = true
@@ -67,6 +68,7 @@ workflow MultiSampleSomaticWorkflow {
         Int preprocess_intervals_bin_length = 0
         Int preprocess_intervals_padding = 0
         Int min_read_depth_threshold = 1
+        String genotype_variants_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
         Boolean genotype_variants_save_sample_genotype_likelihoods = false
         Boolean mutect2_native_pair_hmm_use_double_precision = true
         Boolean mutect2_use_linked_de_bruijn_graph = true
@@ -192,6 +194,8 @@ workflow MultiSampleSomaticWorkflow {
             max_retries = max_retries,
             cpu = cpu,
             disk_sizeGB = disk_sizeGB,
+
+            run_variant_anntation_scattered = run_variant_annotation_scattered,
 
             mem_machine_overhead = mem_machine_overhead,
             mem_additional_per_sample = mem_additional_per_sample,
@@ -408,6 +412,7 @@ workflow MultiSampleSomaticWorkflow {
 
         call gv.GenotypeVariants as GenotypeSNPArrayVariants {
             input:
+                script = genotype_variants_script,
                 individual_id = individual_id,
                 common_germline_alleles = select_first([common_germline_alleles]),
                 common_germline_alleles_idx = select_first([common_germline_alleles_idx]),
@@ -426,7 +431,7 @@ workflow MultiSampleSomaticWorkflow {
     if (run_variant_calling) {
         call cv.CallVariants {
             input:
-                scattered_interval_list = SplitIntervals.interval_files,
+                scattered_interval_list = if run_variant_annotation_scattered then SplitIntervals.interval_files else [PreprocessIntervals.preprocessed_interval_list],
                 ref_fasta = ref_fasta,
                 ref_fasta_index = ref_fasta_index,
                 ref_dict = ref_dict,
