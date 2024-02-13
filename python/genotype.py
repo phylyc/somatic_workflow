@@ -14,28 +14,28 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="Genotyper",
         description="""
-            This script calculates genotype likelihoods from allelic counts, taking into account potential sample contamination and segment-specific minor allele frequency. 
-            It uses allelic pileup data (GATK GetPileupSummaries), segments data (GATK CalculateContamination), and contamination estimates (GATK CalculateContamination), 
+            This script calculates genotype likelihoods from allelic counts, taking into account potential sample contamination and segment-specific minor allele fraction. 
+            It uses allelic pileup data (GATK GetPileupSummaries), allelic segmentation data (GATK CalculateContamination), and contamination estimates (GATK CalculateContamination), 
             to compute genotype likelihoods under specified models (binomial or beta-binomial). 
-            Variant genotype correlation between all samples is computed. 
+            The variant genotype correlation between all samples is computed as a consistency check.
             Outputs 1) a VCF with patient genotype information, 2) allelic count matrices for each allele, 3) sample correlation matrix, and (optionally) 4) sample pileups with genotype likelihood annotations.
         """,
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "genotype.py -O <output_dir> -V <variant> --patient <patient> --sample <sample> [--sample <sample> ...]-P <pileup> [-P <pileup> ...] [-S <segments> ...] [-C <contamination> ...] [-M <model>] [-D <min_read_depth>] [-p <min_genotype_likelihood>] [-F <format>] [--select_hets] [--save_sample_genotype_likelihoods] [--verbose]"
+    parser.usage = "genotype.py -O <output_dir> -V <variant> --patient <patient> --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-S <segments> ...] [-C <contamination> ...] [-M <model>] [-D <min_read_depth>] [-p <min_genotype_likelihood>] [-F <format>] [--select_hets] [--save_sample_genotype_likelihoods] [--verbose]"
     parser.add_argument("-O", "--output_dir",                   type=str,   required=True,  help="Path to the output directory.")
     parser.add_argument("--patient",                            type=str,   required=True,  help="Name of the patient.")
-    parser.add_argument("--sample",                             type=str,   required=True,  action="append",    help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file.")
-    parser.add_argument("-P", "--pileup",                       type=str,   required=True,  action="append",    help="Path to the allelic pileup input file (output of GATK's GetPileupSummaries; used for CalculateContamination).")
-    parser.add_argument("-S", "--segments",                     type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation input file (output of GATK's CalculateContamination).")
-    parser.add_argument("-C", "--contamination",                type=str,   default=None,   action="append",    help="Path to the contamination estimate input file (output of GATK's CalculateContamination).")
+    parser.add_argument("--sample",                             type=str,   required=True,  action="append",    help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file header.")
+    parser.add_argument("-P", "--pileup",                       type=str,   required=True,  action="append",    help="Path to the allelic pileup file (output of GATK's GetPileupSummaries; used for CalculateContamination).")
+    parser.add_argument("-S", "--segments",                     type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation file (output of GATK's CalculateContamination).")
+    parser.add_argument("-C", "--contamination",                type=str,   default=None,   action="append",    help="Path to the contamination estimate file (output of GATK's CalculateContamination).")
     parser.add_argument("-V", "--variant",                      type=str,   default=None,   help="A VCF file containing common germline variants and population allele frequencies. (Used to get pileup summaries.)")
     parser.add_argument("-M", "--model",                        type=str,   default="betabinom", choices=["binom", "betabinom"], help="Genotype likelihood model.")
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
     parser.add_argument("-p", "--min_genotype_likelihood",      type=float, default=0.95,   help="Probability threshold for calling and retaining genotypes.")
     parser.add_argument("-F", "--format",                       type=str,   default="GT",   help="VCF format field. (GT: genotype; AD: allele depth; DP: total depth; PL: phred-scaled genotype likelihoods.)")
-    parser.add_argument("--threads",                            type=int,   default=1,      help="Number of threads to use for parallelization.")
+    parser.add_argument("--threads",                            type=int,   default=1,      help="Number of threads to use for parallelization over samples.")
     parser.add_argument("--select_hets",                                    default=False,  action="store_true", help="Keep only heterozygous sites.")
     parser.add_argument("--save_sample_genotype_likelihoods",               default=False,  action="store_true", help="Save genotype likelihoods to file for each sample.")
     parser.add_argument("--compress_output",                                default=False,  action="store_true", help="Compress output files.")
@@ -318,17 +318,23 @@ class Genotyper(object):
 
     Attributes:
         model (str): The model to use for calculating genotype likelihoods ('binom' or 'betabinom').
+        overdispersion (float): Overdispersion parameter for the beta-binomial model.
+        ref_bias (float): SNP bias of the reference allele.
         min_genotype_likelihood (float): Minimum genotype likelihood threshold for filtering.
         select_hets (bool): Whether to select only heterozygous sites.
 
     Args:
-        model (str): The model for calculating genotype likelihoods.
+        model (str, optional): The model for calculating genotype likelihoods.
+        overdispersion (float, optional): Overdispersion parameter for the beta-binomial model.
+        ref_bias (float, optional): SNP bias of the reference allele.
         min_genotype_likelihood (float, optional): Minimum genotype likelihood threshold.
         select_hets (bool, optional): Flag to select only heterozygous sites.
     """
 
-    def __init__(self, model: str, min_genotype_likelihood: float = 0.95, select_hets: bool = True):
+    def __init__(self, model: str = "betabinom", overdispersion: float = 100, ref_bias: float = 1.1, min_genotype_likelihood: float = 0.95, select_hets: bool = False):
         self.model = model
+        self.overdispersion = overdispersion  # overdispersion parameter for beta-binomial model
+        self.ref_bias = ref_bias  # SNP bias of the ref allele
         self.min_genotype_likelihood = min_genotype_likelihood
         self.select_hets = select_hets
 
@@ -352,9 +358,9 @@ class Genotyper(object):
         total_counts = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1).sum()
         return np.clip(1.5 * other_alt_counts / min(1, total_counts), a_min=min_error, a_max=max_error)
 
-    def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, segments: pd.DataFrame = None, contamination: float = 0) -> pd.DataFrame:
+    def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, segments: pd.DataFrame = None, contamination: float = 0.001) -> pd.DataFrame:
         """
-        Calculates genotype likelihoods for given pileup data, optionally segmented by genomic regions.
+        Calculates genotype likelihoods for given pileup data, and optional allelic copy ratio segmentation, and contamination estimate.
 
         Args:
             pileup (pd.DataFrame): DataFrame containing pileup data.
@@ -371,20 +377,25 @@ class Genotyper(object):
 
         likelihoods = []
         in_any_seg = pd.Series(False, index=pileup.index)
-        for _, seg in segments.iterrows():
-            seg_mask = (pileup["contig"] == seg["contig"]) & (seg["start"] <= pileup["position"]) & (pileup["position"] <= seg["end"])
-            in_any_seg |= seg_mask
-            seg_pileup = pileup.loc[seg_mask]
-            if seg_pileup.empty:
-                continue
-            likelihoods.append(
-                self.calculate_genotype_likelihoods_per_segment(
-                    pileup=seg_pileup,
-                    minor_af=seg["minor_allele_fraction"],
-                    contamination=contamination,
-                    error=error
+        if segments is not None:
+            for _, seg in segments.iterrows():
+                seg_mask = (
+                    (pileup["contig"] == seg["contig"])
+                    & (seg["start"] <= pileup["position"])
+                    & (pileup["position"] <= seg["end"])
                 )
-            )
+                seg_pileup = pileup.loc[seg_mask]
+                if seg_pileup.empty:
+                    continue
+                in_any_seg |= seg_mask
+                likelihoods.append(
+                    self.calculate_genotype_likelihoods_per_segment(
+                        pileup=seg_pileup,
+                        minor_af=seg["minor_allele_fraction"],
+                        contamination=contamination,
+                        error=error
+                    )
+                )
         seg_pileup = pileup.loc[~in_any_seg]
         if not seg_pileup.empty:
             likelihoods.append(
@@ -424,7 +435,7 @@ class Genotyper(object):
 
         Args:
             pileup (pd.DataFrame): DataFrame containing pileup data for the segment.
-            minor_af (float, optional): Minor allele frequency, default is 0.5.
+            minor_af (float, optional): Minor allele fraction, default is 0.5.
             contamination (float, optional): Level of contamination to consider in the calculation.
             error (float, optional): Error probability to be used in the calculation.
 
@@ -432,7 +443,8 @@ class Genotyper(object):
             pd.DataFrame: DataFrame containing calculated genotype likelihoods for the segment.
         """
 
-        n = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1)
+        # The other alt counts do not count towards the total read depth.
+        n = pileup[["ref_count", "alt_count"]].sum(axis=1)
         alt = pileup["alt_count"]
         f = pileup["allele_frequency"]  # population allele frequency from SNP panel
 
@@ -440,11 +452,10 @@ class Genotyper(object):
         f_ab = contamination * f + (1 - contamination) * minor_af
         f_ba = contamination * f + (1 - contamination) * (1 - minor_af)
         f_bb = contamination * f + (1 - contamination) * (1 - error)
-        s = 100  # overdispersion
-        lam = 1.1  # SNP bias of the ref allele
+        s = self.overdispersion
 
         def bias(_f):
-            return _f / (_f + (1 - _f) * lam)
+            return _f / (_f + (1 - _f) * self.ref_bias)
 
         # Calculate log-likelihoods:
         with warnings.catch_warnings():
@@ -453,18 +464,19 @@ class Genotyper(object):
             logf = np.log(f)
 
         if self.model == "binom":
-            aa = 2 * log1f + st.binom(n, f_aa).logpmf(alt)
-            ab = log1f + logf + st.binom(n, f_ab).logpmf(alt)
-            ba = log1f + logf + st.binom(n, f_ba).logpmf(alt)
-            bb = 2 * logf + st.binom(n, f_bb).logpmf(alt)
+            aa = 2 * log1f + st.binom(n, bias(f_aa)).logpmf(alt)
+            ab = log1f + logf + st.binom(n, bias(f_ab)).logpmf(alt)
+            ba = log1f + logf + st.binom(n, bias(f_ba)).logpmf(alt)
+            bb = 2 * logf + st.binom(n, bias(f_bb)).logpmf(alt)
+            # outlier = log1f + logf + st.binom(n, 0.5).logpmf(alt)  # max entropy
             outlier = -np.inf
         elif self.model == "betabinom":
             aa = 2 * log1f + st.binom(n, bias(f_aa)).logpmf(alt)
             ab = log1f + logf + st.betabinom(n, bias(f_ab) * s, (1 - bias(f_ab)) * s).logpmf(alt)
             ba = log1f + logf + st.betabinom(n, bias(f_ba) * s, (1 - bias(f_ba)) * s).logpmf(alt)
             bb = 2 * logf + st.binom(n, bias(f_bb)).logpmf(alt)
-            # outlier = st.betabinom(N, 1, 1).logpmf(alt)  # max entropy; todo: needs prior / weight
-            outlier = -np.inf
+            outlier = log1f + logf + st.betabinom(n, 1, 1).logpmf(alt)  # max entropy
+            # outlier = -np.inf
         else:
             raise ValueError(f"model is {self.model} but has to be one of binom, betabinom.")
 
@@ -559,7 +571,7 @@ class GenotypeData(object):
         min_read_depth (int, optional): Minimum read depth threshold for filtering data.
     """
 
-    def __init__(self, individual_id: str, samples: list[str], variant: str, pileup: list[str], segments: list[str] = None, contamination: list[str] = None, min_read_depth: int = 10, verbose: bool = False):
+    def __init__(self, individual_id: str, samples: list[str], variant: str = None, pileup: list[str] = None, segments: list[str] = None, contamination: list[str] = None, min_read_depth: int = 10, verbose: bool = False):
         print("Loading data:") if verbose else None
         self.individual_id = individual_id
         self.samples = samples
@@ -567,19 +579,20 @@ class GenotypeData(object):
         print("  Variants") if verbose else None
         self.vcf = VCF(file_path=variant)
         print("  Pileups") if verbose else None
-        self.pileups = [
-            Pileup(file_path=p, min_read_depth=min_read_depth)
-            for p in pileup
-        ]
+        self.pileups = (
+            [Pileup()] * len(samples)
+            if pileup is None
+            else [Pileup(file_path=p, min_read_depth=min_read_depth) for p in pileup]
+        )
         print("  Segments") if verbose else None
         self.segments = (
-            [Segments()] * len(pileup)
+            [Segments()] * len(samples)
             if segments is None
             else [Segments(file_path=s) for s in segments]
         )
         print("  Contamination") if verbose else None
         self.contaminations = (
-            [Contamination()] * len(pileup)
+            [Contamination()] * len(samples)
             if contamination is None
             else [Contamination(file_path=c) for c in contamination]
         )
@@ -615,7 +628,7 @@ class GenotypeData(object):
                             for assigned_sample_name, pileup, segments, contamination in zip(self.samples, self.pileups, self.segments, self.contaminations)
                         ]
                     )
-                print()
+                print() if self.verbose else None
                 return pileup_likelihoods
 
             except Exception as e:
@@ -625,7 +638,7 @@ class GenotypeData(object):
             self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, segments, contamination)
             for assigned_sample_name, pileup, segments, contamination in zip(self.samples, self.pileups, self.segments, self.contaminations)
         ]
-        print()
+        print() if self.verbose else None
         return pileup_likelihoods
 
     def validate_pileup_likelihood_allele_frequencies(self):
