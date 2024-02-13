@@ -1,0 +1,22 @@
+version: 1.2
+workflows:
+  - name: MultiSampleSomaticWorkflow
+    subclass: WDL
+    publish: true
+    primaryDescriptorPath: /multi-sample_somatic_workflow.wdl
+    authors:
+      - orcid: 0000-0001-9584-9135
+
+  - name: CollectAllelicCounts
+    subclass: WDL
+    publish: true
+    primaryDescriptorPath: /collect_allelic_counts.wdl
+    authors:
+      - orcid: 0000-0001-9584-9135
+
+  - name: CollectReadCounts
+    subclass: WDL
+    publish: true
+    primaryDescriptorPath: /collect_read_counts.wdl
+    authors:
+      - orcid: 0000-0001-9584-9135
