@@ -34,6 +34,7 @@ workflow FilterVariants {
         Int max_median_fragment_length_difference = 10000  # default: 10000
         Int min_alt_median_base_quality = 20  # default: 20
         Int min_alt_median_mapping_quality = 20  # default: -1
+        Int min_median_read_position = 5  # default: 1
         Int max_reasonable_fragment_length = 10000 # default: 100000
 
         # expose extra arguments for import of this workflow
@@ -106,6 +107,7 @@ workflow FilterVariants {
             max_median_fragment_length_difference = max_median_fragment_length_difference,
             min_alt_median_base_quality = min_alt_median_base_quality,
             min_alt_median_mapping_quality = min_alt_median_mapping_quality,
+            min_median_read_position = min_median_read_position,
             compress_output = compress_output,
             m2_filter_extra_args = filter_mutect2_extra_args,
             runtime_params = filter_mutect_calls_runtime

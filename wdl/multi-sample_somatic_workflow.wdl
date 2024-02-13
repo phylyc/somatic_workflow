@@ -80,6 +80,7 @@ workflow MultiSampleSomaticWorkflow {
         Int filter_mutect2_max_median_fragment_length_difference = 10000  # default: 10000
         Int filter_mutect2_min_alt_median_base_quality = 20  # default: 20
         Int filter_mutect2_min_alt_median_mapping_quality = 20  # default: -1
+        Int filter_mutect2_min_median_read_position = 5  # default: 1
         Int filter_alignment_artifacts_max_reasonable_fragment_length = 10000 # default: 100000
         String funcotator_reference_version = "hg19"
         String funcotator_output_format = "MAF"
@@ -491,6 +492,7 @@ workflow MultiSampleSomaticWorkflow {
                     max_median_fragment_length_difference = filter_mutect2_max_median_fragment_length_difference,
                     min_alt_median_base_quality = filter_mutect2_min_alt_median_base_quality,
                     min_alt_median_mapping_quality = filter_mutect2_min_alt_median_mapping_quality,
+                    min_median_read_position = filter_mutect2_min_median_read_position,
                     max_reasonable_fragment_length = filter_alignment_artifacts_max_reasonable_fragment_length,
                     filter_mutect2_extra_args = filter_mutect2_extra_args,
                     select_variants_extra_args = select_variants_extra_args,
