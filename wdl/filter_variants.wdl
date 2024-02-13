@@ -310,6 +310,7 @@ task FilterMutectCalls {
         Int max_median_fragment_length_difference = 10000  # default: 10000
         Int min_alt_median_base_quality = 20  # default: 20
         Int min_alt_median_mapping_quality = 20  # default: -1
+        Int min_median_read_position = 5  # default: 1
 
         Boolean compress_output = false
         String? m2_filter_extra_args
@@ -358,6 +359,7 @@ task FilterMutectCalls {
             ~{"--max-median-fragment-length-difference " + max_median_fragment_length_difference} \
             ~{"--min-median-base-quality " + min_alt_median_base_quality} \
             ~{"--min-median-mapping-quality " + min_alt_median_mapping_quality} \
+            ~{"--min-median-read-position " + min_median_read_position} \
             --filtering-stats '~{output_base_name}.stats' \
             --seconds-between-progress-updates 300 \
             ~{m2_filter_extra_args}
