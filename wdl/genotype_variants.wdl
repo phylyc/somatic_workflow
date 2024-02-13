@@ -104,7 +104,7 @@ task GenotypeVariants {
         Runtime runtime_params
     }
 
-    String output_dir = "output"
+    String output_dir = "."
 
     String output_ref_counts = output_dir + "/" + individual_id + ".hets.ref_count.tsv" + (if compress_output then ".gz" else "")
     String output_alt_counts = output_dir + "/" + individual_id + ".hets.alt_count.tsv" + (if compress_output then ".gz" else "")
@@ -112,6 +112,9 @@ task GenotypeVariants {
     String output_sample_correlation = output_dir + "/" + individual_id + ".sample_correlation.tsv" + (if compress_output then ".gz" else "")
     String output_vcf = output_dir + "/" + individual_id + ".hets.vcf" + (if compress_output then ".gz" else "")
     String output_vcf_idx = output_vcf + (if compress_output then ".tbi" else ".idx")
+
+    Array[String] possible_sample_outputs = suffix(".likelihoods.pileup" + (if compress_output then ".gz" else ""), sample_names)
+    Array[File]? output_sample_genotype_likelihoods = if save_sample_genotype_likelihoods then prefix(output_dir + "/", possible_sample_outputs) else None
 
     String dollar = "$"
 
@@ -135,14 +138,6 @@ task GenotypeVariants {
             ~{true="--compress_output " false="" compress_output} \
             ~{true="--verbose " false="" verbose}
 
-        # Prepare optional array of output files
-        if ~{save_sample_genotype_likelihoods} ; then
-            touch sample_genotype_likelihoods.txt
-            for sample in ~{sep=" " sample_names} ; do
-                echo "~{output_dir}/~{dollar}sample.likelihoods.pileup" >> sample_genotype_likelihoods_files.txt
-            done
-        fi
-
         # tabix not in docker
         touch '~{output_vcf_idx}'
     >>>
@@ -154,7 +149,7 @@ task GenotypeVariants {
         File alt_counts = output_alt_counts
         File other_alt_counts = output_other_alt_counts
         File sample_correlation = output_sample_correlation
-        Array[File]? sample_genotype_likelihoods = if save_sample_genotype_likelihoods then read_lines("sample_genotype_likelihoods_files.txt") else None
+        Array[File]? sample_genotype_likelihoods = output_sample_genotype_likelihoods
     }
 
     runtime {
