@@ -432,7 +432,7 @@ workflow MultiSampleSomaticWorkflow {
     if (run_variant_calling) {
         call cv.CallVariants {
             input:
-                scattered_interval_list = if run_variant_annotation_scattered then SplitIntervals.interval_files else [PreprocessIntervals.preprocessed_interval_list],
+                scattered_interval_list = SplitIntervals.interval_files,
                 ref_fasta = ref_fasta,
                 ref_fasta_index = ref_fasta_index,
                 ref_dict = ref_dict,
@@ -554,7 +554,7 @@ workflow MultiSampleSomaticWorkflow {
 
                 call av.AnnotateVariants {
                     input:
-                        scattered_interval_list = SplitIntervals.interval_files,
+                        scattered_interval_list = if run_variant_annotation_scattered then SplitIntervals.interval_files else [PreprocessIntervals.preprocessed_interval_list],
                         ref_fasta = ref_fasta,
                         ref_fasta_index = ref_fasta_index,
                         ref_dict = ref_dict,
