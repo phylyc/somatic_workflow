@@ -49,7 +49,8 @@ def main():
     genotyper = Genotyper(
         model=args.model,
         min_genotype_likelihood=args.min_genotype_likelihood,
-        select_hets=args.select_hets
+        select_hets=args.select_hets,
+        verbose=args.verbose
     )
     data = GenotypeData(
         individual_id=args.patient,
@@ -63,7 +64,7 @@ def main():
     )
     data.pileup_likelihoods = data.get_pileup_likelihoods_parallel(genotyper=genotyper, max_processes=args.threads)
     data.validate_pileup_likelihood_allele_frequencies()
-    data.sample_correlation = data.validate_sample_correlation()
+    data.sample_correlation = data.validate_sample_correlation(genotyper=genotyper)
     data.joint_genotype_likelihood = genotyper.get_joint_genotype_likelihood(pileup_likelihoods=data.pileup_likelihoods)
     data.subset_data()
     data.write_output(output_dir=args.output_dir, vcf_format=args.format, args=args)
@@ -330,13 +331,15 @@ class Genotyper(object):
         min_genotype_likelihood (float, optional): Minimum genotype likelihood threshold.
         select_hets (bool, optional): Flag to select only heterozygous sites.
     """
+    genotypes = ["0/0", "0/1", "1/1", "./."]
 
-    def __init__(self, model: str = "betabinom", overdispersion: float = 100, ref_bias: float = 1.1, min_genotype_likelihood: float = 0.95, select_hets: bool = False):
+    def __init__(self, model: str = "betabinom", overdispersion: float = 100, ref_bias: float = 1.1, min_genotype_likelihood: float = 0.95, select_hets: bool = False, verbose: bool = False):
         self.model = model
         self.overdispersion = overdispersion  # overdispersion parameter for beta-binomial model
         self.ref_bias = ref_bias  # SNP bias of the ref allele
         self.min_genotype_likelihood = min_genotype_likelihood
         self.select_hets = select_hets
+        self.verbose = verbose
 
     @staticmethod
     def get_error_prob(pileup: pd.DataFrame, min_error: float = 1e-6, max_error: float = 1e-1) -> float:
@@ -357,6 +360,21 @@ class Genotyper(object):
         other_alt_counts = pileup["other_alt_count"].sum()
         total_counts = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1).sum()
         return np.clip(1.5 * other_alt_counts / min(1, total_counts), a_min=min_error, a_max=max_error)
+
+    def select_confident_calls(self, likelihoods: pd.DataFrame, genotypes: list[str] = None) -> pd.DataFrame:
+        """
+        Filters genotype likelihoods based on a minimum threshold.
+
+        Args:
+            likelihoods (pd.DataFrame): DataFrame containing genotype likelihoods.
+            genotypes (list of str, optional): List of genotype columns to consider.
+
+        Returns:
+            pd.DataFrame: DataFrame containing filtered genotype likelihoods.
+        """
+        if genotypes is None:
+            genotypes = self.genotypes
+        return likelihoods.loc[likelihoods[genotypes].max(axis=1) >= self.min_genotype_likelihood]
 
     def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, segments: pd.DataFrame = None, contamination: float = 0.001) -> pd.DataFrame:
         """
@@ -507,18 +525,17 @@ class Genotyper(object):
             pd.DataFrame: DataFrame with joint genotype likelihoods for each genomic position.
         """
         # Calculate the joint genotype likelihoods.
-        genotypes = ["0/0", "0/1", "1/1", "./."]
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
             joint_log_likelihood = {
                 gt: pd.concat([np.log(pl.df[gt]) for pl in pileup_likelihoods], axis=1).apply(np.nansum, axis=1)
-                for gt in genotypes
+                for gt in self.genotypes
             }
         # Normalize likelihoods
         total = pd.concat(joint_log_likelihood.values(), axis=1).apply(lambda row: reduce(np.logaddexp, row), axis=1)
         genotype_likelihood = {
             gt: np.exp(joint_log_likelihood[gt].sub(total, axis=0))
-            for gt in genotypes
+            for gt in self.genotypes
         }
 
         # Count total allelic read counts across all samples.
@@ -534,11 +551,14 @@ class Genotyper(object):
         ).apply(np.nanmean, axis=1)
 
         df = pd.DataFrame.from_dict(genotype_likelihood)
+        print(f"Processed {df.shape[0]} records.") if self.verbose else None
 
-        # subset to confident calls
-        df = df.loc[(df[genotypes] >= self.min_genotype_likelihood).any(axis=1)]
+        df = self.select_confident_calls(likelihoods=df)
+        print(f"Selected  {df.shape[0]} confident calls.") if self.verbose else None
+
         if self.select_hets:
-            df = df.loc[df["0/1"] >= self.min_genotype_likelihood]
+            df = self.select_confident_calls(likelihoods=df, genotypes=["0/1"])
+            print(f"Selected  {df.shape[0]} heterozygous SNPs.") if self.verbose else None
 
         return df
 
@@ -658,7 +678,7 @@ class GenotypeData(object):
         if not is_same.all():
             warnings.warn("Allele frequencies in pileups are not the same across samples for each locus (though they should)! Please check your inputs!")
 
-    def validate_sample_correlation(self, correlation_threshold: float = 0.95) -> pd.DataFrame:
+    def validate_sample_correlation(self, genotyper: Genotyper, correlation_threshold: float = 0.95) -> pd.DataFrame:
         """
         Validates the correlation of sample genotypes.
 
@@ -673,6 +693,7 @@ class GenotypeData(object):
         Median correlation of samples within same patient: 0.978 (from data)
 
         Args:
+            genotyper (Genotyper): Genotyper object.
             correlation_threshold (float, optional): Threshold for genotype correlation.
 
         Returns:
@@ -683,23 +704,52 @@ class GenotypeData(object):
         """
         sample_genotypes = pd.concat(
             [
-                pl.df[["0/0", "0/1", "1/1", "./."]].idxmax(axis=1).to_frame(pl.assigned_sample_name)
+                genotyper.select_confident_calls(likelihoods=pl.df)[genotyper.genotypes].idxmax(axis=1).to_frame(pl.assigned_sample_name)
                 for pl in self.pileup_likelihoods
             ],
+            join="outer",
             axis=1
-        ).fillna("./.")
+        ).fillna("./.").replace("./.", np.nan).replace("0/0", 0).replace("0/1", 1).replace("1/1", 2)
 
         if sample_genotypes.empty:
             return pd.DataFrame(columns=[pl.assigned_sample_name for pl in self.pileup_likelihoods])
 
-        # Subset to loci with at least one alternate allele in at least one sample.
-        sample_genotypes = sample_genotypes.loc[sample_genotypes.apply(lambda row: any(["1" in gt for gt in row.values]), axis=1)]
-        sample_genotypes = sample_genotypes.replace("0/0", 0).replace("0/1", 1).replace("1/1", 2).replace("./.", np.nan)
-        sample_correlation = sample_genotypes.corr(method="kendall")
+        sample_names = sample_genotypes.columns
+        sample_gt = [sample_genotypes[[sample]] for sample in sample_names]
+
+        sample_pairs = list(combinations(sample_names, 2))
+        gt_pairs = list(combinations(sample_gt, 2))
+
+        correlations = []
+        pvalues = []
+        num_loci = []
+        for gt_pair in gt_pairs:
+            gt = gt_pair[0].join(gt_pair[1], how="inner")
+            sample_a = gt_pair[0].columns[0]
+            sample_b = gt_pair[1].columns[0]
+            # Subset to loci with at least one alternate allele in at least one sample,
+            gt = gt.loc[(gt[sample_a] > 0) | (gt[sample_b] > 0)].dropna()
+            corr = st.kendalltau(gt[sample_a].to_numpy(), gt[sample_b].to_numpy())
+            correlations.append(corr.statistic)
+            pvalues.append(corr.pvalue)
+            num_loci.append(gt.shape[0])
+
+        corr = pd.Series(
+            {sample_pair: corr for sample_pair, corr in zip(sample_pairs, correlations)}
+        ).unstack().reindex(index=sample_genotypes.columns, columns=sample_genotypes.columns)
+        sample_correlation = corr.where(~corr.isna(), corr.T).fillna(1)
+
+        pval = pd.Series(
+            {sample_pair: pval for sample_pair, pval in zip(sample_pairs, pvalues)}
+        ).unstack().reindex(index=sample_genotypes.columns, columns=sample_genotypes.columns)
+        pval = pval.where(~pval.isna(), pval.T).fillna(0)
+
         if self.verbose:
-            print(f"Concordance of samples is evaluated at {sample_genotypes.dropna().shape[0]} to {sample_genotypes.shape[0]} variant loci.")
+            print(f"Concordance of samples is evaluated at", f"between {np.min(num_loci)} and {np.max(num_loci)}" if len(num_loci) > 1 else f"{num_loci[0]}", "variant loci.")
             print("Kendall-tau correlation of variant genotypes between samples:")
-            print(sample_correlation.round(3))
+            print(sample_correlation.round(3).to_string())
+            print(f"p-values of Kendall-tau correlation of variant genotypes between samples:")
+            print(pval.round(3).to_string())
         if sample_correlation.lt(correlation_threshold).any().any():
             message = (
                 f"\n\n"
