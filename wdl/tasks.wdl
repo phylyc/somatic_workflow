@@ -171,13 +171,15 @@ task SelectVariants {
         String? select_variants_extra_args
 
         Runtime runtime_params
+        # arguments require gatk 4.3.0.0
+        # needs to be updated for gatk 4.4.0.0
     }
 
     parameter_meta {
         interval_list: {localization_optional: true}
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
-        ref_dict: {localization_optional: true}
+        # ref_dict: {localization_optional: true}  # needs to be localized for SortVcf
         vcf: {localization_optional: true}
         vcf_idx: {localization_optional: true}
     }
