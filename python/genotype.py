@@ -493,8 +493,8 @@ class Genotyper(object):
             ab = log1f + logf + st.betabinom(n, bias(f_ab) * s, (1 - bias(f_ab)) * s).logpmf(alt)
             ba = log1f + logf + st.betabinom(n, bias(f_ba) * s, (1 - bias(f_ba)) * s).logpmf(alt)
             bb = 2 * logf + st.binom(n, bias(f_bb)).logpmf(alt)
-            outlier = log1f + logf + st.betabinom(n, 1, 1).logpmf(alt)  # max entropy
-            # outlier = -np.inf
+            # outlier = log1f + logf + st.betabinom(n, 1, 1).logpmf(alt)  # max entropy
+            outlier = -np.inf
         else:
             raise ValueError(f"model is {self.model} but has to be one of binom, betabinom.")
 
