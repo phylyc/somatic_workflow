@@ -76,6 +76,7 @@ def print_args(args):
         print("Arguments:")
         for key, value in vars(args).items():
             print(f"  {key}: {value}")
+        print()
 
 
 class Pileup(object):
@@ -270,7 +271,7 @@ class VCF(object):
     """
     columns = ["CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT"]
 
-    def __init__(self, file_path: str = None):
+    def __init__(self, file_path: str = None, verbose: bool = False):
         self.file_path = file_path
         self.ref_dict = self.get_vcf_sequence_dict()
         self.df = (
@@ -282,7 +283,11 @@ class VCF(object):
         # GetPileupSummaries only supports SNVs well.
         # CAUTION: the input vcf may contain multi-allelic sites and other stuff!!!! (removed here)
         snv_mask = (self.df["REF"].apply(len) == 1) & (self.df["ALT"].apply(len) == 1) & ~self.df["REF"].isin(["-", "."]) & ~self.df["ALT"].isin(["-", "."])
+        n_input_vars = self.df.shape[0]
         self.df = self.df.loc[snv_mask].drop_duplicates(subset=["CHROM", "POS"], keep=False)
+        n_kept_vars = self.df.shape[0]
+        if n_kept_vars < n_input_vars:
+            print(f"    Dropping {n_input_vars - n_kept_vars} non-SNV or multi-allelic loci from Variants. {n_kept_vars} loci remaining.") if verbose else None
         self.df = self.df.set_index(["CHROM", "POS"])
         self.df.index.names = ["contig", "position"]  # align to PileupLikelihood index names
 
@@ -545,10 +550,12 @@ class Genotyper(object):
         }
 
         # Average allele frequencies across all samples. They should be the same.
-        genotype_likelihood["allele_frequency"] = pd.concat(
-            [pl.df["allele_frequency"] for pl in pileup_likelihoods],
-            axis=1
-        ).apply(np.nanmean, axis=1)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            genotype_likelihood["allele_frequency"] = pd.concat(
+                [pl.df["allele_frequency"] for pl in pileup_likelihoods],
+                axis=1
+            ).apply(np.nanmean, axis=1)
 
         df = pd.DataFrame.from_dict(genotype_likelihood)
         print(f"Processed {df.shape[0]} records.") if self.verbose else None
@@ -597,7 +604,7 @@ class GenotypeData(object):
         self.samples = samples
 
         print("  Variants") if verbose else None
-        self.vcf = VCF(file_path=variant)
+        self.vcf = VCF(file_path=variant, verbose=verbose)
         print("  Pileups") if verbose else None
         self.pileups = (
             [Pileup()] * len(samples)
@@ -616,6 +623,7 @@ class GenotypeData(object):
             if contamination is None
             else [Contamination(file_path=c) for c in contamination]
         )
+        print() if verbose else None
 
         self.pileup_likelihoods = None
         self.sample_correlation = None
@@ -658,7 +666,7 @@ class GenotypeData(object):
             self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, segments, contamination)
             for assigned_sample_name, pileup, segments, contamination in zip(self.samples, self.pileups, self.segments, self.contaminations)
         ]
-        print() if self.verbose else None
+        print("\n") if self.verbose else None  # Not sure why \n is needed here but not above.
         return pileup_likelihoods
 
     def validate_pileup_likelihood_allele_frequencies(self):
@@ -745,11 +753,13 @@ class GenotypeData(object):
         pval = pval.where(~pval.isna(), pval.T).fillna(0)
 
         if self.verbose:
-            print(f"Concordance of samples is evaluated at", f"between {np.min(num_loci)} and {np.max(num_loci)}" if len(num_loci) > 1 else f"{num_loci[0]}", "variant loci.")
+            print(f"\nConcordance of samples is evaluated at", f"between {np.min(num_loci)} and {np.max(num_loci)}" if len(num_loci) > 1 else f"{num_loci[0]}", "variant loci.")
             print("Kendall-tau correlation of variant genotypes between samples:")
             print(sample_correlation.round(3).to_string())
+            print()
             print(f"p-values of Kendall-tau correlation of variant genotypes between samples:")
             print(pval.round(3).to_string())
+            print()
         if sample_correlation.lt(correlation_threshold).any().any():
             message = (
                 f"\n\n"
@@ -792,6 +802,7 @@ class GenotypeData(object):
             if not self.vcf.df.empty
             else self.joint_genotype_likelihood.index
         )
+        print(f"Subset to {len(index)} loci (aligned to cleaned reference variant input vcf).") if self.verbose else None
         index = self.sort_genomic_positions(index=index)
         self.pileup_likelihoods = [pl.reindex(index) for pl in self.pileup_likelihoods]
         # If pileup summaries of one sample do not cover a locus in another pileup,
@@ -814,7 +825,7 @@ class GenotypeData(object):
             vcf_format (str, optional): Format of the VCF FORMAT output.
             args (argparse.Namespace, optional): Arguments passed to the script, used for additional information in the output.
         """
-        print(f"Writing output to {output_dir} ...") if args.verbose else None
+        print(f"\nWriting output to {output_dir} ...") if args.verbose else None
         os.makedirs(output_dir, exist_ok=True)
         self.write_sample_correlation(output_dir=output_dir, args=args)
         self.write_sample_likelihoods(output_dir=output_dir, args=args)
