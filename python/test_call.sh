@@ -10,9 +10,9 @@ samples=( \
 #)
 
 output_dir="test_data/output"
-pileup_dir="test_data"
-segments_dir="test_data"
-contamination_dir="test_data"
+pileup_dir="test_data/input"
+segments_dir="test_data/input"
+contamination_dir="test_data/input"
 
 mkdir -p $output_dir
 
@@ -31,7 +31,7 @@ done
 python -u genotype.py \
   --output_dir $output_dir \
   --patient $individual_id \
-  --variant "test_data/test_reference.vcf" \
+  --variant "test_data/input/test_reference.vcf" \
   $sample_args \
   $pileup_args \
   $segments_args \
