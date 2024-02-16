@@ -1,13 +1,12 @@
 #!/bin/bash
 
-individual_id="test"
-samples=( \
-  "test_N" \
-  "test_T" \
-)
-#samples=( \
-#  "test_empty"
-#)
+individual_id=$1
+samples_string=$2
+names_string=$3
+
+# Convert delimited strings into arrays
+IFS=',' read -r -a names <<< "$names_string"
+IFS=',' read -r -a samples <<< "$samples_string"
 
 output_dir="test_data/output"
 pileup_dir="test_data/input"
@@ -18,11 +17,13 @@ mkdir -p $output_dir
 
 
 sample_args=""
+for name in "${names[@]}" ; do
+  sample_args="$sample_args--sample $name "
+done
 pileup_args=""
 segments_args=""
 contamination_args=""
 for sample in "${samples[@]}" ; do
-  sample_args="$sample_args--sample $sample "
   pileup_args="$pileup_args--pileup $pileup_dir/$sample.pileup "
   segments_args="$segments_args--segments $segments_dir/$sample.segments "
   contamination_args="$contamination_args--contamination $contamination_dir/$sample.contamination "
