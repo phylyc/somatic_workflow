@@ -1,4 +1,6 @@
 import argparse
+from collections import Counter
+from copy import copy
 from functools import reduce
 from itertools import combinations
 import gzip
@@ -210,10 +212,12 @@ class Contamination(object):
         file_path (str): Path to the contamination file.
     """
 
+    _min_error = 1e-6
+
     def __init__(self, file_path: str = None):
         self.file_path = file_path
         self.keys = ["sample", "contamination", "contamination_error"]
-        default_dict = {key: default for key, default in zip(self.keys, [None, 0, 0])}
+        default_dict = {key: default for key, default in zip(self.keys, [None, 0, self._min_error])}
         try:
             self.dict = (
                 pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.keys, low_memory=False).loc[0].to_dict()
@@ -225,7 +229,7 @@ class Contamination(object):
             warnings.warn(f"Setting contamination to default dictionary.")
             self.dict = default_dict
         self.value = self.dict["contamination"]
-        self.error = self.dict["contamination_error"]
+        self.error = max(self.dict["contamination_error"], self._min_error)
         self.bam_sample_name = self.dict["sample"]
 
 
@@ -252,6 +256,67 @@ def cross_check_sample_name(*args) -> str:
             warnings.warn(f"Sample name in {a.file_path} ({a.bam_sample_name}) does not match sample name in {b.file_path} ({b.bam_sample_name}).")
     sample_names = np.unique([a.bam_sample_name for a in args if a.bam_sample_name is not None])
     return str(sample_names[0]) if len(sample_names) else None
+
+
+def join_pileups(pileups: list["Pileup"]):
+    joint = Pileup()
+    df = pd.concat([p.df for p in pileups], ignore_index=True)
+    joint.df = df.groupby(["contig", "position"]).agg(
+        {
+            "ref_count": "sum",
+            "alt_count": "sum",
+            "other_alt_count": "sum",
+            "allele_frequency": "mean"
+        }
+    ).reset_index()
+    joint.bam_sample_name = np.unique([p.bam_sample_name for p in pileups])[0]  # should be the same
+    return joint
+
+
+def join_segments(segments: list["Segments"]):
+    joint = Segments()
+    segs = pd.concat([s.df for s in segments], ignore_index=True)
+    split_segs = pd.concat([non_overlapping(contig_group) for contig, contig_group in segs.groupby(by=["contig"])])
+    joint.df = split_segs.groupby(["contig", "start", "end"]).agg({"minor_allele_fraction": "min"}).reset_index()
+    joint.bam_sample_name = np.unique([s.bam_sample_name for s in segments])[0]  # should be the same
+    return joint
+
+
+def split_intervals(intervals):
+    starts = pd.DataFrame(data={"start": 1}, index=intervals["start"])
+    ends = pd.DataFrame(data={"end": -1}, index=intervals["end"])
+    transitions = pd.merge(starts, ends, how="outer", left_index=True, right_index=True).fillna(0)
+    # This dataframe stores per position the type of transitions. Automatically sorted.
+    # Now, we need to know at each position if we are at an interval start or not.
+    # This can be done by counting the opening & closing parenthesis.
+    transitions["is_start"] = (transitions.pop("start") + transitions.pop("end")).cumsum().astype(bool)
+    # This handles overlapping intervals.
+    # Create interval indices and take all intervals that have a valid start.
+    new_intervals = pd.IntervalIndex.from_breaks(transitions.index, closed="left")[transitions["is_start"][:-1]]
+    return new_intervals[~new_intervals.is_empty]
+
+
+def non_overlapping(intervals):
+    new_intervals = split_intervals(intervals)
+    non_overlapping_interval_list = []
+    for i, interval in intervals.iterrows():
+        pd_interval = pd.Interval(interval["start"], interval["end"], closed="left")
+        overlapping_new_intervals = [n_i for n_i in new_intervals if pd_interval.overlaps(n_i)]
+        # Split interval and content into new intervals:
+        for new_interval in overlapping_new_intervals:
+            new_split_interval = copy(interval)
+            new_split_interval["start"] = new_interval.left
+            new_split_interval["end"] = new_interval.right
+            non_overlapping_interval_list.append(new_split_interval)
+    return pd.DataFrame(non_overlapping_interval_list)
+
+
+def join_contaminations(contaminations: list["Contamination"]):
+    joint = Contamination()
+    joint.value, joint.error = np.average([c.value for c in contaminations], weights=[1 / c.error ** 2 for c in contaminations], returned=True)
+    joint.bam_sample_name = np.unique([c.bam_sample_name for c in contaminations])[0]  # should be the same
+    joint.dict = {"sample": joint.bam_sample_name, "contamination": joint.value, "contamination_error": joint.error}
+    return joint
 
 
 class VCF(object):
@@ -480,7 +545,7 @@ class Genotyper(object):
         def bias(_f):
             return _f / (_f + (1 - _f) * self.ref_bias)
 
-        # Calculate log-likelihoods:
+        # Prior probabilities of genotypes:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
             log1f = np.log1p(-f)
@@ -599,6 +664,7 @@ class GenotypeData(object):
     """
 
     def __init__(self, individual_id: str, samples: list[str], variant: str = None, pileup: list[str] = None, segments: list[str] = None, contamination: list[str] = None, min_read_depth: int = 10, verbose: bool = False):
+        self.verbose = verbose
         print("Loading data:") if verbose else None
         self.individual_id = individual_id
         self.samples = samples
@@ -625,10 +691,50 @@ class GenotypeData(object):
         )
         print() if verbose else None
 
+        self.deduplicate_samples()
+
         self.pileup_likelihoods = None
         self.sample_correlation = None
         self.joint_genotype_likelihood = None
-        self.verbose = verbose
+
+    def deduplicate_samples(self):
+        """
+        Deduplicates samples based on the sample names by merging their pileups, segments, and contaminations.
+
+        This method removes duplicate samples from the input data based on the sample
+        names. It issues a warning if duplicate samples are found.
+        """
+        duplicate_samples = [name for name, count in Counter(self.samples).items() if count > 1]
+        if not duplicate_samples:
+            return None
+
+        if self.verbose:
+            print(f"  Duplicate samples found: {duplicate_samples}.")
+            print(f"  Merging pileups, segments, and contaminations for duplicate samples.\n")
+
+        samples = []
+        pileups = []
+        segments = []
+        contaminations = []
+        for s, p, seg, c in zip(self.samples, self.pileups, self.segments, self.contaminations):
+            if s in duplicate_samples:
+                continue
+            samples.append(s)
+            pileups.append(p)
+            segments.append(seg)
+            contaminations.append(c)
+
+        for s in duplicate_samples:
+            s_idx = [i for i, sample in enumerate(self.samples) if sample == s]
+            samples.append(s)
+            pileups.append(join_pileups([self.pileups[i] for i in s_idx]))
+            segments.append(join_segments([self.segments[i] for i in s_idx]))
+            contaminations.append(join_contaminations([self.contaminations[i] for i in s_idx]))
+
+        self.samples = samples
+        self.pileups = pileups
+        self.segments = segments
+        self.contaminations = contaminations
 
     def get_pileup_likelihood(self, genotyper: Genotyper, assigned_sample_name: str, pileup: Pileup, segments: Segments, contamination: Contamination) -> PileupLikelihood:
         pileup_likelihood = PileupLikelihood(
