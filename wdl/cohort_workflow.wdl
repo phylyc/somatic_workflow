@@ -1,3 +1,12 @@
+version development
+
+import "runtimes.wdl"
+import "tasks.wdl"
+import "patient.wdl"
+import "multi-sample_somatic_workflow.wdl" as mssw
+import "phase_variants.wdl" as phv
+
+
 workflow SomaticWorkflow {
     input {
         File sif
@@ -9,76 +18,56 @@ workflow SomaticWorkflow {
             sif = sif
     }
 
-    scatter (platform in SIF.platforms) {
-        call SplitIntervals as PaddedScatteredIntervals {
+    scatter (patient in SIF.patients) {
+        call mssw.MultiSampleSomaticWorkflow as MSSW {
             input:
-                interval_list = platform.interval_list,
-                padding = platform.padding
-        }
-        call SplitIntervals as UnpaddedScatteredIntervals {
-            input:
-                interval_list = platform.interval_list,
-                padding = 0
-        }
-
-        scatter (sample in platform.samples) {
-            call CollectReadCounts {
-                input:
-                    scattered_interval_list = PaddedScatteredIntervals.interval_files,
-                    bam = sample.bam,
-                    bai = sample.bai,
-                    name = sample.name
-            }
-            call CollectAllelicCounts {
-                input:
-                    scattered_interval_list = UnpaddedScatteredIntervals.interval_files,
-                    snp_panel = snp_panel,
-                    bam = sample.bam,
-                    bai = sample.bai,
-                    name = sample.name
-            }
-        }
-        call PhaseAlleles {
-            input:
-                allelic_counts = CollectAllelicCounts.allelic_counts,
-                snp_panel = snp_panel
-        }
-        call Somix as MSACS {
-            input:
-                recipe = "segmentation",
-                interval_list = PaddedIntervals.preprocessed_interval_list,
-                read_counts = CollectReadCounts.read_counts,
-                phased_allelic_counts = PhaseAlleles.phased_allelic_counts,
+                patient = patient
         }
     }
 
+    call MergeVCFs {
+        input:
+            vcfs = MSSW.genotyped_snparray_vcf,
+            vcfs_idx = MSSW.genotyped_snparray_vcf_idx
+    }
+
+    call phv.PhaseVariants {
+        input:
+            vcf = MergeVCFs.vcf,
+            shapeit_reference = snp_panel
+    }
+
     scatter (patient in SIF.patients) {
-        call MergeSegmentations {
+        call MSACS {
             input:
                 patient = patient,
-                segmentations = MSACS.segmentations
+                vcf = PhaseVariants.vcf,
+                ref_counts = MSSW.snparray_ref_counts,
+                alt_counts = MSSW.snparray_alt_counts,
+                other_alt_counts = MSSW.snparray_other_alt_counts
         }
+    }
 
-        # todo: circular: Need ICA_factorization for ploidy (variant call) and need somatic variants for ICA_factorization!
-        call VariantCall {
-            input:
-                tumors = patient.tumor_samples,
-                normals = patient.normal_samples,
-                snp_panel = snp_panel,
-                cr_segmentation = MergeSegmentations.cr_segmentation
-        }
+    call Somix {
+        input:
+            recipe = "tCR_segmentation",
+            interval_list = SplitIntervals.preprocessed_interval_list,
+            read_counts = MSSW.target_read_counts,
+            allelic_segmentation = MSACS.allelic_segmentation,
+    }
 
-        call Somix as MSABS {
+    scatter (patient in SIF.patients) {
+        call MSABS {
             input:
                 recipe = "ICA_factorization",
-                cr_segmentation = MergeSegmentations.cr_segmentation,
+                tcr_segmentation = Somix.segmentation,
                 somatic_variants = VariantCall.variants
         }
 
         call Phylogic {
             input:
-                somatic_variants = VariantCall.variants,
-                germline_variants = MergeSegmentations.cr_segmentation.hets,
+                somatic_variants = MSSW.called_somatic_allelic_counts,
+                germline_variants = PhaseAlleles.variants,
                 cn_segmentation = MSABS.segmentations,
         }
     }

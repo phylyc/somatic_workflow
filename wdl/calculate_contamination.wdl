@@ -33,9 +33,9 @@ workflow CalculateContamination {
         String? normal_sample_name
         File? normal_pileups
 
-        File? common_germline_alleles
+        File? common_germline_alleles  # AF-only biallelic VCF file with germline alleles
         File? common_germline_alleles_idx
-        File? vcf
+        File? vcf  # VCF file with germline alleles
         File? vcf_idx
         String? getpileupsummaries_extra_args
 
@@ -44,11 +44,7 @@ workflow CalculateContamination {
         Float maximum_population_allele_frequency = 0.2
         Int minimum_read_depth = 10
 
-        Runtime vcf_to_pileup_variants_runtime = Runtimes.vcf_to_pileup_variants_runtime
-        Runtime get_pileup_summaries_runtime = Runtimes.get_pileup_summaries_runtime
-        Runtime gather_pileup_summaries_runtime = Runtimes.gather_pileup_summaries_runtime
-        Runtime select_pileup_summaries_runtime = Runtimes.select_pileup_summaries_runtime
-        Runtime calculate_contamination_runtime = Runtimes.calculate_contamination_runtime
+        RuntimeCollection runtime_collection = GetRTC.rtc
 
         String bcftools_docker = "stephb/bcftools"
         String gatk_docker = "broadinstitute/gatk"
@@ -76,7 +72,7 @@ workflow CalculateContamination {
 
     Int scatter_count = if defined(scattered_interval_list) then length(select_first([scattered_interval_list])) else 1
 
-    call runtimes.DefineRuntimes as Runtimes {
+    call runtimes.DefineRuntimeCollection as GetRTC {
         input:
             scatter_count = scatter_count,
             bcftools_docker = bcftools_docker,
@@ -101,7 +97,7 @@ workflow CalculateContamination {
     }
 
     if (!defined(tumor_pileups)) {
-        # todo: assert ref_dict and output_base_name is defined
+        # todo: assert ref_dict and sample_name is defined
         # todo: assert common_germline_alleles or vcf is defined
         call cac.CollectAllelicCounts as TumorPileupSummaries {
             input:
@@ -111,7 +107,7 @@ workflow CalculateContamination {
                 bam = select_first(select_all([tumor_bam])),
                 bai = select_first(select_all([tumor_bai])),
                 ref_dict = select_first(select_all([ref_dict])),
-                output_base_name = select_first(select_all([tumor_sample_name, "tumor"])),
+                sample_name = select_first([tumor_sample_name, "tumor"]),
                 common_germline_alleles = common_germline_alleles,
                 common_germline_alleles_idx = common_germline_alleles_idx,
                 vcf = vcf,
@@ -120,10 +116,7 @@ workflow CalculateContamination {
                 maximum_population_allele_frequency = maximum_population_allele_frequency,
                 minimum_read_depth = minimum_read_depth,
                 getpileupsummaries_extra_args = getpileupsummaries_extra_args,
-                vcf_to_pileup_variants_runtime = vcf_to_pileup_variants_runtime,
-                get_pileup_summaries_runtime = get_pileup_summaries_runtime,
-                gather_pileup_summaries_runtime = gather_pileup_summaries_runtime,
-                select_pileup_summaries_runtime = select_pileup_summaries_runtime,
+                runtime_collection = runtime_collection,
         }
     }
 
@@ -136,7 +129,7 @@ workflow CalculateContamination {
                 bam = select_first(select_all([normal_bam])),
                 bai = select_first(select_all([normal_bai])),
                 ref_dict = select_first(select_all([ref_dict])),
-                output_base_name = select_first([normal_sample_name, "normal"]),
+                sample_name = select_first([normal_sample_name, "normal"]),
                 common_germline_alleles = common_germline_alleles,
                 common_germline_alleles_idx = common_germline_alleles_idx,
                 vcf = vcf,
@@ -145,26 +138,24 @@ workflow CalculateContamination {
                 maximum_population_allele_frequency = maximum_population_allele_frequency,
                 minimum_read_depth = minimum_read_depth,
                 getpileupsummaries_extra_args = getpileupsummaries_extra_args,
-                vcf_to_pileup_variants_runtime = vcf_to_pileup_variants_runtime,
-                get_pileup_summaries_runtime = get_pileup_summaries_runtime,
-                gather_pileup_summaries_runtime = gather_pileup_summaries_runtime,
-                select_pileup_summaries_runtime = select_pileup_summaries_runtime,
+                runtime_collection = runtime_collection,
         }
     }
 
+    File non_optional_tumor_pileups = select_first([tumor_pileups, TumorPileupSummaries.pileup_summaries])
     if (defined(normal_pileups) || defined(NormalPileupSummaries.pileup_summaries)) {
         File? optional_normal_pileup_summaries = select_first([normal_pileups, NormalPileupSummaries.pileup_summaries])
     }
 
     call CalculateContamination {
         input:
-            tumor_pileups = select_first([tumor_pileups, TumorPileupSummaries.pileup_summaries]),
+            tumor_pileups = non_optional_tumor_pileups,
             normal_pileups = optional_normal_pileup_summaries,
-            runtime_params = calculate_contamination_runtime,
+            runtime_params = runtime_collection.calculate_contamination,
     }
 
     output {
-        File tumor_pileup_summaries = select_first([tumor_pileups, TumorPileupSummaries.pileup_summaries])
+        File tumor_pileup_summaries = non_optional_tumor_pileups
         File? normal_pileup_summaries = optional_normal_pileup_summaries
         File contamination_table = CalculateContamination.contamination_table
         File segmentation = CalculateContamination.segmentation

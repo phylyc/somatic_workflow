@@ -19,179 +19,111 @@ version development
 ##      compute cost though, and may still not guarantee that all variants are
 ##      being called. Ideally, run with and without and use the joint callset.
 
+import "patient.wdl"
+import "workflow_arguments.wdl"
 import "runtimes.wdl"
 import "tasks.wdl"
 
 
 workflow CallVariants {
     input {
-        Array[File] scattered_interval_list
-        File ref_fasta
-        File ref_fasta_index
-        File ref_dict
-
-        String individual_id
-        Array[File]+ tumor_bams
-        Array[File]+ tumor_bais
-        Array[String]? tumor_bam_names
-        Array[File]? normal_bams
-        Array[File]? normal_bais
-        Array[String]? normal_bam_names
-
-        # resources
-        File? force_call_alleles
-        File? force_call_alleles_idx
-        File? panel_of_normals
-        File? panel_of_normals_idx
-        File? germline_resource
-        File? germline_resource_tbi
-
-        Boolean run_orientation_bias_mixture_model = true
-
-        Boolean compress_output = true
-        Boolean make_bamout = false
-
-        Boolean native_pair_hmm_use_double_precision = true
-        Boolean use_linked_de_bruijn_graph = true
-        Boolean recover_all_dangling_branches = true
-        Boolean pileup_detection = true
-        Boolean genotype_germline_sites = false  # use with care! (see above)
-        Int downsampling_stride = 1
-        Int max_reads_per_alignment_start = 50
-        String? mutect2_extra_args
-
-        Runtime variant_call_runtime = Runtimes.variant_call_runtime
-        Runtime merge_vcfs_runtime = Runtimes.merge_vcfs_runtime
-        Runtime merge_mutect_stats_runtime = Runtimes.merge_mutect_stats_runtime
-        Runtime merge_bams_runtime = Runtimes.merge_bams_runtime
-        Runtime learn_read_orientation_model_runtime = Runtimes.learn_read_orientation_model_runtime
-
-        Int mem_additional_per_sample = 256  # this actually can depend on bam size (WES vs WGS)
-        Int mem_variant_call_base = 4096
-        Int mem_merge_vcfs = 512
-        Int mem_merge_mutect_stats = 512 # 64
-        Int mem_merge_bams = 8192  # wants at least 6G
-        Int mem_learn_read_orientation_model_base = 6144
-
-        Int time_startup = 10
-        Int time_variant_call_total = 10000  # 6 d / scatter_count
-        Int time_merge_vcfs = 10
-        Int time_merge_mutect_stats = 1
-        Int time_merge_bams = 60
-        Int time_learn_read_orientation_model = 180  # 3 h
-
-        String gatk_docker = "broadinstitute/gatk"
-        File? gatk_override
-        Int preemptible = 1
-        Int max_retries = 1
-        Int emergency_extra_diskGB = 0
-
-        Int cpu_variant_call = 1  # good for PairHMM: 2
+        Patient patient
+        WorkflowArguments args
+        RuntimeCollection runtime_collection
     }
 
-    Int scatter_count = length(scattered_interval_list)
-    Int gatk_override_size = if defined(gatk_override) then ceil(size(gatk_override, "GB")) else 0
-    Int disk_padGB = 1 + gatk_override_size + emergency_extra_diskGB
+    scatter (tumor_sample in patient.tumor_samples) {
+        scatter (seq_run in tumor_sample.sequencing_runs) {
+            File seq_tumor_bams = seq_run.bam
+            File seq_tumor_bais = seq_run.bai
+        }
+    }
+    Array[File] tumor_bams = flatten(seq_tumor_bams)
+    Array[File] tumor_bais = flatten(seq_tumor_bais)
 
-    Int num_bams = length(tumor_bams) + length(select_first([normal_bams, []]))
-
-    Int tumor_size = ceil(size(tumor_bams, "GB") + size(tumor_bais, "GB"))
-    Int m2_output_size = if make_bamout then ceil(tumor_size / scatter_count) else 0
-    Int m2_per_scatter_size = 1 + m2_output_size + disk_padGB
-
-    call runtimes.DefineRuntimes as Runtimes {
-        input:
-            num_bams = num_bams,
-            scatter_count = scatter_count,
-            gatk_docker = gatk_docker,
-            gatk_override = gatk_override,
-            preemptible = preemptible,
-            max_retries = max_retries,
-            cpu_variant_call = cpu_variant_call,
-            disk_variant_call = m2_per_scatter_size,
-            mem_additional_per_sample = mem_additional_per_sample,
-            mem_learn_read_orientation_model_base = mem_learn_read_orientation_model_base,
-            mem_merge_vcfs = mem_merge_vcfs,
-            mem_merge_mutect_stats = mem_merge_mutect_stats,
-            mem_merge_bams = mem_merge_bams,
-            mem_variant_call_base = mem_variant_call_base,
-            time_startup = time_startup,
-            time_learn_read_orientation_model = time_learn_read_orientation_model,
-            time_merge_vcfs = time_merge_vcfs,
-            time_merge_mutect_stats = time_merge_mutect_stats,
-            time_merge_bams = time_merge_bams,
-            time_variant_call_total = time_variant_call_total,
+    if (patient.has_normal) {
+        scatter (normal_sample in patient.normal_samples) {
+            scatter (seq_run in normal_sample.sequencing_runs) {
+                File seq_normal_bams = seq_run.bam
+                File seq_normal_bais = seq_run.bai
+            }
+            String normal_sample_names = normal_sample.bam_name
+        }
+        Array[File]? normal_bams = flatten(seq_normal_bams)
+        Array[File]? normal_bais = flatten(seq_normal_bais)
     }
 
-    scatter (interval_list in scattered_interval_list) {
+    scatter (interval_list in args.scattered_interval_list) {
     	call Mutect2 {
             input:
                 interval_list = interval_list,
-                ref_fasta = ref_fasta,
-                ref_fasta_index = ref_fasta_index,
-                ref_dict = ref_dict,
-                individual_id = individual_id,
+                ref_fasta = args.ref_fasta,
+                ref_fasta_index = args.ref_fasta_index,
+                ref_dict = args.ref_dict,
+                individual_id = patient.name,
                 tumor_bams = tumor_bams,
                 tumor_bais = tumor_bais,
                 normal_bams = normal_bams,
                 normal_bais = normal_bais,
-                normal_sample_names = normal_bam_names,
-                force_call_alleles = force_call_alleles,
-                force_call_alleles_idx = force_call_alleles_idx,
-                panel_of_normals = panel_of_normals,
-                panel_of_normals_idx = panel_of_normals_idx,
-                germline_resource = germline_resource,
-                germline_resource_tbi = germline_resource_tbi,
-                make_bamout = make_bamout,
-                get_orientation_bias_priors = run_orientation_bias_mixture_model,
-                compress_output = compress_output,
-                genotype_germline_sites = genotype_germline_sites,
-                native_pair_hmm_use_double_precision = native_pair_hmm_use_double_precision,
-                use_linked_de_bruijn_graph = use_linked_de_bruijn_graph,
-                recover_all_dangling_branches = recover_all_dangling_branches,
-                pileup_detection = pileup_detection,
-                downsampling_stride = downsampling_stride,
-                max_reads_per_alignment_start = max_reads_per_alignment_start,
-                m2_extra_args = mutect2_extra_args,
-                runtime_params = variant_call_runtime,
+                normal_sample_names = normal_sample_names,
+                force_call_alleles = args.force_call_alleles,
+                force_call_alleles_idx = args.force_call_alleles_idx,
+                panel_of_normals = args.snv_panel_of_normals,
+                panel_of_normals_idx = args.snv_panel_of_normals_idx,
+                germline_resource = args.germline_resource,
+                germline_resource_tbi = args.germline_resource_tbi,
+                make_bamout = args.make_bamout,
+                get_orientation_bias_priors = args.run_orientation_bias_mixture_model,
+                compress_output = args.compress_output,
+                genotype_germline_sites = args.mutect2_genotype_germline_sites,
+                native_pair_hmm_use_double_precision = args.mutect2_native_pair_hmm_use_double_precision,
+                use_linked_de_bruijn_graph = args.mutect2_use_linked_de_bruijn_graph,
+                recover_all_dangling_branches = args.mutect2_recover_all_dangling_branches,
+                pileup_detection = args.mutect2_pileup_detection,
+                downsampling_stride = args.mutect2_downsampling_stride,
+                max_reads_per_alignment_start = args.mutect2_max_reads_per_alignment_start,
+                m2_extra_args = args.mutect2_extra_args,
+                runtime_params = runtime_collection.mutect2,
 		}
+
+        # TODO: add strelka
 	}
 
     call tasks.MergeVCFs {
     	input:
             vcfs = Mutect2.vcf,
             vcfs_idx = Mutect2.vcf_idx,
-            output_name = individual_id + ".unfiltered.merged",
-            compress_output = compress_output,
-            runtime_params = merge_vcfs_runtime
+            output_name = patient.name + ".unfiltered.merged",
+            compress_output = args.compress_output,
+            runtime_params = runtime_collection.merge_vcfs
     }
 
-    if (make_bamout) {
+    if (args.make_bamout) {
         call tasks.MergeBams {
             input:
-                ref_fasta = ref_fasta,
-                ref_fasta_index = ref_fasta_index,
-                ref_dict = ref_dict,
+                ref_fasta = args.ref_fasta,
+                ref_fasta_index = args.ref_fasta_index,
+                ref_dict = args.ref_dict,
                 bams = select_all(Mutect2.bam),
                 bais = select_all(Mutect2.bai),
-                merged_bam_name = individual_id + ".Mutect2.out",
-                runtime_params = merge_bams_runtime
+                merged_bam_name = patient.name + ".Mutect2.out",
+                runtime_params = runtime_collection.merge_bams
         }
     }
 
     call MergeMutectStats {
         input:
             stats = Mutect2.vcf_stats,
-            individual_id = individual_id,
-            runtime_params = merge_mutect_stats_runtime
+            individual_id = patient.name,
+            runtime_params = runtime_collection.merge_mutect_stats
     }
 
-    if (run_orientation_bias_mixture_model) {
+    if (args.run_orientation_bias_mixture_model) {
         call LearnReadOrientationModel {
             input:
-                individual_id = individual_id,
+                individual_id = patient.name,
                 f1r2_counts = select_all(Mutect2.m2_artifact_priors),
-                runtime_params = learn_read_orientation_model_runtime
+                runtime_params = runtime_collection.learn_read_orientation_model
         }
     }
 

@@ -1,5 +1,6 @@
 version development
 
+# A NOTE ON MULTI-THREADING:
 # Asking for a machine on gcp with specified cpu and memory will make gcp provide
 # a machine with AT LEAST that much cpu and memory. E.g. a request for a machine
 # with 4 cpus and 64GB mem can result in a delivered machine with 10 cpus. Thus,
@@ -18,6 +19,37 @@ struct Runtime {
     Int runtime_minutes
     Int disk
     Int boot_disk_size
+}
+
+
+struct RuntimeCollection {
+    Runtime get_sample_name
+    Runtime preprocess_intervals
+    Runtime split_intervals
+    Runtime collect_covered_regions
+    Runtime collect_read_counts
+    Runtime denoise_read_counts
+    Runtime vcf_to_pileup_variants
+    Runtime get_pileup_summaries
+    Runtime gather_pileup_summaries
+    Runtime select_pileup_summaries
+    Runtime merge_sample
+    Runtime calculate_contamination
+    Runtime genotype_variants
+    Runtime mutect2
+    Runtime learn_read_orientation_model
+    Runtime merge_vcfs
+    Runtime merge_mafs
+    Runtime merge_mutect_stats
+    Runtime merge_bams
+    Runtime filter_mutect_calls
+    Runtime filter_alignment_artifacts
+    Runtime select_variants
+    Runtime funcotate
+    Runtime create_panel
+    Runtime whatshap
+    Runtime shapeit4
+    Runtime shapeit5
 }
 
 
@@ -55,12 +87,12 @@ workflow UpdateRuntimeParameters {
 }
 
 
-workflow DefineRuntimes {
+workflow DefineRuntimeCollection {
     input {
         Int num_bams = 1
 
         Int scatter_count = 10
-        String gatk_docker = "broadinstitute/gatk"
+        String gatk_docker = "broadinstitute/gatk:4.3.0.0"
         # Needs docker image with bedtools, samtools, and gatk
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
         String ubuntu_docker = "ubuntu"
@@ -126,6 +158,9 @@ workflow DefineRuntimes {
         Int mem_select_pileup_summaries = 512
         Int time_select_pileup_summaries = 5
 
+        Int mem_merge_sample = 2048
+        Int time_merge_sample = 10
+
         # gatk: CalculateContamination
         Int mem_calculate_contamination = 3072  # depends on the variants_for_contamination resource
         Int time_calculate_contamination = 10
@@ -135,10 +170,10 @@ workflow DefineRuntimes {
         Int time_genotype_variants = 30
 
         # gatk: Mutect2
-        Int cpu_variant_call = 1  # good for PairHMM: 2
-        Int mem_variant_call_base = 3072
-        Int time_variant_call_total = 10000  # 6 d / scatter_count
-        Int disk_variant_call = 0
+        Int cpu_mutect2 = 1  # good for PairHMM: 2
+        Int mem_mutect2_base = 3072
+        Int time_mutect2_total = 10000  # 6 d / scatter_count
+        Int disk_mutect2 = 0
 
         # gatk: MergeVCFs
         Int mem_merge_vcfs = 2048
@@ -330,6 +365,18 @@ workflow DefineRuntimes {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime merge_sample = {
+        "docker": genotype_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_merge_sample + mem_machine_overhead,
+        "command_mem": mem_merge_sample,
+        "runtime_minutes": time_startup + time_merge_sample,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Runtime calculate_contamination = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
@@ -355,17 +402,17 @@ workflow DefineRuntimes {
         "boot_disk_size": boot_disk_size
     }
 
-    Int mem_variant_call = mem_variant_call_base + num_bams * mem_additional_per_sample
-    Runtime variant_call = {
+    Int mem_mutect2 = mem_mutect2_base + num_bams * mem_additional_per_sample
+    Runtime mutect2 = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
         "preemptible": preemptible,
         "max_retries": max_retries,
-        "cpu": cpu_variant_call,
-        "machine_mem": mem_variant_call + mem_machine_overhead,
-        "command_mem": mem_variant_call,
-        "runtime_minutes": time_startup + ceil(time_variant_call_total / scatter_count),
-        "disk": disk + disk_variant_call,
+        "cpu": cpu_mutect2,
+        "machine_mem": mem_mutect2 + mem_machine_overhead,
+        "command_mem": mem_mutect2,
+        "runtime_minutes": time_startup + ceil(time_mutect2_total / scatter_count),
+        "disk": disk + disk_mutect2,
         "boot_disk_size": boot_disk_size
     }
 
@@ -474,19 +521,6 @@ workflow DefineRuntimes {
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime cnn_scoring = {
-        "docker": gatk_docker,
-        "jar_override": gatk_override,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu_cnn_scoring,
-        "machine_mem": mem_cnn_scoring + mem_machine_overhead,
-        "command_mem": mem_cnn_scoring,
-        "runtime_minutes": time_startup + time_cnn_scoring,
-        "disk": disk,
-        "boot_disk_size": boot_disk_size
-    }
-
     Runtime funcotate = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
@@ -549,33 +583,37 @@ workflow DefineRuntimes {
         "boot_disk_size": boot_disk_size
     }
 
+    RuntimeCollection runtime_collection = {
+        "get_sample_name": get_sample_name,
+        "preprocess_intervals": preprocess_intervals,
+        "split_intervals": split_intervals,
+        "collect_covered_regions": collect_covered_regions,
+        "collect_read_counts": collect_read_counts,
+        "denoise_read_counts": denoise_read_counts,
+        "vcf_to_pileup_variants": vcf_to_pileup_variants,
+        "get_pileup_summaries": get_pileup_summaries,
+        "gather_pileup_summaries": gather_pileup_summaries,
+        "select_pileup_summaries": select_pileup_summaries,
+        "merge_sample": merge_sample,
+        "calculate_contamination": calculate_contamination,
+        "genotype_variants": genotype_variants,
+        "mutect2": mutect2,
+        "learn_read_orientation_model": learn_read_orientation_model,
+        "merge_vcfs": merge_vcfs,
+        "merge_mafs": merge_mafs,
+        "merge_mutect_stats": merge_mutect_stats,
+        "merge_bams": merge_bams,
+        "filter_mutect_calls": filter_mutect_calls,
+        "filter_alignment_artifacts": filter_alignment_artifacts,
+        "select_variants": select_variants,
+        "funcotate": funcotate,
+        "create_panel": create_panel,
+        "whatshap": whatshap,
+        "shapeit4": shapeit4,
+        "shapeit5": shapeit5
+    }
+
     output {
-        Runtime get_sample_name_runtime = get_sample_name
-        Runtime preprocess_intervals_runtime = preprocess_intervals
-        Runtime split_intervals_runtime = split_intervals
-        Runtime collect_covered_regions_runtime = collect_covered_regions
-        Runtime collect_read_counts_runtime = collect_read_counts
-        Runtime denoise_read_counts_runtime = denoise_read_counts
-        Runtime vcf_to_pileup_variants_runtime = vcf_to_pileup_variants
-        Runtime get_pileup_summaries_runtime = get_pileup_summaries
-        Runtime gather_pileup_summaries_runtime = gather_pileup_summaries
-        Runtime select_pileup_summaries_runtime = select_pileup_summaries
-        Runtime calculate_contamination_runtime = calculate_contamination
-        Runtime genotype_variants_runtime = genotype_variants
-        Runtime variant_call_runtime = variant_call
-        Runtime learn_read_orientation_model_runtime = learn_read_orientation_model
-        Runtime merge_vcfs_runtime = merge_vcfs
-        Runtime merge_mafs_runtime = merge_mafs
-        Runtime merge_mutect_stats_runtime = merge_mutect_stats
-        Runtime merge_bams_runtime = merge_bams
-        Runtime filter_mutect_calls_runtime = filter_mutect_calls
-        Runtime filter_alignment_artifacts_runtime = filter_alignment_artifacts
-        Runtime select_variants_runtime = select_variants
-        Runtime cnn_scoring_runtime = cnn_scoring
-        Runtime funcotate_runtime = funcotate
-        Runtime create_panel_runtime = create_panel
-        Runtime whatshap_runtime = whatshap
-        Runtime shapeit4_runtime = shapeit4
-        Runtime shapeit5_runtime = shapeit5
+        RuntimeCollection rtc = runtime_collection
     }
 }

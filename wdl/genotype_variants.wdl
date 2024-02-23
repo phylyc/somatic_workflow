@@ -12,7 +12,7 @@ workflow GenotypeVariants {
         Array[File] pileups
         Array[File]? contamination_tables
         Array[File]? segmentation_tables
-        File? common_germline_alleles  # SNP panel used to get pileups and estimate contamination
+        File? common_germline_alleles  # SNP panel used to get pileups (and estimate contamination)
         File? common_germline_alleles_idx
 
         Int min_read_depth = 10
@@ -24,7 +24,7 @@ workflow GenotypeVariants {
 
         Boolean compress_output = false
 
-        Runtime genotype_variants_runtime = Runtimes.genotype_variants_runtime
+        RuntimeCollection runtime_collection = GetRTC.rtc
 
         String genotype_docker = "civisanalytics/datascience-python:latest"
         Int preemptible = 1
@@ -37,7 +37,7 @@ workflow GenotypeVariants {
         Int time_genotype_variants = 30
     }
 
-    call runtimes.DefineRuntimes as Runtimes {
+    call runtimes.DefineRuntimeCollection as GetRTC {
         input:
             genotype_docker = genotype_docker,
             preemptible = preemptible,
@@ -66,7 +66,7 @@ workflow GenotypeVariants {
             save_sample_genotype_likelihoods = save_sample_genotype_likelihoods,
             verbose = verbose,
             compress_output = compress_output,
-            runtime_params = genotype_variants_runtime
+            runtime_params = runtime_collection.genotype_variants
     }
 
     output {
@@ -150,6 +150,7 @@ task GenotypeVariants {
         File alt_counts = output_alt_counts
         File other_alt_counts = output_other_alt_counts
         File sample_correlation = output_sample_correlation
+        # Careful, glob returns different ordering than input sample_names!
         Array[File]? sample_genotype_likelihoods = glob(output_dir + "/*.likelihoods.pileup" + (if compress_output then ".gz" else ""))
     }
 

@@ -6,42 +6,54 @@ import "tasks.wdl"
 
 workflow CollectReadCounts {
     input {
-        File interval_list
-
         File ref_fasta
         File ref_fasta_index
         File ref_dict
+        String format = "TSV"
 
+        # SequencingRun sequencing_run = GetSeqRun.sequencing_run
+        String? sample_name
         File bam
         File bai
-        String? sample_name
-
-        String format = "TSV"
-        Boolean paired_end = false
-
+        File interval_list
         File? annotated_interval_list
         File? read_count_panel_of_normals
+        Boolean paired_end = false
 
-        Runtime get_sample_name_runtime = Runtimes.get_sample_name_runtime
-        Runtime collect_read_counts_runtime = Runtimes.collect_read_counts_runtime
-        Runtime denoise_read_counts_runtime = Runtimes.denoise_read_counts_runtime
-
+        RuntimeCollection runtime_collection = GetRTC.rtc
         String gatk_docker = "broadinstitute/gatk"
         File? gatk_override
         Int preemptible = 1
         Int max_retries = 1
-
         # memory assignments in MB
         Int mem_get_sample_name = 512  # 256
         Int mem_collect_read_counts = 2048
         Int mem_denoise_read_counts = 2048
-
         Int time_get_sample_name = 1
         Int time_collect_read_counts = 300
         Int time_denoise_read_counts = 120
     }
 
-    call runtimes.DefineRuntimes as Runtimes {
+    if (!defined(sample_name)) {
+        call tasks.GetSampleName {
+            input:
+                bam = bam,
+                runtime_params = runtime_collection.get_sample_name
+        }
+    }
+
+#    call sequencing_run.DefineSequencingRun as GetSeqRun {
+#        input:
+#            name = select_first([sample_name, GetSampleName.sample_name]),
+#            bam = bam,
+#            bai = bai,
+#            interval_list = interval_list,
+#            annotated_interval_list = annotated_interval_list,
+#            read_count_panel_of_normals = read_count_panel_of_normals,
+#            paired_end = paired_end
+#    }
+
+    call runtimes.DefineRuntimeCollection as GetRTC {
         input:
             gatk_docker = gatk_docker,
             gatk_override = gatk_override,
@@ -53,14 +65,6 @@ workflow CollectReadCounts {
             time_get_sample_name = time_get_sample_name,
             time_collect_read_counts = time_collect_read_counts,
             time_denoise_read_counts = time_denoise_read_counts
-    }
-
-    if (!defined(sample_name)) {
-        call tasks.GetSampleName {
-            input:
-                bam = bam,
-                runtime_params = get_sample_name_runtime
-        }
     }
 
     String this_sample_name = select_first([sample_name, GetSampleName.sample_name])
@@ -76,7 +80,7 @@ workflow CollectReadCounts {
             format = format,
             sample_name = this_sample_name,
             paired_end = paired_end,
-            runtime_params = collect_read_counts_runtime
+            runtime_params = runtime_collection.collect_read_counts
 	}
 
     if (defined(annotated_interval_list) || defined(read_count_panel_of_normals)) {
@@ -86,7 +90,7 @@ workflow CollectReadCounts {
                 sample_name = this_sample_name,
                 annotated_interval_list = annotated_interval_list,
                 count_panel_of_normals = read_count_panel_of_normals,
-                runtime_params = denoise_read_counts_runtime
+                runtime_params = runtime_collection.denoise_read_counts
         }
     }
 

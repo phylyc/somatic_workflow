@@ -19,6 +19,8 @@ workflow SelectVariants {
         String? normal_sample_name
         String? select_variants_extra_args
 
+        RuntimeCollection runtime_collection = GetRTC.rtc
+
         String gatk_docker = "broadinstitute/gatk"
         Int preemptible = 1
         Int max_retries = 1
@@ -33,7 +35,7 @@ workflow SelectVariants {
 
     }
 
-    call runtimes.DefineRuntimes as Runtimes {
+    call runtimes.DefineRuntimeCollection as GetRTC {
         input:
             gatk_docker = gatk_docker,
             preemptible = preemptible,
@@ -61,7 +63,7 @@ workflow SelectVariants {
             tumor_sample_name = tumor_sample_name,
             normal_sample_name = normal_sample_name,
             select_variants_extra_args = select_variants_extra_args,
-            runtime_params = Runtimes.select_variants_runtime
+            runtime_params = runtime_collection.select_variants
     }
 
     output {

@@ -18,13 +18,15 @@ import "runtimes.wdl"
 
 workflow CollectAllelicCounts {
 	input {
+        File ref_dict
+
+        # SequencingRun sequencing_run = GetSeqRun.sequencing_run
+        String sample_name
+        File bam
+        File bai
         File? interval_list
         File? interval_blacklist
         Array[File]? scattered_interval_list
-        File bam
-        File bai
-        File ref_dict
-        String output_base_name
 
         File? common_germline_alleles
         File? common_germline_alleles_idx
@@ -36,10 +38,7 @@ workflow CollectAllelicCounts {
         Float maximum_population_allele_frequency = 0.2
         Int minimum_read_depth = 0
 
-        Runtime vcf_to_pileup_variants_runtime = Runtimes.vcf_to_pileup_variants_runtime
-        Runtime get_pileup_summaries_runtime = Runtimes.get_pileup_summaries_runtime
-        Runtime gather_pileup_summaries_runtime = Runtimes.gather_pileup_summaries_runtime
-        Runtime select_pileup_summaries_runtime = Runtimes.select_pileup_summaries_runtime
+        RuntimeCollection runtime_collection = GetRTC.rtc
 
         String bcftools_docker = "stephb/bcftools"
         String gatk_docker = "broadinstitute/gatk"
@@ -60,7 +59,7 @@ workflow CollectAllelicCounts {
         Int time_select_pileup_summaries = 5
 	}
 
-    call runtimes.DefineRuntimes as Runtimes {
+    call runtimes.DefineRuntimeCollection as GetRTC {
         input:
             bcftools_docker = bcftools_docker,
             gatk_docker = gatk_docker,
@@ -85,7 +84,7 @@ workflow CollectAllelicCounts {
             input:
                 vcf = select_first([vcf]),
                 vcf_idx = select_first([vcf_idx]),
-                runtime_params = vcf_to_pileup_variants_runtime,
+                runtime_params = runtime_collection.vcf_to_pileup_variants,
         }
     }
 
@@ -102,7 +101,7 @@ workflow CollectAllelicCounts {
                     common_germline_alleles_idx = select_first([common_germline_alleles_idx, VcfToPileupVariants.common_germline_alleles_idx]),
                     minimum_population_allele_frequency = minimum_population_allele_frequency,
                     maximum_population_allele_frequency = maximum_population_allele_frequency,
-                    runtime_params = get_pileup_summaries_runtime,
+                    runtime_params = runtime_collection.get_pileup_summaries,
             }
         }
 
@@ -110,8 +109,8 @@ workflow CollectAllelicCounts {
             input:
                 input_tables = ScatteredGetPileupSummaries.pileup_summaries,
                 ref_dict = ref_dict,
-                output_base_name = output_base_name,
-                runtime_params = gather_pileup_summaries_runtime,
+                sample_name = sample_name,
+                runtime_params = runtime_collection.gather_pileup_summaries,
         }
     }
     # else
@@ -122,12 +121,12 @@ workflow CollectAllelicCounts {
                 input_bai = bai,
                 interval_list = interval_list,
                 interval_blacklist = interval_blacklist,
-                output_base_name = output_base_name,
+                sample_name = sample_name,
                 common_germline_alleles = select_first([common_germline_alleles, VcfToPileupVariants.common_germline_alleles]),
                 common_germline_alleles_idx = select_first([common_germline_alleles_idx, VcfToPileupVariants.common_germline_alleles_idx]),
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
                 maximum_population_allele_frequency = maximum_population_allele_frequency,
-                runtime_params = get_pileup_summaries_runtime,
+                runtime_params = runtime_collection.get_pileup_summaries,
         }
     }
 
@@ -135,9 +134,9 @@ workflow CollectAllelicCounts {
         call SelectPileups {
             input:
                 pileup_summaries = select_first([GatherPileupSummaries.merged_pileup_summaries, GetPileupSummaries.pileup_summaries]),
-                output_base_name = output_base_name,
+                sample_name = sample_name,
                 minimum_read_depth = minimum_read_depth,
-                runtime_params = select_pileup_summaries_runtime,
+                runtime_params = runtime_collection.select_pileup_summaries,
         }
     }
 
@@ -161,10 +160,10 @@ task VcfToPileupVariants {
 
     Int diskGB = ceil(2 * size(vcf, "GB"))
 
-    String output_base_name = basename(basename(basename(vcf, ".gz"), ".bgz"), ".vcf")
-    String tmp_vcf = output_base_name + ".tmp.vcf"
-    String uncompressed_vcf = output_base_name + ".af_only.vcf"
-    String af_only_vcf = output_base_name + ".af_only.vcf.gz"
+    String sample_name = basename(basename(basename(vcf, ".gz"), ".bgz"), ".vcf")
+    String tmp_vcf = sample_name + ".tmp.vcf"
+    String uncompressed_vcf = sample_name + ".af_only.vcf"
+    String af_only_vcf = sample_name + ".af_only.vcf.gz"
     String af_only_vcf_idx = af_only_vcf + ".tbi"
 
     String dollar = "$"
@@ -230,7 +229,7 @@ task GetPileupSummaries {
         File input_bai
         File common_germline_alleles
         File common_germline_alleles_idx
-        String? output_base_name
+        String? sample_name
         String? getpileupsummaries_extra_args
 
         Float minimum_population_allele_frequency = 0.01
@@ -248,7 +247,7 @@ task GetPileupSummaries {
         common_germline_alleles_idx: {localization_optional: true}
     }
 
-    String sample_id = if defined(output_base_name) then output_base_name else basename(input_bam, ".bam")
+    String sample_id = if defined(sample_name) then sample_name else basename(input_bam, ".bam")
     String output_file = sample_id + ".pileup"
 
     command <<<
@@ -299,7 +298,7 @@ task GatherPileupSummaries {
     input {
         Array[File] input_tables
         File ref_dict
-        String output_base_name
+        String sample_name
 
         Runtime runtime_params
     }
@@ -310,8 +309,7 @@ task GatherPileupSummaries {
     #     ref_dict: {localization_optional: true}
     # }
 
-    String sample_id = output_base_name
-    String output_file = output_base_name + ".pileup"
+    String output_file = sample_name + ".pileup"
 
     command <<<
         set -e
@@ -342,21 +340,22 @@ task GatherPileupSummaries {
 task SelectPileups {
     input {
         File pileup_summaries
-        String output_base_name
+        String sample_name
         Int minimum_read_depth
 
         Runtime runtime_params
     }
 
-    String output_file = output_base_name + ".pileup"
+    String output_file = sample_name + ".pileup"
+    String tmp_output_file = "tmp." + output_file
     String dollar = "$"
 
     command <<<
         # Extract leading comment lines
-        grep '^#' '~{pileup_summaries}' > '~{output_file}'
+        grep '^#' '~{pileup_summaries}' > '~{tmp_output_file}'
 
         # Extract column headers
-        grep -v '^#' '~{pileup_summaries}' | head -n 1 >> '~{output_file}'
+        grep -v '^#' '~{pileup_summaries}' | head -n 1 >> '~{tmp_output_file}'
 
         # Count the number of lines that are not comments (headers)
         num_variants_plus_one=~{dollar}(grep -vc '^#' '~{pileup_summaries}')
@@ -365,8 +364,10 @@ task SelectPileups {
             # Extract table and select lines with read depth >= min_read_depth
             grep -v '^#' '~{pileup_summaries}' | tail -n +2 \
                 | awk -F"\t" '~{dollar}3 + ~{dollar}4 + ~{dollar}5 >= ~{minimum_read_depth}' \
-                >> '~{output_file}'
+                >> '~{tmp_output_file}'
         fi
+
+        mv '~{tmp_output_file}' '~{output_file}'
     >>>
 
     output {

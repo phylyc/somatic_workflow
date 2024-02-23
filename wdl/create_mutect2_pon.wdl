@@ -39,6 +39,8 @@ workflow CreateMutect2PoN {
         Int min_contig_size = 1000000
         Int num_contigs = 24
 
+        RuntimeCollection runtime_collection = GetRTC.rtc
+
         # runtime
         Int scatter_count = 10
         String gatk_docker = "broadinstitute/gatk"
@@ -56,7 +58,7 @@ workflow CreateMutect2PoN {
         Int disk_create_panel = 10
     }
 
-    call runtimes.DefineRuntimes as DefaultRuntimes {
+    call runtimes.DefineRuntimeCollection as GetRTC {
         input:
             scatter_count = scatter_count,
             gatk_docker = gatk_docker,
@@ -77,7 +79,7 @@ workflow CreateMutect2PoN {
         call tasks.GetSampleName {
             input:
                 bam = normal.left,
-                runtime_params = DefaultRuntimes.get_sample_name_runtime,
+                runtime_params = runtime_collection.get_sample_name,
         }
 
         call mssw.MultiSampleSomaticWorkflow {
@@ -112,11 +114,7 @@ workflow CreateMutect2PoN {
                 scatter_count = scatter_count,
                 mutect2_extra_args = mutect2_extra_args + " --max-mnp-distance 0",
 
-                gatk_docker = gatk_docker,
-                gatk_override = gatk_override,
-                preemptible = preemptible,
-                max_retries = max_retries,
-                cpu = cpu,
+                runtime_collection = runtime_collection,
         }
     }
 
@@ -132,10 +130,10 @@ workflow CreateMutect2PoN {
             ref_dict = ref_dict,
             scatter_count = num_contigs,
             split_intervals_extra_args = split_intervals_extra_args,
-            runtime_params = DefaultRuntimes.split_intervals_runtime
+            runtime_params = runtime_collection.split_intervals
     }
 
-    call runtimes.DefineRuntimes as Runtimes {
+    call runtimes.DefineRuntimeCollection as RuntimeCollection {
         input:
             gatk_docker = gatk_docker,
             gatk_override = gatk_override,
@@ -163,7 +161,7 @@ workflow CreateMutect2PoN {
                 gnomad = germline_resource,
                 gnomad_idx = germline_resource_idx,
                 output_vcf_name = pon_name,
-                runtime_params = Runtimes.create_panel_runtime
+                runtime_params = RuntimeCollection.rtc.create_panel
         }
     }
 
@@ -173,7 +171,7 @@ workflow CreateMutect2PoN {
             vcfs_idx = CreatePanel.output_vcf_index,
             output_name = pon_name,
             compress_output = compress_output,
-            runtime_params = DefaultRuntimes.merge_vcfs_runtime
+            runtime_params = RuntimeCollection.rtc.merge_vcfs
     }
 
     output {
