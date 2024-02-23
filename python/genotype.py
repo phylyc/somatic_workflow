@@ -25,13 +25,13 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "genotype.py -O <output_dir> -V <variant> --patient <patient> --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-S <segments> ...] [-C <contamination> ...] [-M <model>] [-D <min_read_depth>] [-p <min_genotype_likelihood>] [-F <format>] [--select_hets] [--save_sample_genotype_likelihoods] [--verbose]"
+    parser.usage = "genotype.py -O <output_dir> -V <variant> --patient <patient> --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-C <contamination> ...] [-S <segments> ...] [-M <model>] [-D <min_read_depth>] [-p <min_genotype_likelihood>] [-F <format>] [--select_hets] [--save_sample_genotype_likelihoods] [--verbose]"
     parser.add_argument("-O", "--output_dir",                   type=str,   required=True,  help="Path to the output directory.")
     parser.add_argument("--patient",                            type=str,   required=True,  help="Name of the patient.")
     parser.add_argument("--sample",                             type=str,   required=True,  action="append",    help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file header.")
     parser.add_argument("-P", "--pileup",                       type=str,   required=True,  action="append",    help="Path to the allelic pileup file (output of GATK's GetPileupSummaries; used for CalculateContamination).")
-    parser.add_argument("-S", "--segments",                     type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation file (output of GATK's CalculateContamination).")
     parser.add_argument("-C", "--contamination",                type=str,   default=None,   action="append",    help="Path to the contamination estimate file (output of GATK's CalculateContamination).")
+    parser.add_argument("-S", "--segments",                     type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation file (output of GATK's CalculateContamination).")
     parser.add_argument("-V", "--variant",                      type=str,   default=None,   help="A VCF file containing common germline variants and population allele frequencies. (Used to get pileup summaries.)")
     parser.add_argument("-M", "--model",                        type=str,   default="betabinom", choices=["binom", "betabinom"], help="Genotype likelihood model.")
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
@@ -59,8 +59,8 @@ def main():
         samples=args.sample,
         variant=args.variant,
         pileup=args.pileup,
-        segments=args.segments,
         contamination=args.contamination,
+        segments=args.segments,
         min_read_depth=args.min_read_depth,
         verbose=args.verbose
     )
@@ -153,46 +153,6 @@ class PileupLikelihood(object):
         return self
 
 
-class Segments(object):
-    """
-    Represents segmentation data from a specified file. (E.g. output of GATK CalculateContamination.)
-
-    This class is responsible for reading segmentation data related to allele
-    fractions from a file, and extracting sample name information from the file header.
-
-    Attributes:
-        file_path (str): Path to the segments file.
-        columns (list of str): Column names for the DataFrame.
-        df (pandas.DataFrame): DataFrame containing the segmentation data.
-        bam_sample_name (str): Extracted sample name from the file header.
-
-    Args:
-        file_path (str): Path to the segments file.
-    """
-
-    def __init__(self, file_path: str = None):
-        self.file_path = file_path
-        self.columns = ["contig", "start", "end", "minor_allele_fraction"]
-        default_df = pd.DataFrame(columns=self.columns)
-        try:
-            self.df = (
-                pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.columns, low_memory=False)
-                if file_path is not None
-                else default_df
-            )
-        except Exception as e:
-            warnings.warn(f"Exception reading segments file {file_path}: {e}")
-            warnings.warn(f"Setting segments to empty DataFrame.")
-            self.df = default_df
-        self.bam_sample_name = None
-        if file_path is not None:
-            open_func = gzip.open if file_path.endswith(".gz") else open
-            with open_func(file_path, "rt") as segments_file:
-                segments_header = segments_file.readline().strip()
-                if segments_header.startswith("#<METADATA>SAMPLE="):
-                    self.bam_sample_name = segments_header.removeprefix("#<METADATA>SAMPLE=")
-
-
 class Contamination(object):
     """
     Represents contamination data from a specified file. (E.g. output of GATK CalculateContamination.)
@@ -233,6 +193,46 @@ class Contamination(object):
         self.bam_sample_name = self.dict["sample"]
 
 
+class Segments(object):
+    """
+    Represents segmentation data from a specified file. (E.g. output of GATK CalculateContamination.)
+
+    This class is responsible for reading segmentation data related to allele
+    fractions from a file, and extracting sample name information from the file header.
+
+    Attributes:
+        file_path (str): Path to the segments file.
+        columns (list of str): Column names for the DataFrame.
+        df (pandas.DataFrame): DataFrame containing the segmentation data.
+        bam_sample_name (str): Extracted sample name from the file header.
+
+    Args:
+        file_path (str): Path to the segments file.
+    """
+
+    def __init__(self, file_path: str = None):
+        self.file_path = file_path
+        self.columns = ["contig", "start", "end", "minor_allele_fraction"]
+        default_df = pd.DataFrame(columns=self.columns)
+        try:
+            self.df = (
+                pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.columns, low_memory=False)
+                if file_path is not None
+                else default_df
+            )
+        except Exception as e:
+            warnings.warn(f"Exception reading segments file {file_path}: {e}")
+            warnings.warn(f"Setting segments to empty DataFrame.")
+            self.df = default_df
+        self.bam_sample_name = None
+        if file_path is not None:
+            open_func = gzip.open if file_path.endswith(".gz") else open
+            with open_func(file_path, "rt") as segments_file:
+                segments_header = segments_file.readline().strip()
+                if segments_header.startswith("#<METADATA>SAMPLE="):
+                    self.bam_sample_name = segments_header.removeprefix("#<METADATA>SAMPLE=")
+
+
 def cross_check_sample_name(*args) -> str:
     """
     Cross-checks the sample names across multiple data sources.
@@ -266,10 +266,18 @@ def join_pileups(pileups: list["Pileup"]):
             "ref_count": "sum",
             "alt_count": "sum",
             "other_alt_count": "sum",
-            "allele_frequency": "mean"
+            "allele_frequency": "max"
         }
     ).reset_index()
     joint.bam_sample_name = np.unique([p.bam_sample_name for p in pileups])[0]  # should be the same
+    return joint
+
+
+def join_contaminations(contaminations: list["Contamination"]):
+    joint = Contamination()
+    joint.value, joint.error = np.average([c.value for c in contaminations], weights=[1 / c.error ** 2 for c in contaminations], returned=True)
+    joint.bam_sample_name = np.unique([c.bam_sample_name for c in contaminations])[0]  # should be the same
+    joint.dict = {"sample": joint.bam_sample_name, "contamination": joint.value, "contamination_error": joint.error}
     return joint
 
 
@@ -309,14 +317,6 @@ def non_overlapping(intervals):
             new_split_interval["end"] = new_interval.right
             non_overlapping_interval_list.append(new_split_interval)
     return pd.DataFrame(non_overlapping_interval_list)
-
-
-def join_contaminations(contaminations: list["Contamination"]):
-    joint = Contamination()
-    joint.value, joint.error = np.average([c.value for c in contaminations], weights=[1 / c.error ** 2 for c in contaminations], returned=True)
-    joint.bam_sample_name = np.unique([c.bam_sample_name for c in contaminations])[0]  # should be the same
-    joint.dict = {"sample": joint.bam_sample_name, "contamination": joint.value, "contamination_error": joint.error}
-    return joint
 
 
 class VCF(object):
@@ -446,14 +446,14 @@ class Genotyper(object):
             genotypes = self.genotypes
         return likelihoods.loc[likelihoods[genotypes].max(axis=1) >= self.min_genotype_likelihood]
 
-    def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, segments: pd.DataFrame = None, contamination: float = 0.001) -> pd.DataFrame:
+    def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, contamination: float = 0.001, segments: pd.DataFrame = None) -> pd.DataFrame:
         """
         Calculates genotype likelihoods for given pileup data, and optional allelic copy ratio segmentation, and contamination estimate.
 
         Args:
             pileup (pd.DataFrame): DataFrame containing pileup data.
-            segments (pd.DataFrame, optional): DataFrame containing segmentation data.
             contamination (float, optional): Contamination level to consider in calculations.
+            segments (pd.DataFrame, optional): DataFrame containing segmentation data.
 
         Returns:
             pd.DataFrame: DataFrame with genotype likelihoods for each genomic position.
@@ -647,8 +647,8 @@ class GenotypeData(object):
         samples (list[str]): List of sample names.
         vcf (VCF): VCF object.
         pileups (list[Pileup]): List of Pileup objects.
-        segments (list[Segments]): List of Segments objects.
         contaminations (list[Contamination]): List of Contamination objects.
+        segments (list[Segments]): List of Segments objects.
         pileup_likelihoods (list[PileupLikelihood]): List of PileupLikelihood objects.
         sample_correlation (pandas.DataFrame): DataFrame containing sample genotype correlation matrix.
         joint_genotype_likelihood (pandas.DataFrame): DataFrame containing joint genotype likelihoods.
@@ -658,12 +658,12 @@ class GenotypeData(object):
         samples (list[str]): List of sample names.
         variant (str): Path to the VCF file containing common germline variants and population allele frequencies.
         pileup (list[str]): List of paths to the allelic pileup input files (output of GATK's GetPileupSummaries; used for CalculateContamination).
-        segments (list[str], optional): List of paths to the allelic copy ratio segmentation input files (output of GATK's CalculateContamination).
         contamination (list[str], optional): List of paths to the contamination estimate input files (output of GATK's CalculateContamination).
+        segments (list[str], optional): List of paths to the allelic copy ratio segmentation input files (output of GATK's CalculateContamination).
         min_read_depth (int, optional): Minimum read depth threshold for filtering data.
     """
 
-    def __init__(self, individual_id: str, samples: list[str], variant: str = None, pileup: list[str] = None, segments: list[str] = None, contamination: list[str] = None, min_read_depth: int = 10, verbose: bool = False):
+    def __init__(self, individual_id: str, samples: list[str], variant: str = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 10, verbose: bool = False):
         self.verbose = verbose
         print("Loading data:") if verbose else None
         self.individual_id = individual_id
@@ -677,17 +677,17 @@ class GenotypeData(object):
             if pileup is None
             else [Pileup(file_path=p, min_read_depth=min_read_depth) for p in pileup]
         )
-        print("  Segments") if verbose else None
-        self.segments = (
-            [Segments()] * len(samples)
-            if segments is None
-            else [Segments(file_path=s) for s in segments]
-        )
         print("  Contamination") if verbose else None
         self.contaminations = (
             [Contamination()] * len(samples)
             if contamination is None
             else [Contamination(file_path=c) for c in contamination]
+        )
+        print("  Segments") if verbose else None
+        self.segments = (
+            [Segments()] * len(samples)
+            if segments is None
+            else [Segments(file_path=s) for s in segments]
         )
         print() if verbose else None
 
@@ -714,37 +714,37 @@ class GenotypeData(object):
 
         samples = []
         pileups = []
-        segments = []
         contaminations = []
-        for s, p, seg, c in zip(self.samples, self.pileups, self.segments, self.contaminations):
+        segments = []
+        for s, p, c, seg in zip(self.samples, self.pileups, self.contaminations, self.segments):
             if s in duplicate_samples:
                 continue
             samples.append(s)
             pileups.append(p)
-            segments.append(seg)
             contaminations.append(c)
+            segments.append(seg)
 
         for s in duplicate_samples:
             s_idx = [i for i, sample in enumerate(self.samples) if sample == s]
             samples.append(s)
             pileups.append(join_pileups([self.pileups[i] for i in s_idx]))
-            segments.append(join_segments([self.segments[i] for i in s_idx]))
             contaminations.append(join_contaminations([self.contaminations[i] for i in s_idx]))
+            segments.append(join_segments([self.segments[i] for i in s_idx]))
 
         self.samples = samples
         self.pileups = pileups
-        self.segments = segments
         self.contaminations = contaminations
+        self.segments = segments
 
-    def get_pileup_likelihood(self, genotyper: Genotyper, assigned_sample_name: str, pileup: Pileup, segments: Segments, contamination: Contamination) -> PileupLikelihood:
+    def get_pileup_likelihood(self, genotyper: Genotyper, assigned_sample_name: str, pileup: Pileup, contamination: Contamination, segments: Segments) -> PileupLikelihood:
         pileup_likelihood = PileupLikelihood(
             pileup_likelihood=genotyper.calculate_genotype_likelihoods(
                 pileup=pileup.df,
-                segments=segments.df,
                 contamination=contamination.value,
+                segments=segments.df,
             ),
             assigned_sample_name=assigned_sample_name,
-            bam_sample_name=cross_check_sample_name(pileup, segments, contamination)
+            bam_sample_name=cross_check_sample_name(pileup, contamination, segments)
         )
         print(".", end="", flush=True) if self.verbose else None
         return pileup_likelihood
@@ -758,8 +758,8 @@ class GenotypeData(object):
                     pileup_likelihoods = pool.starmap(
                         func=self.get_pileup_likelihood,
                         iterable=[
-                            (genotyper, assigned_sample_name, pileup, segments, contamination)
-                            for assigned_sample_name, pileup, segments, contamination in zip(self.samples, self.pileups, self.segments, self.contaminations)
+                            (genotyper, assigned_sample_name, pileup, contamination, segments)
+                            for assigned_sample_name, pileup, contamination, segments in zip(self.samples, self.pileups, self.contaminations, self.segments)
                         ]
                     )
                 print() if self.verbose else None
@@ -769,8 +769,8 @@ class GenotypeData(object):
                 print(f"Error in parallel execution: {e}")
         print("Serial execution: ", end="") if self.verbose else None
         pileup_likelihoods = [
-            self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, segments, contamination)
-            for assigned_sample_name, pileup, segments, contamination in zip(self.samples, self.pileups, self.segments, self.contaminations)
+            self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, contamination, segments)
+            for assigned_sample_name, pileup, contamination, segments in zip(self.samples, self.pileups, self.contaminations, self.segments)
         ]
         print("\n") if self.verbose else None  # Not sure why \n is needed here but not above.
         return pileup_likelihoods
