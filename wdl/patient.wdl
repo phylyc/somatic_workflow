@@ -265,19 +265,19 @@ workflow UpdateSamples {
         Sample previous_matched_normal_sample = select_first([patient.matched_normal_sample])
         scatter (sample in samples_9) {
             if (sample.name == previous_matched_normal_sample.name) {
-                Sample matched_normal_sample = sample
+                Sample? matched_normal_sample = sample
             }
         }
     }
 
     Patient p = object {
         name: patient.name,
-        samples: samples_8,
-        tumor_samples: tumor_samples_8,
-        normal_samples: normal_samples_8,
+        samples: samples_9,
+        tumor_samples: tumor_samples_9,
+        normal_samples: normal_samples_9,
         has_tumor: patient.has_tumor,
         has_normal: patient.has_normal,
-        matched_normal_sample: if (patient.has_normal) then select_first(select_all(matched_normal_sample)) else patient.matched_normal_sample,
+        matched_normal_sample: if (defined(patient.matched_normal_sample)) then select_first(select_all(select_first([matched_normal_sample]))) else patient.matched_normal_sample,
     }
 
     output {

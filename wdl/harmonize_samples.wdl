@@ -52,9 +52,11 @@ workflow HarmonizeSamples {
                     File? this_scr = pair.right
                 }
             }
+            Array[File] this_sample_dcr = select_all(this_dcr)
+            Array[File] this_sample_scr = select_all(this_scr)
         }
-        Array[File]? sorted_harmonized_denoised_copy_ratios = select_all(flatten(this_dcr))
-        Array[File]? sorted_harmonized_standardized_copy_ratios = select_all(flatten(this_scr))
+        Array[File]? sorted_harmonized_denoised_copy_ratios = flatten(this_sample_dcr)
+        Array[File]? sorted_harmonized_standardized_copy_ratios = flatten(this_sample_scr)
     }
 
     if (has_AC) {
@@ -73,8 +75,9 @@ workflow HarmonizeSamples {
                     File? this_allelic_counts = allelic_count
                 }
             }
+            Array[File] this_sample_allelic_counts = select_all(this_allelic_counts)
         }
-        Array[File]? sorted_allelic_counts = select_all(flatten(this_allelic_counts))
+        Array[File]? sorted_allelic_counts = flatten(this_sample_allelic_counts)
     }
 
     output {
