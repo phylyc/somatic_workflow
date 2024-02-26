@@ -73,7 +73,8 @@ workflow UpdateRuntimeParameters {
 
     Runtime updated_runtime = {
         "docker": select_first([docker, runtime_params.docker]),
-        "jar_override": select_first([jar_override, runtime_params.jar_override]),
+        # cannot use select_first for optional fields:
+        "jar_override": if defined(jar_override) then jar_override else runtime_params.jar_override,
         "preemptible": select_first([preemptible, runtime_params.preemptible]),
         "max_retries": select_first([max_retries, runtime_params.max_retries]),
         "cpu": select_first([cpu, runtime_params.cpu]),
