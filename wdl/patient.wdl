@@ -52,6 +52,7 @@ workflow UpdateSamples {
         Patient patient
         Array[File]? read_counts
         Array[File]? denoised_copy_ratios
+        Array[File]? standardized_copy_ratios
         Array[File]? snp_array_allelic_counts
         Array[File]? somatic_allelic_counts
         Array[File]? germline_allelic_counts
@@ -106,8 +107,30 @@ workflow UpdateSamples {
     Array[Sample] normal_samples_2 = select_all(select_first([UpdateDenoisedCopyRatioNormal.updated_sample, normal_samples_1]))
     Array[Sample] samples_2 = flatten([tumor_samples_2, normal_samples_2])
 
+    if (defined(standardized_copy_ratios)) {
+        scatter (pair in zip(samples_2, select_first([standardized_copy_ratios, []]))) {
+            if (pair.left.is_tumor) {
+                call sample.UpdateSample as UpdateStandardizedCopyRatioTumor {
+                    input:
+                        sample = pair.left,
+                        standardized_copy_ratios = pair.right,
+                }
+            }
+            if (!pair.left.is_tumor) {
+                call sample.UpdateSample as UpdateStandardizedCopyRatioNormal {
+                    input:
+                        sample = pair.left,
+                        standardized_copy_ratios = pair.right,
+                }
+            }
+        }
+    }
+    Array[Sample] tumor_samples_3 = select_all(select_first([UpdateStandardizedCopyRatioTumor.updated_sample, tumor_samples_2]))
+    Array[Sample] normal_samples_3 = select_all(select_first([UpdateStandardizedCopyRatioNormal.updated_sample, normal_samples_2]))
+    Array[Sample] samples_3 = flatten([tumor_samples_3, normal_samples_3])
+
     if (defined(snp_array_allelic_counts)) {
-        scatter (pair in zip(samples_2, select_first([snp_array_allelic_counts, []]))) {
+        scatter (pair in zip(samples_3, select_first([snp_array_allelic_counts, []]))) {
             if (pair.left.is_tumor) {
                 call sample.UpdateSample as UpdateSnpArrayAllelicCountTumor {
                     input:
@@ -124,12 +147,12 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] tumor_samples_3 = select_all(select_first([UpdateSnpArrayAllelicCountTumor.updated_sample, tumor_samples_2]))
-    Array[Sample] normal_samples_3 = select_all(select_first([UpdateSnpArrayAllelicCountNormal.updated_sample, normal_samples_2]))
-    Array[Sample] samples_3 = flatten([tumor_samples_3, normal_samples_3])
+    Array[Sample] tumor_samples_4 = select_all(select_first([UpdateSnpArrayAllelicCountTumor.updated_sample, tumor_samples_3]))
+    Array[Sample] normal_samples_4 = select_all(select_first([UpdateSnpArrayAllelicCountNormal.updated_sample, normal_samples_3]))
+    Array[Sample] samples_4 = flatten([tumor_samples_4, normal_samples_4])
 
     if (defined(somatic_allelic_counts)) {
-        scatter (pair in zip(samples_3, select_first([somatic_allelic_counts, []]))) {
+        scatter (pair in zip(samples_4, select_first([somatic_allelic_counts, []]))) {
             if (pair.left.is_tumor) {
                 call sample.UpdateSample as UpdateSomaticAllelicCountTumor {
                     input:
@@ -146,12 +169,12 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] tumor_samples_4 = select_all(select_first([UpdateSomaticAllelicCountTumor.updated_sample, tumor_samples_3]))
-    Array[Sample] normal_samples_4 = select_all(select_first([UpdateSomaticAllelicCountNormal.updated_sample, normal_samples_3]))
-    Array[Sample] samples_4 = flatten([tumor_samples_4, normal_samples_4])
+    Array[Sample] tumor_samples_5 = select_all(select_first([UpdateSomaticAllelicCountTumor.updated_sample, tumor_samples_4]))
+    Array[Sample] normal_samples_5 = select_all(select_first([UpdateSomaticAllelicCountNormal.updated_sample, normal_samples_4]))
+    Array[Sample] samples_5 = flatten([tumor_samples_5, normal_samples_5])
 
     if (defined(germline_allelic_counts)) {
-        scatter (pair in zip(samples_4, select_first([germline_allelic_counts, []]))) {
+        scatter (pair in zip(samples_5, select_first([germline_allelic_counts, []]))) {
             if (pair.left.is_tumor) {
                 call sample.UpdateSample as UpdateGermlineAllelicCountTumor {
                     input:
@@ -168,12 +191,12 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] tumor_samples_5 = select_all(select_first([UpdateGermlineAllelicCountTumor.updated_sample, tumor_samples_4]))
-    Array[Sample] normal_samples_5 = select_all(select_first([UpdateGermlineAllelicCountNormal.updated_sample, normal_samples_4]))
-    Array[Sample] samples_5 = flatten([tumor_samples_5, normal_samples_5])
+    Array[Sample] tumor_samples_6 = select_all(select_first([UpdateGermlineAllelicCountTumor.updated_sample, tumor_samples_5]))
+    Array[Sample] normal_samples_6 = select_all(select_first([UpdateGermlineAllelicCountNormal.updated_sample, normal_samples_5]))
+    Array[Sample] samples_6 = flatten([tumor_samples_6, normal_samples_6])
 
     if (defined(contaminations)) {
-        scatter (pair in zip(samples_4, select_first([contaminations, []]))) {
+        scatter (pair in zip(samples_6, select_first([contaminations, []]))) {
             if (pair.left.is_tumor) {
                 call sample.UpdateSample as UpdateContaminationTumor {
                     input:
@@ -190,12 +213,12 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] tumor_samples_6 = select_all(select_first([UpdateContaminationTumor.updated_sample, tumor_samples_5]))
-    Array[Sample] normal_samples_6 = select_all(select_first([UpdateContaminationNormal.updated_sample, normal_samples_5]))
-    Array[Sample] samples_6 = flatten([tumor_samples_6, normal_samples_6])
+    Array[Sample] tumor_samples_7 = select_all(select_first([UpdateContaminationTumor.updated_sample, tumor_samples_6]))
+    Array[Sample] normal_samples_7 = select_all(select_first([UpdateContaminationNormal.updated_sample, normal_samples_6]))
+    Array[Sample] samples_7 = flatten([tumor_samples_7, normal_samples_7])
 
     if (defined(af_segmentations)) {
-        scatter (pair in zip(samples_5, select_first([af_segmentations, []]))) {
+        scatter (pair in zip(samples_7, select_first([af_segmentations, []]))) {
             if (pair.left.is_tumor) {
                 call sample.UpdateSample as UpdateAfSegmentationTumor {
                     input:
@@ -212,12 +235,12 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] tumor_samples_7 = select_all(select_first([UpdateAfSegmentationTumor.updated_sample, tumor_samples_6]))
-    Array[Sample] normal_samples_7 = select_all(select_first([UpdateAfSegmentationNormal.updated_sample, normal_samples_6]))
-    Array[Sample] samples_7 = flatten([tumor_samples_7, normal_samples_7])
+    Array[Sample] tumor_samples_8 = select_all(select_first([UpdateAfSegmentationTumor.updated_sample, tumor_samples_7]))
+    Array[Sample] normal_samples_8 = select_all(select_first([UpdateAfSegmentationNormal.updated_sample, normal_samples_7]))
+    Array[Sample] samples_8 = flatten([tumor_samples_8, normal_samples_8])
 
     if (defined(copy_ratio_segmentations)) {
-        scatter (pair in zip(samples_6, select_first([copy_ratio_segmentations, []]))) {
+        scatter (pair in zip(samples_8, select_first([copy_ratio_segmentations, []]))) {
             if (pair.left.is_tumor) {
                 call sample.UpdateSample as UpdateCopyRatioSegmentationTumor {
                     input:
@@ -234,13 +257,13 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] tumor_samples_8 = select_all(select_first([UpdateCopyRatioSegmentationTumor.updated_sample, tumor_samples_7]))
-    Array[Sample] normal_samples_8 = select_all(select_first([UpdateCopyRatioSegmentationNormal.updated_sample, normal_samples_7]))
-    Array[Sample] samples_8 = flatten([tumor_samples_8, normal_samples_8])
+    Array[Sample] tumor_samples_9 = select_all(select_first([UpdateCopyRatioSegmentationTumor.updated_sample, tumor_samples_8]))
+    Array[Sample] normal_samples_9 = select_all(select_first([UpdateCopyRatioSegmentationNormal.updated_sample, normal_samples_8]))
+    Array[Sample] samples_9 = flatten([tumor_samples_9, normal_samples_9])
 
     if (defined(patient.matched_normal_sample)) {
         Sample previous_matched_normal_sample = select_first([patient.matched_normal_sample])
-        scatter (sample in samples_8) {
+        scatter (sample in samples_9) {
             if (sample.name == previous_matched_normal_sample.name) {
                 Sample matched_normal_sample = sample
             }

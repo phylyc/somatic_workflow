@@ -8,7 +8,7 @@ names_string=$3
 IFS=',' read -r -a names <<< "$names_string"
 IFS=',' read -r -a samples <<< "$samples_string"
 
-output_dir="test_data/output"
+output_dir="test_data/output/genotype/$individual_id"
 pileup_dir="test_data/input"
 segments_dir="test_data/input"
 contamination_dir="test_data/input"
@@ -43,7 +43,6 @@ python -u genotype.py \
   --format "GT:AD:DP:PL" \
   --threads 4 \
   --save_sample_genotype_likelihoods \
-  --compress_output \
   --verbose \
   > $output_dir/$individual_id.log \
   2>&1

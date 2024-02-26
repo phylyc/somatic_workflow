@@ -6,7 +6,7 @@ import "runtimes.wdl"
 import "call_variants.wdl" as cv
 import "filter_variants.wdl" as fv
 import "collect_allelic_counts.wdl" as cac
-import "merge_sequencing_runs.wdl" as msr
+import "harmonize_samples.wdl" as hs
 import "annotate_variants.wdl" as av
 
 
@@ -52,15 +52,17 @@ workflow SNVWorkflow {
                                 sample_name = sequencing_run.name + ".germline",
                                 runtime_collection = runtime_collection,
                         }
+                        String germline_seq_sample_names = sample.name + ".germline"
                     }
 
-                    call msr.MergeSequencingRuns as MergeGermlineAllelicCounts {
+                    call hs.MergeAllelicCounts as MergeGermlineAllelicCounts {
                         input:
-                            sample = sample,
-                            germline_allelic_counts = GermlineAllelicCounts.pileup_summaries,
-                            runtime_collection = runtime_collection,
+                            sample_names = germline_seq_sample_names,
+                            allelic_counts = GermlineAllelicCounts.pileup_summaries,
+                            runtime_params = runtime_collection.merge_allelic_counts,
                     }
-                    File? germline_allelic_counts = MergeGermlineAllelicCounts.updated_sample.germline_allelic_counts
+                    # We select the first file since we only supplied one unique sample name, so all counts were merged.
+                    File? germline_allelic_counts = select_first(MergeGermlineAllelicCounts.merged_allelic_counts)
                 }
 
                 scatter (sequencing_run in sample.sequencing_runs) {
@@ -76,15 +78,17 @@ workflow SNVWorkflow {
                             sample_name = sequencing_run.name + ".somatic",
                             runtime_collection = runtime_collection,
                     }
+                    String somatic_seq_sample_names = sample.name + ".somatic"
                 }
 
-                call msr.MergeSequencingRuns as MergeSomaticAllelicCounts {
+                call hs.MergeAllelicCounts as MergeSomaticAllelicCounts {
                     input:
-                        sample = sample,
-                        somatic_allelic_counts = SomaticAllelicCounts.pileup_summaries,
-                        runtime_collection = runtime_collection,
+                        sample_names = somatic_seq_sample_names,
+                        allelic_counts = SomaticAllelicCounts.pileup_summaries,
+                        runtime_params = runtime_collection.merge_allelic_counts,
                 }
-                File? somatic_allelic_counts = MergeSomaticAllelicCounts.updated_sample.somatic_allelic_counts
+                # We select the first file since we only supplied one unique sample name, so all counts were merged.
+                File? somatic_allelic_counts = select_first(MergeSomaticAllelicCounts.merged_allelic_counts)
             }
         }
     }

@@ -33,7 +33,8 @@ struct RuntimeCollection {
     Runtime get_pileup_summaries
     Runtime gather_pileup_summaries
     Runtime select_pileup_summaries
-    Runtime merge_sample
+    Runtime harmonize_copy_ratios
+    Runtime merge_allelic_counts
     Runtime calculate_contamination
     Runtime genotype_variants
     Runtime mutect2
@@ -158,8 +159,13 @@ workflow DefineRuntimeCollection {
         Int mem_select_pileup_summaries = 512
         Int time_select_pileup_summaries = 5
 
-        Int mem_merge_sample = 2048
-        Int time_merge_sample = 10
+        # HarmonizeCopyRatios
+        Int mem_harmonize_copy_ratios = 4096
+        Int time_harmonize_copy_ratios = 10
+
+        # MergeAllelicCounts
+        Int mem_merge_allelic_counts = 4096
+        Int time_merge_allelic_counts = 10
 
         # gatk: CalculateContamination
         Int mem_calculate_contamination = 3072  # depends on the variants_for_contamination resource
@@ -207,11 +213,6 @@ workflow DefineRuntimeCollection {
         # gatk: SelectVariants
         Int mem_select_variants = 3072
         Int time_select_variants = 5
-
-        # gatk: CNNScoreVariants
-        Int cpu_cnn_scoring = 1
-        Int mem_cnn_scoring = 4096
-        Int time_cnn_scoring = 10
 
         # gatk: Funcotator
         Int mem_funcotate = 6144
@@ -365,14 +366,26 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime merge_sample = {
+    Runtime harmonize_copy_ratios = {
         "docker": genotype_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_merge_sample + mem_machine_overhead,
-        "command_mem": mem_merge_sample,
-        "runtime_minutes": time_startup + time_merge_sample,
+        "machine_mem": mem_harmonize_copy_ratios + mem_machine_overhead,
+        "command_mem": mem_harmonize_copy_ratios,
+        "runtime_minutes": time_startup + time_harmonize_copy_ratios,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime merge_allelic_counts = {
+        "docker": genotype_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_merge_allelic_counts + mem_machine_overhead,
+        "command_mem": mem_merge_allelic_counts,
+        "runtime_minutes": time_startup + time_merge_allelic_counts,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -594,7 +607,8 @@ workflow DefineRuntimeCollection {
         "get_pileup_summaries": get_pileup_summaries,
         "gather_pileup_summaries": gather_pileup_summaries,
         "select_pileup_summaries": select_pileup_summaries,
-        "merge_sample": merge_sample,
+        "harmonize_copy_ratios": harmonize_copy_ratios,
+        "merge_allelic_counts": merge_allelic_counts,
         "calculate_contamination": calculate_contamination,
         "genotype_variants": genotype_variants,
         "mutect2": mutect2,

@@ -6,7 +6,7 @@ import "workflow_arguments.wdl"
 import "runtimes.wdl"
 import "collect_read_counts.wdl" as crc
 import "collect_allelic_counts.wdl" as cac
-import "merge_sequencing_runs.wdl" as msr
+import "harmonize_samples.wdl" as hs
 import "genotype_snp_array.wdl" as gsa
 #import "model_segments.wdl" as ms
 
@@ -55,40 +55,30 @@ workflow CNVWorkflow {
                 }
             }
         }
-
-        call msr.MergeSequencingRuns {
-            input:
-                sample = sample,
-                read_counts = select_all(CollectReadCounts.read_counts),
-                denoised_copy_ratios = select_all(CollectReadCounts.denoised_copy_ratios),
-                standardized_copy_ratios = select_all(CollectReadCounts.standardized_copy_ratios),
-                snp_array_allelic_counts = select_all(CollectAllelicCounts.pileup_summaries),
-                runtime_collection = runtime_collection,
-        }
-
-        # Define samples to update patient with
-        Sample samples = MergeSequencingRuns.updated_sample
-        if (sample.is_tumor) {
-            Sample tumor_samples = MergeSequencingRuns.updated_sample
-        }
-        if (!sample.is_tumor) {
-            Sample normal_samples = MergeSequencingRuns.updated_sample
-        }
-        if (defined(patient.matched_normal_sample)) {
-            Sample previous_matched_normal_sample = select_first([patient.matched_normal_sample])
-            if (sample.name == previous_matched_normal_sample.name) {
-                Sample matched_normal_sample = MergeSequencingRuns.updated_sample
-            }
-        }
     }
 
-    call patient.UpdatePatient as ConsensusPatient {
+    if (args.run_collect_target_coverage) {
+        # There is no way to harmonize the total read count data. This needs to be done
+        # via a hierarchical model for the segmentation / copy ratio inference.
+        # Careful: The there is one read count file per sequencing run, not per sample!
+        Array[File]? read_counts = select_all(flatten(CollectReadCounts.read_counts))
+    }
+
+    call hs.HarmonizeSamples {
+        input:
+            samples = patient.samples,
+            denoised_copy_ratios = CollectReadCounts.denoised_copy_ratios,
+            standardized_copy_ratios = CollectReadCounts.standardized_copy_ratios,
+            allelic_counts = CollectAllelicCounts.pileup_summaries,
+            runtime_collection = runtime_collection,
+    }
+
+    call patient.UpdateSamples as ConsensusPatient {
         input:
             patient = patient,
-            samples = select_all(samples),
-            tumor_samples = select_all(tumor_samples),
-            normal_samples = select_all(normal_samples),
-            matched_normal_sample = if (patient.has_normal) then select_first(select_all(matched_normal_sample)) else patient.matched_normal_sample,
+            denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios,
+            standardized_copy_ratios = HarmonizeSamples.harmonized_standardized_copy_ratios,
+            snp_array_allelic_counts = HarmonizeSamples.merged_allelic_counts,
     }
 
     if (args.run_contamination_model) {
@@ -122,7 +112,6 @@ workflow CNVWorkflow {
                 runtime_collection = runtime_collection,
         }
 
-        # Attach pileups, contamination, and segmentation tables to samples
         call patient.UpdateSamples as AddPileupsAndContaminationToSamples {
             input:
                 patient = ConsensusPatient.updated_patient,
@@ -156,8 +145,8 @@ workflow CNVWorkflow {
         Array[File]? contamination_tables = GenotypeSNPArray.contaminations
         Array[File]? segmentation_tables = GenotypeSNPArray.segmentations
 
-        Array[File?]? target_read_counts = MergeSequencingRuns.merged_read_counts
-        Array[File?]? denoised_copy_ratios = MergeSequencingRuns.merged_denoised_copy_ratios
-        Array[File?]? standardized_copy_ratios = MergeSequencingRuns.merged_standardized_copy_ratios
+        Array[File]? target_read_counts = read_counts
+        Array[File]? denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios
+        Array[File]? standardized_copy_ratios = HarmonizeSamples.harmonized_standardized_copy_ratios
     }
 }
