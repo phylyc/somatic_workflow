@@ -7,7 +7,7 @@ version development
 # tasks should not necessarily request a specific number of threads, but use
 # $(nproc) instead. That said, tasks with more threads might need higher memory.
 
-    
+
 struct Runtime {
     String docker
     File? jar_override
@@ -24,6 +24,7 @@ struct Runtime {
 
 struct RuntimeCollection {
     Runtime get_sample_name
+    Runtime annotate_intervals
     Runtime preprocess_intervals
     Runtime split_intervals
     Runtime collect_covered_regions
@@ -47,7 +48,8 @@ struct RuntimeCollection {
     Runtime filter_alignment_artifacts
     Runtime select_variants
     Runtime funcotate
-    Runtime create_panel
+    Runtime create_cnv_panel
+    Runtime create_mutect2_panel
     Runtime whatshap
     Runtime shapeit4
     Runtime shapeit5
@@ -122,6 +124,10 @@ workflow DefineRuntimeCollection {
         # gatk: GetSampleName
         Int mem_get_sample_name = 256
         Int time_get_sample_name = 1
+
+        # gatk: AnnotateIntervals
+        Int mem_annotate_intervals = 2048
+        Int time_annotate_intervals = 60
 
         # gatk: PreprocessIntervals
         Int mem_preprocess_intervals = 3072
@@ -219,10 +225,15 @@ workflow DefineRuntimeCollection {
         Int time_funcotate = 1440  # 24 h
         Boolean run_variant_anntation_scattered = false
 
+        # gatk: CreateReadCountPanelOfNormals
+        Int mem_create_cnv_panel = 16384
+        Int time_create_cnv_panel = 1200  # 20 h
+        Int disk_create_cnv_panel = 10
+
         # gatk: GenomicsDBImport / CreateSomaticPanelOfNormals
-        Int mem_create_panel = 16384
-        Int time_create_panel = 1200  # 20 h
-        Int disk_create_panel = 0
+        Int mem_create_mutect2_panel = 16384
+        Int time_create_mutect2_panel = 1200  # 20 h
+        Int disk_create_mutect2_panel = 10
 
         # Whatshap
         Int cpu_whatshap = 1
@@ -247,6 +258,19 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_get_sample_name + mem_machine_overhead,
         "command_mem": mem_get_sample_name,
         "runtime_minutes": time_startup + time_get_sample_name,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime annotate_intervals = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_annotate_intervals + mem_machine_overhead,
+        "command_mem": mem_annotate_intervals,
+        "runtime_minutes": time_startup + time_annotate_intervals,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -547,16 +571,29 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime create_panel = {
+    Runtime create_cnv_panel = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_create_panel + mem_machine_overhead,
-        "command_mem": mem_create_panel,
-        "runtime_minutes": time_startup + time_create_panel,
-        "disk": disk + disk_create_panel,
+        "machine_mem": mem_create_cnv_panel + mem_machine_overhead,
+        "command_mem": mem_create_cnv_panel,
+        "runtime_minutes": time_startup + time_create_cnv_panel,
+        "disk": disk + disk_create_cnv_panel,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime create_mutect2_panel = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_create_mutect2_panel + mem_machine_overhead,
+        "command_mem": mem_create_mutect2_panel,
+        "runtime_minutes": time_startup + time_create_mutect2_panel,
+        "disk": disk + disk_create_mutect2_panel,
         "boot_disk_size": boot_disk_size
     }
 
@@ -598,6 +635,7 @@ workflow DefineRuntimeCollection {
 
     RuntimeCollection runtime_collection = {
         "get_sample_name": get_sample_name,
+        "annotate_intervals": annotate_intervals,
         "preprocess_intervals": preprocess_intervals,
         "split_intervals": split_intervals,
         "collect_covered_regions": collect_covered_regions,
@@ -621,7 +659,8 @@ workflow DefineRuntimeCollection {
         "filter_alignment_artifacts": filter_alignment_artifacts,
         "select_variants": select_variants,
         "funcotate": funcotate,
-        "create_panel": create_panel,
+        "create_cnv_panel": create_cnv_panel,
+        "create_mutect2_panel": create_mutect2_panel,
         "whatshap": whatshap,
         "shapeit4": shapeit4,
         "shapeit5": shapeit5

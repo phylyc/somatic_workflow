@@ -41,6 +41,64 @@ task GetSampleName {
     }
 }
 
+task AnnotateIntervals {
+    input {
+        File interval_list
+
+        File ref_fasta
+        File ref_fasta_index
+        File ref_dict
+
+        File? mappability_track
+        File? mappability_track_idx
+        File? segmental_duplication_track
+        File? segmental_duplication_track_idx
+
+        Runtime runtime_params
+    }
+
+    String output_file = basename(interval_list, ".interval_list") + ".annotated.interval_list"
+
+	command <<<
+        set -e
+        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            AnnotateIntervals \
+            -R '~{ref_fasta}' \
+            -L '~{interval_list}' \
+            -O '~{output_file}' \
+            --interval-merging-rule OVERLAPPING_ONLY \
+            ~{"--mappability-track " + mappability_track} \
+            ~{"--segmental-duplication-track " + segmental_duplication_track}
+	>>>
+
+	output {
+		File annotated_interval_list = output_file
+	}
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        interval_list: {localization_optional: true}
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
+        mappability_track: {localization_optional: true}
+        mappability_track_idx: {localization_optional: true}
+        segmental_duplication_track: {localization_optional: true}
+        segmental_duplication_track_idx: {localization_optional: true}
+    }
+}
+
 task PreprocessIntervals {
     input {
         File? interval_list

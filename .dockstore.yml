@@ -7,16 +7,16 @@ workflows:
     authors:
       - orcid: 0000-0001-9584-9135
 
-  - name: CollectAllelicCounts
+  - name: CreateMutect2PanelOfNormals
     subclass: WDL
     publish: true
-    primaryDescriptorPath: /wdl/collect_allelic_counts.wdl
+    primaryDescriptorPath: /wdl/create_mutect2_pon.wdl
     authors:
       - orcid: 0000-0001-9584-9135
 
-  - name: CollectReadCounts
+  - name: CreateReadCountPanelOfNormals
     subclass: WDL
     publish: true
-    primaryDescriptorPath: /wdl/collect_read_counts.wdl
+    primaryDescriptorPath: /wdl/create_read_count_pon.wdl
     authors:
       - orcid: 0000-0001-9584-9135

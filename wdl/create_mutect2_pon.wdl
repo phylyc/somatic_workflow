@@ -1,23 +1,11 @@
 version development
 
-## Create a Mutect2 panel of normals
-##
-## Description of inputs
-## intervals: genomic intervals
-## ref_fasta, ref_fai, ref_dict: reference genome, index, and dictionary
-## normal_bams: arrays of normal bams
-## scatter_count: number of parallel jobs when scattering over intervals
-## pon_name: the resulting panel of normals is {pon_name}.vcf
-## m2_extra_args: additional command line parameters for Mutect2. This should not
-## involve --max-mnp-distance, which the wdl hard-codes to 0 because GenpmicsDBImport
-## can't handle MNPs
-
-import "multi-sample_somatic_workflow.wdl" as mssw
 import "runtimes.wdl"
 import "tasks.wdl"
+import "multi-sample_somatic_workflow.wdl" as mssw
 
 
-workflow CreateMutect2PoN {
+workflow CreateMutect2PanelOfNormals {
     input {
         File target_interval_list
         File ref_fasta
@@ -51,11 +39,12 @@ workflow CreateMutect2PoN {
         Int cpu = 1
 
         Int mem_machine_overhead = 2048
-        Int time_startup = 10
+        Int mem_create_mutect2_panel = 16384
 
-        Int mem_create_panel = 16384
-        Int time_create_panel = 1200  # 20 h
-        Int disk_create_panel = 10
+        Int disk_create_mutect2_panel = 10
+
+        Int time_startup = 10
+        Int time_create_mutect2_panel = 1200  # 20 h
     }
 
     call runtimes.DefineRuntimeCollection as GetRTC {
@@ -68,6 +57,10 @@ workflow CreateMutect2PoN {
             cpu = cpu,
             disk_sizeGB = disk_sizeGB,
             time_startup = time_startup,
+            mem_machine_overhead = mem_machine_overhead,
+            mem_create_mutect2_panel = mem_create_mutect2_panel,
+            time_create_mutect2_panel = time_create_mutect2_panel,
+            disk_create_mutect2_panel = disk_create_mutect2_panel
     }
 
     # todo: assert either normal_bams or normal_bams_file is defined
@@ -112,7 +105,7 @@ workflow CreateMutect2PoN {
 
                 compress_output = compress_output,
                 scatter_count = scatter_count,
-                mutect2_extra_args = mutect2_extra_args + " --max-mnp-distance 0",
+                mutect2_extra_args = mutect2_extra_args + " --max-mnp-distance 0",  # GenpmicsDBImport can't handle MNPs
 
                 runtime_collection = runtime_collection,
         }
@@ -133,23 +126,14 @@ workflow CreateMutect2PoN {
             runtime_params = runtime_collection.split_intervals
     }
 
-    call runtimes.DefineRuntimeCollection as RuntimeCollection {
+    call runtimes.UpdateRuntimeParameters as CreateMutect2PanelRuntime {
         input:
-            gatk_docker = gatk_docker,
-            gatk_override = gatk_override,
-            max_retries = max_retries,
-            preemptible = preemptible,
-            cpu = cpu,
-            disk_sizeGB = disk_sizeGB,
-            time_startup = time_startup,
-            mem_machine_overhead = mem_machine_overhead,
-            mem_create_panel = mem_create_panel,
-            time_create_panel = time_create_panel,
-            disk_create_panel = disk_create_panel + 3 * ceil(size(MultiSampleSomaticWorkflow.unfiltered_vcf, "GB")) + ceil(length(MultiSampleSomaticWorkflow.unfiltered_vcf) / 10)
+            runtime_params = runtime_collection.create_mutect2_panel,
+            disk = runtime_collection.create_mutect2_panel.disk + 3 * ceil(size(MultiSampleSomaticWorkflow.unfiltered_vcf, "GB")) + ceil(length(MultiSampleSomaticWorkflow.unfiltered_vcf) / 10)
     }
 
     scatter (scattered_intervals in SplitIntervals.interval_files) {
-        call CreatePanel {
+        call CreateMutect2Panel {
             input:
                 input_vcfs = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf),
                 input_vcf_indices = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf_idx),
@@ -161,17 +145,17 @@ workflow CreateMutect2PoN {
                 gnomad = germline_resource,
                 gnomad_idx = germline_resource_idx,
                 output_vcf_name = pon_name,
-                runtime_params = RuntimeCollection.rtc.create_panel
+                runtime_params = CreateMutect2PanelRuntime.params
         }
     }
 
     call tasks.MergeVCFs {
         input:
-            vcfs = CreatePanel.output_vcf,
-            vcfs_idx = CreatePanel.output_vcf_index,
+            vcfs = CreateMutect2Panel.output_vcf,
+            vcfs_idx = CreateMutect2Panel.output_vcf_index,
             output_name = pon_name,
             compress_output = compress_output,
-            runtime_params = RuntimeCollection.rtc.merge_vcfs
+            runtime_params = runtime_collection.merge_vcfs
     }
 
     output {
@@ -182,7 +166,7 @@ workflow CreateMutect2PoN {
     }
 }
 
-task CreatePanel {
+task CreateMutect2Panel {
     input {
         File interval_list
         File ref_fasta
@@ -204,14 +188,6 @@ task CreatePanel {
 
         # runtime
         Runtime runtime_params
-    }
-
-    # GenomicsDB requires that the reference be a local file.
-    parameter_meta{
-        input_vcfs: {localization_optional: true}
-        input_vcf_indices: {localization_optional: true}
-        gnomad: {localization_optional: true}
-        gnomad_idx: {localization_optional: true}
     }
 
     String pon_file = "pon.vcf.gz"
@@ -258,5 +234,13 @@ task CreatePanel {
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
+    }
+
+    # GenomicsDB requires that the reference be a local file.
+    parameter_meta{
+        input_vcfs: {localization_optional: true}
+        input_vcf_indices: {localization_optional: true}
+        gnomad: {localization_optional: true}
+        gnomad_idx: {localization_optional: true}
     }
 }
