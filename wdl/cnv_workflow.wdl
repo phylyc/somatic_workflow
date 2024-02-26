@@ -70,6 +70,7 @@ workflow CNVWorkflow {
             denoised_copy_ratios = CollectReadCounts.denoised_copy_ratios,
             standardized_copy_ratios = CollectReadCounts.standardized_copy_ratios,
             allelic_counts = CollectAllelicCounts.pileup_summaries,
+            compress_output = false,
             runtime_collection = runtime_collection,
     }
 

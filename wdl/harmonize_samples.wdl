@@ -11,6 +11,8 @@ workflow HarmonizeSamples {
         Array[Array[File?]] standardized_copy_ratios
         Array[Array[File?]] allelic_counts
 
+        Boolean compress_output = false
+
         RuntimeCollection runtime_collection
     }
 
@@ -37,6 +39,7 @@ workflow HarmonizeSamples {
                 sample_names = seq_sample_names,
                 denoised_copy_ratios = non_optional_denoised_copy_ratios,
                 standardized_copy_ratios = non_optional_standardized_copy_ratios,
+                compress_output = compress_output,
                 runtime_params = runtime_collection.harmonize_copy_ratios
         }
 
@@ -64,6 +67,7 @@ workflow HarmonizeSamples {
             input:
                 sample_names = seq_sample_names,
                 allelic_counts = non_optional_allelic_counts,
+                compress_output = compress_output,
                 runtime_params = runtime_collection.merge_allelic_counts
         }
 
@@ -163,7 +167,7 @@ task MergeAllelicCounts {
     >>>
 
     output {
-        Array[File] merged_allelic_counts = glob("*.pileup")
+        Array[File] merged_allelic_counts = glob("*.pileup" + (if compress_output then ".gz" else ""))
     }
 
     runtime {

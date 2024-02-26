@@ -59,6 +59,7 @@ workflow SNVWorkflow {
                         input:
                             sample_names = germline_seq_sample_names,
                             allelic_counts = GermlineAllelicCounts.pileup_summaries,
+                            compress_output = args.compress_output,
                             runtime_params = runtime_collection.merge_allelic_counts,
                     }
                     # We select the first file since we only supplied one unique sample name, so all counts were merged.
@@ -85,6 +86,7 @@ workflow SNVWorkflow {
                     input:
                         sample_names = somatic_seq_sample_names,
                         allelic_counts = SomaticAllelicCounts.pileup_summaries,
+                        compress_output = args.compress_output,
                         runtime_params = runtime_collection.merge_allelic_counts,
                 }
                 # We select the first file since we only supplied one unique sample name, so all counts were merged.
