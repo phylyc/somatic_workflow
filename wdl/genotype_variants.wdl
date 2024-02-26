@@ -69,6 +69,8 @@ workflow GenotypeVariants {
             runtime_params = runtime_collection.genotype_variants
     }
 
+    # todo: resort sample genotype likelihoods
+
     output {
         File vcf = GenotypeVariants.vcf
         File vcf_idx = GenotypeVariants.vcf_idx
@@ -117,8 +119,6 @@ task GenotypeVariants {
 #    Array[String] possible_sample_outputs = suffix(".likelihoods.pileup" + (if compress_output then ".gz" else ""), sample_names)
 #    Array[File]? output_sample_genotype_likelihoods = if save_sample_genotype_likelihoods then prefix(output_dir + "/", possible_sample_outputs) else None
 
-    String dollar = "$"
-
     command <<<
         set -e
         wget -O genotype.py ~{script}
@@ -150,7 +150,6 @@ task GenotypeVariants {
         File alt_counts = output_alt_counts
         File other_alt_counts = output_other_alt_counts
         File sample_correlation = output_sample_correlation
-        # Careful, glob returns different ordering than input sample_names!
         Array[File]? sample_genotype_likelihoods = glob(output_dir + "/*.likelihoods.pileup" + (if compress_output then ".gz" else ""))
     }
 

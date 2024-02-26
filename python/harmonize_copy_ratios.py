@@ -46,6 +46,7 @@ def get_header_and_df(file_path: str, columns: list[str] = None, column_types: d
         with open_func(file_path, "rt") as file:
             # save all lines starting with comment_char as header
             header = "".join([line for line in file if line.startswith(comment_char)])
+        # TODO: support hdf5
         df = pd.read_csv(file_path, sep="\t", comment=comment_char, header=0, names=columns, low_memory=False)
         if column_types is not None:
             df = df.astype({key: column_types[key] for key in columns if key in column_types})

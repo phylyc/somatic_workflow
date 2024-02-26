@@ -25,7 +25,7 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "genotype.py -O <output_dir> -V <variant> --patient <patient> --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-C <contamination> ...] [-S <segments> ...] [-M <model>] [-D <min_read_depth>] [-p <min_genotype_likelihood>] [-F <format>] [--select_hets] [--save_sample_genotype_likelihoods] [--verbose]"
+    parser.usage = "genotype.py -O <output_dir> -V <variant> --patient <patient> --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-C <contamination> ...] [-S <segments> ...] [-M <model>] [-D <min_read_depth>] [-p <min_genotype_likelihood>] [-F <format>] [--select_hets] [--save_sample_genotype_likelihoods] [--compress_output] [--verbose]"
     parser.add_argument("-O", "--output_dir",                   type=str,   required=True,  help="Path to the output directory.")
     parser.add_argument("--patient",                            type=str,   required=True,  help="Name of the patient.")
     parser.add_argument("--sample",                             type=str,   required=True,  action="append",    help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file header.")

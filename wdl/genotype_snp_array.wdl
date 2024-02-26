@@ -84,7 +84,7 @@ workflow GenotypeSNPArray {
             runtime_collection = runtime_collection,
     }
 
-    # todo: return and update pileups
+    # todo: return updated pileups
 
     output {
         Array[File] pileups = common_germline_allele_pileups
