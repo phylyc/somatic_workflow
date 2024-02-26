@@ -139,9 +139,9 @@ task CreateReadCountPanelOfNormals {
         export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CreateReadCountPanelOfNormals \
-            -I ~{sep=' -I ' input_counts} \
-            -O ~{output_pon} \
-            ~{"--annotated-intervals " + annotated_interval_list} \
+            -I '~{sep=" -I '" input_counts}' \
+            -O '~{output_pon}' \
+            ~{"--annotated-intervals '" + annotated_interval_list + "'"} \
             --number-of-eigensamples ~{number_of_eigensamples}
 	>>>
 
