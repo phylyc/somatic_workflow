@@ -134,10 +134,10 @@ task CollectReadCounts {
         export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CollectReadCounts \
-            -I ~{bam} \
-            -L ~{interval_list} \
-            -R ~{ref_fasta} \
-            -O ~{output_name} \
+            -I '~{bam}' \
+            -L '~{interval_list}' \
+            -R '~{ref_fasta}' \
+            -O '~{output_name}' \
             --interval-merging-rule ~{interval_merging_rule} \
             --format ~{format} \
             ~{true="--read-filter MateUnmappedAndUnmappedReadFilter " false="" paired_end} \
@@ -185,12 +185,12 @@ task DenoiseReadCounts {
         export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             DenoiseReadCounts \
-            -I ~{read_counts} \
-            --denoised-copy-ratios ~{output_denoised_copy_ratios} \
-            --standardized-copy-ratios ~{output_standardized_copy_ratios} \
+            -I '~{read_counts}' \
+            --denoised-copy-ratios '~{output_denoised_copy_ratios}' \
+            --standardized-copy-ratios '~{output_standardized_copy_ratios}' \
             ~{"--number-of-eigensamples " + number_of_eigensamples} \
-            ~{"--annotated-intervals " + annotated_interval_list} \
-            ~{"--count-panel-of-normals " + count_panel_of_normals}
+            ~{"--annotated-intervals '" + annotated_interval_list + "'"} \
+            ~{"--count-panel-of-normals '" + count_panel_of_normals + "'"}
 	>>>
 
 	output {
