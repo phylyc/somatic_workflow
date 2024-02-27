@@ -1,8 +1,9 @@
 version development
 
 import "patient.wdl"
+import "patient.define.wdl" as p_def
 import "workflow_arguments.wdl" as wfargs
-import "runtimes.wdl"
+import "runtime_collection.wdl" as rtc
 import "tasks.wdl"
 import "cnv_workflow.wdl" as cnv
 import "snv_workflow.wdl" as snv
@@ -188,7 +189,7 @@ workflow MultiSampleSomaticWorkflow {
         Int cpu_filter_alignment_artifacts = 1  # good for PairHMM: 4
     }
 
-    call runtimes.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as GetRTC {
         input:
             num_bams = length(tumor_bams) + length(select_first([normal_bams, []])),
             scatter_count = scatter_count,
@@ -338,7 +339,7 @@ workflow MultiSampleSomaticWorkflow {
             runtime_collection = runtime_collection,
     }
 
-    call patient.DefinePatient as GetPatient {
+    call p_def.DefinePatient as GetPatient {
         input:
             individual_id = individual_id,
 

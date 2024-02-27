@@ -1,5 +1,6 @@
 version development
 
+import "runtime_collection.wdl" as rtc
 import "runtimes.wdl"
 import "tasks.wdl"
 
@@ -18,7 +19,7 @@ workflow CollectReadCounts {
         File interval_list
         File? annotated_interval_list
         File? read_count_panel_of_normals
-        Boolean paired_end = false
+        Boolean is_paired_end = false
 
         RuntimeCollection runtime_collection = GetRTC.rtc
         String gatk_docker = "broadinstitute/gatk"
@@ -53,7 +54,7 @@ workflow CollectReadCounts {
 #            paired_end = paired_end
 #    }
 
-    call runtimes.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as GetRTC {
         input:
             gatk_docker = gatk_docker,
             gatk_override = gatk_override,
@@ -79,7 +80,7 @@ workflow CollectReadCounts {
             bai = bai,
             format = format,
             sample_name = this_sample_name,
-            paired_end = paired_end,
+            is_paired_end = is_paired_end,
             runtime_params = runtime_collection.collect_read_counts
 	}
 
@@ -113,18 +114,9 @@ task CollectReadCounts {
         String sample_name
         String interval_merging_rule = "OVERLAPPING_ONLY"
         String format = "TSV"
-        Boolean paired_end = false
+        Boolean is_paired_end = false
 
         Runtime runtime_params
-    }
-
-    parameter_meta {
-        interval_list: {localization_optional: true}
-        ref_fasta: {localization_optional: true}
-        ref_fasta_index: {localization_optional: true}
-        ref_dict: {localization_optional: true}
-        bam: {localization_optional: true}
-        bai: {localization_optional: true}
     }
 
     String output_name = sample_name + ".read_counts.tsv"
@@ -140,8 +132,8 @@ task CollectReadCounts {
             -O '~{output_name}' \
             --interval-merging-rule ~{interval_merging_rule} \
             --format ~{format} \
-            ~{true="--read-filter MateUnmappedAndUnmappedReadFilter " false="" paired_end} \
-            ~{true="--read-filter PairedReadFilter " false="" paired_end}
+            ~{true="--read-filter MateUnmappedAndUnmappedReadFilter " false="" is_paired_end} \
+            ~{true="--read-filter PairedReadFilter " false="" is_paired_end}
 	>>>
 
 	output {
@@ -158,6 +150,15 @@ task CollectReadCounts {
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
     }
+
+    parameter_meta {
+        interval_list: {localization_optional: true}
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
+        bam: {localization_optional: true}
+        bai: {localization_optional: true}
+    }
 }
 
 task DenoiseReadCounts {
@@ -169,12 +170,6 @@ task DenoiseReadCounts {
         Int? number_of_eigensamples
 
         Runtime runtime_params
-    }
-
-    parameter_meta {
-        # read_counts: {localization_optional: true}
-        # annotated_interval_list: {localization_optional: true}
-        # count_panel_of_normals: {localization_optional: true}
     }
 
     String output_denoised_copy_ratios = sample_name + ".denoised_CR.tsv"
@@ -207,5 +202,11 @@ task DenoiseReadCounts {
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        # read_counts: {localization_optional: true}
+        # annotated_interval_list: {localization_optional: true}
+        # count_panel_of_normals: {localization_optional: true}
     }
 }

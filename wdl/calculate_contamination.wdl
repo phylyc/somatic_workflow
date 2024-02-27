@@ -11,6 +11,7 @@ version development
 ## for the returned pileups.
 ## Too many low coverage sites will lead to inaccurate estimates of contamination.
 
+import "runtime_collection.wdl" as rtc
 import "runtimes.wdl"
 import "collect_allelic_counts.wdl" as cac
 
@@ -72,7 +73,7 @@ workflow CalculateContamination {
 
     Int scatter_count = if defined(scattered_interval_list) then length(select_first([scattered_interval_list])) else 1
 
-    call runtimes.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as GetRTC {
         input:
             scatter_count = scatter_count,
             bcftools_docker = bcftools_docker,

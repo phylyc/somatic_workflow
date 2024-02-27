@@ -1,5 +1,6 @@
 version development
 
+import "runtime_collection.wdl" as rtc
 import "runtimes.wdl"
 
 
@@ -37,7 +38,7 @@ workflow GenotypeVariants {
         Int time_genotype_variants = 30
     }
 
-    call runtimes.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as GetRTC {
         input:
             genotype_docker = genotype_docker,
             preemptible = preemptible,

@@ -8,6 +8,7 @@ version development
 ## It is recommended to copy the output to another bucket and delete the bucket
 ## used to run this workflow.
 
+import "runtime_collection.wdl" as rtc
 import "runtimes.wdl"
 
 
@@ -44,7 +45,7 @@ workflow CollectCoveredRegions {
         Int time_collect_covered_regions = 300
     }
 
-    call runtimes.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as GetRTC {
         input:
             jupyter_docker = docker,
             gatk_override = gatk_override,

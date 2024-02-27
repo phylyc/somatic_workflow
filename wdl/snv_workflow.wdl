@@ -2,7 +2,7 @@ version development
 
 import "patient.wdl"
 import "workflow_arguments.wdl"
-import "runtimes.wdl"
+import "runtime_collection.wdl"
 import "call_variants.wdl" as cv
 import "filter_variants.wdl" as fv
 import "collect_allelic_counts.wdl" as cac

@@ -1,5 +1,6 @@
 version development
 
+import "runtime_collection.wdl" as rtc
 import "runtimes.wdl"
 import "tasks.wdl"
 import "collect_read_counts.wdl" as crc
@@ -51,7 +52,7 @@ workflow CreateReadCountPanelOfNormals {
     Array[File] non_optional_normal_bams = if defined(normal_bams) then select_first([normal_bams, []]) else read_lines(select_first([normal_bams_file, ""]))
     Array[File] non_optional_normal_bais = if defined(normal_bais) then select_first([normal_bais, []]) else read_lines(select_first([normal_bais_file, ""]))
 
-    call runtimes.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as GetRTC {
         input:
             gatk_docker = gatk_docker,
             gatk_override = gatk_override,

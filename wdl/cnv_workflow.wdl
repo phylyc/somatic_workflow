@@ -2,8 +2,9 @@ version development
 
 import "sample.wdl"
 import "patient.wdl"
+import "patient.update_samples.wdl" as p_update
 import "workflow_arguments.wdl"
-import "runtimes.wdl"
+import "runtime_collection.wdl"
 import "collect_read_counts.wdl" as crc
 import "collect_allelic_counts.wdl" as cac
 import "harmonize_samples.wdl" as hs
@@ -32,6 +33,7 @@ workflow CNVWorkflow {
                         interval_list = sequencing_run.target_intervals,
                         annotated_interval_list = sequencing_run.annotated_target_intervals,
                         read_count_panel_of_normals = sequencing_run.cnv_panel_of_normals,
+                        is_paired_end = sequencing_run.is_paired_end,
                         runtime_collection = runtime_collection,
                 }
             }
@@ -74,7 +76,7 @@ workflow CNVWorkflow {
             runtime_collection = runtime_collection,
     }
 
-    call patient.UpdateSamples as ConsensusPatient {
+    call p_update.UpdateSamples as ConsensusPatient {
         input:
             patient = patient,
             denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios,
@@ -113,7 +115,7 @@ workflow CNVWorkflow {
                 runtime_collection = runtime_collection,
         }
 
-        call patient.UpdateSamples as AddPileupsAndContaminationToSamples {
+        call p_update.UpdateSamples as AddPileupsAndContaminationToSamples {
             input:
                 patient = ConsensusPatient.updated_patient,
                 snp_array_allelic_counts = GenotypeSNPArray.pileups,

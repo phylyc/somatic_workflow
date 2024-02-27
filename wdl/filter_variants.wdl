@@ -2,6 +2,7 @@ version development
 
 import "patient.wdl"
 import "workflow_arguments.wdl"
+import "runtime_collection.wdl"
 import "runtimes.wdl"
 import "tasks.wdl"
 

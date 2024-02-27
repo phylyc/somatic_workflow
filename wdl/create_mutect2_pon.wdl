@@ -1,5 +1,6 @@
 version development
 
+import "runtime_collection.wdl" as rtc
 import "runtimes.wdl"
 import "tasks.wdl"
 import "multi-sample_somatic_workflow.wdl" as mssw
@@ -47,7 +48,7 @@ workflow CreateMutect2PanelOfNormals {
         Int time_create_mutect2_panel = 1200  # 20 h
     }
 
-    call runtimes.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as GetRTC {
         input:
             scatter_count = scatter_count,
             gatk_docker = gatk_docker,

@@ -1,6 +1,6 @@
 version development
 
-import "runtimes.wdl"
+import "runtime_collection.wdl" as rtc
 import "tasks.wdl"
 
 
@@ -35,7 +35,7 @@ workflow SelectVariants {
 
     }
 
-    call runtimes.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as GetRTC {
         input:
             gatk_docker = gatk_docker,
             preemptible = preemptible,

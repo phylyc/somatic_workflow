@@ -1,7 +1,6 @@
 version development
 
 import "sequencing_run.wdl"
-import "runtimes.wdl"
 
 
 struct Sample {

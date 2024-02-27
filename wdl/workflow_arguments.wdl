@@ -1,6 +1,6 @@
 version development
 
-import "runtimes.wdl"
+import "runtime_collection.wdl"
 import "tasks.wdl"
 
 

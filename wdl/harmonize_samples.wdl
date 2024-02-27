@@ -1,7 +1,8 @@
 version development
 
-import "sample.wdl"
+import "runtime_collection.wdl"
 import "runtimes.wdl"
+import "sample.wdl"
 
 
 workflow HarmonizeSamples {

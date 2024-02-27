@@ -13,6 +13,7 @@ version development
 ##      a given template are reported twice, once from each paired-end read."
 ##      -> Solve by using FirstOfPairReadFilter?
 
+import "runtime_collection.wdl" as rtc
 import "runtimes.wdl"
 
 
@@ -59,7 +60,7 @@ workflow CollectAllelicCounts {
         Int time_select_pileup_summaries = 5
 	}
 
-    call runtimes.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as GetRTC {
         input:
             bcftools_docker = bcftools_docker,
             gatk_docker = gatk_docker,

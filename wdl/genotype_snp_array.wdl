@@ -1,7 +1,6 @@
 version development
 
-import "patient.wdl"
-import "runtimes.wdl"
+import "runtime_collection.wdl"
 import "calculate_contamination.wdl" as cc
 import "genotype_variants.wdl" as gv
 

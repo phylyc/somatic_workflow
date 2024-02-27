@@ -1,12 +1,11 @@
 version development
 
-import "sample.wdl"
-import "patient.wdl"
 import "workflow_arguments.wdl"
+import "runtime_collection.wdl"
 import "runtimes.wdl"
 import "tasks.wdl"
 
-    
+
 workflow AnnotateVariants {
     input {
         File vcf
@@ -128,16 +127,6 @@ task Funcotate {
 
     # TODO: Annotate phase
 
-    parameter_meta {
-        ref_fasta: {localization_optional: true}
-        ref_fasta_index: {localization_optional: true}
-        ref_dict: {localization_optional: true}
-        interval_list: {localization_optional: true}
-        vcf: {localization_optional: true}
-        vcf_idx: {localization_optional: true}
-        # transcript_selection_file: {localization_optional: true}
-    }
-
     # ==============
     # Process input args:
     String output_maf = output_base_name + ".maf"
@@ -156,12 +145,6 @@ task Funcotate {
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
-
-        # =======================================
-        # Hack to validate the WDL inputs:
-        #
-        # NOTE: This happens here so that we don't waste time copying down the data
-        # sources if there's an error.
 
         if [[ "~{output_format}" != "MAF" ]] && [[ "~{output_format}" != "VCF" ]] ; then
             echo "ERROR: Output format must be MAF or VCF."
@@ -236,5 +219,15 @@ task Funcotate {
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
+        interval_list: {localization_optional: true}
+        vcf: {localization_optional: true}
+        vcf_idx: {localization_optional: true}
+        # transcript_selection_file: {localization_optional: true}
     }
 }
