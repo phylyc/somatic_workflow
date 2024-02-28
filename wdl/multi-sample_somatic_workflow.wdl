@@ -148,6 +148,8 @@ workflow MultiSampleSomaticWorkflow {
         Int mem_get_pileup_summaries = 4096  # needs at least 2G
         Int mem_gather_pileup_summaries = 512  # 64
         Int mem_select_pileup_summaries = 512  # 64
+        Int mem_harmonize_copy_ratios = 1024
+        Int mem_merge_allelic_counts = 4096
         Int mem_calculate_contamination = 4096  # depends on the common_germline_alleles resource
         Int mem_genotype_variants = 4096
         Int mem_filter_mutect_calls = 4096
@@ -173,6 +175,8 @@ workflow MultiSampleSomaticWorkflow {
         Int time_get_pileup_summaries = 4500  # 3 d / scatter_count
         Int time_gather_pileup_summaries = 5
         Int time_select_pileup_summaries = 5
+        Int time_harmonize_copy_ratios = 1440  # 24 h
+        Int time_merge_allelic_counts = 10
         Int time_calculate_contamination = 10
         Int time_genotype_variants = 30
         Int time_filter_mutect_calls = 800  # 13 h
@@ -220,6 +224,8 @@ workflow MultiSampleSomaticWorkflow {
             mem_get_pileup_summaries = mem_get_pileup_summaries,
             mem_gather_pileup_summaries = mem_gather_pileup_summaries,
             mem_select_pileup_summaries = mem_select_pileup_summaries,
+            mem_harmonize_copy_ratios = mem_harmonize_copy_ratios,
+            mem_merge_allelic_counts = mem_merge_allelic_counts,
             mem_calculate_contamination = mem_calculate_contamination,
             mem_genotype_variants = mem_genotype_variants,
             mem_filter_mutect_calls = mem_filter_mutect_calls,
@@ -243,6 +249,8 @@ workflow MultiSampleSomaticWorkflow {
             time_get_pileup_summaries = time_get_pileup_summaries,
             time_gather_pileup_summaries = time_gather_pileup_summaries,
             time_select_pileup_summaries = time_select_pileup_summaries,
+            time_harmonize_copy_ratios = time_harmonize_copy_ratios,
+            time_merge_allelic_counts = time_merge_allelic_counts,
             time_calculate_contamination = time_calculate_contamination,
             time_genotype_variants = time_genotype_variants,
             time_filter_mutect_calls = time_filter_mutect_calls,
