@@ -65,7 +65,6 @@ workflow CNVWorkflow {
         input:
             samples = patient.samples,
             denoised_copy_ratios = CollectReadCounts.denoised_copy_ratios,
-            standardized_copy_ratios = CollectReadCounts.standardized_copy_ratios,
             allelic_counts = CollectAllelicCounts.pileup_summaries,
             compress_output = false,
             runtime_collection = runtime_collection,
@@ -75,7 +74,6 @@ workflow CNVWorkflow {
         input:
             patient = patient,
             denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios,
-            standardized_copy_ratios = HarmonizeSamples.harmonized_standardized_copy_ratios,
             snp_array_allelic_counts = HarmonizeSamples.merged_allelic_counts,
     }
 
@@ -145,6 +143,5 @@ workflow CNVWorkflow {
 
         Array[File]? target_read_counts = read_counts
         Array[File]? denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios
-        Array[File]? standardized_copy_ratios = HarmonizeSamples.harmonized_standardized_copy_ratios
     }
 }

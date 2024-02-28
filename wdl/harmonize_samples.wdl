@@ -9,7 +9,6 @@ workflow HarmonizeSamples {
     input {
         Array[Sample] samples
         Array[Array[File?]] denoised_copy_ratios
-        Array[Array[File?]] standardized_copy_ratios
         Array[Array[File?]] allelic_counts
 
         Boolean compress_output = false
@@ -27,19 +26,16 @@ workflow HarmonizeSamples {
     Array[String] seq_sample_names = flatten(this_seq_sample_names)
 
     Array[File] non_optional_denoised_copy_ratios = select_all(flatten(denoised_copy_ratios))
-    Array[File] non_optional_standardized_copy_ratios = select_all(flatten(standardized_copy_ratios))
     Array[File] non_optional_allelic_counts = select_all(flatten(allelic_counts))
 
     Boolean has_dCR = length(non_optional_denoised_copy_ratios) > 0
-    Boolean has_sCR = length(non_optional_standardized_copy_ratios) > 0
     Boolean has_AC = length(non_optional_allelic_counts) > 0
 
-    if (has_dCR && has_sCR) {
+    if (has_dCR) {
         call HarmonizeCopyRatios {
             input:
                 sample_names = seq_sample_names,
                 denoised_copy_ratios = non_optional_denoised_copy_ratios,
-                standardized_copy_ratios = non_optional_standardized_copy_ratios,
                 compress_output = compress_output,
                 runtime_params = runtime_collection.harmonize_copy_ratios
         }
@@ -48,19 +44,13 @@ workflow HarmonizeSamples {
         scatter (sample in samples) {
             scatter (pair in zip(HarmonizeCopyRatios.harmonized_denoised_copy_ratios, HarmonizeCopyRatios.harmonized_standardized_copy_ratios)) {
                 String this_dcr_sample_name = basename(basename(basename(pair.left, ".hdf5"), ".tsv"), ".denoised_CR")
-                String this_scr_sample_name = basename(basename(basename(pair.right, ".hdf5"), ".tsv"), ".standardized_CR")
                 if (sample.name == this_dcr_sample_name) {
                     File? this_dcr = pair.left
                 }
-                if (sample.name == this_scr_sample_name) {
-                    File? this_scr = pair.right
-                }
             }
             Array[File] this_sample_dcr = select_all(this_dcr)
-            Array[File] this_sample_scr = select_all(this_scr)
         }
         Array[File]? sorted_harmonized_denoised_copy_ratios = flatten(this_sample_dcr)
-        Array[File]? sorted_harmonized_standardized_copy_ratios = flatten(this_sample_scr)
     }
 
     if (has_AC) {
@@ -87,7 +77,6 @@ workflow HarmonizeSamples {
 
     output {
         Array[File]? harmonized_denoised_copy_ratios = sorted_harmonized_denoised_copy_ratios
-        Array[File]? harmonized_standardized_copy_ratios = sorted_harmonized_standardized_copy_ratios
         Array[File]? merged_allelic_counts = sorted_allelic_counts
     }
 }
@@ -99,7 +88,6 @@ task HarmonizeCopyRatios {
 
         Array[String]+ sample_names
         Array[File]+ denoised_copy_ratios
-        Array[File]+ standardized_copy_ratios
         Boolean compress_output = false
         Boolean verbose = true
 
@@ -109,7 +97,6 @@ task HarmonizeCopyRatios {
     String output_dir = "."
 
 #    Array[String] harmonized_denoised_cr = suffix(sample_names, ".denoised_CR.tsv")
-#    Array[String] harmonized_standardized_cr = suffix(sample_names, ".standardized_CR.tsv")
 
     command <<<
         set -e
@@ -117,15 +104,15 @@ task HarmonizeCopyRatios {
         python harmonize_copy_ratios.py \
             --output_dir '~{output_dir}' \
             ~{sep="' " prefix("--sample '", sample_names)}' \
-            ~{sep="' " prefix("--denoised_cr '", denoised_copy_ratios)}' \
-            ~{sep="' " prefix("--standardized_cr '", standardized_copy_ratios)}' \
+            ~{sep="' " prefix("--copy_ratio '", denoised_copy_ratios)}' \
+            --suffix ".harmonized.denoised_CR" \
+            --threads ~{runtime_params.cpu} \
             ~{if compress_output then "--compress_output" else ""} \
             ~{if verbose then "--verbose" else ""}
     >>>
 
     output {
-        Array[File] harmonized_denoised_copy_ratios = glob("*.denoised_CR.tsv")
-        Array[File] harmonized_standardized_copy_ratios = glob("*.standardized_CR.tsv")
+        Array[File] harmonized_denoised_copy_ratios = glob("*.harmonized.denoised_CR.tsv")
     }
 
     runtime {

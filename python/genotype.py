@@ -753,7 +753,7 @@ class GenotypeData(object):
         processes = np.min([max_processes, len(self.samples), os.cpu_count()])
         if processes > 1:
             try:
-                print(f"Parallel execution with {processes} processes: ", end="") if self.verbose else None
+                print(f"Parallel execution with {processes} processes: ", end="", flush=True) if self.verbose else None
                 with mp.Pool(processes=processes) as pool:
                     pileup_likelihoods = pool.starmap(
                         func=self.get_pileup_likelihood,
@@ -767,7 +767,7 @@ class GenotypeData(object):
 
             except Exception as e:
                 print(f"Error in parallel execution: {e}")
-        print("Serial execution: ", end="") if self.verbose else None
+        print("Serial execution: ", end="", flush=True) if self.verbose else None
         pileup_likelihoods = [
             self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, contamination, segments)
             for assigned_sample_name, pileup, contamination, segments in zip(self.samples, self.pileups, self.contaminations, self.segments)

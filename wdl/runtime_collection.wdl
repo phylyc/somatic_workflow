@@ -113,8 +113,9 @@ workflow DefineRuntimeCollection {
         Int time_select_pileup_summaries = 5
 
         # HarmonizeCopyRatios
-        Int mem_harmonize_copy_ratios = 4096
-        Int time_harmonize_copy_ratios = 10
+        Int cpu_harmonize_copy_ratios = 1  # probably worthwhile to use 4
+        Int mem_harmonize_copy_ratios = 1024
+        Int time_harmonize_copy_ratios = 1440  # 24 h
 
         # MergeAllelicCounts
         Int mem_merge_allelic_counts = 4096
@@ -341,7 +342,7 @@ workflow DefineRuntimeCollection {
         "docker": genotype_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
-        "cpu": cpu,
+        "cpu": cpu_harmonize_copy_ratios,
         "machine_mem": mem_harmonize_copy_ratios + mem_machine_overhead,
         "command_mem": mem_harmonize_copy_ratios,
         "runtime_minutes": time_startup + time_harmonize_copy_ratios,

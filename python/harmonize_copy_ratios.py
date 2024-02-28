@@ -2,6 +2,9 @@ import argparse
 from collections import defaultdict
 from copy import copy
 import gzip
+import multiprocessing as mp
+import numpy as np
+import os
 import pandas as pd
 import warnings
 
@@ -15,11 +18,12 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "genotype.py --sample <sample> [--sample <sample> ...] -D <denoised_cr> [-D <denoised_cr> ...] -S <standardized_cr> [-S <standardized_cr>] [-O <output_dir>] [--compress_output] [--verbose]"
-    parser.add_argument("--sample",                 type=str,   required=True,  action="append",    help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file header.")
-    parser.add_argument("-D", "--denoised_cr",      type=str,   required=True,  action="append",    help="Path to the denoised copy ratio file (output of GATK's DenoiseReadCounts).")
-    parser.add_argument("-S", "--standardized_cr",  type=str,   required=True,  action="append",    help="Path to the standardized copy ratio file (output of GATK's DenoiseReadCounts).")
+    parser.usage = "harmonize_copy_ratios.py --sample <sample> [--sample <sample> ...] -I <copy_ratio> [-I <copy_ratio> ...] [-O <output_dir>] [--compress_output] [--verbose]"
+    parser.add_argument("--sample",                 type=str,   required=True,  action="append",     help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file header.")
+    parser.add_argument("-I", "--copy_ratio",       type=str,   required=True,  action="append",     help="Path to the (denoised) copy ratio file (output of GATK's DenoiseReadCounts).")
     parser.add_argument("-O", "--output_dir",       type=str,   default=".",    help="Path to the output directory.")
+    parser.add_argument("--suffix",                 type=str,   default=".harmonized.CR",            help="Suffix to append to each sample name to create the output file name.")
+    parser.add_argument("--threads",                type=int,   default=1,      help="Number of threads to use for parallelization over samples.")
     parser.add_argument("--compress_output",                    default=False,  action="store_true", help="Compress output files.")
     parser.add_argument("--verbose",                            default=False,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
@@ -81,7 +85,7 @@ def split_intervals(intervals: pd.DataFrame, start_col: str = "START", end_col: 
     return new_intervals[~new_intervals.is_empty]
 
 
-def non_overlapping(intervals: pd.DataFrame, start_col: str = "START", end_col: str = "END"):
+def non_overlapping(intervals: pd.DataFrame, start_col: str = "START", end_col: str = "END", verbose: bool = False):
     new_intervals = split_intervals(intervals, start_col=start_col, end_col=end_col)
     non_overlapping_interval_list = []
     for i, interval in intervals.iterrows():
@@ -93,6 +97,7 @@ def non_overlapping(intervals: pd.DataFrame, start_col: str = "START", end_col: 
             new_split_interval[start_col] = new_interval.left
             new_split_interval[end_col] = new_interval.right
             non_overlapping_interval_list.append(new_split_interval)
+    print(".", end="", flush=True) if verbose else None
     return pd.DataFrame(non_overlapping_interval_list)
 
 
@@ -130,18 +135,42 @@ def merge_abutting_intervals(intervals: pd.DataFrame, dist: int = 1, cr_tol: flo
     return merged_intervals
 
 
-def harmonize(copy_ratios: list[pd.DataFrame], verbose: bool = False):
+def harmonize_loci_parallel(copy_ratios: pd.DataFrame, verbose: bool = False, max_processes: int = 1):
+    n_unique_contigs = copy_ratios["CONTIG"].nunique()
+    processes = np.min([max_processes, n_unique_contigs, os.cpu_count()])
+    if processes > 1:
+        try:
+            print(f"Parallel execution with {processes} processes over contigs: ", end="", flush=True) if verbose else None
+            with mp.Pool(processes=processes) as pool:
+                harmonized_loci_by_contig = pool.starmap(
+                    func=non_overlapping,
+                    iterable=[
+                        (contig_group, "START", "END", verbose)
+                        for contig, contig_group in copy_ratios.groupby(by=["CONTIG"])
+                    ]
+                )
+            print() if verbose else None
+            return pd.concat(harmonized_loci_by_contig)
+
+        except Exception as e:
+            print(f"Error in parallel execution: {e}")
+    print("Serial execution over contigs: ", end="", flush=True) if verbose else None
+    harmonized_loci_by_contig = [
+        non_overlapping(contig_group, "START", "END", verbose)
+        for contig, contig_group in copy_ratios.groupby(by=["CONTIG"])
+    ]
+    print() if verbose else None
+    return pd.concat(harmonized_loci_by_contig)
+
+
+def harmonize(copy_ratios: list[pd.DataFrame], max_processes: int = 1, verbose: bool = False):
     cr = pd.concat(copy_ratios, ignore_index=True)
     if cr.empty:
         print("  No loci found to harmonize in any of the input files.") if verbose else None
         return cr
 
-    harmonized_loci = pd.concat(
-        [
-            non_overlapping(contig_group, start_col="START", end_col="END")
-            for contig, contig_group in cr.groupby(by=["CONTIG"])
-        ]
-    )
+    harmonized_loci = harmonize_loci_parallel(copy_ratios=cr, verbose=verbose, max_processes=max_processes)
+
     aggregate = harmonized_loci.groupby(by=["CONTIG", "START", "END", "SAMPLE"]).agg(
         {
             "LOG2_COPY_RATIO": "mean"
@@ -179,48 +208,32 @@ def harmonize_intervals(args):
         "END": int,
         "LOG2_COPY_RATIO": float,
     }
-    dcr_headers = defaultdict(list)
-    scr_headers = defaultdict(list)
-    dcr = []
-    scr = []
+    cr_headers = defaultdict(list)
+    cr = []
 
     # load data (per sequencing run):
-    for sample_name, dcr_file_path, scr_file_path in zip(args.sample, args.denoised_cr, args.standardized_cr):
-        dcr_header, dcr_df = get_header_and_df(file_path=dcr_file_path, columns=columns, column_types=column_types)
-        scr_header, scr_df = get_header_and_df(file_path=scr_file_path, columns=columns, column_types=column_types)
-        dcr_headers[sample_name].append(dcr_header)
-        scr_headers[sample_name].append(scr_header)
-        dcr_df["SAMPLE"] = sample_name
-        scr_df["SAMPLE"] = sample_name
-        dcr.append(dcr_df)
-        scr.append(scr_df)
-        print(f"Number of loci in {dcr_file_path}: {dcr_df.shape[0]}") if args.verbose else None
+    for sample_name, cr_file_path in zip(args.sample, args.copy_ratio):
+        cr_header, cr_df = get_header_and_df(file_path=cr_file_path, columns=columns, column_types=column_types)
+        cr_headers[sample_name].append(cr_header)
+        cr_df["SAMPLE"] = sample_name
+        cr.append(cr_df)
+        print(f"Number of loci in {cr_file_path}: {cr_df.shape[0]}") if args.verbose else None
     print() if args.verbose else None
 
     # harmonize intervals:
-    print("Harmonizing denoised copy ratio intervals:") if args.verbose else None
-    harmonized_dcr = harmonize(copy_ratios=dcr, verbose=args.verbose)
-    print() if args.verbose else None
-    print("Harmonizing standardized copy ratio intervals:") if args.verbose else None
-    harmonized_scr = harmonize(copy_ratios=scr, verbose=args.verbose)
+    print("Harmonizing copy ratio intervals:") if args.verbose else None
+    harmonized_cr = harmonize(copy_ratios=cr, max_processes=args.threads, verbose=args.verbose)
     print() if args.verbose else None
 
     # write output files:
+    os.makedirs(args.output_dir, exist_ok=True)
     for sample_name in args.sample:
-        dcr_header = dcr_headers[sample_name][0] if len(dcr_headers[sample_name]) > 0 else None
-        scr_header = scr_headers[sample_name][0] if len(scr_headers[sample_name]) > 0 else None
-        dcr_df = harmonized_dcr[sample_name].reset_index() if not harmonized_dcr.empty else pd.DataFrame(columns=columns)
-        scr_df = harmonized_scr[sample_name].reset_index() if not harmonized_scr.empty else pd.DataFrame(columns=columns)
+        cr_header = cr_headers[sample_name][0] if len(cr_headers[sample_name]) > 0 else None
+        cr_df = harmonized_cr[sample_name].reset_index() if not harmonized_cr.empty else pd.DataFrame(columns=columns)
         write_header_and_df(
-            header=dcr_header,
-            df=dcr_df,
-            file_path=f"{args.output_dir}/{sample_name}.denoised_CR.tsv" + (".gz" if args.compress_output else ""),
-            verbose=args.verbose
-        )
-        write_header_and_df(
-            header=scr_header,
-            df=scr_df,
-            file_path=f"{args.output_dir}/{sample_name}.standardized_CR.tsv" + (".gz" if args.compress_output else ""),
+            header=cr_header,
+            df=cr_df,
+            file_path=f"{args.output_dir}/{sample_name}{args.suffix}.tsv" + (".gz" if args.compress_output else ""),
             verbose=args.verbose
         )
 
