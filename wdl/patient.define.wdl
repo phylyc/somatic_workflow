@@ -2,9 +2,9 @@ version development
 
 import "sequencing_run.wdl" as seq_run
 import "sequencing_run.define.wdl" as seq_run_def
-import "sample.wdl"
-import "patient.wdl"
-import "runtime_collection.wdl"
+import "sample.wdl" as s
+import "patient.wdl" as p
+import "runtime_collection.wdl" as rtc
 
 
 workflow DefinePatient {
@@ -133,7 +133,7 @@ workflow DefinePatient {
         Sample best_matched_normal_sample = select_first(normal_samples)
     }
 
-    Patient p = object {
+    Patient pat = object {
         name: individual_id,
         samples: flatten([tumor_samples, normal_samples]),
         tumor_samples: tumor_samples,
@@ -144,6 +144,6 @@ workflow DefinePatient {
     }
 
     output {
-        Patient patient = p
+        Patient patient = pat
     }
 }

@@ -1,6 +1,6 @@
 version development
 
-import "runtimes.wdl"
+import "runtimes.wdl" as rt
 
 
 struct RuntimeCollection {

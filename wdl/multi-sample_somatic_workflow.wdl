@@ -1,6 +1,6 @@
 version development
 
-import "patient.wdl"
+import "patient.wdl" as p
 import "patient.define.wdl" as p_def
 import "workflow_arguments.wdl" as wfargs
 import "runtime_collection.wdl" as rtc

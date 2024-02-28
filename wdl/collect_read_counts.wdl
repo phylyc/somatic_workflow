@@ -1,7 +1,8 @@
 version development
 
 import "runtime_collection.wdl" as rtc
-import "runtimes.wdl"
+import "runtimes.wdl" as rt
+import "sequencing_run.define.wdl" as seqrun_def
 import "tasks.wdl"
 
 
@@ -12,7 +13,7 @@ workflow CollectReadCounts {
         File ref_dict
         String format = "TSV"
 
-        # SequencingRun sequencing_run = GetSeqRun.sequencing_run
+        SequencingRun sequencing_run = GetSeqRun.sequencing_run
         String? sample_name
         File bam
         File bai
@@ -35,25 +36,6 @@ workflow CollectReadCounts {
         Int time_denoise_read_counts = 120
     }
 
-    if (!defined(sample_name)) {
-        call tasks.GetSampleName {
-            input:
-                bam = bam,
-                runtime_params = runtime_collection.get_sample_name
-        }
-    }
-
-#    call sequencing_run.DefineSequencingRun as GetSeqRun {
-#        input:
-#            name = select_first([sample_name, GetSampleName.sample_name]),
-#            bam = bam,
-#            bai = bai,
-#            interval_list = interval_list,
-#            annotated_interval_list = annotated_interval_list,
-#            read_count_panel_of_normals = read_count_panel_of_normals,
-#            paired_end = paired_end
-#    }
-
     call rtc.DefineRuntimeCollection as GetRTC {
         input:
             gatk_docker = gatk_docker,
@@ -68,29 +50,41 @@ workflow CollectReadCounts {
             time_denoise_read_counts = time_denoise_read_counts
     }
 
-    String this_sample_name = select_first([sample_name, GetSampleName.sample_name])
+    call seqrun_def.DefineSequencingRun as GetSeqRun {
+        input:
+            name = sample_name,
+            bam = bam,
+            bai = bai,
+            interval_list = interval_list,
+            annotated_interval_list = annotated_interval_list,
+            read_count_panel_of_normals = read_count_panel_of_normals,
+            is_paired_end = is_paired_end,
+            runtime_collection = runtime_collection
+    }
+
+    String this_sample_name = select_first([sample_name, sequencing_run.name])
 
 	call CollectReadCounts {
 		input:
-			interval_list = interval_list,
+			interval_list = sequencing_run.target_intervals,
             ref_fasta = ref_fasta,
 			ref_fasta_index = ref_fasta_index,
             ref_dict = ref_dict,
-            bam = bam,
-            bai = bai,
+            bam = sequencing_run.bam,
+            bai = sequencing_run.bai,
             format = format,
             sample_name = this_sample_name,
-            is_paired_end = is_paired_end,
+            is_paired_end = sequencing_run.is_paired_end,
             runtime_params = runtime_collection.collect_read_counts
 	}
 
-    if (defined(annotated_interval_list) || defined(read_count_panel_of_normals)) {
+    if (defined(sequencing_run.annotated_target_intervals) || defined(sequencing_run.cnv_panel_of_normals)) {
         call DenoiseReadCounts {
             input:
                 read_counts = CollectReadCounts.read_counts,
                 sample_name = this_sample_name,
-                annotated_interval_list = annotated_interval_list,
-                count_panel_of_normals = read_count_panel_of_normals,
+                annotated_interval_list = sequencing_run.annotated_target_intervals,
+                count_panel_of_normals = sequencing_run.cnv_panel_of_normals,
                 runtime_params = runtime_collection.denoise_read_counts
         }
     }
@@ -123,7 +117,7 @@ task CollectReadCounts {
 
 	command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CollectReadCounts \
             -I '~{bam}' \
@@ -132,8 +126,8 @@ task CollectReadCounts {
             -O '~{output_name}' \
             --interval-merging-rule ~{interval_merging_rule} \
             --format ~{format} \
-            ~{true="--read-filter MateUnmappedAndUnmappedReadFilter " false="" is_paired_end} \
-            ~{true="--read-filter PairedReadFilter " false="" is_paired_end}
+            ~{if is_paired_end then "--read-filter FirstOfPairReadFilter " else ""} \
+            ~{if is_paired_end then "--read-filter PairedReadFilter " else ""} \
 	>>>
 
 	output {
@@ -177,7 +171,7 @@ task DenoiseReadCounts {
 
 	command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             DenoiseReadCounts \
             -I '~{read_counts}' \

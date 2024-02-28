@@ -1,10 +1,10 @@
 version development
 
-import "sample.wdl"
-import "patient.wdl"
-import "patient.update_samples.wdl" as p_update
-import "workflow_arguments.wdl"
-import "runtime_collection.wdl"
+import "sample.wdl" as s
+import "patient.wdl" as p
+import "patient.update_samples.wdl" as p_update_s
+import "workflow_arguments.wdl" as wfargs
+import "runtime_collection.wdl" as rtc
 import "collect_read_counts.wdl" as crc
 import "collect_allelic_counts.wdl" as cac
 import "harmonize_samples.wdl" as hs
@@ -27,13 +27,8 @@ workflow CNVWorkflow {
                         ref_fasta = args.ref_fasta,
                         ref_fasta_index = args.ref_fasta_index,
                         ref_dict = args.ref_dict,
-                        bam = sequencing_run.bam,
-                        bai = sequencing_run.bai,
                         sample_name = sample.name,
-                        interval_list = sequencing_run.target_intervals,
-                        annotated_interval_list = sequencing_run.annotated_target_intervals,
-                        read_count_panel_of_normals = sequencing_run.cnv_panel_of_normals,
-                        is_paired_end = sequencing_run.is_paired_end,
+                        sequencing_run = sequencing_run,
                         runtime_collection = runtime_collection,
                 }
             }
@@ -76,7 +71,7 @@ workflow CNVWorkflow {
             runtime_collection = runtime_collection,
     }
 
-    call p_update.UpdateSamples as ConsensusPatient {
+    call p_update_s.UpdateSamples as ConsensusPatient {
         input:
             patient = patient,
             denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios,
@@ -115,7 +110,7 @@ workflow CNVWorkflow {
                 runtime_collection = runtime_collection,
         }
 
-        call p_update.UpdateSamples as AddPileupsAndContaminationToSamples {
+        call p_update_s.UpdateSamples as AddPileupsAndContaminationToSamples {
             input:
                 patient = ConsensusPatient.updated_patient,
                 snp_array_allelic_counts = GenotypeSNPArray.pileups,

@@ -1,6 +1,6 @@
 version development
 
-import "runtime_collection.wdl"
+import "runtime_collection.wdl" as rtc
 import "tasks.wdl"
 
 

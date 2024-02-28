@@ -1,7 +1,7 @@
 version development
 
 import "runtime_collection.wdl" as rtc
-import "runtimes.wdl"
+import "runtimes.wdl" as rt
 
 
 workflow GenotypeVariants {
@@ -129,16 +129,16 @@ task GenotypeVariants {
             --patient '~{individual_id}' \
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("-P '", pileups)}' \
-            ~{true="-S '" false="" defined(segmentation_tables)}~{default="" sep="' -S '" segmentation_tables}~{true="'" false="" defined(segmentation_tables)} \
-            ~{true="-C '" false="" defined(contamination_tables)}~{default="" sep="' -C '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
+            ~{sep="' " prefix("-S '", select_first([segmentation_tables, []]))}~{if defined(segmentation_tables) then "'" else ""} \
+            ~{sep="' " prefix("-C '", select_first([contamination_tables, []]))}~{if defined(contamination_tables) then "'" else ""} \
             --min_read_depth ~{min_read_depth} \
             --min_genotype_likelihood ~{min_genotype_likelihood} \
             --model ~{model} \
             --format ~{format} \
-            ~{true="--select_hets " false="" select_hets} \
-            ~{true="--save_sample_genotype_likelihoods " false="" save_sample_genotype_likelihoods} \
-            ~{true="--compress_output " false="" compress_output} \
-            ~{true="--verbose " false="" verbose}
+            ~{if select_hets then "--select_hets" else ""} \
+            ~{if save_sample_genotype_likelihoods then "--save_sample_genotype_likelihoods" else ""} \
+            ~{if compress_output then "--compress_output" else ""} \
+            ~{if verbose then "--verbose" else ""}
 
         # tabix not in docker
         touch '~{output_vcf_idx}'

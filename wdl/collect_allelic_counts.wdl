@@ -14,7 +14,7 @@ version development
 ##      -> Solve by using FirstOfPairReadFilter?
 
 import "runtime_collection.wdl" as rtc
-import "runtimes.wdl"
+import "runtimes.wdl" as rt
 
 
 workflow CollectAllelicCounts {
@@ -240,20 +240,12 @@ task GetPileupSummaries {
         Runtime runtime_params
 	}
 
-    parameter_meta {
-        interval_list: {localization_optional: true}
-        input_bam: {localization_optional: true}
-        input_bai: {localization_optional: true}
-        common_germline_alleles: {localization_optional: true}
-        common_germline_alleles_idx: {localization_optional: true}
-    }
-
     String sample_id = if defined(sample_name) then sample_name else basename(input_bam, ".bam")
     String output_file = sample_id + ".pileup"
 
     command <<<
         set +e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
         # Create an empty pileup file if there are no common_germline_alleles in the intersection
         # between the common_germline_alleles and the intervals. Will be overwritten by GetPileupSummaries
@@ -293,6 +285,14 @@ task GetPileupSummaries {
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
     }
+
+    parameter_meta {
+        interval_list: {localization_optional: true}
+        input_bam: {localization_optional: true}
+        input_bai: {localization_optional: true}
+        common_germline_alleles: {localization_optional: true}
+        common_germline_alleles_idx: {localization_optional: true}
+    }
 }
 
 task GatherPileupSummaries {
@@ -304,17 +304,11 @@ task GatherPileupSummaries {
         Runtime runtime_params
     }
 
-    # Optional localization leads to cromwell error.
-    # parameter_meta {
-    #     input_tables: {localization_optional: true}
-    #     ref_dict: {localization_optional: true}
-    # }
-
     String output_file = sample_name + ".pileup"
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             GatherPileupSummaries \
             --sequence-dictionary '~{ref_dict}' \
@@ -336,6 +330,12 @@ task GatherPileupSummaries {
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
     }
+
+    # Optional localization leads to cromwell error.
+    # parameter_meta {
+    #     input_tables: {localization_optional: true}
+    #     ref_dict: {localization_optional: true}
+    # }
 }
 
 task SelectPileups {

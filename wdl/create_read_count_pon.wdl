@@ -1,7 +1,7 @@
 version development
 
 import "runtime_collection.wdl" as rtc
-import "runtimes.wdl"
+import "runtimes.wdl" as rt
 import "tasks.wdl"
 import "collect_read_counts.wdl" as crc
 
@@ -102,7 +102,7 @@ workflow CreateReadCountPanelOfNormals {
     }
     File this_annotated_interval_list = select_first([annotated_interval_list, AnnotateIntervals.annotated_interval_list])
 
-    call runtimes.UpdateRuntimeParameters as CreateCNVPanelRuntime {
+    call rt.UpdateRuntimeParameters as CreateCNVPanelRuntime {
         input:
             runtime_params = runtime_collection.create_cnv_panel,
             disk = runtime_collection.create_cnv_panel.disk + ceil(size(CollectReadCounts.read_counts, "GB"))
@@ -137,7 +137,7 @@ task CreateReadCountPanelOfNormals {
 
 	command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CreateReadCountPanelOfNormals \
             ~{sep="' " prefix("-I '", input_counts)}' \

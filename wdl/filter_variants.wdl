@@ -1,9 +1,9 @@
 version development
 
-import "patient.wdl"
-import "workflow_arguments.wdl"
-import "runtime_collection.wdl"
-import "runtimes.wdl"
+import "patient.wdl" as p
+import "workflow_arguments.wdl" as wfargs
+import "runtime_collection.wdl" as rtc
+import "runtimes.wdl" as rt
 import "tasks.wdl"
 
 
@@ -304,15 +304,15 @@ task FilterMutectCalls {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             FilterMutectCalls \
             --reference '~{ref_fasta}' \
             --variant '~{vcf}' \
             --output '~{output_vcf}' \
             ~{"--orientation-bias-artifact-priors '" + orientation_bias + "'"} \
-            ~{true="--contamination-table '" false="" defined(contamination_tables)}~{default="" sep="' --contamination-table '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
-            ~{true="--tumor-segmentation '" false="" defined(tumor_segmentation)}~{default="" sep="' --tumor-segmentation '" tumor_segmentation}~{true="'" false="" defined(tumor_segmentation)} \
+            ~{sep="' " prefix("--contamination-table '", select_first([contamination_tables, []]))}~{if defined(contamination_tables) then "'" else ""}  \
+            ~{sep="' " prefix("--tumor-segmentation '", select_first([tumor_segmentation, []]))}~{if defined(tumor_segmentation) then "'" else ""}  \
             ~{"--stats '" + mutect_stats + "'"} \
             ~{"--max-median-fragment-length-difference " + max_median_fragment_length_difference} \
             ~{"--min-median-base-quality " + min_alt_median_base_quality} \
@@ -383,7 +383,7 @@ task FilterAlignmentArtifacts {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
         if ~{!defined(bwa_mem_index_image)} ; then
             echo "ERROR: bwa_mem_index_image must be supplied."

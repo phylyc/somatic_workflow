@@ -1,8 +1,8 @@
 version development
 
-import "runtimes.wdl"
+import "patient.wdl" as p
+import "runtimes.wdl" as rt
 import "tasks.wdl"
-import "patient.wdl"
 import "multi-sample_somatic_workflow.wdl" as mssw
 import "phase_variants.wdl" as phv
 

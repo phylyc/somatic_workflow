@@ -1,8 +1,8 @@
 version development
 
-import "runtime_collection.wdl"
-import "runtimes.wdl"
-import "sample.wdl"
+import "sample.wdl" as s
+import "runtime_collection.wdl" as rtc
+import "runtimes.wdl" as rt
 
 
 workflow HarmonizeSamples {
@@ -119,8 +119,8 @@ task HarmonizeCopyRatios {
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("--denoised_cr '", denoised_copy_ratios)}' \
             ~{sep="' " prefix("--standardized_cr '", standardized_copy_ratios)}' \
-            ~{true="--compress_output " false="" compress_output} \
-            ~{true="--verbose " false="" verbose}
+            ~{if compress_output then "--compress_output" else ""} \
+            ~{if verbose then "--verbose" else ""}
     >>>
 
     output {
@@ -163,8 +163,8 @@ task MergeAllelicCounts {
             --output_dir '~{output_dir}' \
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("-P '", allelic_counts)}' \
-            ~{true="--compress_output " false="" compress_output} \
-            ~{true="--verbose " false="" verbose}
+            ~{if compress_output then "--compress_output" else ""} \
+            ~{if verbose then "--verbose" else ""}
     >>>
 
     output {

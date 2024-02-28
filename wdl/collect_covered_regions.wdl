@@ -9,7 +9,7 @@ version development
 ## used to run this workflow.
 
 import "runtime_collection.wdl" as rtc
-import "runtimes.wdl"
+import "runtimes.wdl" as rt
 
 
 workflow CollectCoveredRegions {
@@ -25,7 +25,7 @@ workflow CollectCoveredRegions {
 
         # arguments
         Int min_read_depth_threshold = 1
-        Boolean paired_end = false
+        Boolean is_paired_end = false
         String output_format = "interval_list"  # bam, bed, interval_list
 
         RuntimeCollection runtime_collection = GetRTC.rtc
@@ -56,7 +56,7 @@ workflow CollectCoveredRegions {
             time_collect_covered_regions = time_collect_covered_regions
     }
 
-    call runtimes.UpdateRuntimeParameters as CollectCoverageRegionsRuntime {
+    call rt.UpdateRuntimeParameters as CollectCoverageRegionsRuntime {
         input:
             runtime_params = runtime_collection.collect_covered_regions,
             disk = 10 + ceil(1.2 * size(bam, "GB"))
@@ -72,7 +72,7 @@ workflow CollectCoveredRegions {
             input_bam = bam,
             input_bai = bai,
             min_read_depth_threshold = min_read_depth_threshold,
-            paired_end = paired_end,
+            is_paired_end = is_paired_end,
             output_format = output_format,
             runtime_params = CollectCoverageRegionsRuntime.params,
     }
@@ -100,13 +100,13 @@ task CollectCoveredRegions {
         File input_bai
 
         Int min_read_depth_threshold = 1
-        Boolean paired_end = false
+        Boolean is_paired_end = false
         String output_format = "bed"  # bam, bed, interval_list
 
         Runtime runtime_params
     }
 
-    Int max = if paired_end then ceil(min_read_depth_threshold / 2) else min_read_depth_threshold
+    Int max = if is_paired_end then ceil(min_read_depth_threshold / 2) else min_read_depth_threshold
 
     String name = if defined(sample_name) then sample_name else basename(input_bam, ".bam")
 
@@ -146,7 +146,7 @@ task CollectCoveredRegions {
             --read-filter MappingQualityReadFilter \
             --read-filter MappingQualityNotZeroReadFilter \
             --read-filter WellformedReadFilter \
-            ~{true="--read-filter " false="" defined(read_filters)}~{default="" sep=" --read-filter " read_filters} \
+            ~{sep=" " prefix("--read-filter ", select_first([read_filters, []]))} \
             ~{print_reads_extra_args}
 
         echo "..."
@@ -157,7 +157,7 @@ task CollectCoveredRegions {
             -ibam '~{filtered_bam}' \
             -max ~{max} \
             -bg \
-            ~{true="-pc " false="" paired_end} \
+            ~{if is_paired_end then "-pc" else ""} \
         | awk '~{dollar}4>=~{max}' \
         | bedtools merge -c 4 -o min -d 1 -i stdin \
         > '~{covered_regions_bed}'

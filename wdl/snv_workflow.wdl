@@ -1,8 +1,8 @@
 version development
 
-import "patient.wdl"
-import "workflow_arguments.wdl"
-import "runtime_collection.wdl"
+import "patient.wdl" as p
+import "workflow_arguments.wdl" as wfargs
+import "runtime_collection.wdl" as rtc
 import "call_variants.wdl" as cv
 import "filter_variants.wdl" as fv
 import "collect_allelic_counts.wdl" as cac

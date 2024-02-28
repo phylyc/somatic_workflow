@@ -1,6 +1,6 @@
 version development
 
-import "sample.wdl"
+import "sample.wdl" as s
 
 
 struct Patient {
@@ -27,7 +27,7 @@ workflow UpdatePatient {
         Sample? matched_normal_sample
     }
 
-    Patient p = object {
+    Patient pat = object {
         name: select_first([name, patient.name]),
         samples: select_first([samples, patient.samples]),
         tumor_samples: select_first([tumor_samples, patient.tumor_samples]),
@@ -39,6 +39,6 @@ workflow UpdatePatient {
     }
 
     output {
-        Patient updated_patient = p
+        Patient updated_patient = pat
     }
 }

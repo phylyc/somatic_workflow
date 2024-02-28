@@ -12,7 +12,7 @@ version development
 ## Too many low coverage sites will lead to inaccurate estimates of contamination.
 
 import "runtime_collection.wdl" as rtc
-import "runtimes.wdl"
+import "runtimes.wdl" as rt
 import "collect_allelic_counts.wdl" as cac
 
 
@@ -178,7 +178,7 @@ task CalculateContamination {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CalculateContamination \
             --input '~{tumor_pileups}' \

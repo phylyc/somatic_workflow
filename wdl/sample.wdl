@@ -1,6 +1,6 @@
 version development
 
-import "sequencing_run.wdl"
+import "sequencing_run.wdl" as seqrun
 
 
 struct Sample {

@@ -19,10 +19,10 @@ version development
 ##      compute cost though, and may still not guarantee that all variants are
 ##      being called. Ideally, run with and without and use the joint callset.
 
-import "patient.wdl"
-import "workflow_arguments.wdl"
-import "runtime_collection.wdl"
-import "runtimes.wdl"
+import "patient.wdl" as p
+import "workflow_arguments.wdl" as wfargs
+import "runtime_collection.wdl" as rtc
+import "runtimes.wdl" as rt
 import "tasks.wdl"
 
 
@@ -211,13 +211,13 @@ task Mutect2 {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             Mutect2 \
             --reference '~{ref_fasta}' \
             ~{sep="' " prefix("-I '", tumor_bams)}' \
-            ~{true="-I '" false="" normal_is_present}~{default="" sep="' -I '" normal_bams}~{true="'" false="" normal_is_present} \
-            ~{true="-normal '" false="" normal_is_present}~{default="" sep="' -normal '" normal_sample_names}~{true="'" false="" normal_is_present} \
+            ~{sep="' " prefix("-I '", select_first([normal_bams, []]))}~{if normal_is_present then "'" else ""} \
+            ~{sep="' " prefix("-normal '", select_first([normal_sample_names, []]))}~{if normal_is_present then "'" else ""} \
             --output '~{output_vcf}' \
             ~{"--intervals '" + interval_list + "'"} \
             ~{"--alleles '" + force_call_alleles + "'"} \
@@ -225,13 +225,13 @@ task Mutect2 {
             ~{make_bamout_arg} \
             ~{run_ob_filter_arg} \
             ~{"--germline-resource '" + germline_resource + "'"} \
-            ~{true="--genotype-germline-sites true" false="" genotype_germline_sites} \
-            ~{true="--linked-de-bruijn-graph true" false="" use_linked_de_bruijn_graph} \
-            ~{true="--recover-all-dangling-branches true" false="" recover_all_dangling_branches} \
-            ~{true="--pileup-detection true" false="" pileup_detection} \
+            ~{if genotype_germline_sites then "--genotype-germline-sites true" else ""} \
+            ~{if use_linked_de_bruijn_graph then "--linked-de-bruijn-graph true" else ""} \
+            ~{if recover_all_dangling_branches then "--recover-all-dangling-branches true" else ""} \
+            ~{if pileup_detection then "--pileup-detection true" else ""} \
             --smith-waterman FASTEST_AVAILABLE \
             --pair-hmm-implementation FASTEST_AVAILABLE \
-            ~{true="--native-pair-hmm-use-double-precision true" false="" native_pair_hmm_use_double_precision} \
+            ~{if native_pair_hmm_use_double_precision then "--native-pair-hmm-use-double-precision true" else ""} \
             ~{"--downsampling-stride " + downsampling_stride} \
             ~{"--max-reads-per-alignment-start " + max_reads_per_alignment_start} \
             --seconds-between-progress-updates 300 \
@@ -276,7 +276,7 @@ task MergeMutectStats {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             MergeMutectStats \
             ~{sep="' " prefix("-stats '", stats)}' \
@@ -327,7 +327,7 @@ task LearnReadOrientationModel {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
         if ~{f1r2_counts_empty} ; then
             echo "ERROR: f1r2_counts_tar_gz must be supplied and non empty."

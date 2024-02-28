@@ -2,7 +2,7 @@ version development
 
 ## Collection of Tasks
 
-import "runtimes.wdl"
+import "runtimes.wdl" as rt
 
 
 task GetSampleName {
@@ -14,7 +14,7 @@ task GetSampleName {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             GetSampleName \
             -I '~{bam}' \
@@ -61,7 +61,7 @@ task AnnotateIntervals {
 
 	command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             AnnotateIntervals \
             -R '~{ref_fasta}' \
@@ -119,13 +119,13 @@ task PreprocessIntervals {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             PreprocessIntervals \
             -R '~{ref_fasta}' \
             ~{"-L '" + interval_list + "'"} \
             ~{"-XL '" + interval_blacklist + "'"} \
-            ~{true="-L '" false="" defined(interval_lists)}~{default="" sep="' -L '" interval_lists}~{true="'" false="" defined(interval_lists)} \
+            ~{sep="' " prefix("-L '", select_first([interval_lists, []]))}~{if defined(interval_lists) then "'" else ""} \
             --bin-length ~{bin_length} \
             --padding ~{padding} \
             --interval-merging-rule OVERLAPPING_ONLY \
@@ -179,7 +179,7 @@ task SplitIntervals {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         mkdir interval-files
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             SplitIntervals \
@@ -267,7 +267,7 @@ task SelectVariants {
     # todo: make empty input vcf not fail the task
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             SelectVariants \
             ~{"-R '" + ref_fasta + "'"} \
@@ -391,7 +391,7 @@ task MergeVCFs {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             MergeVcfs \
             ~{sep="' " prefix("-I '", vcfs)}' \
@@ -504,7 +504,7 @@ task MergeBams {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             GatherBamFiles \
             ~{sep="' " prefix("-I '", bams)}' \

@@ -1,7 +1,7 @@
 version development
 
 import "runtime_collection.wdl" as rtc
-import "runtimes.wdl"
+import "runtimes.wdl" as rt
 import "tasks.wdl"
 import "multi-sample_somatic_workflow.wdl" as mssw
 
@@ -127,7 +127,7 @@ workflow CreateMutect2PanelOfNormals {
             runtime_params = runtime_collection.split_intervals
     }
 
-    call runtimes.UpdateRuntimeParameters as CreateMutect2PanelRuntime {
+    call rt.UpdateRuntimeParameters as CreateMutect2PanelRuntime {
         input:
             runtime_params = runtime_collection.create_mutect2_panel,
             disk = runtime_collection.create_mutect2_panel.disk + 3 * ceil(size(MultiSampleSomaticWorkflow.unfiltered_vcf, "GB")) + ceil(length(MultiSampleSomaticWorkflow.unfiltered_vcf) / 10)
@@ -197,7 +197,7 @@ task CreateMutect2Panel {
 
     command {
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             GenomicsDBImport \

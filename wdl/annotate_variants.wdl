@@ -1,8 +1,8 @@
 version development
 
-import "workflow_arguments.wdl"
-import "runtime_collection.wdl"
-import "runtimes.wdl"
+import "workflow_arguments.wdl" as wfargs
+import "runtime_collection.wdl" as rtc
+import "runtimes.wdl" as rt
 import "tasks.wdl"
 
 
@@ -103,9 +103,9 @@ task Funcotate {
 
         File vcf
         File vcf_idx
-        String? individual_id
-        String? tumor_sample_name
-        String? normal_sample_name
+        String? individual_id = "Unknown"
+        String? tumor_sample_name = "Unknown"
+        String? normal_sample_name = "Unknown"
 
         String reference_version = "hg19"
         String output_base_name
@@ -144,7 +144,7 @@ task Funcotate {
 
     command <<<
         set -e
-        export GATK_LOCAL_JAR=~{default="/root/gatk.jar" runtime_params.jar_override}
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
         if [[ "~{output_format}" != "MAF" ]] && [[ "~{output_format}" != "VCF" ]] ; then
             echo "ERROR: Output format must be MAF or VCF."
@@ -185,7 +185,7 @@ task Funcotate {
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             Funcotator \
-            --data-sources-path ~{true="" false="$DATA_SOURCES_FOLDER" defined(data_sources_paths)}~{default="" sep=" --data-sources-path " data_sources_paths} \
+            ~{sep=" " prefix("--data-sources-path ", select_first([data_sources_paths, [dollar + "DATA_SOURCES_FOLDER"]]))} \
             --ref-version ~{reference_version} \
             --output-file-format ~{output_format} \
             -R '~{ref_fasta}' \
@@ -194,15 +194,15 @@ task Funcotate {
             ~{"-L '" + interval_list + "'"} \
             ~{"--transcript-selection-mode " + transcript_selection_mode} \
             ~{"--transcript-list '" + transcript_list + "'"} \
-            --annotation-default 'individual_id:~{default="Unknown" individual_id}' \
-            --annotation-default 'tumor_barcode:~{default="Unknown" tumor_sample_name}' \
-            --annotation-default 'normal_barcode:~{default="Unknown" normal_sample_name}' \
-            ~{true="--annotation-default " false="" defined(annotation_defaults)}~{default="" sep=" --annotation-default " annotation_defaults} \
-            ~{true="--annotation-override " false="" defined(annotation_overrides)}~{default="" sep=" --annotation-override " annotation_overrides} \
-            ~{true="--exclude-field " false="" defined(exclude_fields)}~{default="" sep=" --exclude-field " exclude_fields} \
+            --annotation-default 'individual_id:~{individual_id}' \
+            --annotation-default 'tumor_barcode:~{tumor_sample_name}' \
+            --annotation-default 'normal_barcode:~{normal_sample_name}' \
+            ~{sep=" " prefix("--annotation-default ", select_first([annotation_defaults, []]))} \
+            ~{sep=" " prefix("--annotation-override ", select_first([annotation_overrides, []]))} \
+            ~{sep=" " prefix("--exclude-field ", select_first([exclude_fields, []]))} \
             ~{funcotate_extra_args}
 
-        rm -rf datasources_dir
+        rm -rf ~{dollar}DATA_SOURCES_FOLDER
     >>>
 
     output {

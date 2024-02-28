@@ -1,6 +1,6 @@
 version development
 
-import "runtime_collection.wdl"
+import "runtime_collection.wdl" as rtc
 import "calculate_contamination.wdl" as cc
 import "genotype_variants.wdl" as gv
 

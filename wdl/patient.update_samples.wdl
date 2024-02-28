@@ -1,7 +1,7 @@
 version development
 
-import "sample.wdl"
-import "patient.wdl" as pat
+import "sample.wdl" as s
+import "patient.wdl" as p
 
 
 workflow UpdateSamples {
@@ -23,14 +23,14 @@ workflow UpdateSamples {
     if (defined(read_counts)) {
         scatter (pair in zip(patient.samples, select_first([read_counts, []]))) {
             if (pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateReadCountsTumor {
+                call s.UpdateSample as UpdateReadCountsTumor {
                     input:
                         sample = pair.left,
                         read_counts = pair.right,
                 }
             }
             if (!pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateReadCountsNormal {
+                call s.UpdateSample as UpdateReadCountsNormal {
                     input:
                         sample = pair.left,
                         read_counts = pair.right,
@@ -45,14 +45,14 @@ workflow UpdateSamples {
     if (defined(denoised_copy_ratios)) {
         scatter (pair in zip(samples_1, select_first([denoised_copy_ratios, []]))) {
             if (pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateDenoisedCopyRatioTumor {
+                call s.UpdateSample as UpdateDenoisedCopyRatioTumor {
                     input:
                         sample = pair.left,
                         denoised_copy_ratios = pair.right,
                 }
             }
             if (!pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateDenoisedCopyRatioNormal {
+                call s.UpdateSample as UpdateDenoisedCopyRatioNormal {
                     input:
                         sample = pair.left,
                         denoised_copy_ratios = pair.right,
@@ -67,14 +67,14 @@ workflow UpdateSamples {
     if (defined(standardized_copy_ratios)) {
         scatter (pair in zip(samples_2, select_first([standardized_copy_ratios, []]))) {
             if (pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateStandardizedCopyRatioTumor {
+                call s.UpdateSample as UpdateStandardizedCopyRatioTumor {
                     input:
                         sample = pair.left,
                         standardized_copy_ratios = pair.right,
                 }
             }
             if (!pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateStandardizedCopyRatioNormal {
+                call s.UpdateSample as UpdateStandardizedCopyRatioNormal {
                     input:
                         sample = pair.left,
                         standardized_copy_ratios = pair.right,
@@ -89,14 +89,14 @@ workflow UpdateSamples {
     if (defined(snp_array_allelic_counts)) {
         scatter (pair in zip(samples_3, select_first([snp_array_allelic_counts, []]))) {
             if (pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateSnpArrayAllelicCountTumor {
+                call s.UpdateSample as UpdateSnpArrayAllelicCountTumor {
                     input:
                         sample = pair.left,
                         snp_array_allelic_counts = pair.right,
                 }
             }
             if (!pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateSnpArrayAllelicCountNormal {
+                call s.UpdateSample as UpdateSnpArrayAllelicCountNormal {
                     input:
                         sample = pair.left,
                         snp_array_allelic_counts = pair.right,
@@ -111,14 +111,14 @@ workflow UpdateSamples {
     if (defined(somatic_allelic_counts)) {
         scatter (pair in zip(samples_4, select_first([somatic_allelic_counts, []]))) {
             if (pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateSomaticAllelicCountTumor {
+                call s.UpdateSample as UpdateSomaticAllelicCountTumor {
                     input:
                         sample = pair.left,
                         somatic_allelic_counts = pair.right,
                 }
             }
             if (!pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateSomaticAllelicCountNormal {
+                call s.UpdateSample as UpdateSomaticAllelicCountNormal {
                     input:
                         sample = pair.left,
                         somatic_allelic_counts = pair.right,
@@ -133,14 +133,14 @@ workflow UpdateSamples {
     if (defined(germline_allelic_counts)) {
         scatter (pair in zip(samples_5, select_first([germline_allelic_counts, []]))) {
             if (pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateGermlineAllelicCountTumor {
+                call s.UpdateSample as UpdateGermlineAllelicCountTumor {
                     input:
                         sample = pair.left,
                         germline_allelic_counts = pair.right,
                 }
             }
             if (!pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateGermlineAllelicCountNormal {
+                call s.UpdateSample as UpdateGermlineAllelicCountNormal {
                     input:
                         sample = pair.left,
                         germline_allelic_counts = pair.right,
@@ -155,14 +155,14 @@ workflow UpdateSamples {
     if (defined(contaminations)) {
         scatter (pair in zip(samples_6, select_first([contaminations, []]))) {
             if (pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateContaminationTumor {
+                call s.UpdateSample as UpdateContaminationTumor {
                     input:
                         sample = pair.left,
                         contamination = pair.right,
                 }
             }
             if (!pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateContaminationNormal {
+                call s.UpdateSample as UpdateContaminationNormal {
                     input:
                         sample = pair.left,
                         contamination = pair.right,
@@ -177,14 +177,14 @@ workflow UpdateSamples {
     if (defined(af_segmentations)) {
         scatter (pair in zip(samples_7, select_first([af_segmentations, []]))) {
             if (pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateAfSegmentationTumor {
+                call s.UpdateSample as UpdateAfSegmentationTumor {
                     input:
                         sample = pair.left,
                         af_segmentation = pair.right,
                 }
             }
             if (!pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateAfSegmentationNormal {
+                call s.UpdateSample as UpdateAfSegmentationNormal {
                     input:
                         sample = pair.left,
                         af_segmentation = pair.right,
@@ -199,14 +199,14 @@ workflow UpdateSamples {
     if (defined(copy_ratio_segmentations)) {
         scatter (pair in zip(samples_8, select_first([copy_ratio_segmentations, []]))) {
             if (pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateCopyRatioSegmentationTumor {
+                call s.UpdateSample as UpdateCopyRatioSegmentationTumor {
                     input:
                         sample = pair.left,
                         copy_ratio_segmentation = pair.right,
                 }
             }
             if (!pair.left.is_tumor) {
-                call sample.UpdateSample as UpdateCopyRatioSegmentationNormal {
+                call s.UpdateSample as UpdateCopyRatioSegmentationNormal {
                     input:
                         sample = pair.left,
                         copy_ratio_segmentation = pair.right,
@@ -220,15 +220,15 @@ workflow UpdateSamples {
 
     if (defined(patient.matched_normal_sample)) {
         Sample previous_matched_normal_sample = select_first([patient.matched_normal_sample])
-        scatter (s in samples_9) {
-            if (s.name == previous_matched_normal_sample.name) {
-                Sample matched_normal_samples = s
+        scatter (sample in samples_9) {
+            if (sample.name == previous_matched_normal_sample.name) {
+                Sample matched_normal_samples = sample
             }
         }
         Sample matched_normal_sample = select_all(matched_normal_samples)[0]
     }
 
-    Patient p = object {
+    Patient pat = object {
         name: patient.name,
         samples: samples_9,
         tumor_samples: tumor_samples_9,
@@ -239,6 +239,6 @@ workflow UpdateSamples {
     }
 
     output {
-        Patient updated_patient = p
+        Patient updated_patient = pat
     }
 }

@@ -1,7 +1,7 @@
 version development
 
-import "runtime_collection.wdl"
-import "sequencing_run.wdl"
+import "runtime_collection.wdl" as rtc
+import "sequencing_run.wdl" as seqrun
 import "tasks.wdl"
 
 
