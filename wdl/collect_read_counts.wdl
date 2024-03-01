@@ -12,12 +12,11 @@ workflow CollectReadCounts {
         File ref_dict
         String format = "TSV"
 
-        SequencingRun sequencing_run = GetSeqRun.sequencing_run
-        String? sample_name
-        File? bam
-        File? bai
-        File? interval_list
-        File? annotated_interval_list
+        String sample_name
+        File bam
+        File bai
+        File target_intervals
+        File? annotated_target_intervals
         File? read_count_panel_of_normals
         Boolean is_paired_end = false
 
@@ -49,49 +48,33 @@ workflow CollectReadCounts {
             time_denoise_read_counts = time_denoise_read_counts
     }
 
-    # Todo: assert either sequencing_run or (bam and bai and interval_list) are defined
-
-    call seqrun_def.DefineSequencingRun as GetSeqRun {
-        input:
-            name = sample_name,
-            bam = select_first([bam]),
-            bai = select_first([bai]),
-            target_intervals = select_first([interval_list]),
-            annotated_target_intervals = annotated_interval_list,
-            cnv_panel_of_normals = read_count_panel_of_normals,
-            is_paired_end = is_paired_end,
-            runtime_collection = runtime_collection
-    }
-
-    String this_sample_name = select_first([sample_name, sequencing_run.name])
-
 	call CollectReadCountsTask {
 		input:
-			interval_list = sequencing_run.target_intervals,
+			interval_list = target_intervals,
             ref_fasta = ref_fasta,
 			ref_fasta_index = ref_fasta_index,
             ref_dict = ref_dict,
-            bam = sequencing_run.bam,
-            bai = sequencing_run.bai,
+            bam = bam,
+            bai = bai,
             format = format,
-            sample_name = this_sample_name,
-            is_paired_end = sequencing_run.is_paired_end,
+            sample_name = sample_name,
+            is_paired_end = is_paired_end,
             runtime_params = runtime_collection.collect_read_counts
 	}
 
-    if (defined(sequencing_run.annotated_target_intervals) || defined(sequencing_run.cnv_panel_of_normals)) {
+    if (defined(annotated_target_intervals) || defined(read_count_panel_of_normals)) {
         call DenoiseReadCounts {
             input:
                 read_counts = CollectReadCountsTask.read_counts,
-                sample_name = this_sample_name,
-                annotated_interval_list = sequencing_run.annotated_target_intervals,
-                count_panel_of_normals = sequencing_run.cnv_panel_of_normals,
+                sample_name = sample_name,
+                annotated_interval_list = annotated_target_intervals,
+                count_panel_of_normals = read_count_panel_of_normals,
                 runtime_params = runtime_collection.denoise_read_counts
         }
     }
 
     output {
-        String sample_name = this_sample_name
+        String sample_name = sample_name
         File read_counts = CollectReadCountsTask.read_counts
         File? denoised_copy_ratios = DenoiseReadCounts.denoised_copy_ratios
         File? standardized_copy_ratios = DenoiseReadCounts.standardized_copy_ratios

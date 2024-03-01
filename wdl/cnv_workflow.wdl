@@ -28,7 +28,12 @@ workflow CNVWorkflow {
                         ref_fasta_index = args.ref_fasta_index,
                         ref_dict = args.ref_dict,
                         sample_name = sample.name,
-                        sequencing_run = sequencing_run,
+                        bam = sequencing_run.bam,
+                        bai = sequencing_run.bai,
+                        target_intervals = sequencing_run.target_intervals,
+                        annotated_target_intervals = sequencing_run.annotated_target_intervals,
+                        read_count_panel_of_normals = sequencing_run.cnv_panel_of_normals,
+                        is_paried_end = sequencing_run.is_paired_end,
                         runtime_collection = runtime_collection,
                 }
             }

@@ -167,7 +167,7 @@ workflow MultiSampleSomaticWorkflow {
         # Derived from reasonable maximum values amongst >1000 patients.
         Int time_startup = 10
         Int time_get_sample_name = 1
-        Int time_preprocess_intervals = 60
+        Int time_preprocess_intervals = 120
         Int time_split_intervals = 1
         Int time_collect_covered_regions = 300
         Int time_collect_read_counts = 300
