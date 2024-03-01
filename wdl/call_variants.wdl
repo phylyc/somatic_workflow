@@ -203,6 +203,10 @@ task Mutect2 {
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
     String output_stats = output_vcf + ".stats"
 
+    String tumor_bam_arg = sep("' ", prefix("-I '", tumor_bams)) + "'"
+    String normal_bam_arg = if normal_is_present then sep("' ", prefix("-I '", select_first([normal_bams, []]))) + "'" else ""
+    String normal_sample_arg = if normal_is_present then sep("' ", prefix("-normal '", select_first([normal_sample_names, []]))) + "'" else ""
+
     String output_bam = individual_id + ".bamout.bam"
     String output_bai = individual_id + ".bamout.bai"
     String make_bamout_arg = if make_bamout then "--bam-output " + output_bam else ""
@@ -215,9 +219,9 @@ task Mutect2 {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             Mutect2 \
             --reference '~{ref_fasta}' \
-            ~{sep="' " prefix("-I '", tumor_bams)}' \
-            ~{sep="' " prefix("-I '", select_first([normal_bams, []]))}~{if normal_is_present then "'" else ""} \
-            ~{sep="' " prefix("-normal '", select_first([normal_sample_names, []]))}~{if normal_is_present then "'" else ""} \
+            ~{tumor_bam_arg} \
+            ~{normal_bam_arg} \
+            ~{normal_sample_arg} \
             --output '~{output_vcf}' \
             ~{"--intervals '" + interval_list + "'"} \
             ~{"--alleles '" + force_call_alleles + "'"} \
@@ -267,11 +271,7 @@ task MergeMutectStats {
         Runtime runtime_params
     }
 
-    # Optional localization leads to cromwell error.
-    # parameter_meta {
-    #     stats: {localization_optional: true}
-    # }
-
+    String stats_arg = sep("' ", prefix("-stats '", stats)) + "'"
     String output_name = individual_id + ".merged.stats"
 
     command <<<
@@ -279,7 +279,7 @@ task MergeMutectStats {
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             MergeMutectStats \
-            ~{sep="' " prefix("-stats '", stats)}' \
+            ~{stats_arg} \
             --output '~{output_name}'
     >>>
 
@@ -297,6 +297,11 @@ task MergeMutectStats {
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
     }
+
+    # Optional localization leads to cromwell error.
+    # parameter_meta {
+    #     stats: {localization_optional: true}
+    # }
 }
 
 task LearnReadOrientationModel {
@@ -317,26 +322,15 @@ task LearnReadOrientationModel {
         Runtime runtime_params
     }
 
-    # Optional localization leads to cromwell error.
-    # parameter_meta {
-    #     f1r2_counts: {localization_optional: true}
-    # }
-
+    String f1r2_counts_arg = sep("' ", prefix("-I '", f1r2_counts)) + "'"
     String output_name = individual_id + ".artifact_priors.tar.gz"
-    Boolean f1r2_counts_empty = (length(f1r2_counts) == 0)
 
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
-
-        if ~{f1r2_counts_empty} ; then
-            echo "ERROR: f1r2_counts_tar_gz must be supplied and non empty."
-            false
-        fi
-
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             LearnReadOrientationModel \
-            ~{sep="' " prefix("-I '", f1r2_counts)}' \
+            ~{f1r2_counts_arg} \
             --output '~{output_name}'
     >>>
 
@@ -354,4 +348,9 @@ task LearnReadOrientationModel {
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
     }
+
+    # Optional localization leads to cromwell error.
+    # parameter_meta {
+    #     f1r2_counts: {localization_optional: true}
+    # }
 }

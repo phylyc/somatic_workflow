@@ -101,7 +101,6 @@ workflow CreateMutect2PanelOfNormals {
                 run_variant_annotation = false,
 
                 keep_germline = false,
-                compress_output = true,
                 make_bamout = false,
 
                 compress_output = compress_output,
@@ -195,6 +194,8 @@ task CreateMutect2Panel {
     String output_file = output_vcf_name + if compress_output then ".vcf.gz" else ".vcf"
     String output_file_idx = output_file + if compress_output then ".tbi" else ".idx"
 
+    String vcf_arg = sep("' ", prefix("-V '", input_vcfs)) + "'"
+
     command {
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
@@ -203,7 +204,7 @@ task CreateMutect2Panel {
             GenomicsDBImport \
             --genomicsdb-workspace-path pon_db \
             -R '~{ref_fasta}' \
-            ~{sep="' " prefix("-V '", input_vcfs)}' \
+            ~{vcf_arg} \
             -L '~{interval_list}'
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \

@@ -115,6 +115,7 @@ task PreprocessIntervals {
         Runtime runtime_params
     }
 
+    String interval_lists_arg = if defined(interval_lists) then sep("' ", prefix("-L '", select_first([interval_lists, ["none"]]))) + "'" else ""
     String preprocessed_intervals = "preprocessed.interval_list"
 
     command <<<
@@ -125,7 +126,7 @@ task PreprocessIntervals {
             -R '~{ref_fasta}' \
             ~{"-L '" + interval_list + "'"} \
             ~{"-XL '" + interval_blacklist + "'"} \
-            ~{sep="' " prefix("-L '", select_first([interval_lists, []]))}~{if defined(interval_lists) then "'" else ""} \
+            ~{interval_lists_arg} \
             --bin-length ~{bin_length} \
             --padding ~{padding} \
             --interval-merging-rule OVERLAPPING_ONLY \
@@ -233,15 +234,6 @@ task SelectVariants {
         # needs to be updated for gatk 4.4.0.0
     }
 
-    parameter_meta {
-        interval_list: {localization_optional: true}
-        ref_fasta: {localization_optional: true}
-        ref_fasta_index: {localization_optional: true}
-        # ref_dict: {localization_optional: true}  # needs to be localized for SortVcf
-        vcf: {localization_optional: true}
-        vcf_idx: {localization_optional: true}
-    }
-
     String uncompressed_input_vcf = basename(vcf, ".gz")
     String base_name = if defined(tumor_sample_name) then sub(select_first([tumor_sample_name, ""]), " ", "+") else basename(uncompressed_input_vcf, ".vcf")
     String output_base_name = base_name + ".selected"
@@ -252,17 +244,6 @@ task SelectVariants {
     String uncompressed_selected_vcf_idx = uncompressed_selected_vcf + ".idx"
     String output_vcf = uncompressed_selected_vcf + if compress_output then ".gz" else ""
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
-
-    String dollar = "$"
-    # Remove variants from multi-sample calling that are not present in the selected
-    # tumor sample. We require that the total read depth is greater than the allelic
-    # depth of the reference allele. This ensures that there is at least one alternate
-    # allele present.
-    String select_true_variants_arg = (
-        if defined(tumor_sample_name)
-        then "-select 'vc.getGenotype(\"" + tumor_sample_name + "\").getAD().0 < vc.getGenotype(\"" + tumor_sample_name + "\").getDP()'"
-        else ""
-    )
 
     # todo: make empty input vcf not fail the task
     command <<<
@@ -277,26 +258,26 @@ task SelectVariants {
             --exclude-filtered false \
             ~{"--sample-name '" + tumor_sample_name + "'"} \
             ~{"--sample-name '" + normal_sample_name + "'"} \
-            ~{select_true_variants_arg} \
+            ~{"-select 'vc.getGenotype(\"" + tumor_sample_name + "\").getAD().0 < vc.getGenotype(\"" + tumor_sample_name + "\").getDP()'"} \
             ~{select_variants_extra_args}
 
         # =======================================
         # We do the selection step using grep to also select germline variants.
 
         grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
-        num_vars=~{dollar}(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
+        num_vars=$(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
 
         if ~{select_passing} ; then
             echo ">> Selecting PASSing variants ... "
             grep -v "^#" '~{select_variants_output_vcf}' | grep "PASS" >> '~{uncompressed_selected_vcf}'
-            num_selected_vars=~{dollar}(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
-            echo ">> Selected ~{dollar}num_selected_vars PASSing out of ~{dollar}num_vars variants."
+            num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
+            echo ">> Selected $num_selected_vars PASSing out of$num_vars variants."
         fi
         if ~{keep_germline} ; then
             echo ">> Selecting germline variants ... "
             grep -v "^#" '~{select_variants_output_vcf}' | grep "\tgermline\t" >> '~{uncompressed_selected_vcf}'
-            num_selected_vars=~{dollar}(grep "\tgermline\t" '~{uncompressed_selected_vcf}' | wc -l)
-            echo ">> Selected ~{dollar}num_selected_vars germline out of ~{dollar}num_vars variants."
+            num_selected_vars=$(grep "\tgermline\t" '~{uncompressed_selected_vcf}' | wc -l)
+            echo ">> Selected $num_selected_vars germline out of $num_vars variants."
         fi
 
         if ~{!(select_passing || keep_germline)} ; then
@@ -314,15 +295,15 @@ task SelectVariants {
 
         if ~{defined(tumor_sample_name)} ; then
             echo ">> Fixing tumor sample name in vcf header ... "
-            input_header=~{dollar}(grep "##tumor_sample=" '~{uncompressed_selected_vcf}')
+            input_header=$(grep "##tumor_sample=" '~{uncompressed_selected_vcf}')
             corrected_header="##tumor_sample=~{tumor_sample_name}"
-            sed -i "s/~{dollar}input_header/~{dollar}corrected_header/g" '~{uncompressed_selected_vcf}'
+            sed -i "s/$input_header/$corrected_header/g" '~{uncompressed_selected_vcf}'
         fi
         if ~{defined(normal_sample_name)} ; then
             echo ">> Fixing normal sample name in vcf header ... "
-            input_header=~{dollar}(grep "##normal_sample=" '~{uncompressed_selected_vcf}')
+            input_header=$(grep "##normal_sample=" '~{uncompressed_selected_vcf}')
             corrected_header="##normal_sample=~{normal_sample_name}"
-            sed -i "s/~{dollar}input_header/~{dollar}corrected_header/g" '~{uncompressed_selected_vcf}'
+            sed -i "s/$input_header/$corrected_header/g" '~{uncompressed_selected_vcf}'
         fi
 
         # Selecting both PASSing and germline variants can lead to unsorted vcf.
@@ -363,6 +344,15 @@ task SelectVariants {
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
     }
+
+    parameter_meta {
+        interval_list: {localization_optional: true}
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        # ref_dict: {localization_optional: true}  # needs to be localized for SortVcf
+        vcf: {localization_optional: true}
+        vcf_idx: {localization_optional: true}
+    }
 }
 
 task MergeVCFs {
@@ -380,11 +370,7 @@ task MergeVCFs {
         Runtime runtime_params
     }
 
-    # Optional localization leads to cromwell error.
-    # parameter_meta {
-    #     vcfs: {localization_optional: true}
-    #     vcfs_idx: {localization_optional: true}
-    # }
+    String vcf_arg = sep("' ", prefix("-I '", vcfs)) + "'"
 
     String output_vcf = output_name + ".vcf" + if compress_output then ".gz" else ""
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
@@ -394,9 +380,9 @@ task MergeVCFs {
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             MergeVcfs \
-            ~{sep="' " prefix("-I '", vcfs)}' \
-            ~{"-R " + ref_fasta} \
-            ~{"-D " + ref_dict} \
+            ~{vcf_arg} \
+            ~{"-R '" + ref_fasta + "'"} \
+            ~{"-D '" + ref_dict + "'"} \
             -O '~{output_vcf}'
     >>>
 
@@ -415,6 +401,12 @@ task MergeVCFs {
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
     }
+
+    # Optional localization leads to cromwell error.
+    # parameter_meta {
+    #     vcfs: {localization_optional: true}
+    #     vcfs_idx: {localization_optional: true}
+    # }
 }
 
 task MergeMAFs {
@@ -429,6 +421,8 @@ task MergeMAFs {
         Runtime runtime_params
     }
 
+    String maf_list_arg = sep("\n", mafs)
+
     String uncompressed_output_maf = output_name + ".maf"
     String output_maf = output_name + ".maf" + if compress_output then ".gz" else ""
     String dollar = "$"
@@ -437,7 +431,7 @@ task MergeMAFs {
         set -e
 
         # Convert WDL array to a temporary file
-        echo '~{sep='\n' mafs}' > temp_mafs.txt
+        echo '~{maf_list_arg}' > temp_mafs.txt
 
         # Read temporary file into a shell array
         mapfile -t mafs < temp_mafs.txt
@@ -450,7 +444,7 @@ task MergeMAFs {
 
         # Extract variants
         for maf in ~{dollar}{mafs[@]} ; do
-            grep -v "^#" "~{dollar}maf" | tail -n +2 >> '~{uncompressed_output_maf}'
+            grep -v "^#" "$maf" | tail -n +2 >> '~{uncompressed_output_maf}'
         done
 
         if ~{compress_output} ; then
@@ -491,13 +485,7 @@ task MergeBams {
         Runtime runtime_params
     }
 
-    parameter_meta {
-        ref_fasta: {localization_optional: true}
-        ref_fasta_index: {localization_optional: true}
-        ref_dict: {localization_optional: true}
-        # bams: {localization_optional: true}  # samtools requires localization
-    }
-
+    String bams_arg = sep("' ", prefix("-I '", bams)) + "'"
     Int disk_spaceGB = 4 * ceil(size(bams, "GB")) + runtime_params.disk
     String output_bam_name = merged_bam_name + ".bam"
     String output_bai_name = merged_bam_name + ".bai"
@@ -507,7 +495,7 @@ task MergeBams {
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             GatherBamFiles \
-            ~{sep="' " prefix("-I '", bams)}' \
+            ~{bams_arg} \
             -O unsorted.out.bam \
             -R '~{ref_fasta}'
 
@@ -537,9 +525,16 @@ task MergeBams {
         bootDiskSizeGb: runtime_params.boot_disk_size
         memory: runtime_params.machine_mem + " MB"
         runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
+        disks: "local-disk " + disk_spaceGB + " HDD"
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
+        # bams: {localization_optional: true}  # samtools requires localization
     }
 }

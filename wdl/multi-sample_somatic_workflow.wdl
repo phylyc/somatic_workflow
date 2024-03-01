@@ -118,7 +118,6 @@ workflow MultiSampleSomaticWorkflow {
         String? select_variants_extra_args
         String? select_low_conficence_variants_jexl_arg = "'(vc.getAttribute(\"GERMQ\") < 30) || (vc.getAttribute(\"DP\") < 4) || (vc.getAttribute(\"MBQ\").0 == 0) || (vc.getAttribute(\"MFRL\").0 == 0)'"
         String? realignment_extra_args
-        String? cnn_score_variants_extra_args
         String? funcotate_extra_args
 
         RuntimeCollection runtime_collection = GetRTC.rtc

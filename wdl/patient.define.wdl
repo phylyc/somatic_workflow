@@ -37,12 +37,12 @@ workflow DefinePatient {
 
     # We first define SequencingRuns for each tumor and normal bam, and then group them by sample name into Samples.
 
-    scatter (s in transpose([tumor_bams, tumor_bais, tumor_target_intervals])) {
+    scatter (tuple in transpose([tumor_bams, tumor_bais, tumor_target_intervals])) {
         call seq_run_def.DefineSequencingRun as DefineTumorSequencingRun {
             input:
-                bam = s[0],
-                bai = s[1],
-                target_intervals = s[2],
+                bam = tuple[0],
+                bai = tuple[1],
+                target_intervals = tuple[2],
                 runtime_collection = runtime_collection
         }
         String tumor_bam_names = DefineTumorSequencingRun.sequencing_run.name
@@ -64,7 +64,7 @@ workflow DefinePatient {
                 # For some sequencing platforms a panel of normals may not be available.
                 # The denoise read counts task will then just use the anntated target
                 # intervals to do GC correction.
-                File? t_cnv_panel_of_normals = pair.right
+                File t_cnv_panel_of_normals = pair.right
             }
             call seq_run.UpdateSequencingRun as UpdateCnvPanelOfNormalsTumorSeq {
                 input:
@@ -76,12 +76,12 @@ workflow DefinePatient {
     Array[SequencingRun] tumors_3 = select_first([UpdateCnvPanelOfNormalsTumorSeq.updated_sequencing_run, tumors_2])
 
     if (has_normal) {
-        scatter (s in transpose([non_optional_normal_bams, non_optional_normal_bais, non_optional_normal_target_intervals])) {
+        scatter (tuple in transpose([non_optional_normal_bams, non_optional_normal_bais, non_optional_normal_target_intervals])) {
             call seq_run_def.DefineSequencingRun as DefineNormalSequencingRun {
                 input:
-                    bam = s[0],
-                    bai = s[1],
-                    target_intervals = s[2],
+                    bam = tuple[0],
+                    bai = tuple[1],
+                    target_intervals = tuple[2],
                     runtime_collection = runtime_collection
             }
             String normal_bam_names = DefineNormalSequencingRun.sequencing_run.name
@@ -104,7 +104,7 @@ workflow DefinePatient {
                 # For some sequencing platforms a panel of normals may not be available.
                 # The denoise read counts task will then just use the anntated target
                 # intervals to do GC correction.
-                File? n_cnv_panel_of_normals = pair.right
+                File n_cnv_panel_of_normals = pair.right
             }
             call seq_run.UpdateSequencingRun as UpdateCnvPanelOfNormalsNormalSeq {
                 input:

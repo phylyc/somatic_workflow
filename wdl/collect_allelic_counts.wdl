@@ -100,6 +100,7 @@ workflow CollectAllelicCounts {
                     scattered_intervals = scattered_intervals,
                     common_germline_alleles = select_first([common_germline_alleles, VcfToPileupVariants.common_germline_alleles]),
                     common_germline_alleles_idx = select_first([common_germline_alleles_idx, VcfToPileupVariants.common_germline_alleles_idx]),
+                    getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                     minimum_population_allele_frequency = minimum_population_allele_frequency,
                     maximum_population_allele_frequency = maximum_population_allele_frequency,
                     runtime_params = runtime_collection.get_pileup_summaries,
@@ -125,6 +126,7 @@ workflow CollectAllelicCounts {
                 sample_name = sample_name,
                 common_germline_alleles = select_first([common_germline_alleles, VcfToPileupVariants.common_germline_alleles]),
                 common_germline_alleles_idx = select_first([common_germline_alleles_idx, VcfToPileupVariants.common_germline_alleles_idx]),
+                getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
                 maximum_population_allele_frequency = maximum_population_allele_frequency,
                 runtime_params = runtime_collection.get_pileup_summaries,
@@ -159,15 +161,13 @@ task VcfToPileupVariants {
         Runtime runtime_params
     }
 
-    Int diskGB = ceil(2 * size(vcf, "GB"))
+    Int diskGB = ceil(2 * size(vcf, "GB")) + runtime_params.disk
 
     String sample_name = basename(basename(basename(vcf, ".gz"), ".bgz"), ".vcf")
     String tmp_vcf = sample_name + ".tmp.vcf"
     String uncompressed_vcf = sample_name + ".af_only.vcf"
     String af_only_vcf = sample_name + ".af_only.vcf.gz"
     String af_only_vcf_idx = af_only_vcf + ".tbi"
-
-    String dollar = "$"
 
     command <<<
         set -e
@@ -184,7 +184,7 @@ task VcfToPileupVariants {
         # Filter and modify non-header lines to include AF information
         # Use AWK to set the 'AF' INFO field to the specified value
         grep -v "^#" '~{tmp_vcf}' \
-            | awk 'BEGIN {OFS="\t"} {~{dollar}8 = "AF=~{AF}"; print}' \
+            | awk 'BEGIN {OFS="\t"} {$8 = "AF=~{AF}"; print}' \
             >> '~{uncompressed_vcf}'
 
         # Compress the modified VCF file (bgzip is not available)
@@ -207,7 +207,7 @@ task VcfToPileupVariants {
         bootDiskSizeGb: runtime_params.boot_disk_size
         memory: runtime_params.machine_mem + " MB"
         runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
+        disks: "local-disk " + diskGB + " HDD"
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
@@ -249,8 +249,8 @@ task GetPileupSummaries {
 
         # Create an empty pileup file if there are no common_germline_alleles in the intersection
         # between the common_germline_alleles and the intervals. Will be overwritten by GetPileupSummaries
-        echo "#<METADATA>SAMPLE=~{sample_id}" > '~{output_file}'
-        echo "contig\tposition\tref_count\talt_count\tother_alt_count\tallele_frequency" >> '~{output_file}'
+        printf "#<METADATA>SAMPLE=~{sample_id}" > '~{output_file}'
+        printf "contig\tposition\tref_count\talt_count\tother_alt_count\tallele_frequency" >> '~{output_file}'
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             GetPileupSummaries \
@@ -304,6 +304,7 @@ task GatherPileupSummaries {
         Runtime runtime_params
     }
 
+    String input_tables_arg = sep("' ", prefix("-I '", input_tables)) + "'"
     String output_file = sample_name + ".pileup"
 
     command <<<
@@ -312,7 +313,7 @@ task GatherPileupSummaries {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             GatherPileupSummaries \
             --sequence-dictionary '~{ref_dict}' \
-            ~{sep="' " prefix("-I '", input_tables)}' \
+            ~{input_tables_arg} \
             -O '~{output_file}'
     >>>
 
@@ -349,7 +350,6 @@ task SelectPileups {
 
     String output_file = sample_name + ".pileup"
     String tmp_output_file = "tmp." + output_file
-    String dollar = "$"
 
     command <<<
         # Extract leading comment lines
@@ -359,12 +359,12 @@ task SelectPileups {
         grep -v '^#' '~{pileup_summaries}' | head -n 1 >> '~{tmp_output_file}'
 
         # Count the number of lines that are not comments (headers)
-        num_variants_plus_one=~{dollar}(grep -vc '^#' '~{pileup_summaries}')
+        num_variants_plus_one=$(grep -vc '^#' '~{pileup_summaries}')
 
-        if [ "~{dollar}num_variants_plus_one" -gt 1 ]; then
+        if [ "$num_variants_plus_one" -gt 1 ]; then
             # Extract table and select lines with read depth >= min_read_depth
             grep -v '^#' '~{pileup_summaries}' | tail -n +2 \
-                | awk -F"\t" '~{dollar}3 + ~{dollar}4 + ~{dollar}5 >= ~{minimum_read_depth}' \
+                | awk -F"\t" '$3 + $4 + $5 >= ~{minimum_read_depth}' \
                 >> '~{tmp_output_file}'
         fi
 

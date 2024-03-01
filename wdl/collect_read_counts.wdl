@@ -65,7 +65,7 @@ workflow CollectReadCounts {
 
     String this_sample_name = select_first([sample_name, sequencing_run.name])
 
-	call CollectReadCounts {
+	call CollectReadCountsTask {
 		input:
 			interval_list = sequencing_run.target_intervals,
             ref_fasta = ref_fasta,
@@ -82,7 +82,7 @@ workflow CollectReadCounts {
     if (defined(sequencing_run.annotated_target_intervals) || defined(sequencing_run.cnv_panel_of_normals)) {
         call DenoiseReadCounts {
             input:
-                read_counts = CollectReadCounts.read_counts,
+                read_counts = CollectReadCountsTask.read_counts,
                 sample_name = this_sample_name,
                 annotated_interval_list = sequencing_run.annotated_target_intervals,
                 count_panel_of_normals = sequencing_run.cnv_panel_of_normals,
@@ -92,13 +92,13 @@ workflow CollectReadCounts {
 
     output {
         String sample_name = this_sample_name
-        File read_counts = CollectReadCounts.read_counts
+        File read_counts = CollectReadCountsTask.read_counts
         File? denoised_copy_ratios = DenoiseReadCounts.denoised_copy_ratios
         File? standardized_copy_ratios = DenoiseReadCounts.standardized_copy_ratios
     }
 }
 
-task CollectReadCounts {
+task CollectReadCountsTask {
     input {
         File interval_list
         File ref_fasta

@@ -276,19 +276,6 @@ task FilterMutectCalls {
         Runtime runtime_params
     }
 
-    # Optional localization leads to cromwell error.
-    parameter_meta{
-        ref_fasta: {localization_optional: true}
-        ref_fasta_index: {localization_optional: true}
-        ref_dict: {localization_optional: true}
-        vcf: {localization_optional: true}
-        vcf_idx: {localization_optional: true}
-        # orientation_bias: {localization_optional: true}
-        # contamination_tables: {localization_optional: true}
-        # tumor_segmentation: {localization_optional: true}
-        # mutect_stats: {localization_optional: true}
-    }
-
     Int disk = (
         ceil(size(vcf, "GB"))
         + ceil(size(orientation_bias, "GB"))
@@ -297,6 +284,9 @@ task FilterMutectCalls {
         + ceil(size(mutect_stats, "GB"))
         + runtime_params.disk
     )
+
+    String contamination_arg = if defined(contamination_tables) then sep("' ", prefix("--contamination-table '", select_first([contamination_tables, []]))) + "'" else ""
+    String segmentation_arg = if defined(tumor_segmentation) then sep("' ", prefix("--tumor-segmentation '", select_first([tumor_segmentation, []]))) + "'" else ""
 
     String output_base_name = basename(basename(vcf, ".gz"), ".vcf") + ".filtered"
     String output_vcf = output_base_name + if compress_output then ".vcf.gz" else ".vcf"
@@ -311,8 +301,8 @@ task FilterMutectCalls {
             --variant '~{vcf}' \
             --output '~{output_vcf}' \
             ~{"--orientation-bias-artifact-priors '" + orientation_bias + "'"} \
-            ~{sep="' " prefix("--contamination-table '", select_first([contamination_tables, []]))}~{if defined(contamination_tables) then "'" else ""}  \
-            ~{sep="' " prefix("--tumor-segmentation '", select_first([tumor_segmentation, []]))}~{if defined(tumor_segmentation) then "'" else ""}  \
+            ~{contamination_arg}  \
+            ~{segmentation_arg}  \
             ~{"--stats '" + mutect_stats + "'"} \
             ~{"--max-median-fragment-length-difference " + max_median_fragment_length_difference} \
             ~{"--min-median-base-quality " + min_alt_median_base_quality} \
@@ -339,6 +329,19 @@ task FilterMutectCalls {
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
     }
+
+    # Optional localization leads to cromwell error.
+    parameter_meta{
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
+        vcf: {localization_optional: true}
+        vcf_idx: {localization_optional: true}
+        # orientation_bias: {localization_optional: true}
+        # contamination_tables: {localization_optional: true}
+        # tumor_segmentation: {localization_optional: true}
+        # mutect_stats: {localization_optional: true}
+    }
 }
 
 task FilterAlignmentArtifacts {
@@ -364,18 +367,9 @@ task FilterAlignmentArtifacts {
         Runtime runtime_params
     }
 
-    parameter_meta {
-        vcf: {localization_optional: true}
-        vcf_idx: {localization_optional: true}
-        tumor_bams: {localization_optional: true}
-        tumor_bais: {localization_optional: true}
-        ref_fasta: {localization_optional: true}
-        ref_fasta_index: {localization_optional: true}
-        ref_dict: {localization_optional: true}
-        # bwa_mem_index_image: {localization_optional: true}  # needs to be localized
-    }
-
     Int disk = ceil(size(bwa_mem_index_image, "GB")) + runtime_params.disk
+
+    String bam_arg = sep("' ", prefix("-I '", tumor_bams)) + "'"
 
     String output_base_name = basename(basename(vcf, ".gz"), ".vcf") + ".realignmentfiltered"
     String output_vcf = output_base_name + if compress_output then ".vcf.gz" else ".vcf"
@@ -393,7 +387,7 @@ task FilterAlignmentArtifacts {
         # Not skipping filtered variants is important for keeping germline variants if requested.
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             FilterAlignmentArtifacts \
-            ~{sep="' " prefix("-I '", tumor_bams)}' \
+            ~{bam_arg} \
             --variant '~{vcf}' \
             --reference '~{ref_fasta}' \
             --bwa-mem-index-image '~{bwa_mem_index_image}' \
@@ -417,5 +411,16 @@ task FilterAlignmentArtifacts {
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        vcf: {localization_optional: true}
+        vcf_idx: {localization_optional: true}
+        tumor_bams: {localization_optional: true}
+        tumor_bais: {localization_optional: true}
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
+        # bwa_mem_index_image: {localization_optional: true}  # needs to be localized
     }
 }

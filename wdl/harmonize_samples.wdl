@@ -21,7 +21,6 @@ workflow HarmonizeSamples {
         scatter (sequencing_run in sample.sequencing_runs) {
             String this_seq_sample_names = sample.name
         }
-        String sample_names = sample.name
     }
     Array[String] seq_sample_names = flatten(this_seq_sample_names)
 
@@ -45,12 +44,12 @@ workflow HarmonizeSamples {
             scatter (h_dcr in HarmonizeCopyRatios.harmonized_denoised_copy_ratios) {
                 String this_dcr_sample_name = basename(basename(basename(h_dcr, ".hdf5"), ".tsv"), ".denoised_CR")
                 if (sample.name == this_dcr_sample_name) {
-                    File? this_dcr = h_dcr
+                    File this_dcr = h_dcr
                 }
             }
             Array[File] this_sample_dcr = select_all(this_dcr)
         }
-        Array[File]? sorted_harmonized_denoised_copy_ratios = flatten(this_sample_dcr)
+        Array[File] sorted_harmonized_denoised_copy_ratios = flatten(this_sample_dcr)
     }
 
     if (has_AC) {
@@ -67,12 +66,12 @@ workflow HarmonizeSamples {
             scatter (allelic_count in MergeAllelicCounts.merged_allelic_counts) {
                 String this_sample_name = basename(basename(allelic_count, ".gz"), ".pileup")
                 if (sample.name == this_sample_name) {
-                    File? this_allelic_counts = allelic_count
+                    File this_allelic_counts = allelic_count
                 }
             }
             Array[File] this_sample_allelic_counts = select_all(this_allelic_counts)
         }
-        Array[File]? sorted_allelic_counts = flatten(this_sample_allelic_counts)
+        Array[File] sorted_allelic_counts = flatten(this_sample_allelic_counts)
     }
 
     output {
@@ -96,6 +95,9 @@ task HarmonizeCopyRatios {
 
     String output_dir = "."
 
+    String sample_names_arg = sep("' ", prefix("--sample '", sample_names)) + "'"
+    String copy_ratios_arg = sep("' ", prefix("--copy_ratio '", denoised_copy_ratios)) + "'"
+
 #    Array[String] harmonized_denoised_cr = suffix(sample_names, ".denoised_CR.tsv")
 
     command <<<
@@ -103,8 +105,8 @@ task HarmonizeCopyRatios {
         wget -O harmonize_copy_ratios.py ~{script}
         python harmonize_copy_ratios.py \
             --output_dir '~{output_dir}' \
-            ~{sep="' " prefix("--sample '", sample_names)}' \
-            ~{sep="' " prefix("--copy_ratio '", denoised_copy_ratios)}' \
+            ~{sample_names_arg} \
+            ~{copy_ratios_arg} \
             --suffix ".harmonized.denoised_CR" \
             --threads ~{runtime_params.cpu} \
             ~{if compress_output then "--compress_output" else ""} \
@@ -141,6 +143,9 @@ task MergeAllelicCounts {
 
     String output_dir = "."
 
+    String sample_names_arg = sep("' ", prefix("--sample '", sample_names)) + "'"
+    String allelic_counts_arg = sep("' ", prefix("-P '", allelic_counts)) + "'"
+
 #    Array[String] merged_pileups = suffix(sample_names, ".pileup")
 
     command <<<
@@ -148,8 +153,8 @@ task MergeAllelicCounts {
         wget -O merge_pileups.py ~{script}
         python merge_pileups.py \
             --output_dir '~{output_dir}' \
-            ~{sep="' " prefix("--sample '", sample_names)}' \
-            ~{sep="' " prefix("-P '", allelic_counts)}' \
+            ~{sample_names_arg}' \
+            ~{allelic_counts_arg}' \
             ~{if compress_output then "--compress_output" else ""} \
             ~{if verbose then "--verbose" else ""}
     >>>

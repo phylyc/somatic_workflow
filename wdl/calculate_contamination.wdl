@@ -145,10 +145,10 @@ workflow CalculateContamination {
 
     File non_optional_tumor_pileups = select_first([tumor_pileups, TumorPileupSummaries.pileup_summaries])
     if (defined(normal_pileups) || defined(NormalPileupSummaries.pileup_summaries)) {
-        File? optional_normal_pileup_summaries = select_first([normal_pileups, NormalPileupSummaries.pileup_summaries])
+        File optional_normal_pileup_summaries = select_first([normal_pileups, NormalPileupSummaries.pileup_summaries])
     }
 
-    call CalculateContamination {
+    call CalculateContaminationTask {
         input:
             tumor_pileups = non_optional_tumor_pileups,
             normal_pileups = optional_normal_pileup_summaries,
@@ -158,12 +158,12 @@ workflow CalculateContamination {
     output {
         File tumor_pileup_summaries = non_optional_tumor_pileups
         File? normal_pileup_summaries = optional_normal_pileup_summaries
-        File contamination_table = CalculateContamination.contamination_table
-        File segmentation = CalculateContamination.segmentation
+        File contamination_table = CalculateContaminationTask.contamination_table
+        File segmentation = CalculateContaminationTask.segmentation
     }
 }
 
-task CalculateContamination {
+task CalculateContaminationTask {
     input {
         File tumor_pileups
         File? normal_pileups
@@ -172,7 +172,6 @@ task CalculateContamination {
     }
 
     String tumor_sample_id = basename(tumor_pileups, ".pileup")
-    String normal_sample_id = if defined(normal_pileups) then "." + basename(select_first([normal_pileups]), ".pileup") else ""
     String output_contamination = tumor_sample_id + ".contamination"
     String output_segments = tumor_sample_id + ".segments"
 

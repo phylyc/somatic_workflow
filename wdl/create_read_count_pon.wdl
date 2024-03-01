@@ -133,6 +133,7 @@ task CreateReadCountPanelOfNormals {
         Runtime runtime_params
     }
 
+    String input_counts_arg = sep("' ", prefix("-I '", input_counts)) + "'"
     String output_pon = output_name + ".hdf5"
 
 	command <<<
@@ -140,7 +141,7 @@ task CreateReadCountPanelOfNormals {
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CreateReadCountPanelOfNormals \
-            ~{sep="' " prefix("-I '", input_counts)}' \
+            ~{input_counts_arg} \
             -O '~{output_pon}' \
             ~{"--annotated-intervals '" + annotated_interval_list + "'"} \
             --number-of-eigensamples ~{number_of_eigensamples}

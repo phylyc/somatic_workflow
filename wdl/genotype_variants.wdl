@@ -50,7 +50,7 @@ workflow GenotypeVariants {
             time_genotype_variants = time_genotype_variants
     }
 
-    call GenotypeVariants {
+    call GenotypeVariantsTask {
         input:
             script = script,
             individual_id = individual_id,
@@ -73,17 +73,17 @@ workflow GenotypeVariants {
     # todo: resort sample genotype likelihoods
 
     output {
-        File vcf = GenotypeVariants.vcf
-        File vcf_idx = GenotypeVariants.vcf_idx
-        File ref_counts = GenotypeVariants.ref_counts
-        File alt_counts = GenotypeVariants.alt_counts
-        File other_alt_counts = GenotypeVariants.other_alt_counts
-        File sample_correlation = GenotypeVariants.sample_correlation
-        Array[File]? sample_genotype_likelihoods = GenotypeVariants.sample_genotype_likelihoods
+        File vcf = GenotypeVariantsTask.vcf
+        File vcf_idx = GenotypeVariantsTask.vcf_idx
+        File ref_counts = GenotypeVariantsTask.ref_counts
+        File alt_counts = GenotypeVariantsTask.alt_counts
+        File other_alt_counts = GenotypeVariantsTask.other_alt_counts
+        File sample_correlation = GenotypeVariantsTask.sample_correlation
+        Array[File]? sample_genotype_likelihoods = GenotypeVariantsTask.sample_genotype_likelihoods
     }
 }
 
-task GenotypeVariants {
+task GenotypeVariantsTask {
     input {
         String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
 
@@ -116,6 +116,11 @@ task GenotypeVariants {
     String output_vcf = output_dir + "/" + individual_id + ".hets.vcf" + (if compress_output then ".gz" else "")
     String output_vcf_idx = output_vcf + (if compress_output then ".tbi" else ".idx")
 
+    String sample_names_arg = sep("' ", prefix("--sample '", sample_names)) + "'"
+    String pileups_arg = sep("' ", prefix("-P '", pileups)) + "'"
+    String contamination_arg = if defined(contamination_tables) then sep("' ", prefix("-C '", select_first([contamination_tables]))) + "'" else ""
+    String segmentation_arg = if defined(segmentation_tables) then sep("' ", prefix("-S '", select_first([segmentation_tables]))) + "'" else ""
+
     # Once "suffix" is implemented, we can use this over glob:
 #    Array[String] possible_sample_outputs = suffix(".likelihoods.pileup" + (if compress_output then ".gz" else ""), sample_names)
 #    Array[File]? output_sample_genotype_likelihoods = if save_sample_genotype_likelihoods then prefix(output_dir + "/", possible_sample_outputs) else None
@@ -127,10 +132,10 @@ task GenotypeVariants {
             --output_dir '~{output_dir}' \
             ~{"--variant '" + common_germline_alleles + "'"} \
             --patient '~{individual_id}' \
-            ~{sep="' " prefix("--sample '", sample_names)}' \
-            ~{sep="' " prefix("-P '", pileups)}' \
-            ~{sep="' " prefix("-S '", select_first([segmentation_tables, []]))}~{if defined(segmentation_tables) then "'" else ""} \
-            ~{sep="' " prefix("-C '", select_first([contamination_tables, []]))}~{if defined(contamination_tables) then "'" else ""} \
+            ~{sample_names_arg} \
+            ~{pileups_arg} \
+            ~{contamination_arg} \
+            ~{segmentation_arg} \
             --min_read_depth ~{min_read_depth} \
             --min_genotype_likelihood ~{min_genotype_likelihood} \
             --model ~{model} \

@@ -101,7 +101,6 @@ workflow CNVWorkflow {
                 normal_pileups = normal_pileups,
                 common_germline_alleles = args.common_germline_alleles,
                 common_germline_alleles_idx = args.common_germline_alleles_idx,
-                getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,
                 genotype_variants_script = args.genotype_variants_script,
                 genotype_variants_save_sample_genotype_likelihoods = args.genotype_variants_save_sample_genotype_likelihoods,
                 compress_output = args.compress_output,

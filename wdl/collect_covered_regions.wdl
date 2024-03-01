@@ -62,7 +62,7 @@ workflow CollectCoveredRegions {
             disk = 10 + ceil(1.2 * size(bam, "GB"))
     }
 
-    call CollectCoveredRegions {
+    call CollectCoveredRegionsTask {
         input:
             ref_fasta = ref_fasta,
             ref_fasta_index = ref_fasta_index,
@@ -78,14 +78,14 @@ workflow CollectCoveredRegions {
     }
 
     output {
-        File regions_bed = CollectCoveredRegions.bed
-        File? regions_bam = CollectCoveredRegions.bam
-        File? regions_bai = CollectCoveredRegions.bai
-        File? regions_interval_list = CollectCoveredRegions.intervals
+        File regions_bed = CollectCoveredRegionsTask.bed
+        File? regions_bam = CollectCoveredRegionsTask.bam
+        File? regions_bai = CollectCoveredRegionsTask.bai
+        File? regions_interval_list = CollectCoveredRegionsTask.intervals
     }
 }
 
-task CollectCoveredRegions {
+task CollectCoveredRegionsTask {
     input {
         File? ref_fasta
         File? ref_fasta_index
@@ -119,7 +119,7 @@ task CollectCoveredRegions {
     String covered_regions_bai = name + tag + ".bai"
     String covered_regions_interval_list = name + tag + ".interval_list"
 
-    String dollar = "$"
+    String read_filter_arg = if defined(read_filters) then sep(" ", prefix("--read-filter ", select_first([read_filters, []]))) else ""
 
     command <<<
         set -e
@@ -146,7 +146,7 @@ task CollectCoveredRegions {
             --read-filter MappingQualityReadFilter \
             --read-filter MappingQualityNotZeroReadFilter \
             --read-filter WellformedReadFilter \
-            ~{sep=" " prefix("--read-filter ", select_first([read_filters, []]))} \
+            ~{read_filter_arg} \
             ~{print_reads_extra_args}
 
         echo "..."
@@ -158,7 +158,7 @@ task CollectCoveredRegions {
             -max ~{max} \
             -bg \
             ~{if is_paired_end then "-pc" else ""} \
-        | awk '~{dollar}4>=~{max}' \
+        | awk '$4>=~{max}' \
         | bedtools merge -c 4 -o min -d 1 -i stdin \
         > '~{covered_regions_bed}'
         set +x
@@ -172,7 +172,7 @@ task CollectCoveredRegions {
             echo "Replace target names with dots to avoid bedtools error [E::bam_aux_next] Corrupted aux data for read ..."
 
             set -x
-            awk 'BEGIN{OFS="\t"}{~{dollar}4 = "."; print}' '~{covered_regions_bed}' \
+            awk 'BEGIN{OFS="\t"}{$4 = "."; print}' '~{covered_regions_bed}' \
                 > 'tmp.~{covered_regions_bed}'
             mv 'tmp.~{covered_regions_bed}' '~{covered_regions_bed}'
 

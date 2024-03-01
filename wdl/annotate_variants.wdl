@@ -140,7 +140,10 @@ task Funcotate {
     Int funco_tar_sizeGB = if defined(data_sources_paths) then 0 else (if defined(data_sources_tar_gz) then 4 * ceil(size(data_sources_tar_gz, "GB")) else 100)
     Int disk = runtime_params.disk + funco_tar_sizeGB
 
-    String dollar = "$"
+    String data_sources_path_arg = sep(" ", prefix("--data-sources-path ", select_first([data_sources_paths, ["$DATA_SOURCES_FOLDER"]])))
+    String annotation_default_arg = if defined(annotation_defaults) then sep(" ", prefix("--annotation-default ", select_first([annotation_defaults, ["none"]]))) else ""
+    String annotation_override_arg = if defined(annotation_overrides) then sep(" ", prefix("--annotation-override ", select_first([annotation_overrides, ["none"]]))) else ""
+    String exclude_fields_arg = if defined(exclude_fields) then sep(" ", prefix("--exclude-field ", select_first([exclude_fields, ["none"]]))) else ""
 
     command <<<
         set -e
@@ -151,7 +154,7 @@ task Funcotate {
             false
         fi
 
-        if ~{!defined(data_sources_paths)} ; then
+        if [ "~{defined(data_sources_paths)}" == "false" ] ; then
             mkdir datasources_dir
             DATA_SOURCES_FOLDER="$PWD/datasources_dir"
             echo "Obtaining Funcotator data sources..."
@@ -163,20 +166,20 @@ task Funcotate {
                     FuncotatorDataSourceDownloader \
                     --~{variant_type} \
                     --validate-integrity \
-                    --output ~{dollar}data_sources_tar_gz
+                    --output $data_sources_tar_gz
             fi
             echo "Unzipping Funcotator data sources..."
-            tar zxvf ~{dollar}data_sources_tar_gz -C datasources_dir --strip-components 1
+            tar zxvf $data_sources_tar_gz -C datasources_dir --strip-components 1
 
-            if ~{use_gnomad} ; then
+            if [ "~{use_gnomad}" == "true" ] ; then
                 echo "Enabling gnomAD..."
                 for potential_gnomad_gz in gnomAD_exome.tar.gz gnomAD_genome.tar.gz ; do
-                    if [[ -f ~{dollar}{DATA_SOURCES_FOLDER}/~{dollar}{potential_gnomad_gz} ]] ; then
-                        cd ~{dollar}{DATA_SOURCES_FOLDER}
-                        tar -zvxf ~{dollar}{potential_gnomad_gz}
+                    if [[ -f $DATA_SOURCES_FOLDER/$potential_gnomad_gz ]] ; then
+                        cd $DATA_SOURCES_FOLDER
+                        tar -zvxf $potential_gnomad_gz
                         cd -
                     else
-                        echo "ERROR: Cannot find gnomAD folder: ~{dollar}{potential_gnomad_gz}" 1>&2
+                        echo "ERROR: Cannot find gnomAD folder: $potential_gnomad_gz" 1>&2
                         false
                     fi
                 done
@@ -185,7 +188,7 @@ task Funcotate {
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             Funcotator \
-            ~{sep=" " prefix("--data-sources-path ", select_first([data_sources_paths, [dollar + "DATA_SOURCES_FOLDER"]]))} \
+            ~{data_sources_path_arg} \
             --ref-version ~{reference_version} \
             --output-file-format ~{output_format} \
             -R '~{ref_fasta}' \
@@ -197,12 +200,12 @@ task Funcotate {
             --annotation-default 'individual_id:~{individual_id}' \
             --annotation-default 'tumor_barcode:~{tumor_sample_name}' \
             --annotation-default 'normal_barcode:~{normal_sample_name}' \
-            ~{sep=" " prefix("--annotation-default ", select_first([annotation_defaults, []]))} \
-            ~{sep=" " prefix("--annotation-override ", select_first([annotation_overrides, []]))} \
-            ~{sep=" " prefix("--exclude-field ", select_first([exclude_fields, []]))} \
+            ~{annotation_default_arg} \
+            ~{annotation_override_arg} \
+            ~{exclude_fields_arg} \
             ~{funcotate_extra_args}
 
-        rm -rf ~{dollar}DATA_SOURCES_FOLDER
+        rm -rf $DATA_SOURCES_FOLDER
     >>>
 
     output {

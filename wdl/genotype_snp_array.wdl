@@ -18,7 +18,6 @@ workflow GenotypeSNPArray {
 
         File? common_germline_alleles  # SNP array
         File? common_germline_alleles_idx
-        String? getpileupsummaries_extra_args
 
         String genotype_variants_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
         Boolean genotype_variants_save_sample_genotype_likelihoods = false
@@ -32,13 +31,14 @@ workflow GenotypeSNPArray {
         scatter (normal_pileup in select_first([normal_pileups])) {
             call cc.CalculateContamination as CalculateNormalContamination {
                 input:
+                    scattered_interval_list = scattered_interval_list,
                     tumor_pileups = normal_pileup,
                     runtime_collection = runtime_collection,
             }
         }
 
         # todo: Choose the normal with the greatest sequencing depth.
-        File? matched_normal_pileup = select_first(select_first([normal_pileups, []]))
+        File matched_normal_pileup = select_first(select_first([normal_pileups, []]))
     }
 
     scatter (tumor_pileup in tumor_pileups) {
@@ -46,6 +46,7 @@ workflow GenotypeSNPArray {
         # sites that have been confidently genotyped as homozygous SNPs in the normal.
         call cc.CalculateContamination as CalculateTumorContamination {
             input:
+                scattered_interval_list = scattered_interval_list,
                 tumor_pileups = tumor_pileup,
                 normal_pileups = matched_normal_pileup,
                 runtime_collection = runtime_collection,
