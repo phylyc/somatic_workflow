@@ -9,7 +9,7 @@ import "collect_read_counts.wdl" as crc
 import "collect_allelic_counts.wdl" as cac
 import "harmonize_samples.wdl" as hs
 import "genotype_snp_array.wdl" as gsa
-#import "model_segments.wdl" as ms
+import "model_segments.wdl" as ms
 
 
 workflow CNVWorkflow {
@@ -74,7 +74,7 @@ workflow CNVWorkflow {
         input:
             patient = patient,
             denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios,
-            snp_array_allelic_counts = HarmonizeSamples.merged_allelic_counts,
+            snp_array_pileups = HarmonizeSamples.merged_allelic_counts,
     }
 
     if (args.run_contamination_model) {
@@ -82,12 +82,12 @@ workflow CNVWorkflow {
             String sample_names = sample.name
         }
         scatter (tumor_sample in ConsensusPatient.updated_patient.tumor_samples) {
-            File? t_pileups = tumor_sample.snp_array_allelic_counts
+            File? t_pileups = tumor_sample.snp_array_pileups
         }
         Array[File] tumor_pileups = select_all(t_pileups)
         if (patient.has_normal) {
             scatter (normal_sample in ConsensusPatient.updated_patient.normal_samples) {
-                File? n_pileups = normal_sample.snp_array_allelic_counts
+                File? n_pileups = normal_sample.snp_array_pileups
             }
             Array[File]? normal_pileups = select_all(n_pileups)
         }
@@ -111,24 +111,25 @@ workflow CNVWorkflow {
         call p_update_s.UpdateSamples as AddPileupsAndContaminationToSamples {
             input:
                 patient = ConsensusPatient.updated_patient,
-                snp_array_allelic_counts = GenotypeSNPArray.pileups,
+                snp_array_pileups = GenotypeSNPArray.pileups,
                 contaminations = GenotypeSNPArray.contaminations,
                 af_segmentations = GenotypeSNPArray.segmentations,
         }
     }
 
-#    call ms.ModelSegments {
-#        input:
-#            patient = AddPileupsAndContaminationToSamples.updated_patient,
-#    }
+    Patient updated_patient_ = select_first([AddPileupsAndContaminationToSamples.updated_patient, ConsensusPatient.updated_patient, patient])
 
-#    call tasks.CallCopyRatioSegments {
-#        input:
-#            copy_ratios_segments = ModelSegments.copy_ratios_segments,
-#    }
+    if (args.run_model_segments) {
+        call ms.ModelSegments {
+            input:
+                patient = updated_patient_,
+                args = args,
+                runtime_collection = runtime_collection,
+        }
+    }
 
     output {
-        Patient updated_patient = select_first([AddPileupsAndContaminationToSamples.updated_patient, ConsensusPatient.updated_patient, patient])
+        Patient updated_patient = updated_patient_
 
         File? genotyped_snparray_vcf = GenotypeSNPArray.genotyped_vcf
         File? genotyped_snparray_vcf_idx = GenotypeSNPArray.genotyped_vcf_idx
@@ -140,6 +141,12 @@ workflow CNVWorkflow {
         Array[File]? snparray_allelic_counts = GenotypeSNPArray.pileups
         Array[File]? contamination_tables = GenotypeSNPArray.contaminations
         Array[File]? segmentation_tables = GenotypeSNPArray.segmentations
+
+        File? modeled_segments = ModelSegments.modeled_segments
+        Array[File]? cr_segments = ModelSegments.seg_final
+        Array[File]? called_cr_segments = ModelSegments.called_cr_seg
+        Array[File]? af_model_parameters = ModelSegments.af_model_final_parameters
+        Array[File]? cr_model_parameters = ModelSegments.cr_model_final_parameters
 
         Array[File]? target_read_counts = read_counts
         Array[File]? denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios

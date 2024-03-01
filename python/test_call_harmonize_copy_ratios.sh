@@ -28,6 +28,6 @@ python -u harmonize_copy_ratios.py \
   $sample_args \
   $cr_args \
   --verbose \
-  --threads 2 \
+  --threads 4 \
   > $output_dir/$individual_id.log \
   2>&1

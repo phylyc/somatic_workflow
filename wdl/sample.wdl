@@ -12,6 +12,7 @@ struct Sample {
     File? read_counts
     File? denoised_copy_ratios
     File? standardized_copy_ratios
+    File? snp_array_pileups
     File? snp_array_allelic_counts
     File? somatic_allelic_counts
     File? germline_allelic_counts
@@ -32,6 +33,7 @@ workflow UpdateSample {
         File? read_counts
         File? denoised_copy_ratios
         File? standardized_copy_ratios
+        File? snp_array_pileups
         File? snp_array_allelic_counts
         File? somatic_allelic_counts
         File? germline_allelic_counts
@@ -49,6 +51,7 @@ workflow UpdateSample {
         read_counts: if defined(read_counts) then read_counts else sample.read_counts,
         denoised_copy_ratios: if defined(denoised_copy_ratios) then denoised_copy_ratios else sample.denoised_copy_ratios,
         standardized_copy_ratios: if defined(standardized_copy_ratios) then standardized_copy_ratios else sample.standardized_copy_ratios,
+        snp_array_pileups: if defined(snp_array_pileups) then snp_array_pileups else sample.snp_array_pileups,
         snp_array_allelic_counts: if defined(snp_array_allelic_counts) then snp_array_allelic_counts else sample.snp_array_allelic_counts,
         somatic_allelic_counts: if defined(somatic_allelic_counts) then somatic_allelic_counts else sample.somatic_allelic_counts,
         germline_allelic_counts: if defined(germline_allelic_counts) then germline_allelic_counts else sample.germline_allelic_counts,

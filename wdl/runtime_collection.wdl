@@ -15,10 +15,13 @@ struct RuntimeCollection {
     Runtime get_pileup_summaries
     Runtime gather_pileup_summaries
     Runtime select_pileup_summaries
+    Runtime pileup_to_allelic_counts
     Runtime harmonize_copy_ratios
     Runtime merge_allelic_counts
     Runtime calculate_contamination
     Runtime genotype_variants
+    Runtime model_segments
+    Runtime call_copy_ratio_segments
     Runtime mutect2
     Runtime learn_read_orientation_model
     Runtime merge_vcfs
@@ -112,6 +115,10 @@ workflow DefineRuntimeCollection {
         Int mem_select_pileup_summaries = 512
         Int time_select_pileup_summaries = 5
 
+        # PileupToAllelicCounts
+        Int mem_pileup_to_allelic_counts = 512
+        Int time_pileup_to_allelic_counts = 5
+
         # HarmonizeCopyRatios
         Int cpu_harmonize_copy_ratios = 1  # probably worthwhile to use 4
         Int mem_harmonize_copy_ratios = 1024
@@ -128,6 +135,14 @@ workflow DefineRuntimeCollection {
         # custom genotyping script based on CalculateContamination model
         Int mem_genotype_variants = 8192
         Int time_genotype_variants = 30
+
+        # gatk: ModelSegments
+        Int mem_model_segments = 4096
+        Int time_model_segments = 60
+
+        # gatk: CallCopyRatioSegments
+        Int mem_call_copy_ratio_segments = 2048
+        Int time_call_copy_ratio_segments = 10
 
         # gatk: Mutect2
         Int cpu_mutect2 = 1  # good for PairHMM: 2
@@ -338,6 +353,19 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime pileup_to_allelic_counts = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_pileup_to_allelic_counts + mem_machine_overhead,
+        "command_mem": mem_pileup_to_allelic_counts,
+        "runtime_minutes": time_startup + time_pileup_to_allelic_counts,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Runtime harmonize_copy_ratios = {
         "docker": genotype_docker,
         "preemptible": preemptible,
@@ -383,6 +411,32 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_genotype_variants + mem_machine_overhead,
         "command_mem": mem_genotype_variants,
         "runtime_minutes": time_startup + time_genotype_variants,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime model_segments = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_model_segments + mem_machine_overhead,
+        "command_mem": mem_model_segments,
+        "runtime_minutes": time_startup + time_model_segments,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime call_copy_ratio_segments = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_call_copy_ratio_segments + mem_machine_overhead,
+        "command_mem": mem_call_copy_ratio_segments,
+        "runtime_minutes": time_startup + time_call_copy_ratio_segments,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -593,10 +647,13 @@ workflow DefineRuntimeCollection {
         "get_pileup_summaries": get_pileup_summaries,
         "gather_pileup_summaries": gather_pileup_summaries,
         "select_pileup_summaries": select_pileup_summaries,
+        "pileup_to_allelic_counts": pileup_to_allelic_counts,
         "harmonize_copy_ratios": harmonize_copy_ratios,
         "merge_allelic_counts": merge_allelic_counts,
         "calculate_contamination": calculate_contamination,
         "genotype_variants": genotype_variants,
+        "model_segments": model_segments,
+        "call_copy_ratio_segments": call_copy_ratio_segments,
         "mutect2": mutect2,
         "learn_read_orientation_model": learn_read_orientation_model,
         "merge_vcfs": merge_vcfs,

@@ -3,7 +3,6 @@ version development
 import "runtime_collection.wdl" as rtc
 import "runtimes.wdl" as rt
 import "sequencing_run.define.wdl" as seqrun_def
-import "tasks.wdl"
 
 
 workflow CollectReadCounts {
@@ -15,9 +14,9 @@ workflow CollectReadCounts {
 
         SequencingRun sequencing_run = GetSeqRun.sequencing_run
         String? sample_name
-        File bam
-        File bai
-        File interval_list
+        File? bam
+        File? bai
+        File? interval_list
         File? annotated_interval_list
         File? read_count_panel_of_normals
         Boolean is_paired_end = false
@@ -50,14 +49,16 @@ workflow CollectReadCounts {
             time_denoise_read_counts = time_denoise_read_counts
     }
 
+    # Todo: assert either sequencing_run or (bam and bai and interval_list) are defined
+
     call seqrun_def.DefineSequencingRun as GetSeqRun {
         input:
             name = sample_name,
-            bam = bam,
-            bai = bai,
-            interval_list = interval_list,
-            annotated_interval_list = annotated_interval_list,
-            read_count_panel_of_normals = read_count_panel_of_normals,
+            bam = select_first([bam]),
+            bai = select_first([bai]),
+            target_intervals = select_first([interval_list]),
+            annotated_target_intervals = annotated_interval_list,
+            cnv_panel_of_normals = read_count_panel_of_normals,
             is_paired_end = is_paired_end,
             runtime_collection = runtime_collection
     }

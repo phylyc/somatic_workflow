@@ -33,6 +33,7 @@ struct WorkflowArguments {
     Boolean run_collect_target_coverage
     Boolean run_collect_allelic_coverage
     Boolean run_contamination_model
+    Boolean run_model_segments
     Boolean run_orientation_bias_mixture_model
     Boolean run_variant_calling
     Boolean run_variant_filter
@@ -41,6 +42,7 @@ struct WorkflowArguments {
     Boolean run_collect_called_variants_allelic_coverage
     Boolean run_variant_annotation
     Boolean run_variant_annotation_scattered
+    Boolean run_clonal_decomposition
 
     Boolean keep_germline
     Boolean compress_output
@@ -121,6 +123,7 @@ workflow DefineWorkflowArguments {
         Boolean run_collect_target_coverage = true
         Boolean run_collect_allelic_coverage = true
         Boolean run_contamination_model = true
+        Boolean run_model_segments = true
         Boolean run_orientation_bias_mixture_model = true
         Boolean run_variant_calling = true
         Boolean run_variant_filter = true
@@ -129,6 +132,7 @@ workflow DefineWorkflowArguments {
         Boolean run_collect_called_variants_allelic_coverage = true
         Boolean run_variant_annotation = true
         Boolean run_variant_annotation_scattered = false
+        Boolean run_clonal_decomposition = false
 
         Boolean keep_germline = false
         Boolean compress_output = true
@@ -235,6 +239,7 @@ workflow DefineWorkflowArguments {
         run_collect_target_coverage: run_collect_target_coverage,
         run_collect_allelic_coverage: run_collect_allelic_coverage,
         run_contamination_model: run_contamination_model,
+        run_model_segments: run_model_segments,
         run_orientation_bias_mixture_model: run_orientation_bias_mixture_model,
         run_variant_calling: run_variant_calling,
         run_variant_filter: run_variant_filter,
@@ -243,6 +248,7 @@ workflow DefineWorkflowArguments {
         run_collect_called_variants_allelic_coverage: run_collect_called_variants_allelic_coverage,
         run_variant_annotation: run_variant_annotation,
         run_variant_annotation_scattered: run_variant_annotation_scattered,
+        run_clonal_decomposition: run_clonal_decomposition,
 
         keep_germline: keep_germline,
         compress_output: compress_output,

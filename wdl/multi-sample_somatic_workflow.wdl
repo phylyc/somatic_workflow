@@ -7,7 +7,7 @@ import "runtime_collection.wdl" as rtc
 import "tasks.wdl"
 import "cnv_workflow.wdl" as cnv
 import "snv_workflow.wdl" as snv
-import "absolute.wdl" as abs
+import "clonal_decomposition.wdl" as cd
 
 
 workflow MultiSampleSomaticWorkflow {
@@ -57,6 +57,7 @@ workflow MultiSampleSomaticWorkflow {
         Boolean run_collect_target_coverage = true
         Boolean run_collect_allelic_coverage = true
         Boolean run_contamination_model = true
+        Boolean run_model_segments = true
         Boolean run_orientation_bias_mixture_model = true
         Boolean run_variant_calling = true
         Boolean run_variant_filter = true
@@ -65,6 +66,7 @@ workflow MultiSampleSomaticWorkflow {
         Boolean run_collect_called_variants_allelic_coverage = true
         Boolean run_variant_annotation = true
         Boolean run_variant_annotation_scattered = false
+        Boolean run_clonal_decomposition = true
 
         Boolean keep_germline = false
         Boolean compress_output = true
@@ -148,6 +150,7 @@ workflow MultiSampleSomaticWorkflow {
         Int mem_get_pileup_summaries = 4096  # needs at least 2G
         Int mem_gather_pileup_summaries = 512  # 64
         Int mem_select_pileup_summaries = 512  # 64
+        Int mem_pileup_to_allelic_counts = 512
         Int mem_harmonize_copy_ratios = 1024
         Int mem_merge_allelic_counts = 4096
         Int mem_calculate_contamination = 4096  # depends on the common_germline_alleles resource
@@ -175,6 +178,7 @@ workflow MultiSampleSomaticWorkflow {
         Int time_get_pileup_summaries = 4500  # 3 d / scatter_count
         Int time_gather_pileup_summaries = 5
         Int time_select_pileup_summaries = 5
+        Int time_pileup_to_allelic_counts = 5
         Int time_harmonize_copy_ratios = 1440  # 24 h
         Int time_merge_allelic_counts = 10
         Int time_calculate_contamination = 10
@@ -224,6 +228,7 @@ workflow MultiSampleSomaticWorkflow {
             mem_get_pileup_summaries = mem_get_pileup_summaries,
             mem_gather_pileup_summaries = mem_gather_pileup_summaries,
             mem_select_pileup_summaries = mem_select_pileup_summaries,
+            mem_pileup_to_allelic_counts = mem_pileup_to_allelic_counts,
             mem_harmonize_copy_ratios = mem_harmonize_copy_ratios,
             mem_merge_allelic_counts = mem_merge_allelic_counts,
             mem_calculate_contamination = mem_calculate_contamination,
@@ -249,6 +254,7 @@ workflow MultiSampleSomaticWorkflow {
             time_get_pileup_summaries = time_get_pileup_summaries,
             time_gather_pileup_summaries = time_gather_pileup_summaries,
             time_select_pileup_summaries = time_select_pileup_summaries,
+            time_pileup_to_allelic_counts = time_pileup_to_allelic_counts,
             time_harmonize_copy_ratios = time_harmonize_copy_ratios,
             time_merge_allelic_counts = time_merge_allelic_counts,
             time_calculate_contamination = time_calculate_contamination,
@@ -290,9 +296,11 @@ workflow MultiSampleSomaticWorkflow {
             funcotator_transcript_list = funcotator_transcript_list,
             funcotator_data_sources_tar_gz = funcotator_data_sources_tar_gz,
 
+            run_collect_covered_regions = run_collect_covered_regions,
             run_collect_target_coverage = run_collect_target_coverage,
             run_collect_allelic_coverage = run_collect_allelic_coverage,
             run_contamination_model = run_contamination_model,
+            run_model_segments = run_model_segments,
             run_orientation_bias_mixture_model = run_orientation_bias_mixture_model,
             run_variant_calling = run_variant_calling,
             run_variant_filter = run_variant_filter,
@@ -301,6 +309,7 @@ workflow MultiSampleSomaticWorkflow {
             run_collect_called_variants_allelic_coverage = run_collect_called_variants_allelic_coverage,
             run_variant_annotation = run_variant_annotation,
             run_variant_annotation_scattered = run_variant_annotation_scattered,
+            run_clonal_decomposition = run_clonal_decomposition,
 
             keep_germline = keep_germline,
             compress_output = compress_output,
@@ -405,9 +414,13 @@ workflow MultiSampleSomaticWorkflow {
             runtime_collection = runtime_collection,
     }
 
-    call abs.Absolute {
+    call cd.ClonalDecomposition {
 
     }
+
+#    call CalculateTumorMutationBurden {
+#
+#    }
 
     output {
         # todo: flatten
@@ -446,6 +459,5 @@ workflow MultiSampleSomaticWorkflow {
         Array[File]? segmentation_table = CNVWorkflow.segmentation_tables
         Array[File?]? target_read_counts = CNVWorkflow.target_read_counts
         Array[File?]? denoised_copy_ratios = CNVWorkflow.denoised_copy_ratios
-        Array[File?]? standardized_copy_ratios = CNVWorkflow.standardized_copy_ratios
     }
 }

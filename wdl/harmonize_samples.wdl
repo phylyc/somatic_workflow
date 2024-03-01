@@ -42,10 +42,10 @@ workflow HarmonizeSamples {
 
         # sort output to match order of sample_names since glob doesn't guarantee order
         scatter (sample in samples) {
-            scatter (pair in zip(HarmonizeCopyRatios.harmonized_denoised_copy_ratios, HarmonizeCopyRatios.harmonized_standardized_copy_ratios)) {
-                String this_dcr_sample_name = basename(basename(basename(pair.left, ".hdf5"), ".tsv"), ".denoised_CR")
+            scatter (h_dcr in HarmonizeCopyRatios.harmonized_denoised_copy_ratios) {
+                String this_dcr_sample_name = basename(basename(basename(h_dcr, ".hdf5"), ".tsv"), ".denoised_CR")
                 if (sample.name == this_dcr_sample_name) {
-                    File? this_dcr = pair.left
+                    File? this_dcr = h_dcr
                 }
             }
             Array[File] this_sample_dcr = select_all(this_dcr)

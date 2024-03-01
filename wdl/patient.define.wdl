@@ -60,10 +60,16 @@ workflow DefinePatient {
     Array[SequencingRun] tumors_2 = select_first([UpdateAnnotatedTargetIntervalsTumorSeq.updated_sequencing_run, tumors_1])
     if (defined(tumor_cnv_panel_of_normals)) {
         scatter (pair in zip(tumors_2, select_first([tumor_cnv_panel_of_normals, []]))) {
+            if (size(pair.right) > 0) {
+                # For some sequencing platforms a panel of normals may not be available.
+                # The denoise read counts task will then just use the anntated target
+                # intervals to do GC correction.
+                File? t_cnv_panel_of_normals = pair.right
+            }
             call seq_run.UpdateSequencingRun as UpdateCnvPanelOfNormalsTumorSeq {
                 input:
                     sequencing_run = pair.left,
-                    cnv_panel_of_normals = pair.right,
+                    cnv_panel_of_normals = t_cnv_panel_of_normals,
             }
         }
     }
@@ -94,10 +100,16 @@ workflow DefinePatient {
     Array[SequencingRun] normals_2 = select_first([UpdateAnnotatedTargetIntervalsNormalSeq.updated_sequencing_run, normals_1])
     if (defined(normal_cnv_panel_of_normals)) {
         scatter (pair in zip(normals_2, select_first([normal_cnv_panel_of_normals, []]))) {
+            if (size(pair.right) > 0) {
+                # For some sequencing platforms a panel of normals may not be available.
+                # The denoise read counts task will then just use the anntated target
+                # intervals to do GC correction.
+                File? n_cnv_panel_of_normals = pair.right
+            }
             call seq_run.UpdateSequencingRun as UpdateCnvPanelOfNormalsNormalSeq {
                 input:
                     sequencing_run = pair.left,
-                    cnv_panel_of_normals = pair.right,
+                    cnv_panel_of_normals = n_cnv_panel_of_normals,
             }
         }
     }
