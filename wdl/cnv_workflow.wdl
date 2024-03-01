@@ -30,10 +30,10 @@ workflow CNVWorkflow {
                         sample_name = sample.name,
                         bam = sequencing_run.bam,
                         bai = sequencing_run.bai,
-                        target_intervals = sequencing_run.target_intervals,
-                        annotated_target_intervals = sequencing_run.annotated_target_intervals,
+                        interval_list = sequencing_run.target_intervals,
+                        annotated_interval_list = sequencing_run.annotated_target_intervals,
                         read_count_panel_of_normals = sequencing_run.cnv_panel_of_normals,
-                        is_paried_end = sequencing_run.is_paired_end,
+                        is_paired_end = sequencing_run.is_paired_end,
                         runtime_collection = runtime_collection,
                 }
             }

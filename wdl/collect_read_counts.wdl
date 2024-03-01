@@ -15,8 +15,8 @@ workflow CollectReadCounts {
         String sample_name
         File bam
         File bai
-        File target_intervals
-        File? annotated_target_intervals
+        File interval_list
+        File? annotated_interval_list
         File? read_count_panel_of_normals
         Boolean is_paired_end = false
 
@@ -50,7 +50,7 @@ workflow CollectReadCounts {
 
 	call CollectReadCountsTask {
 		input:
-			interval_list = target_intervals,
+			interval_list = interval_list,
             ref_fasta = ref_fasta,
 			ref_fasta_index = ref_fasta_index,
             ref_dict = ref_dict,
@@ -62,19 +62,18 @@ workflow CollectReadCounts {
             runtime_params = runtime_collection.collect_read_counts
 	}
 
-    if (defined(annotated_target_intervals) || defined(read_count_panel_of_normals)) {
+    if (defined(annotated_interval_list) || defined(read_count_panel_of_normals)) {
         call DenoiseReadCounts {
             input:
                 read_counts = CollectReadCountsTask.read_counts,
                 sample_name = sample_name,
-                annotated_interval_list = annotated_target_intervals,
+                annotated_interval_list = annotated_interval_list,
                 count_panel_of_normals = read_count_panel_of_normals,
                 runtime_params = runtime_collection.denoise_read_counts
         }
     }
 
     output {
-        String sample_name = sample_name
         File read_counts = CollectReadCountsTask.read_counts
         File? denoised_copy_ratios = DenoiseReadCounts.denoised_copy_ratios
         File? standardized_copy_ratios = DenoiseReadCounts.standardized_copy_ratios

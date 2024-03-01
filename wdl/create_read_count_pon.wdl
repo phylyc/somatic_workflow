@@ -108,7 +108,7 @@ workflow CreateReadCountPanelOfNormals {
             disk = runtime_collection.create_cnv_panel.disk + ceil(size(CollectReadCounts.read_counts, "GB"))
     }
 
-    call CreateReadCountPanelOfNormals {
+    call CreateReadCountPanelOfNormalsTask {
         input:
             input_counts = CollectReadCounts.read_counts,
             output_name = pon_name,
@@ -117,12 +117,12 @@ workflow CreateReadCountPanelOfNormals {
 	}
 
     output {
-        File pon = CreateReadCountPanelOfNormals.cnv_pon
+        File pon = CreateReadCountPanelOfNormalsTask.cnv_pon
         File? new_annotated_interval_list = AnnotateIntervals.annotated_interval_list
     }
 }
 
-task CreateReadCountPanelOfNormals {
+task CreateReadCountPanelOfNormalsTask {
     input {
         Array[File]+ input_counts
         String output_name
