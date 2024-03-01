@@ -7,7 +7,7 @@ import "runtime_collection.wdl" as rtc
 import "tasks.wdl"
 import "cnv_workflow.wdl" as cnv
 import "snv_workflow.wdl" as snv
-import "clonal_decomposition.wdl" as cd
+#import "clonal_decomposition.wdl" as cd
 
 
 workflow MultiSampleSomaticWorkflow {
@@ -414,9 +414,9 @@ workflow MultiSampleSomaticWorkflow {
             runtime_collection = runtime_collection,
     }
 
-    call cd.ClonalDecomposition {
-
-    }
+#    call cd.ClonalDecomposition {
+#
+#    }
 
 #    call CalculateTumorMutationBurden {
 #
@@ -454,10 +454,17 @@ workflow MultiSampleSomaticWorkflow {
         File? snparray_other_alt_counts = CNVWorkflow.snparray_other_alt_counts
         File? sample_snp_correlation = CNVWorkflow.sample_snp_correlation
         Array[File]? sample_snparray_genotype_likelihoods = CNVWorkflow.sample_snparray_genotype_likelihoods
+        Array[File]? snparray_pileups = CNVWorkflow.snparray_pileups
         Array[File]? snparray_allelic_counts = CNVWorkflow.snparray_allelic_counts
         Array[File]? contamination_table = CNVWorkflow.contamination_tables
         Array[File]? segmentation_table = CNVWorkflow.segmentation_tables
         Array[File?]? target_read_counts = CNVWorkflow.target_read_counts
         Array[File?]? denoised_copy_ratios = CNVWorkflow.denoised_copy_ratios
+
+        File? modeled_segments = CNVWorkflow.modeled_segments
+        Array[File]? cr_segments = CNVWorkflow.cr_segments
+        Array[File]? called_cr_segments = CNVWorkflow.called_cr_segments
+        Array[File]? af_model_parameters = CNVWorkflow.af_model_parameters
+        Array[File]? cr_model_parameters = CNVWorkflow.cr_model_parameters
     }
 }

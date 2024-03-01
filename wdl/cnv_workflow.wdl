@@ -129,7 +129,7 @@ workflow CNVWorkflow {
     }
 
     output {
-        Patient updated_patient = updated_patient_
+        Patient updated_patient = select_first([ModelSegments.updated_patient, updated_patient_])
 
         File? genotyped_snparray_vcf = GenotypeSNPArray.genotyped_vcf
         File? genotyped_snparray_vcf_idx = GenotypeSNPArray.genotyped_vcf_idx
@@ -138,7 +138,8 @@ workflow CNVWorkflow {
         File? snparray_other_alt_counts = GenotypeSNPArray.other_alt_counts
         File? sample_snp_correlation = GenotypeSNPArray.sample_correlation
         Array[File]? sample_snparray_genotype_likelihoods = GenotypeSNPArray.sample_genotype_likelihoods
-        Array[File]? snparray_allelic_counts = GenotypeSNPArray.pileups
+        Array[File]? snparray_pileups = GenotypeSNPArray.pileups
+        Array[File]? snparray_allelic_counts = ModelSegments.snp_array_allelic_counts
         Array[File]? contamination_tables = GenotypeSNPArray.contaminations
         Array[File]? segmentation_tables = GenotypeSNPArray.segmentations
 

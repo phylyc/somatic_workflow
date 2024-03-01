@@ -22,26 +22,26 @@ workflow ModelSegments {
                 runtime_params = runtime_collection.pileup_to_allelic_counts
         }
     }
-    Array[File] allelic_counts = select_all(AllelicCounts.allelic_counts)
-    if (length(allelic_counts) > 1) {
+    Array[File] sample_allelic_counts = select_all(AllelicCounts.allelic_counts)
+    if (length(sample_allelic_counts) > 1) {
         call p_update_s.UpdateSamples as UpdatedSamples {
             input:
                 patient = patient,
-                snp_array_allelic_counts = select_all(AllelicCounts.allelic_counts),
+                snp_array_allelic_counts = sample_allelic_counts,
         }
     }
-    Patient updated_patient = select_first([UpdatedSamples.updated_patient, patient])
+    Patient pat = select_first([UpdatedSamples.updated_patient, patient])
 
-    scatter (sample in updated_patient.samples) {
+    scatter (sample in pat.samples) {
         File? denoised_copy_ratios = sample.denoised_copy_ratios
         File? allelic_counts = sample.snp_array_allelic_counts
     }
-    if (defined(updated_patient.matched_normal_sample)) {
-        Sample matched_normal_sample = select_first([updated_patient.matched_normal_sample])
+    if (defined(pat.matched_normal_sample)) {
+        Sample matched_normal_sample = select_first([pat.matched_normal_sample])
         File? normal_allelic_counts = matched_normal_sample.snp_array_allelic_counts
     }
 
-    if (length(updated_patient.samples) > 1) {
+    if (length(pat.samples) > 1) {
         call ModelSegments as MultiSampleModelSegments {
             input:
                 denoised_copy_ratios = denoised_copy_ratios,
@@ -52,7 +52,7 @@ workflow ModelSegments {
         }
     }
 
-    scatter (sample in updated_patient.samples) {
+    scatter (sample in pat.samples) {
         call ModelSegments as MultiSampleInferCR {
             input:
                 segments = MultiSampleModelSegments.multi_sample_segments,
@@ -71,6 +71,10 @@ workflow ModelSegments {
     }
 
     output {
+        Patient updated_patient = pat
+
+        Array[File] snp_array_allelic_counts = sample_allelic_counts
+
         File? modeled_segments = MultiSampleModelSegments.multi_sample_segments
         Array[File] hets = select_all(MultiSampleInferCR.hets)
         Array[File] af_model_begin_parameters = select_all(MultiSampleInferCR.af_model_begin_parameters)
