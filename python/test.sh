@@ -2,6 +2,7 @@
 
 #                                        INDIVIDUAL SAMPLES (files)         NAMES
 bash test_call_genotype.sh               test       "test_N,test_T"         "test_N,test_T"
+bash test_call_genotype.sh               test_one   "test_N"                "test_N"
 bash test_call_genotype.sh               test_empty "test_empty"            "test_empty"
 bash test_call_genotype.sh               test_dup   "test_N,test_T,test_T2" "test_N,test_T,test_T"
 

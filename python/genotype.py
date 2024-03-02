@@ -147,7 +147,7 @@ class PileupLikelihood(object):
 
     def reindex(self, *args, **kwargs):
         self.df = self.df.reindex(*args, **kwargs)
-        self.df["./."].fillna(1.0, inplace=True)  # Declare missing loci as outliers.
+        self.df["./."] = self.df["./."].fillna(1.0)  # Declare missing loci as outliers.
         self.df.fillna(0, inplace=True)  # Set all other likelihoods and read counts to 0.
         self.df = self.df.astype({"ref_count": int, "alt_count": int, "other_alt_count": int})
         return self
@@ -848,18 +848,23 @@ class GenotypeData(object):
             pvalues.append(corr.pvalue)
             num_loci.append(gt.shape[0])
 
-        corr = pd.Series(
-            {sample_pair: corr for sample_pair, corr in zip(sample_pairs, correlations)}
-        ).unstack().reindex(index=sample_genotypes.columns, columns=sample_genotypes.columns)
-        sample_correlation = corr.where(~corr.isna(), corr.T).fillna(1)
+        if len(sample_pairs) == 0:
+            corr = pd.DataFrame([[1]], columns=sample_names, index=sample_names)
+            pval = pd.DataFrame([[0]], columns=sample_names, index=sample_names)
+        else:
+            corr = pd.Series(
+                {sample_pair: corr for sample_pair, corr in zip(sample_pairs, correlations)}
+            ).unstack().reindex(index=sample_names, columns=sample_names)
+            pval = pd.Series(
+                {sample_pair: pval for sample_pair, pval in zip(sample_pairs, pvalues)}
+            ).unstack().reindex(index=sample_names, columns=sample_names)
 
-        pval = pd.Series(
-            {sample_pair: pval for sample_pair, pval in zip(sample_pairs, pvalues)}
-        ).unstack().reindex(index=sample_genotypes.columns, columns=sample_genotypes.columns)
+        sample_correlation = corr.where(~corr.isna(), corr.T).fillna(1)
         pval = pval.where(~pval.isna(), pval.T).fillna(0)
 
         if self.verbose:
-            print(f"\nConcordance of samples is evaluated at", f"between {np.min(num_loci)} and {np.max(num_loci)}" if len(num_loci) > 1 else f"{num_loci[0]}", "variant loci.")
+            if len(num_loci):
+                print(f"\nConcordance of samples is evaluated at", f"between {np.min(num_loci)} and {np.max(num_loci)}" if len(num_loci) > 1 else f"{num_loci[0]}", "variant loci.")
             print("Kendall-tau correlation of variant genotypes between samples:")
             print(sample_correlation.round(3).to_string())
             print()
