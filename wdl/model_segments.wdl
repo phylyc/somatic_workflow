@@ -129,7 +129,7 @@ task PileupToAllelicCounts {
         set -e
         if ~{defined(pileup)} ; then
             cat ~{ref_dict} > ~{output_file}
-            printf "@RG\tID:GATKCopyNumber\tSM~{sample_name}\n" >> ~{output_file}
+            printf "@RG\tID:GATKCopyNumber\tSM:~{sample_name}\n" >> ~{output_file}
             printf "CONTIG\tPOSITION\tREF_COUNT\tALT_COUNT\tREF_NUCLEOTIDE\tALT_NUCLEOTIDE\n" >> ~{output_file}
             # The ref and alt allele information is not available in the pileup file, so we set both to "N"
             tail -n +3 ~{pileup} | awk -v OFS='\t' '{print $1, $2, $3, $4, "N", "N"}' >> ~{output_file}
