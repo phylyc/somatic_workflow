@@ -203,15 +203,9 @@ task Mutect2 {
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
     String output_stats = output_vcf + ".stats"
 
-    String tumor_bam_arg = sep("' ", prefix("-I '", tumor_bams)) + "'"
-    String normal_bam_arg = if normal_is_present then sep("' ", prefix("-I '", select_first([normal_bams, []]))) + "'" else ""
-    String normal_sample_arg = if normal_is_present then sep("' ", prefix("-normal '", select_first([normal_sample_names, []]))) + "'" else ""
-
     String output_bam = individual_id + ".bamout.bam"
     String output_bai = individual_id + ".bamout.bai"
-    String make_bamout_arg = if make_bamout then "--bam-output " + output_bam else ""
     String output_artifact_priors = individual_id + ".f1r2_counts.tar.gz"
-    String run_ob_filter_arg = if get_orientation_bias_priors then "--f1r2-tar-gz " + output_artifact_priors else ""
 
     command <<<
         set -e
@@ -219,15 +213,15 @@ task Mutect2 {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             Mutect2 \
             --reference '~{ref_fasta}' \
-            ~{tumor_bam_arg} \
-            ~{normal_bam_arg} \
-            ~{normal_sample_arg} \
+            ~{sep="' " prefix("-I '", tumor_bams)}' \
+            ~{sep="' " prefix("-I '", select_first([normal_bams, []]))}~{if normal_is_present then "'" else ""} \
+            ~{sep="' " prefix("-normal '", select_first([normal_sample_names, []]))}~{if normal_is_present then "'" else ""} \
             --output '~{output_vcf}' \
             ~{"--intervals '" + interval_list + "'"} \
             ~{"--alleles '" + force_call_alleles + "'"} \
             ~{"-pon '" + panel_of_normals + "'"} \
-            ~{make_bamout_arg} \
-            ~{run_ob_filter_arg} \
+            ~{if make_bamout then "--bam-output " + output_bam else ""} \
+            ~{if get_orientation_bias_priors then "--f1r2-tar-gz " + output_artifact_priors else ""} \
             ~{"--germline-resource '" + germline_resource + "'"} \
             ~{if genotype_germline_sites then "--genotype-germline-sites true" else ""} \
             ~{if use_linked_de_bruijn_graph then "--linked-de-bruijn-graph true" else ""} \
@@ -271,7 +265,6 @@ task MergeMutectStats {
         Runtime runtime_params
     }
 
-    String stats_arg = sep("' ", prefix("-stats '", stats)) + "'"
     String output_name = individual_id + ".merged.stats"
 
     command <<<
@@ -279,7 +272,7 @@ task MergeMutectStats {
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             MergeMutectStats \
-            ~{stats_arg} \
+            ~{sep="' " prefix("-stats '", stats)}' \
             --output '~{output_name}'
     >>>
 
@@ -322,7 +315,6 @@ task LearnReadOrientationModel {
         Runtime runtime_params
     }
 
-    String f1r2_counts_arg = sep("' ", prefix("-I '", f1r2_counts)) + "'"
     String output_name = individual_id + ".artifact_priors.tar.gz"
 
     command <<<
@@ -330,7 +322,7 @@ task LearnReadOrientationModel {
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             LearnReadOrientationModel \
-            ~{f1r2_counts_arg} \
+            ~{sep="' " prefix("-I '", f1r2_counts)}' \
             --output '~{output_name}'
     >>>
 

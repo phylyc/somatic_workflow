@@ -95,9 +95,6 @@ task HarmonizeCopyRatios {
 
     String output_dir = "."
 
-    String sample_names_arg = sep("' ", prefix("--sample '", sample_names)) + "'"
-    String copy_ratios_arg = sep("' ", prefix("--copy_ratio '", denoised_copy_ratios)) + "'"
-
 #    Array[String] harmonized_denoised_cr = suffix(sample_names, ".denoised_CR.tsv")
 
     command <<<
@@ -105,8 +102,8 @@ task HarmonizeCopyRatios {
         wget -O harmonize_copy_ratios.py ~{script}
         python harmonize_copy_ratios.py \
             --output_dir '~{output_dir}' \
-            ~{sample_names_arg} \
-            ~{copy_ratios_arg} \
+            ~{sep="' " prefix("--sample '", sample_names)}' \
+            ~{sep="' " prefix("--copy_ratio '", denoised_copy_ratios)}' \
             --suffix ".harmonized.denoised_CR" \
             --threads ~{runtime_params.cpu} \
             ~{if compress_output then "--compress_output" else ""} \

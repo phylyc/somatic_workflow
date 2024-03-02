@@ -140,7 +140,6 @@ task Funcotate {
     Int funco_tar_sizeGB = if defined(data_sources_paths) then 0 else (if defined(data_sources_tar_gz) then 4 * ceil(size(data_sources_tar_gz, "GB")) else 100)
     Int disk = runtime_params.disk + funco_tar_sizeGB
 
-    String data_sources_path_arg = sep(" ", prefix("--data-sources-path ", select_first([data_sources_paths, ["$DATA_SOURCES_FOLDER"]])))
     String annotation_default_arg = if defined(annotation_defaults) then sep(" ", prefix("--annotation-default ", select_first([annotation_defaults, ["none"]]))) else ""
     String annotation_override_arg = if defined(annotation_overrides) then sep(" ", prefix("--annotation-override ", select_first([annotation_overrides, ["none"]]))) else ""
     String exclude_fields_arg = if defined(exclude_fields) then sep(" ", prefix("--exclude-field ", select_first([exclude_fields, ["none"]]))) else ""
@@ -188,7 +187,7 @@ task Funcotate {
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             Funcotator \
-            ~{data_sources_path_arg} \
+            ~{sep=" " prefix("--data-sources-path ", select_first([data_sources_paths, ["$DATA_SOURCES_FOLDER"]]))} \
             --ref-version ~{reference_version} \
             --output-file-format ~{output_format} \
             -R '~{ref_fasta}' \

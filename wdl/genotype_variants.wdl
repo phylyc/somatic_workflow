@@ -116,11 +116,6 @@ task GenotypeVariantsTask {
     String output_vcf = output_dir + "/" + individual_id + ".hets.vcf" + (if compress_output then ".gz" else "")
     String output_vcf_idx = output_vcf + (if compress_output then ".tbi" else ".idx")
 
-    String sample_names_arg = sep("' ", prefix("--sample '", sample_names)) + "'"
-    String pileups_arg = sep("' ", prefix("-P '", pileups)) + "'"
-    String contamination_arg = if defined(contamination_tables) then sep("' ", prefix("-C '", select_first([contamination_tables]))) + "'" else ""
-    String segmentation_arg = if defined(segmentation_tables) then sep("' ", prefix("-S '", select_first([segmentation_tables]))) + "'" else ""
-
     # Once "suffix" is implemented, we can use this over glob:
 #    Array[String] possible_sample_outputs = suffix(".likelihoods.pileup" + (if compress_output then ".gz" else ""), sample_names)
 #    Array[File]? output_sample_genotype_likelihoods = if save_sample_genotype_likelihoods then prefix(output_dir + "/", possible_sample_outputs) else None
@@ -132,10 +127,10 @@ task GenotypeVariantsTask {
             --output_dir '~{output_dir}' \
             ~{"--variant '" + common_germline_alleles + "'"} \
             --patient '~{individual_id}' \
-            ~{sample_names_arg} \
-            ~{pileups_arg} \
-            ~{contamination_arg} \
-            ~{segmentation_arg} \
+            ~{sep="' " prefix("--sample '", sample_names)}' \
+            ~{sep="' " prefix("-P '", pileups)}' \
+            ~{sep="' " prefix("-S '", select_first([segmentation_tables, []]))}~{if defined(segmentation_tables) then "'" else ""} \
+            ~{sep="' " prefix("-C '", select_first([contamination_tables, []]))}~{if defined(contamination_tables) then "'" else ""} \
             --min_read_depth ~{min_read_depth} \
             --min_genotype_likelihood ~{min_genotype_likelihood} \
             --model ~{model} \

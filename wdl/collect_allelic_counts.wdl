@@ -304,7 +304,6 @@ task GatherPileupSummaries {
         Runtime runtime_params
     }
 
-    String input_tables_arg = sep("' ", prefix("-I '", input_tables)) + "'"
     String output_file = sample_name + ".pileup"
 
     command <<<
@@ -313,7 +312,7 @@ task GatherPileupSummaries {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             GatherPileupSummaries \
             --sequence-dictionary '~{ref_dict}' \
-            ~{input_tables_arg} \
+            ~{sep="' " prefix("-I '", input_tables)}' \
             -O '~{output_file}'
     >>>
 

@@ -115,7 +115,6 @@ task PreprocessIntervals {
         Runtime runtime_params
     }
 
-    String interval_lists_arg = if defined(interval_lists) then sep("' ", prefix("-L '", select_first([interval_lists, ["none"]]))) + "'" else ""
     String preprocessed_intervals = "preprocessed.interval_list"
 
     command <<<
@@ -126,7 +125,7 @@ task PreprocessIntervals {
             -R '~{ref_fasta}' \
             ~{"-L '" + interval_list + "'"} \
             ~{"-XL '" + interval_blacklist + "'"} \
-            ~{interval_lists_arg} \
+            ~{sep="' " prefix("-L '", select_first([interval_lists, []]))}~{if defined(interval_lists) then "'" else ""} \
             --bin-length ~{bin_length} \
             --padding ~{padding} \
             --interval-merging-rule OVERLAPPING_ONLY \
@@ -370,8 +369,6 @@ task MergeVCFs {
         Runtime runtime_params
     }
 
-    String vcf_arg = sep("' ", prefix("-I '", vcfs)) + "'"
-
     String output_vcf = output_name + ".vcf" + if compress_output then ".gz" else ""
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
 
@@ -380,7 +377,7 @@ task MergeVCFs {
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             MergeVcfs \
-            ~{vcf_arg} \
+            ~{sep="' " prefix("-I '", vcfs)}' \
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-D '" + ref_dict + "'"} \
             -O '~{output_vcf}'
@@ -421,8 +418,6 @@ task MergeMAFs {
         Runtime runtime_params
     }
 
-    String maf_list_arg = sep("\n", mafs)
-
     String uncompressed_output_maf = output_name + ".maf"
     String output_maf = output_name + ".maf" + if compress_output then ".gz" else ""
     String dollar = "$"
@@ -431,7 +426,7 @@ task MergeMAFs {
         set -e
 
         # Convert WDL array to a temporary file
-        echo '~{maf_list_arg}' > temp_mafs.txt
+        echo '~{sep='\n' mafs}' > temp_mafs.txt
 
         # Read temporary file into a shell array
         mapfile -t mafs < temp_mafs.txt
@@ -485,7 +480,6 @@ task MergeBams {
         Runtime runtime_params
     }
 
-    String bams_arg = sep("' ", prefix("-I '", bams)) + "'"
     Int disk_spaceGB = 4 * ceil(size(bams, "GB")) + runtime_params.disk
     String output_bam_name = merged_bam_name + ".bam"
     String output_bai_name = merged_bam_name + ".bai"
@@ -495,7 +489,7 @@ task MergeBams {
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             GatherBamFiles \
-            ~{bams_arg} \
+            ~{sep="' " prefix("-I '", bams)}' \
             -O unsorted.out.bam \
             -R '~{ref_fasta}'
 

@@ -154,17 +154,14 @@ task ModelSegments {
     Array[File] denoised_cr = select_all(denoised_copy_ratios)
     Array[File] ac = select_all(allelic_counts)
 
-    String denoised_copy_ratios_arg = if length(denoised_cr) > 0 then sep("' ", prefix("--denoised-copy-ratios '", denoised_cr)) else ""
-    String allelic_counts_arg = if length(ac) > 0 then sep("' ", prefix("--allelic-counts '", ac)) else ""
-
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             ModelSegments \
             ~{"--segments '" + segments + "'"} \
-            ~{denoised_copy_ratios_arg} \
-            ~{allelic_counts_arg} \
+            ~{sep="' " prefix("--denoised-copy-ratios '", denoised_cr)}~{if length(denoised_cr) > 0 then "'" else ""} \
+            ~{sep="' " prefix("--allelic-counts '", ac)}~{if length(ac) > 0 then "'" else ""} \
             ~{"--normal-allelic-counts '" + normal_allelic_counts + "'"} \
             ~{"--output-prefix '" + prefix + "'"} \
             --genotyping-base-error-rate ~{genotying_base_error_rate} \

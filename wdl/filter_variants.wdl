@@ -285,9 +285,6 @@ task FilterMutectCalls {
         + runtime_params.disk
     )
 
-    String contamination_arg = if defined(contamination_tables) then sep("' ", prefix("--contamination-table '", select_first([contamination_tables, []]))) + "'" else ""
-    String segmentation_arg = if defined(tumor_segmentation) then sep("' ", prefix("--tumor-segmentation '", select_first([tumor_segmentation, []]))) + "'" else ""
-
     String output_base_name = basename(basename(vcf, ".gz"), ".vcf") + ".filtered"
     String output_vcf = output_base_name + if compress_output then ".vcf.gz" else ".vcf"
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
@@ -301,8 +298,8 @@ task FilterMutectCalls {
             --variant '~{vcf}' \
             --output '~{output_vcf}' \
             ~{"--orientation-bias-artifact-priors '" + orientation_bias + "'"} \
-            ~{contamination_arg}  \
-            ~{segmentation_arg}  \
+            ~{sep="' " prefix("--contamination-table '", select_first([contamination_tables, []]))}~{if defined(contamination_tables) then "'" else ""}  \
+            ~{sep="' " prefix("--tumor-segmentation '", select_first([tumor_segmentation, []]))}~{if defined(tumor_segmentation) then "'" else ""}  \
             ~{"--stats '" + mutect_stats + "'"} \
             ~{"--max-median-fragment-length-difference " + max_median_fragment_length_difference} \
             ~{"--min-median-base-quality " + min_alt_median_base_quality} \
@@ -369,8 +366,6 @@ task FilterAlignmentArtifacts {
 
     Int disk = ceil(size(bwa_mem_index_image, "GB")) + runtime_params.disk
 
-    String bam_arg = sep("' ", prefix("-I '", tumor_bams)) + "'"
-
     String output_base_name = basename(basename(vcf, ".gz"), ".vcf") + ".realignmentfiltered"
     String output_vcf = output_base_name + if compress_output then ".vcf.gz" else ".vcf"
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
@@ -387,7 +382,7 @@ task FilterAlignmentArtifacts {
         # Not skipping filtered variants is important for keeping germline variants if requested.
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             FilterAlignmentArtifacts \
-            ~{bam_arg} \
+            ~{sep="' " prefix("-I '", tumor_bams)}' \
             --variant '~{vcf}' \
             --reference '~{ref_fasta}' \
             --bwa-mem-index-image '~{bwa_mem_index_image}' \
