@@ -42,7 +42,7 @@ workflow HarmonizeSamples {
         # sort output to match order of sample_names since glob doesn't guarantee order
         scatter (sample in samples) {
             scatter (h_dcr in HarmonizeCopyRatios.harmonized_denoised_copy_ratios) {
-                String this_dcr_sample_name = basename(basename(basename(h_dcr, ".hdf5"), ".tsv"), ".denoised_CR")
+                String this_dcr_sample_name = basename(basename(basename(basename(h_dcr, ".hdf5"), ".tsv"), ".denoised_CR"), ".harmonized")
                 if (sample.name == this_dcr_sample_name) {
                     File this_dcr = h_dcr
                 }
