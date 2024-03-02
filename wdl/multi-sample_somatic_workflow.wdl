@@ -192,9 +192,9 @@ workflow MultiSampleSomaticWorkflow {
         Int time_funcotate = 1440  # 24 h
 
         Int cpu = 1
-        Int cpu_mutect2 = 1  # good for PairHMM: 2
-        Int cpu_filter_alignment_artifacts = 1  # good for PairHMM: 4
-        Int cpu_harmonize_copy_ratios = 1  # 4 is worthwhile
+        Int cpu_mutect2 = 2  # good for PairHMM: 2
+        Int cpu_filter_alignment_artifacts = 2  # good for PairHMM: 4
+        Int cpu_harmonize_copy_ratios = 4  # 4 is worthwhile
     }
 
     call rtc.DefineRuntimeCollection as GetRTC {
