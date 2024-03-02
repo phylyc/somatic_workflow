@@ -151,9 +151,9 @@ workflow DefinePatient {
 
     Patient pat = object {
         name: individual_id,
-        samples: flatten([tumor_samples, normal_samples]),
+        samples: flatten([tumor_samples, select_first([normal_samples, []])]),
         tumor_samples: tumor_samples,
-        normal_samples: normal_samples,
+        normal_samples: select_first([normal_samples, []]),
         has_tumor: has_tumor,
         has_normal: has_normal,
         matched_normal_sample: best_matched_normal_sample,
