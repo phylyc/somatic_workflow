@@ -140,9 +140,6 @@ task MergeAllelicCounts {
 
     String output_dir = "."
 
-    String sample_names_arg = sep("' ", prefix("--sample '", sample_names)) + "'"
-    String allelic_counts_arg = sep("' ", prefix("-P '", allelic_counts)) + "'"
-
 #    Array[String] merged_pileups = suffix(sample_names, ".pileup")
 
     command <<<
@@ -150,8 +147,8 @@ task MergeAllelicCounts {
         wget -O merge_pileups.py ~{script}
         python merge_pileups.py \
             --output_dir '~{output_dir}' \
-            ~{sample_names_arg}' \
-            ~{allelic_counts_arg}' \
+            ~{sep="' " prefix("--sample '", sample_names)}' \
+            ~{sep="' " prefix("-P '", allelic_counts)}' \
             ~{if compress_output then "--compress_output" else ""} \
             ~{if verbose then "--verbose" else ""}
     >>>
