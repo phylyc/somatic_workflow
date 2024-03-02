@@ -75,46 +75,6 @@ workflow DefinePatient {
     }
     Array[SequencingRun] tumors_3 = select_first([UpdateCnvPanelOfNormalsTumorSeq.updated_sequencing_run, tumors_2])
 
-    if (has_normal) {
-        scatter (tuple in transpose([non_optional_normal_bams, non_optional_normal_bais, non_optional_normal_target_intervals])) {
-            call seq_run_def.DefineSequencingRun as DefineNormalSequencingRun {
-                input:
-                    bam = tuple[0],
-                    bai = tuple[1],
-                    target_intervals = tuple[2],
-                    runtime_collection = runtime_collection
-            }
-            String normal_bam_names = DefineNormalSequencingRun.sequencing_run.name
-        }
-    }
-    Array[SequencingRun] normals_1 = select_first([DefineNormalSequencingRun.sequencing_run, []])
-    if (defined(normal_annotated_target_intervals)) {
-        scatter (pair in zip(normals_1, select_first([normal_annotated_target_intervals, []]))) {
-            call seq_run.UpdateSequencingRun as UpdateAnnotatedTargetIntervalsNormalSeq {
-                input:
-                    sequencing_run = pair.left,
-                    annotated_target_intervals = pair.right,
-            }
-        }
-    }
-    Array[SequencingRun] normals_2 = select_first([UpdateAnnotatedTargetIntervalsNormalSeq.updated_sequencing_run, normals_1])
-    if (defined(normal_cnv_panel_of_normals)) {
-        scatter (pair in zip(normals_2, select_first([normal_cnv_panel_of_normals, []]))) {
-            if (size(pair.right) > 0) {
-                # For some sequencing platforms a panel of normals may not be available.
-                # The denoise read counts task will then just use the anntated target
-                # intervals to do GC correction.
-                File n_cnv_panel_of_normals = pair.right
-            }
-            call seq_run.UpdateSequencingRun as UpdateCnvPanelOfNormalsNormalSeq {
-                input:
-                    sequencing_run = pair.left,
-                    cnv_panel_of_normals = n_cnv_panel_of_normals,
-            }
-        }
-    }
-    Array[SequencingRun] normals_3 = select_first([UpdateCnvPanelOfNormalsNormalSeq.updated_sequencing_run, normals_2])
-
     # GroupBy sample name:
     # We assume that tumor_sample_names and tumor_bam_names share the same uniqueness,
     # that is if the supplied sample name is the same for two input bams, then the
@@ -129,17 +89,61 @@ workflow DefinePatient {
             is_tumor: true,
         }
     }
-    Array[String] normal_names = select_first([normal_sample_names, normal_bam_names])
-    scatter (pair in as_pairs(collect_by_key(zip(normal_names, normals_3)))) {
-        Sample normal_samples = object {
-            name: pair.left,
-            bam_name: pair.right[0].name,
-            sequencing_runs: pair.right,
-            is_tumor: false,
-        }
-    }
 
     if (has_normal) {
+        scatter (tuple in transpose([non_optional_normal_bams, non_optional_normal_bais, non_optional_normal_target_intervals])) {
+            call seq_run_def.DefineSequencingRun as DefineNormalSequencingRun {
+                input:
+                    bam = tuple[0],
+                    bai = tuple[1],
+                    target_intervals = tuple[2],
+                    runtime_collection = runtime_collection
+            }
+            String normal_bam_names = DefineNormalSequencingRun.sequencing_run.name
+        }
+        Array[SequencingRun] normals_1 = DefineNormalSequencingRun.sequencing_run
+        if (defined(normal_annotated_target_intervals)) {
+            scatter (pair in zip(normals_1, select_first([normal_annotated_target_intervals, []]))) {
+                call seq_run.UpdateSequencingRun as UpdateAnnotatedTargetIntervalsNormalSeq {
+                    input:
+                        sequencing_run = pair.left,
+                        annotated_target_intervals = pair.right,
+                }
+            }
+        }
+        Array[SequencingRun] normals_2 = select_first([UpdateAnnotatedTargetIntervalsNormalSeq.updated_sequencing_run, normals_1])
+        if (defined(normal_cnv_panel_of_normals)) {
+            scatter (pair in zip(normals_2, select_first([normal_cnv_panel_of_normals, []]))) {
+                if (size(pair.right) > 0) {
+                    # For some sequencing platforms a panel of normals may not be available.
+                    # The denoise read counts task will then just use the anntated target
+                    # intervals to do GC correction.
+                    File n_cnv_panel_of_normals = pair.right
+                }
+                call seq_run.UpdateSequencingRun as UpdateCnvPanelOfNormalsNormalSeq {
+                    input:
+                        sequencing_run = pair.left,
+                        cnv_panel_of_normals = n_cnv_panel_of_normals,
+                }
+            }
+        }
+        Array[SequencingRun] normals_3 = select_first([UpdateCnvPanelOfNormalsNormalSeq.updated_sequencing_run, normals_2])
+
+        # GroupBy sample name:
+        # We assume that tumor_sample_names and tumor_bam_names share the same uniqueness,
+        # that is if the supplied sample name is the same for two input bams, then the
+        # bam names should also be the same, and vice versa.
+
+        Array[String] normal_names = select_first([normal_sample_names, normal_bam_names])
+        scatter (pair in as_pairs(collect_by_key(zip(normal_names, normals_3)))) {
+            Sample normal_samples = object {
+                name: pair.left,
+                bam_name: pair.right[0].name,
+                sequencing_runs: pair.right,
+                is_tumor: false,
+            }
+        }
+
         # We select the first normal sample to be the matched normal.
         # todo: select normal with greatest sequencing depth
         Sample best_matched_normal_sample = select_first(normal_samples)
