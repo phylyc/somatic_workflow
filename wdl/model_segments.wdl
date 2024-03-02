@@ -14,15 +14,21 @@ workflow ModelSegments {
         RuntimeCollection runtime_collection
     }
 
+    # The allelic counts were collected via GetPileupSummaries, which contains
+    # more information. We first need to convert the pileup to allelic count format.
+
     scatter (sample in patient.samples) {
-        call PileupToAllelicCounts as AllelicCounts {
+        call PileupToAllelicCounts {
             input:
                 ref_dict = args.ref_dict,
                 pileup = sample.snp_array_pileups,
                 runtime_params = runtime_collection.pileup_to_allelic_counts
         }
     }
-    Array[File] sample_allelic_counts = select_all(AllelicCounts.allelic_counts)
+    Array[File] sample_allelic_counts = select_all(PileupToAllelicCounts.allelic_counts)
+
+    # Save the allelic counts in each sample object
+
     if (length(sample_allelic_counts) > 1) {
         call p_update_s.UpdateSamples as UpdatedSamples {
             input:
@@ -31,6 +37,8 @@ workflow ModelSegments {
         }
     }
     Patient pat = select_first([UpdatedSamples.updated_patient, patient])
+
+    # Prepare ModelSegments input
 
     scatter (sample in pat.samples) {
         File? denoised_copy_ratios = sample.denoised_copy_ratios
@@ -46,6 +54,9 @@ workflow ModelSegments {
         Sample matched_normal_sample = select_first([pat.matched_normal_sample])
         File? normal_allelic_counts = matched_normal_sample.snp_array_allelic_counts
     }
+
+    # Now we can finally do the segmentation. First, we determine the patient-specific
+    # segmentation, then we infer the sample-specific copy ratios and call amps/dels.
 
     if (length(pat.samples) > 1) {
         call ModelSegments as MultiSampleModelSegments {
@@ -81,6 +92,8 @@ workflow ModelSegments {
                 runtime_params = runtime_collection.call_copy_ratio_segments
         }
     }
+
+    # todo: save segmentation results in each sample object
 
     output {
         Patient updated_patient = pat
@@ -203,9 +216,9 @@ task ModelSegments {
     }
 
     parameter_meta {
-        denoised_copy_ratios: {localization_optional: true}
-        allelic_counts: {localization_optional: true}
-        normal_allelic_counts: {localization_optional: true}
+#        denoised_copy_ratios: {localization_optional: true}
+#        allelic_counts: {localization_optional: true}
+#        normal_allelic_counts: {localization_optional: true}
     }
 }
 
@@ -242,6 +255,6 @@ task CallCopyRatioSegments {
     }
 
     parameter_meta {
-        copy_ratio_segments: {localization_optional: true}
+#        copy_ratio_segments: {localization_optional: true}
     }
 }
