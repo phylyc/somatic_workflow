@@ -36,6 +36,12 @@ workflow ModelSegments {
         File? denoised_copy_ratios = sample.denoised_copy_ratios
         File? allelic_counts = sample.snp_array_allelic_counts
     }
+    if (length(select_all(denoised_copy_ratios)) > 0) {
+        Array[File] dcr = select_all(denoised_copy_ratios)
+    }
+    if (length(select_all(allelic_counts)) > 0) {
+        Array[File] ac = select_all(allelic_counts)
+    }
     if (defined(pat.matched_normal_sample)) {
         Sample matched_normal_sample = select_first([pat.matched_normal_sample])
         File? normal_allelic_counts = matched_normal_sample.snp_array_allelic_counts
@@ -44,8 +50,8 @@ workflow ModelSegments {
     if (length(pat.samples) > 1) {
         call ModelSegments as MultiSampleModelSegments {
             input:
-                denoised_copy_ratios = denoised_copy_ratios,
-                allelic_counts = allelic_counts,
+                denoised_copy_ratios = dcr,
+                allelic_counts = ac,
                 normal_allelic_counts = normal_allelic_counts,
                 prefix = patient.name + ".segmentation",
                 runtime_params = runtime_collection.model_segments
@@ -53,11 +59,17 @@ workflow ModelSegments {
     }
 
     scatter (sample in pat.samples) {
+        if (defined(sample.denoised_copy_ratios))  {
+            Array[File] dcr_list = select_all([sample.denoised_copy_ratios])
+        }
+        if (defined(sample.snp_array_allelic_counts)) {
+            Array[File] ac_list = select_all([sample.snp_array_allelic_counts])
+        }
         call ModelSegments as MultiSampleInferCR {
             input:
                 segments = MultiSampleModelSegments.multi_sample_segments,
-                denoised_copy_ratios = [sample.denoised_copy_ratios],
-                allelic_counts = [sample.snp_array_allelic_counts],
+                denoised_copy_ratios = dcr_list,
+                allelic_counts = ac_list,
                 normal_allelic_counts = normal_allelic_counts,
                 prefix = sample.name,
                 runtime_params = runtime_collection.model_segments
@@ -139,8 +151,8 @@ task PileupToAllelicCounts {
 task ModelSegments {
     input {
         File? segments
-        Array[File?] denoised_copy_ratios
-        Array[File?] allelic_counts
+        Array[File]? denoised_copy_ratios
+        Array[File]? allelic_counts
         File? normal_allelic_counts
         String prefix
 
@@ -151,17 +163,14 @@ task ModelSegments {
 
     String output_dir = "output"
 
-    Array[File] denoised_cr = select_all(denoised_copy_ratios)
-    Array[File] ac = select_all(allelic_counts)
-
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             ModelSegments \
             ~{"--segments '" + segments + "'"} \
-            ~{sep="' " prefix("--denoised-copy-ratios '", denoised_cr)}~{if length(denoised_cr) > 0 then "'" else ""} \
-            ~{sep="' " prefix("--allelic-counts '", ac)}~{if length(ac) > 0 then "'" else ""} \
+            ~{true="--denoised-copy-ratios '" false="" defined(denoised_copy_ratios)}~{default="" sep="' --denoised-copy-ratios '" denoised_copy_ratios}~{true="'" false="" defined(denoised_copy_ratios)} \
+            ~{true="--allelic-counts '" false="" defined(allelic_counts)}~{default="" sep="' --allelic-counts '" allelic_counts}~{true="'" false="" defined(allelic_counts)} \
             ~{"--normal-allelic-counts '" + normal_allelic_counts + "'"} \
             ~{"--output-prefix '" + prefix + "'"} \
             --genotyping-base-error-rate ~{genotying_base_error_rate} \

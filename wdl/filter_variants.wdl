@@ -298,8 +298,8 @@ task FilterMutectCalls {
             --variant '~{vcf}' \
             --output '~{output_vcf}' \
             ~{"--orientation-bias-artifact-priors '" + orientation_bias + "'"} \
-            ~{sep="' " prefix("--contamination-table '", select_first([contamination_tables, []]))}~{if defined(contamination_tables) then "'" else ""}  \
-            ~{sep="' " prefix("--tumor-segmentation '", select_first([tumor_segmentation, []]))}~{if defined(tumor_segmentation) then "'" else ""}  \
+            ~{true="--contamination-table '" false="" defined(contamination_tables)}~{default="" sep="' --contamination-table '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
+            ~{true="--tumor-segmentation '" false="" defined(tumor_segmentation)}~{default="" sep="' --tumor-segmentation '" tumor_segmentation}~{true="'" false="" defined(tumor_segmentation)} \
             ~{"--stats '" + mutect_stats + "'"} \
             ~{"--max-median-fragment-length-difference " + max_median_fragment_length_difference} \
             ~{"--min-median-base-quality " + min_alt_median_base_quality} \

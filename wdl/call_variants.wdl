@@ -214,8 +214,8 @@ task Mutect2 {
             Mutect2 \
             --reference '~{ref_fasta}' \
             ~{sep="' " prefix("-I '", tumor_bams)}' \
-            ~{sep="' " prefix("-I '", select_first([normal_bams, []]))}~{if normal_is_present then "'" else ""} \
-            ~{sep="' " prefix("-normal '", select_first([normal_sample_names, []]))}~{if normal_is_present then "'" else ""} \
+            ~{true="-I '" false="" normal_is_present}~{default="" sep="' -I '" normal_bams}~{true="'" false="" normal_is_present} \
+            ~{true="-normal '" false="" normal_is_present}~{default="" sep="' -normal '" normal_sample_names}~{true="'" false="" normal_is_present} \
             --output '~{output_vcf}' \
             ~{"--intervals '" + interval_list + "'"} \
             ~{"--alleles '" + force_call_alleles + "'"} \

@@ -129,8 +129,8 @@ task GenotypeVariantsTask {
             --patient '~{individual_id}' \
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("-P '", pileups)}' \
-            ~{sep="' " prefix("-S '", select_first([segmentation_tables, []]))}~{if defined(segmentation_tables) then "'" else ""} \
-            ~{sep="' " prefix("-C '", select_first([contamination_tables, []]))}~{if defined(contamination_tables) then "'" else ""} \
+            ~{true="-S '" false="" defined(segmentation_tables)}~{default="" sep="' -S '" segmentation_tables}~{true="'" false="" defined(segmentation_tables)} \
+            ~{true="-C '" false="" defined(contamination_tables)}~{default="" sep="' -C '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
             --min_read_depth ~{min_read_depth} \
             --min_genotype_likelihood ~{min_genotype_likelihood} \
             --model ~{model} \
