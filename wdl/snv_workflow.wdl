@@ -17,105 +17,107 @@ workflow SNVWorkflow {
         RuntimeCollection runtime_collection
     }
 
-    call cv.CallVariants {
-        input:
-            patient = patient,
-            args = args,
-            runtime_collection = runtime_collection,
-    }
-
-    if (args.run_variant_filter) {
-        call fv.FilterVariants {
+    if (args.run_variant_calling) {
+        call cv.CallVariants {
             input:
                 patient = patient,
                 args = args,
-                vcf = CallVariants.vcf,
-                vcf_idx = CallVariants.vcf_idx,
-                mutect_stats = CallVariants.mutect_stats,
-                orientation_bias = CallVariants.orientation_bias,
                 runtime_collection = runtime_collection,
         }
 
-        if (args.run_collect_called_variants_allelic_coverage) {
-            scatter (sample in patient.samples) {
-                if (args.keep_germline) {
+        if (args.run_variant_filter) {
+            call fv.FilterVariants {
+                input:
+                    patient = patient,
+                    args = args,
+                    vcf = CallVariants.vcf,
+                    vcf_idx = CallVariants.vcf_idx,
+                    mutect_stats = CallVariants.mutect_stats,
+                    orientation_bias = CallVariants.orientation_bias,
+                    runtime_collection = runtime_collection,
+            }
+
+            if (args.run_collect_called_variants_allelic_coverage) {
+                scatter (sample in patient.samples) {
+                    if (args.keep_germline) {
+                        scatter (sequencing_run in sample.sequencing_runs) {
+                            call cac.CollectAllelicCounts as GermlineAllelicCounts {
+                                input:
+                                    scattered_interval_list = args.scattered_interval_list,
+                                    bam = sequencing_run.bam,
+                                    bai = sequencing_run.bai,
+                                    ref_dict = args.ref_dict,
+                                    vcf = FilterVariants.germline_vcf,
+                                    vcf_idx = FilterVariants.germline_vcf_idx,
+                                    getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,
+                                    sample_name = sequencing_run.name + ".germline",
+                                    runtime_collection = runtime_collection,
+                            }
+                            String germline_seq_sample_names = sample.name + ".germline"
+                        }
+
+                        call hs.MergeAllelicCounts as MergeGermlineAllelicCounts {
+                            input:
+                                sample_names = germline_seq_sample_names,
+                                allelic_counts = GermlineAllelicCounts.pileup_summaries,
+                                compress_output = args.compress_output,
+                                runtime_params = runtime_collection.merge_allelic_counts,
+                        }
+                        # We select the first file since we only supplied one unique sample name, so all counts were merged.
+                        File? germline_allelic_counts = select_first(MergeGermlineAllelicCounts.merged_allelic_counts)
+                    }
+
                     scatter (sequencing_run in sample.sequencing_runs) {
-                        call cac.CollectAllelicCounts as GermlineAllelicCounts {
+                        call cac.CollectAllelicCounts as SomaticAllelicCounts {
                             input:
                                 scattered_interval_list = args.scattered_interval_list,
                                 bam = sequencing_run.bam,
                                 bai = sequencing_run.bai,
                                 ref_dict = args.ref_dict,
-                                vcf = FilterVariants.germline_vcf,
-                                vcf_idx = FilterVariants.germline_vcf_idx,
+                                vcf = FilterVariants.somatic_vcf,
+                                vcf_idx = FilterVariants.somatic_vcf_idx,
                                 getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,
-                                sample_name = sequencing_run.name + ".germline",
+                                sample_name = sequencing_run.name + ".somatic",
                                 runtime_collection = runtime_collection,
                         }
-                        String germline_seq_sample_names = sample.name + ".germline"
+                        String somatic_seq_sample_names = sample.name + ".somatic"
                     }
 
-                    call hs.MergeAllelicCounts as MergeGermlineAllelicCounts {
+                    call hs.MergeAllelicCounts as MergeSomaticAllelicCounts {
                         input:
-                            sample_names = germline_seq_sample_names,
-                            allelic_counts = GermlineAllelicCounts.pileup_summaries,
+                            sample_names = somatic_seq_sample_names,
+                            allelic_counts = SomaticAllelicCounts.pileup_summaries,
                             compress_output = args.compress_output,
                             runtime_params = runtime_collection.merge_allelic_counts,
                     }
                     # We select the first file since we only supplied one unique sample name, so all counts were merged.
-                    File? germline_allelic_counts = select_first(MergeGermlineAllelicCounts.merged_allelic_counts)
+                    File? somatic_allelic_counts = select_first(MergeSomaticAllelicCounts.merged_allelic_counts)
                 }
-
-                scatter (sequencing_run in sample.sequencing_runs) {
-                    call cac.CollectAllelicCounts as SomaticAllelicCounts {
-                        input:
-                            scattered_interval_list = args.scattered_interval_list,
-                            bam = sequencing_run.bam,
-                            bai = sequencing_run.bai,
-                            ref_dict = args.ref_dict,
-                            vcf = FilterVariants.somatic_vcf,
-                            vcf_idx = FilterVariants.somatic_vcf_idx,
-                            getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,
-                            sample_name = sequencing_run.name + ".somatic",
-                            runtime_collection = runtime_collection,
-                    }
-                    String somatic_seq_sample_names = sample.name + ".somatic"
-                }
-
-                call hs.MergeAllelicCounts as MergeSomaticAllelicCounts {
-                    input:
-                        sample_names = somatic_seq_sample_names,
-                        allelic_counts = SomaticAllelicCounts.pileup_summaries,
-                        compress_output = args.compress_output,
-                        runtime_params = runtime_collection.merge_allelic_counts,
-                }
-                # We select the first file since we only supplied one unique sample name, so all counts were merged.
-                File? somatic_allelic_counts = select_first(MergeSomaticAllelicCounts.merged_allelic_counts)
             }
         }
-    }
 
-    if (args.run_variant_annotation) {
-        # The sample scatter needs to be outside of the call to AnnotateVariants
-        # since cromwell shits the bed for piping optional inputs into a nested scatter.
-        scatter (sample in patient.samples) {
-            if (sample.is_tumor && defined(patient.matched_normal_sample)) {
-                Sample matched_normal_sample = select_first([patient.matched_normal_sample])
-                String? matched_normal_sample_name = matched_normal_sample.name
-                String? matched_normal_bam_name = matched_normal_sample.bam_name
-            }
+        if (args.run_variant_annotation) {
+            # The sample scatter needs to be outside of the call to AnnotateVariants
+            # since cromwell shits the bed for piping optional inputs into a nested scatter.
+            scatter (sample in patient.samples) {
+                if (sample.is_tumor && defined(patient.matched_normal_sample)) {
+                    Sample matched_normal_sample = select_first([patient.matched_normal_sample])
+                    String? matched_normal_sample_name = matched_normal_sample.name
+                    String? matched_normal_bam_name = matched_normal_sample.bam_name
+                }
 
-            call av.AnnotateVariants {
-                input:
-                    vcf = select_first([FilterVariants.somatic_vcf, CallVariants.vcf]),
-                    vcf_idx = select_first([FilterVariants.somatic_vcf_idx, CallVariants.vcf_idx]),
-                    individual_id = patient.name,
-                    tumor_sample_name = sample.name,
-                    tumor_bam_name = sample.bam_name,
-                    normal_sample_name = matched_normal_sample_name,
-                    normal_bam_name = matched_normal_bam_name,
-                    args = args,
-                    runtime_collection = runtime_collection,
+                call av.AnnotateVariants {
+                    input:
+                        vcf = select_first([FilterVariants.somatic_vcf, CallVariants.vcf]),
+                        vcf_idx = select_first([FilterVariants.somatic_vcf_idx, CallVariants.vcf_idx]),
+                        individual_id = patient.name,
+                        tumor_sample_name = sample.name,
+                        tumor_bam_name = sample.bam_name,
+                        normal_sample_name = matched_normal_sample_name,
+                        normal_bam_name = matched_normal_bam_name,
+                        args = args,
+                        runtime_collection = runtime_collection,
+                }
             }
         }
     }
