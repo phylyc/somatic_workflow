@@ -6,6 +6,7 @@ import multiprocessing as mp
 import numpy as np
 import os
 import pandas as pd
+import time
 import warnings
 
 
@@ -71,34 +72,36 @@ def write_header_and_df(header: str, df: pd.DataFrame, file_path: str, verbose: 
         df.to_csv(file, sep="\t", index=False)
 
 
-def split_intervals(intervals: pd.DataFrame, start_col: str = "START", end_col: str = "END"):
-    starts = pd.DataFrame(data={start_col: 1}, index=intervals[start_col])
-    ends = pd.DataFrame(data={end_col: -1}, index=intervals[end_col])
-    transitions = pd.merge(starts, ends, how="outer", left_index=True, right_index=True).fillna(0)
-    # This dataframe stores per position the type of transitions. Automatically sorted.
-    # Now, we need to know at each position if we are at an interval start or not.
-    # This can be done by counting the opening & closing parenthesis.
-    transitions["is_start"] = (transitions.pop(start_col) + transitions.pop(end_col)).cumsum().astype(bool)
-    # This handles overlapping intervals.
-    # Create interval indices and take all intervals that have a valid start.
-    new_intervals = pd.IntervalIndex.from_breaks(transitions.index, closed="left")[transitions["is_start"][:-1]]
-    return new_intervals[~new_intervals.is_empty]
+def split_intervals(intervals: pd.DataFrame, start_col: str, end_col: str):
+    # Create a sorted list of all unique interval boundaries
+    boundaries = sorted(set(intervals[start_col]).union(set(intervals[end_col])))
+    # Use the boundaries to form non-overlapping intervals
+    new_intervals = pd.IntervalIndex.from_breaks(boundaries, closed='left')
+    return new_intervals
 
 
 def non_overlapping(intervals: pd.DataFrame, start_col: str = "START", end_col: str = "END", verbose: bool = False):
-    new_intervals = split_intervals(intervals, start_col=start_col, end_col=end_col)
-    non_overlapping_interval_list = []
-    for i, interval in intervals.iterrows():
-        pd_interval = pd.Interval(interval[start_col], interval[end_col], closed="left")
-        overlapping_new_intervals = [n_i for n_i in new_intervals if pd_interval.overlaps(n_i)]
-        # Split interval and content into new intervals:
-        for new_interval in overlapping_new_intervals:
-            new_split_interval = copy(interval)
-            new_split_interval[start_col] = new_interval.left
-            new_split_interval[end_col] = new_interval.right
-            non_overlapping_interval_list.append(new_split_interval)
+    new_intervals = split_intervals(intervals, start_col, end_col)
+
+    # Map each original interval to the new non-overlapping intervals
+    interval_mapping = defaultdict(list)
+    for interval in new_intervals:
+        contained_by_interval = intervals[(intervals[start_col] <= interval.left) & (intervals[end_col] > interval.left)]
+        for _, row in contained_by_interval.iterrows():
+            interval_mapping[interval].append(row)
+
+    # Flatten the mapping into a list of non-overlapping intervals with their corresponding data
+    non_overlapping_intervals = []
+    for interval, rows in interval_mapping.items():
+        for row in rows:
+            new_row = copy(row)
+            new_row[start_col] = interval.left
+            new_row[end_col] = interval.right
+            non_overlapping_intervals.append(new_row)
+
+    non_overlapping_df = pd.DataFrame(non_overlapping_intervals)
     print(".", end="", flush=True) if verbose else None
-    return pd.DataFrame(non_overlapping_interval_list)
+    return non_overlapping_df
 
 
 def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
@@ -169,7 +172,9 @@ def harmonize(copy_ratios: list[pd.DataFrame], max_processes: int = 1, verbose: 
         print("  No loci found to harmonize in any of the input files.") if verbose else None
         return cr
 
+    t = time.perf_counter()
     harmonized_loci = harmonize_loci_parallel(copy_ratios=cr, verbose=verbose, max_processes=max_processes)
+    print(f"Harmonizing copy ratio intervals took {time.perf_counter() - t:.3f} seconds.") if verbose else None
 
     aggregate = harmonized_loci.groupby(by=["CONTIG", "START", "END", "SAMPLE"]).agg(
         {
