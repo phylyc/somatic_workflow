@@ -22,6 +22,7 @@ workflow ModelSegments {
             input:
                 ref_dict = args.ref_dict,
                 pileup = sample.snp_array_pileups,
+                bam_name = sample.bam_name,
                 runtime_params = runtime_collection.pileup_to_allelic_counts
         }
     }
@@ -149,6 +150,7 @@ workflow ModelSegments {
 task PileupToAllelicCounts {
     input {
         File ref_dict
+        String bam_name
         File? pileup
         Runtime runtime_params
     }
@@ -169,7 +171,7 @@ task PileupToAllelicCounts {
             fi
 
             cat '~{ref_dict}' > '~{output_file}'
-            printf "@RG\tID:GATKCopyNumber\tSM:~{sample_name}\n" >> '~{output_file}'
+            printf "@RG\tID:GATKCopyNumber\tSM:~{bam_name}\n" >> '~{output_file}'
             printf "CONTIG\tPOSITION\tREF_COUNT\tALT_COUNT\tREF_NUCLEOTIDE\tALT_NUCLEOTIDE\n" >> '~{output_file}'
             # The ref and alt allele information is not available in the pileup file, so we set both to "N"
             tail -n +3 '~{uncompressed_pileup}' | awk -v OFS='\t' '{print $1, $2, $3, $4, "N", "N"}' >> '~{output_file}'
@@ -233,10 +235,10 @@ task ModelSegmentsTask {
     output {
         File? multi_sample_segments = output_dir + "/" + prefix + ".interval_list"
         File? hets = output_dir + "/" + prefix + ".hets.tsv"
-        File? af_model_begin_parameters = output_dir + "/" + prefix + ".modelBegin.af.params"
-        File? cr_model_begin_parameters = output_dir + "/" + prefix + ".modelBegin.cr.params"
-        File? af_model_final_parameters = output_dir + "/" + prefix + ".modelFinal.af.params"
-        File? cr_model_final_parameters = output_dir + "/" + prefix + ".modelFinal.cr.params"
+        File? af_model_begin_parameters = output_dir + "/" + prefix + ".modelBegin.af.param"
+        File? cr_model_begin_parameters = output_dir + "/" + prefix + ".modelBegin.cr.param"
+        File? af_model_final_parameters = output_dir + "/" + prefix + ".modelFinal.af.param"
+        File? cr_model_final_parameters = output_dir + "/" + prefix + ".modelFinal.cr.param"
         File? seg_begin = output_dir + "/" + prefix + ".modelBegin.seg"
         File? seg_final = output_dir + "/" + prefix + ".modelFinal.seg"
         File? cr_seg = output_dir + "/" + prefix + ".cr.seg"
@@ -353,6 +355,8 @@ task PlotModeledSegments {
 
 #task ToACSConversion {
 #    input {
+#        String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/acs_conversion.py"
+#
 #        File seg_final
 #        File af_model_parameters
 #
@@ -362,6 +366,10 @@ task PlotModeledSegments {
 #    }
 #
 #    command <<<
+#        set -e
+#        wget -O acs_conversion.py ~{script}
+#        python acs_conversion.py \
+#
 #    >>>
 #
 #    output {
