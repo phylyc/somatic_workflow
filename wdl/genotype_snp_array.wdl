@@ -84,8 +84,6 @@ workflow GenotypeSNPArray {
             runtime_collection = runtime_collection,
     }
 
-    # todo: return updated pileups
-
     output {
         Array[File] pileups = common_germline_allele_pileups
         Array[File] contaminations = contamination_tables

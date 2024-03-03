@@ -70,7 +70,19 @@ workflow GenotypeVariants {
             runtime_params = runtime_collection.genotype_variants
     }
 
-    # todo: resort sample genotype likelihoods
+    # resort sample genotype likelihoods since glob doesn't guarantee order
+    if (save_sample_genotype_likelihoods) {
+        scatter (sample_name in sample_names) {
+            scatter (sample_gtlik in select_first([GenotypeVariantsTask.sample_genotype_likelihoods, []])) {
+                String this_sample_name = basename(basename(sample_gtlik, ".gz"), ".likelihoods.pileup")
+                if (sample_name == this_sample_name) {
+                    File this_gtlik = sample_gtlik
+                }
+            }
+            Array[File] this_sample_gtlik = select_all(this_gtlik)
+        }
+        Array[File] sample_genotype_likelihoods = flatten(this_sample_gtlik)
+    }
 
     output {
         File vcf = GenotypeVariantsTask.vcf
@@ -79,7 +91,7 @@ workflow GenotypeVariants {
         File alt_counts = GenotypeVariantsTask.alt_counts
         File other_alt_counts = GenotypeVariantsTask.other_alt_counts
         File sample_correlation = GenotypeVariantsTask.sample_correlation
-        Array[File]? sample_genotype_likelihoods = GenotypeVariantsTask.sample_genotype_likelihoods
+        Array[File]? sample_genotype_likelihoods = sample_genotype_likelihoods
     }
 }
 
