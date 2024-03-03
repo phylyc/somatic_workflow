@@ -59,7 +59,7 @@ workflow ModelSegments {
     # segmentation, then we infer the sample-specific copy ratios and call amps/dels.
 
     if (length(pat.samples) > 1) {
-        call ModelSegments as MultiSampleModelSegments {
+        call ModelSegmentsTask as MultiSampleModelSegments {
             input:
                 denoised_copy_ratios = dcr,
                 allelic_counts = ac,
@@ -76,7 +76,7 @@ workflow ModelSegments {
         if (defined(sample.snp_array_allelic_counts)) {
             Array[File] ac_list = select_all([sample.snp_array_allelic_counts])
         }
-        call ModelSegments as MultiSampleInferCR {
+        call ModelSegmentsTask as MultiSampleInferCR {
             input:
                 segments = MultiSampleModelSegments.multi_sample_segments,
                 denoised_copy_ratios = dcr_list,
@@ -188,7 +188,7 @@ task PileupToAllelicCounts {
     }
 }
 
-task ModelSegments {
+task ModelSegmentsTask {
     input {
         File? segments
         Array[File]? denoised_copy_ratios
