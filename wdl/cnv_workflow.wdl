@@ -83,6 +83,16 @@ workflow CNVWorkflow {
     }
 
     if (args.run_contamination_model) {
+        # ModelSegments requires the allelic counts to be pulled down at the same
+        # set of loci for all samples. GetPileupSummaries does not guarantee this,
+        # however, GenotypeSNPArray enforces this. Hence, if we want to run the
+        # copy-ratio segmentation workflow, then we also need to run the contamination
+        # workflow. Estimating the contamination is helpful for genotyping; however,
+        # the contamination model is not used for ModelSegments.
+        # FEATURE REQUEST: Option to supply ModelSegments with genotypes.
+
+        # Prepare input for the contamination model / SNP array genotying
+
         scatter (sample in ConsensusPatient.updated_patient.samples) {
             String sample_names = sample.name
         }
@@ -96,6 +106,9 @@ workflow CNVWorkflow {
             }
             Array[File]? normal_pileups = select_all(n_pileups)
         }
+
+        # Run the contamination model
+
         call gsa.GenotypeSNPArray {
             input:
                 scattered_interval_list = args.scattered_interval_list,
@@ -107,7 +120,7 @@ workflow CNVWorkflow {
                 common_germline_alleles = args.common_germline_alleles,
                 common_germline_alleles_idx = args.common_germline_alleles_idx,
                 genotype_variants_script = args.genotype_variants_script,
-                genotype_variants_save_sample_genotype_likelihoods = args.genotype_variants_save_sample_genotype_likelihoods,
+                genotype_variants_save_sample_genotype_likelihoods = true,
                 compress_output = args.compress_output,
                 runtime_collection = runtime_collection,
         }
@@ -115,7 +128,7 @@ workflow CNVWorkflow {
         call p_update_s.UpdateSamples as AddPileupsAndContaminationToSamples {
             input:
                 patient = ConsensusPatient.updated_patient,
-                snp_array_pileups = GenotypeSNPArray.pileups,
+                snp_array_pileups = GenotypeSNPArray.sample_genotype_likelihoods,  # Careful: This is not technically in a pileup format!
                 contaminations = GenotypeSNPArray.contaminations,
                 af_segmentations = GenotypeSNPArray.segmentations,
         }

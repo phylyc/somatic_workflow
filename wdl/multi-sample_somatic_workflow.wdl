@@ -8,6 +8,7 @@ import "tasks.wdl"
 import "cnv_workflow.wdl" as cnv
 import "snv_workflow.wdl" as snv
 #import "clonal_decomposition.wdl" as cd
+#import "calculate_tumor_mutation_burden.wdl" as tmb
 
 
 workflow MultiSampleSomaticWorkflow {
@@ -80,7 +81,6 @@ workflow MultiSampleSomaticWorkflow {
         Float max_snp_array_pop_af = 1.0  # default: 0.2
         Int min_snp_array_read_depth = 10
         String genotype_variants_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
-        Boolean genotype_variants_save_sample_genotype_likelihoods = false
 
         # SNV WORKFLOW
         Int min_read_depth = 4
@@ -141,11 +141,10 @@ workflow MultiSampleSomaticWorkflow {
         Int mem_get_sample_name = 256
         Int mem_preprocess_intervals = 3072
         Int mem_split_intervals = 1024
+        # CNV
         Int mem_collect_covered_regions = 8192
         Int mem_collect_read_counts = 2048
         Int mem_denoise_read_counts = 2048
-        Int mem_mutect2_base = 3072
-        Int mem_learn_read_orientation_model_base = 4096
         Int mem_get_pileup_summaries = 4096  # needs at least 2G
         Int mem_gather_pileup_summaries = 512  # 64
         Int mem_select_pileup_summaries = 512  # 64
@@ -154,6 +153,12 @@ workflow MultiSampleSomaticWorkflow {
         Int mem_merge_allelic_counts = 4096
         Int mem_calculate_contamination = 4096  # depends on the common_germline_alleles resource
         Int mem_genotype_variants = 4096
+        Int mem_model_segments = 4096
+        Int mem_call_copy_ratio_segments = 2048
+        Int mem_plot_modeled_segments = 4096
+        # SNV
+        Int mem_mutect2_base = 3072
+        Int mem_learn_read_orientation_model_base = 4096
         Int mem_filter_mutect_calls = 4096
         Int mem_select_variants = 3072
         Int mem_filter_alignment_artifacts_base = 3072 # needs to be increased in some cases
@@ -169,19 +174,24 @@ workflow MultiSampleSomaticWorkflow {
         Int time_get_sample_name = 1
         Int time_preprocess_intervals = 120
         Int time_split_intervals = 1
+        # CNV
         Int time_collect_covered_regions = 300
         Int time_collect_read_counts = 300
         Int time_denoise_read_counts = 120
-        Int time_mutect2_total = 10000  # 6 d / scatter_count
-        Int time_learn_read_orientation_model = 180  # 3 h
         Int time_get_pileup_summaries = 4500  # 3 d / scatter_count
         Int time_gather_pileup_summaries = 5
         Int time_select_pileup_summaries = 5
         Int time_pileup_to_allelic_counts = 5
-        Int time_harmonize_copy_ratios = 1440  # 24 h
+        Int time_harmonize_copy_ratios = 60
         Int time_merge_allelic_counts = 10
         Int time_calculate_contamination = 10
         Int time_genotype_variants = 30
+        Int time_model_segments = 60
+        Int time_call_copy_ratio_segments = 10
+        Int time_plot_modeled_segments = 10
+        # SNV
+        Int time_mutect2_total = 10000  # 6 d / scatter_count
+        Int time_learn_read_orientation_model = 180  # 3 h
         Int time_filter_mutect_calls = 800  # 13 h
         Int time_select_variants = 5
         Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count
@@ -194,7 +204,7 @@ workflow MultiSampleSomaticWorkflow {
         Int cpu = 1
         Int cpu_mutect2 = 2  # good for PairHMM: 2
         Int cpu_filter_alignment_artifacts = 2  # good for PairHMM: 4
-        Int cpu_harmonize_copy_ratios = 4  # 4 is worthwhile
+        Int cpu_harmonize_copy_ratios = 1  # 4 is worthwhile
     }
 
     call rtc.DefineRuntimeCollection as GetRTC {
@@ -223,7 +233,6 @@ workflow MultiSampleSomaticWorkflow {
             mem_collect_read_counts = mem_collect_read_counts,
             mem_denoise_read_counts = mem_denoise_read_counts,
             mem_mutect2_base = mem_mutect2_base,
-            mem_learn_read_orientation_model_base = mem_learn_read_orientation_model_base,
             mem_get_pileup_summaries = mem_get_pileup_summaries,
             mem_gather_pileup_summaries = mem_gather_pileup_summaries,
             mem_select_pileup_summaries = mem_select_pileup_summaries,
@@ -232,6 +241,10 @@ workflow MultiSampleSomaticWorkflow {
             mem_merge_allelic_counts = mem_merge_allelic_counts,
             mem_calculate_contamination = mem_calculate_contamination,
             mem_genotype_variants = mem_genotype_variants,
+            mem_model_segments = mem_model_segments,
+            mem_call_copy_ratio_segments = mem_call_copy_ratio_segments,
+            mem_plot_modeled_segments = mem_plot_modeled_segments,
+            mem_learn_read_orientation_model_base = mem_learn_read_orientation_model_base,
             mem_filter_mutect_calls = mem_filter_mutect_calls,
             mem_select_variants = mem_select_variants,
             mem_filter_alignment_artifacts_base = mem_filter_alignment_artifacts_base,
@@ -248,8 +261,6 @@ workflow MultiSampleSomaticWorkflow {
             time_collect_covered_regions = time_collect_covered_regions,
             time_collect_read_counts = time_collect_read_counts,
             time_denoise_read_counts = time_denoise_read_counts,
-            time_mutect2_total = time_mutect2_total,
-            time_learn_read_orientation_model = time_learn_read_orientation_model,
             time_get_pileup_summaries = time_get_pileup_summaries,
             time_gather_pileup_summaries = time_gather_pileup_summaries,
             time_select_pileup_summaries = time_select_pileup_summaries,
@@ -258,6 +269,11 @@ workflow MultiSampleSomaticWorkflow {
             time_merge_allelic_counts = time_merge_allelic_counts,
             time_calculate_contamination = time_calculate_contamination,
             time_genotype_variants = time_genotype_variants,
+            time_model_segments = time_model_segments,
+            time_call_copy_ratio_segments = time_call_copy_ratio_segments,
+            time_plot_modeled_segments = time_plot_modeled_segments,
+            time_mutect2_total = time_mutect2_total,
+            time_learn_read_orientation_model = time_learn_read_orientation_model,
             time_filter_mutect_calls = time_filter_mutect_calls,
             time_select_variants = time_select_variants,
             time_filter_alignment_artifacts_total = time_filter_alignment_artifacts_total,
@@ -320,7 +336,6 @@ workflow MultiSampleSomaticWorkflow {
             max_snp_array_pop_af = max_snp_array_pop_af,
             min_snp_array_read_depth = min_snp_array_read_depth,
             genotype_variants_script = genotype_variants_script,
-            genotype_variants_save_sample_genotype_likelihoods = genotype_variants_save_sample_genotype_likelihoods,
 
             min_read_depth = min_read_depth,
             mutect2_native_pair_hmm_use_double_precision = mutect2_native_pair_hmm_use_double_precision,
@@ -378,27 +393,6 @@ workflow MultiSampleSomaticWorkflow {
             runtime_collection = runtime_collection,
     }
 
-#    if (run_collect_covered_regions) {
-#        scatter (sample in patient.samples) {
-#            scatter (sequencing_run in sample.sequencing_runs) {
-#                call ccr.CollectCoveredRegions {
-#                    input:
-#                        ref_fasta = args.ref_fasta,
-#                        ref_fasta_index = args.ref_fasta_index,
-#                        ref_dict = args.ref_dict,
-#                        sample_name = sequencing_run.name,
-#                        bam = sequencing_run.bam,
-#                        bai = sequencing_run.bai,
-#                        interval_list = sequencing_run.target_intervals,
-#                        paired_end = sequencing_run.paired_end,
-#                        min_read_depth_threshold = args.min_read_depth_threshold,
-#                        output_format = "bam",
-#                        runtime_collection = runtime_collection,
-#                }
-#            }
-#        }
-#    }
-
     call cnv.CNVWorkflow {
         input:
             args = args,
@@ -417,16 +411,15 @@ workflow MultiSampleSomaticWorkflow {
 #
 #    }
 
-#    call CalculateTumorMutationBurden {
+#    call tmb.CalculateTumorMutationBurden as TMB {
 #
 #    }
 
     output {
-        # todo: flatten
-#        Array[File]? covered_regions_bed = CollectCoveredRegions.regions_bed
-#        Array[File?]? covered_regions_bam = CollectCoveredRegions.regions_bam
-#        Array[File?]? covered_regions_bai = CollectCoveredRegions.regions_bai
-#        Array[File?]? covered_regions_interval_list = CollectCoveredRegions.regions_interval_list
+#        Array[File]? covered_regions_bed = TMB.regions_bed
+#        Array[File?]? covered_regions_bam = TMB.regions_bam
+#        Array[File?]? covered_regions_bai = TMB.regions_bai
+#        Array[File?]? covered_regions_interval_list = TMB.regions_interval_list
 
         File? unfiltered_vcf = SNVWorkflow.unfiltered_vcf
         File? unfiltered_vcf_idx = SNVWorkflow.unfiltered_vcf_idx
