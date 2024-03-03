@@ -228,7 +228,7 @@ task CallCopyRatioSegments {
         Runtime runtime_params
     }
 
-    File called_segments = basename(copy_ratio_segments, ".seg") + ".called.seg"
+    String called_segments = basename(copy_ratio_segments, ".seg") + ".called.seg"
 
     command <<<
         set -e
