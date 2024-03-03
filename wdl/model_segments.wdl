@@ -117,8 +117,8 @@ workflow ModelSegments {
     call p_update_s.UpdateSamples as AddSegmentationResultsToSamples {
         input:
             patient = pat,
-            copy_ratio_segmentation = select_all(MultiSampleInferCR.seg_final),
-            called_copy_ratio_segmentation =  CallCopyRatioSegments.called_cr_seg
+            copy_ratio_segmentations = select_all(MultiSampleInferCR.seg_final),
+            called_copy_ratio_segmentations =  CallCopyRatioSegments.called_cr_seg
     }
 
     output {
