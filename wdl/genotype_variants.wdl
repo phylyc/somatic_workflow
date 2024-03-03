@@ -81,7 +81,7 @@ workflow GenotypeVariants {
             }
             Array[File] this_sample_gtlik = select_all(this_gtlik)
         }
-        Array[File] sample_genotype_likelihoods = flatten(this_sample_gtlik)
+        Array[File] sample_genotype_likelihoods_ = flatten(this_sample_gtlik)
     }
 
     output {
@@ -91,7 +91,7 @@ workflow GenotypeVariants {
         File alt_counts = GenotypeVariantsTask.alt_counts
         File other_alt_counts = GenotypeVariantsTask.other_alt_counts
         File sample_correlation = GenotypeVariantsTask.sample_correlation
-        Array[File]? sample_genotype_likelihoods = sample_genotype_likelihoods
+        Array[File]? sample_genotype_likelihoods = sample_genotype_likelihoods_
     }
 }
 
