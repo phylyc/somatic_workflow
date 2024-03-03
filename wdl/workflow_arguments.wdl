@@ -56,7 +56,6 @@ struct WorkflowArguments {
     Float max_snp_array_pop_af
     Int min_snp_array_read_depth
     String genotype_variants_script
-    Boolean genotype_variants_save_sample_genotype_likelihoods
 
     # SNV WORKFLOW
     Boolean mutect2_native_pair_hmm_use_double_precision
@@ -146,7 +145,6 @@ workflow DefineWorkflowArguments {
         Float max_snp_array_pop_af = 1.0  # default: 0.2
         Int min_snp_array_read_depth = 10
         String genotype_variants_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
-        Boolean genotype_variants_save_sample_genotype_likelihoods = false
 
         # SNV WORKFLOW
         Int min_read_depth = 4
@@ -260,7 +258,6 @@ workflow DefineWorkflowArguments {
         max_snp_array_pop_af: max_snp_array_pop_af,
         min_snp_array_read_depth: min_snp_array_read_depth,
         genotype_variants_script: genotype_variants_script,
-        genotype_variants_save_sample_genotype_likelihoods: genotype_variants_save_sample_genotype_likelihoods,
 
         min_read_depth: min_read_depth,
         mutect2_native_pair_hmm_use_double_precision: mutect2_native_pair_hmm_use_double_precision,

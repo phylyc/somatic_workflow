@@ -19,6 +19,7 @@ struct Sample {
     File? contamination
     File? af_segmentation
     File? copy_ratio_segmentation
+    File? called_copy_ratio_segmentation
 }
 
 
@@ -40,6 +41,7 @@ workflow UpdateSample {
         File? contamination
         File? af_segmentation
         File? copy_ratio_segmentation
+        File? called_copy_ratio_segmentation
     }
 
     Sample s = object {
@@ -57,7 +59,8 @@ workflow UpdateSample {
         germline_allelic_counts: if defined(germline_allelic_counts) then germline_allelic_counts else sample.germline_allelic_counts,
         contamination: if defined(contamination) then contamination else sample.contamination,
         af_segmentation: if defined(af_segmentation) then af_segmentation else sample.af_segmentation,
-        copy_ratio_segmentation: if defined(copy_ratio_segmentation) then copy_ratio_segmentation else sample.copy_ratio_segmentation
+        copy_ratio_segmentation: if defined(copy_ratio_segmentation) then copy_ratio_segmentation else sample.copy_ratio_segmentation,
+        called_copy_ratio_segmentation: if defined(called_copy_ratio_segmentation) then called_copy_ratio_segmentation else sample.called_copy_ratio_segmentation
     }
 
     output {

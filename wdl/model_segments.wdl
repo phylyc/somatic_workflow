@@ -27,16 +27,16 @@ workflow ModelSegments {
     }
     Array[File] sample_allelic_counts = select_all(PileupToAllelicCounts.allelic_counts)
 
-    # Save the allelic counts in each sample object
+    # Save the allelic counts in each sample object (if they exist)
 
     if (length(sample_allelic_counts) > 1) {
-        call p_update_s.UpdateSamples as UpdatedSamples {
+        call p_update_s.UpdateSamples as AddAllelicCountsToSamples {
             input:
                 patient = patient,
                 snp_array_allelic_counts = sample_allelic_counts,
         }
     }
-    Patient pat = select_first([UpdatedSamples.updated_patient, patient])
+    Patient pat = select_first([AddAllelicCountsToSamples.updated_patient, patient])
 
     # Prepare ModelSegments input
 
@@ -91,12 +91,38 @@ workflow ModelSegments {
                 copy_ratio_segments = select_first([MultiSampleInferCR.cr_seg]),
                 runtime_params = runtime_collection.call_copy_ratio_segments
         }
+
+#        call ToACSConversion {
+#            input:
+#                seg_final = select_first([MultiSampleInferCR.seg_final]),
+#                af_model_parameters = select_first([MultiSampleInferCR.af_model_final_parameters]),
+#                runtime_params = runtime_collection.to_acs_conversion
+#        }
+
+        call PlotModeledSegments {
+            input:
+                ref_dict = args.ref_dict,
+                sample_name = sample.name,
+                segments = select_first([MultiSampleInferCR.seg_final]),
+                denoised_copy_ratios = sample.denoised_copy_ratios,
+                het_allelic_counts = MultiSampleInferCR.hets,
+                runtime_params = runtime_collection.plot_modeled_segments
+        }
     }
 
-    # todo: save segmentation results in each sample object
+    # tag germline events
+
+    # filter germline events
+
+    call p_update_s.UpdateSamples as AddSegmentationResultsToSamples {
+        input:
+            patient = pat,
+            copy_ratio_segmentation = select_all(MultiSampleInferCR.seg_final),
+            called_copy_ratio_segmentation =  CallCopyRatioSegments.called_cr_seg
+    }
 
     output {
-        Patient updated_patient = pat
+        Patient updated_patient = AddSegmentationResultsToSamples.updated_patient
 
         Array[File] snp_array_allelic_counts = sample_allelic_counts
 
@@ -106,12 +132,13 @@ workflow ModelSegments {
         Array[File] cr_model_begin_parameters = select_all(MultiSampleInferCR.cr_model_begin_parameters)
         Array[File] af_model_final_parameters = select_all(MultiSampleInferCR.af_model_final_parameters)
         Array[File] cr_model_final_parameters = select_all(MultiSampleInferCR.cr_model_final_parameters)
+        Array[File] igv_af = select_all(MultiSampleInferCR.igv_af)
+        Array[File] igv_cr = select_all(MultiSampleInferCR.igv_cr)
         Array[File] seg_begin = select_all(MultiSampleInferCR.seg_begin)
         Array[File] seg_final = select_all(MultiSampleInferCR.seg_final)
         Array[File] cr_seg = select_all(MultiSampleInferCR.cr_seg)
-        Array[File] called_cr_seg = select_all(CallCopyRatioSegments.called_cr_seg)
-        Array[File] igv_af = select_all(MultiSampleInferCR.igv_af)
-        Array[File] igv_cr = select_all(MultiSampleInferCR.igv_cr)
+        Array[File] called_cr_seg = CallCopyRatioSegments.called_cr_seg
+        Array[File] modeled_plots = PlotModeledSegments.plot
     }
 }
 
@@ -225,6 +252,10 @@ task ModelSegments {
 task CallCopyRatioSegments {
     input {
         File copy_ratio_segments
+        Float neutral_segment_copy_ratio_lower_bound = 0.9
+        Float neutral_segment_copy_ratio_upper_bound = 1.1
+        Float outlier_neutral_segment_copy_ratio_z_score_threshold = 2.0
+        Float calling_copy_ratio_z_score_threshold = 2.0
         Runtime runtime_params
     }
 
@@ -236,7 +267,11 @@ task CallCopyRatioSegments {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CallCopyRatioSegments \
             -I '~{copy_ratio_segments}' \
-            -O '~{called_segments}'
+            -O '~{called_segments}' \
+            --neutral-segment-copy-ratio-lower-bound ~{neutral_segment_copy_ratio_lower_bound} \
+            --neutral-segment-copy-ratio-upper-bound ~{neutral_segment_copy_ratio_upper_bound} \
+            --outlier-neutral-segment-copy-ratio-z-score-threshold ~{outlier_neutral_segment_copy_ratio_z_score_threshold} \
+            --calling-copy-ratio-z-score-threshold ~{calling_copy_ratio_z_score_threshold}
     >>>
 
     output {
@@ -258,3 +293,79 @@ task CallCopyRatioSegments {
 #        copy_ratio_segments: {localization_optional: true}
     }
 }
+
+task PlotModeledSegments {
+    input {
+        File ref_dict
+
+        String sample_name
+        File segments
+        File? denoised_copy_ratios
+        File? het_allelic_counts
+
+        Runtime runtime_params
+    }
+
+    String prefix = sample_name
+    String output_dir = "output"
+
+    command <<<
+        set -e
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            PlotModeledSegments \
+            --sequence-dictionary '~{ref_dict}' \
+            --segments '~{segments}' \
+            ~{"--denoised-copy-ratios '" + denoised_copy_ratios + "'"} \
+            ~{"--allelic-counts '" + het_allelic_counts + "'"} \
+            --output-prefix '~{prefix}' \
+            --output ~{output_dir}
+    >>>
+
+    output {
+        File plot = output_dir + "/" + prefix + ".modeled.png"
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+}
+
+#task ToACSConversion {
+#    input {
+#        File seg_final
+#        File af_model_parameters
+#
+#        Int min_hets = 10
+#
+#        Runtime runtime_params
+#    }
+#
+#    command <<<
+#    >>>
+#
+#    output {
+#        File cnv_acs_conversion_seg = "${output_filename}"
+#        File cnv_acs_conversion_skew = "${output_skew_filename}"
+#        Float cnv_acs_conversion_skew_float = read_float(output_skew_filename)
+#        String cnv_acs_conversion_skew_string = read_string(output_skew_filename)
+#    }
+#
+#    runtime {
+#        docker: runtime_params.docker
+#        bootDiskSizeGb: runtime_params.boot_disk_size
+#        memory: runtime_params.machine_mem + " MB"
+#        runtime_minutes: runtime_params.runtime_minutes
+#        disks: "local-disk " + runtime_params.disk + " HDD"
+#        preemptible: runtime_params.preemptible
+#        maxRetries: runtime_params.max_retries
+#        cpu: runtime_params.cpu
+#    }
+#}

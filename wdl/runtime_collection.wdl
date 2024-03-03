@@ -22,6 +22,7 @@ struct RuntimeCollection {
     Runtime genotype_variants
     Runtime model_segments
     Runtime call_copy_ratio_segments
+    Runtime plot_modeled_segments
     Runtime mutect2
     Runtime learn_read_orientation_model
     Runtime merge_vcfs
@@ -143,6 +144,10 @@ workflow DefineRuntimeCollection {
         # gatk: CallCopyRatioSegments
         Int mem_call_copy_ratio_segments = 2048
         Int time_call_copy_ratio_segments = 10
+
+        # gatk: PlotModeledSegments
+        Int mem_plot_modeled_segments = 4096
+        Int time_plot_modeled_segments = 10
 
         # gatk: Mutect2
         Int cpu_mutect2 = 1  # good for PairHMM: 2
@@ -441,6 +446,19 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime plot_modeled_segments = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_plot_modeled_segments + mem_machine_overhead,
+        "command_mem": mem_plot_modeled_segments,
+        "runtime_minutes": time_startup + time_plot_modeled_segments,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Int mem_mutect2 = mem_mutect2_base + num_bams * mem_additional_per_sample
     Runtime mutect2 = {
         "docker": gatk_docker,
@@ -654,6 +672,7 @@ workflow DefineRuntimeCollection {
         "genotype_variants": genotype_variants,
         "model_segments": model_segments,
         "call_copy_ratio_segments": call_copy_ratio_segments,
+        "plot_modeled_segments": plot_modeled_segments,
         "mutect2": mutect2,
         "learn_read_orientation_model": learn_read_orientation_model,
         "merge_vcfs": merge_vcfs,
