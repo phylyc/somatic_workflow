@@ -19,6 +19,8 @@ struct Sample {
     File? contamination
     File? af_segmentation
     File? copy_ratio_segmentation
+    File? af_model_parameters
+    File? cr_model_parameters
     File? called_copy_ratio_segmentation
 }
 
@@ -41,6 +43,8 @@ workflow UpdateSample {
         File? contamination
         File? af_segmentation
         File? copy_ratio_segmentation
+        File? af_model_parameters
+        File? cr_model_parameters
         File? called_copy_ratio_segmentation
     }
 
@@ -60,6 +64,8 @@ workflow UpdateSample {
         contamination: if defined(contamination) then contamination else sample.contamination,
         af_segmentation: if defined(af_segmentation) then af_segmentation else sample.af_segmentation,
         copy_ratio_segmentation: if defined(copy_ratio_segmentation) then copy_ratio_segmentation else sample.copy_ratio_segmentation,
+        af_model_parameters: if defined(af_model_parameters) then af_model_parameters else sample.af_model_parameters,
+        cr_model_parameters: if defined(cr_model_parameters) then cr_model_parameters else sample.cr_model_parameters,
         called_copy_ratio_segmentation: if defined(called_copy_ratio_segmentation) then called_copy_ratio_segmentation else sample.called_copy_ratio_segmentation
     }
 

@@ -76,7 +76,7 @@ workflow ModelSegments {
         if (defined(sample.snp_array_allelic_counts)) {
             Array[File] ac_list = select_all([sample.snp_array_allelic_counts])
         }
-        call ModelSegmentsTask as MultiSampleInferCR {
+        call ModelSegmentsTask as SingleSampleInferCR {
             input:
                 segments = MultiSampleModelSegments.multi_sample_segments,
                 denoised_copy_ratios = dcr_list,
@@ -88,38 +88,42 @@ workflow ModelSegments {
 
         call CallCopyRatioSegments {
             input:
-                copy_ratio_segments = select_first([MultiSampleInferCR.cr_seg]),
+                copy_ratio_segments = select_first([SingleSampleInferCR.cr_seg]),
                 runtime_params = runtime_collection.call_copy_ratio_segments
         }
-
-#        call ToACSConversion {
-#            input:
-#                seg_final = select_first([MultiSampleInferCR.seg_final]),
-#                af_model_parameters = select_first([MultiSampleInferCR.af_model_final_parameters]),
-#                runtime_params = runtime_collection.to_acs_conversion
-#        }
 
         call PlotModeledSegments {
             input:
                 ref_dict = args.ref_dict,
                 sample_name = sample.name,
-                segments = select_first([MultiSampleInferCR.seg_final]),
+                segments = select_first([SingleSampleInferCR.seg_final]),
                 denoised_copy_ratios = sample.denoised_copy_ratios,
-                het_allelic_counts = MultiSampleInferCR.hets,
+                het_allelic_counts = SingleSampleInferCR.hets,
                 runtime_params = runtime_collection.plot_modeled_segments
         }
+    }
+
+    call p_update_s.UpdateSamples as AddSegmentationResultsToSamples {
+        input:
+            patient = pat,
+            copy_ratio_segmentations = select_all(SingleSampleInferCR.seg_final),
+            af_model_parameters = select_all(SingleSampleInferCR.af_model_final_parameters),
+            cr_model_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters),
+            called_copy_ratio_segmentations =  CallCopyRatioSegments.called_cr_seg
     }
 
     # tag germline events
 
     # filter germline events
 
-    call p_update_s.UpdateSamples as AddSegmentationResultsToSamples {
-        input:
-            patient = pat,
-            copy_ratio_segmentations = select_all(MultiSampleInferCR.seg_final),
-            called_copy_ratio_segmentations =  CallCopyRatioSegments.called_cr_seg
-    }
+#    scatter (sample in AddSegmentationResultsToSamples.updated_patient.samples) {
+#        call ToACSConversion {
+#            input:
+#                seg_final = sample.copy_ratio_segmentation,
+#                af_model_parameters = sample.af_model_parameters,
+#                runtime_params = runtime_collection.to_acs_conversion
+#        }
+#    }
 
     output {
         Patient updated_patient = AddSegmentationResultsToSamples.updated_patient
@@ -127,16 +131,16 @@ workflow ModelSegments {
         Array[File] snp_array_allelic_counts = sample_allelic_counts
 
         File? modeled_segments = MultiSampleModelSegments.multi_sample_segments
-        Array[File] hets = select_all(MultiSampleInferCR.hets)
-        Array[File] af_model_begin_parameters = select_all(MultiSampleInferCR.af_model_begin_parameters)
-        Array[File] cr_model_begin_parameters = select_all(MultiSampleInferCR.cr_model_begin_parameters)
-        Array[File] af_model_final_parameters = select_all(MultiSampleInferCR.af_model_final_parameters)
-        Array[File] cr_model_final_parameters = select_all(MultiSampleInferCR.cr_model_final_parameters)
-        Array[File] igv_af = select_all(MultiSampleInferCR.igv_af)
-        Array[File] igv_cr = select_all(MultiSampleInferCR.igv_cr)
-        Array[File] seg_begin = select_all(MultiSampleInferCR.seg_begin)
-        Array[File] seg_final = select_all(MultiSampleInferCR.seg_final)
-        Array[File] cr_seg = select_all(MultiSampleInferCR.cr_seg)
+        Array[File] hets = select_all(SingleSampleInferCR.hets)
+        Array[File] af_model_begin_parameters = select_all(SingleSampleInferCR.af_model_begin_parameters)
+        Array[File] cr_model_begin_parameters = select_all(SingleSampleInferCR.cr_model_begin_parameters)
+        Array[File] af_model_final_parameters = select_all(SingleSampleInferCR.af_model_final_parameters)
+        Array[File] cr_model_final_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters)
+        Array[File] igv_af = select_all(SingleSampleInferCR.igv_af)
+        Array[File] igv_cr = select_all(SingleSampleInferCR.igv_cr)
+        Array[File] seg_begin = select_all(SingleSampleInferCR.seg_begin)
+        Array[File] seg_final = select_all(SingleSampleInferCR.seg_final)
+        Array[File] cr_seg = select_all(SingleSampleInferCR.cr_seg)
         Array[File] called_cr_seg = CallCopyRatioSegments.called_cr_seg
         Array[File] modeled_plots = PlotModeledSegments.plot
     }
@@ -149,24 +153,33 @@ task PileupToAllelicCounts {
         Runtime runtime_params
     }
 
-    String sample_name = basename(select_first([pileup, "none"]), ".pileup")
+    String non_optional_pileup = select_first([pileup, "none"])
+    Boolean is_compressed = basename(non_optional_pileup, ".gz") != basename(non_optional_pileup)
+    String uncompressed_pileup = basename(non_optional_pileup, ".gz")
+    String sample_name = basename(uncompressed_pileup, ".pileup")
     String output_file = sample_name + ".allelic_counts.tsv"
 
     command <<<
         set -e
-        if ~{defined(pileup)} ; then
-            cat ~{ref_dict} > ~{output_file}
-            printf "@RG\tID:GATKCopyNumber\tSM:~{sample_name}\n" >> ~{output_file}
-            printf "CONTIG\tPOSITION\tREF_COUNT\tALT_COUNT\tREF_NUCLEOTIDE\tALT_NUCLEOTIDE\n" >> ~{output_file}
+        if [ "~{defined(pileup)}" == "true" ] ; then
+            if [ "~{is_compressed}" == "true" ] ; then
+                bgzip -cd '~{pileup}' > '~{uncompressed_pileup}'
+            else
+                cp '~{pileup}' '~{uncompressed_pileup}'
+            fi
+
+            cat '~{ref_dict}' > '~{output_file}'
+            printf "@RG\tID:GATKCopyNumber\tSM:~{sample_name}\n" >> '~{output_file}'
+            printf "CONTIG\tPOSITION\tREF_COUNT\tALT_COUNT\tREF_NUCLEOTIDE\tALT_NUCLEOTIDE\n" >> '~{output_file}'
             # The ref and alt allele information is not available in the pileup file, so we set both to "N"
-            tail -n +3 ~{pileup} | awk -v OFS='\t' '{print $1, $2, $3, $4, "N", "N"}' >> ~{output_file}
+            tail -n +3 '~{uncompressed_pileup}' | awk -v OFS='\t' '{print $1, $2, $3, $4, "N", "N"}' >> '~{output_file}'
 
             # Calculate the error probability:
             # The error probability is calculated as a ratio of 'other_alt_count' to the
             # total counts, clipped within specified bounds.
-            ref_counts=$(awk '{sum+=$3} END {print sum}' ~{pileup})
-            alt_counts=$(awk '{sum+=$4} END {print sum}' ~{pileup})
-            other_alt_counts=$(awk '{sum+=$5} END {print sum}' ~{pileup})
+#            ref_counts=$(awk '{sum+=$3} END {print sum}' '~{uncompressed_pileup}')
+#            alt_counts=$(awk '{sum+=$4} END {print sum}' '~{uncompressed_pileup}')
+#            other_alt_counts=$(awk '{sum+=$5} END {print sum}' '~{uncompressed_pileup}')
             # todo: finish this
         fi
     >>>

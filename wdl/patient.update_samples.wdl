@@ -17,6 +17,8 @@ workflow UpdateSamples {
         Array[File]? contaminations
         Array[File]? af_segmentations
         Array[File]? copy_ratio_segmentations
+        Array[File]? af_model_parameters
+        Array[File]? cr_model_parameters
         Array[File]? called_copy_ratio_segmentations
     }
 
@@ -36,6 +38,8 @@ workflow UpdateSamples {
         File? t_contaminations = if defined(contaminations) then select_first([contaminations, []])[t] else None
         File? t_af_segmentations = if defined(af_segmentations) then select_first([af_segmentations, []])[t] else None
         File? t_copy_ratio_segmentations = if defined(copy_ratio_segmentations) then select_first([copy_ratio_segmentations, []])[t] else None
+        File? t_af_model_parameters = if defined(af_model_parameters) then select_first([af_model_parameters, []])[t] else None
+        File? t_cr_model_parameters = if defined(cr_model_parameters) then select_first([cr_model_parameters, []])[t] else None
         File? t_called_copy_ratio_segmentations = if defined(called_copy_ratio_segmentations) then select_first([called_copy_ratio_segmentations, []])[t] else None
     }
     Array[File] tumor_read_counts = select_all(t_read_counts)
@@ -48,6 +52,8 @@ workflow UpdateSamples {
     Array[File] tumor_contaminations = select_all(t_contaminations)
     Array[File] tumor_af_segmentations = select_all(t_af_segmentations)
     Array[File] tumor_copy_ratio_segmentations = select_all(t_copy_ratio_segmentations)
+    Array[File] tumor_af_model_parameters = select_all(t_af_model_parameters)
+    Array[File] tumor_cr_model_parameters = select_all(t_cr_model_parameters)
     Array[File] tumor_called_copy_ratio_segmentations = select_all(t_called_copy_ratio_segmentations)
 
     if (patient.has_normal) {
@@ -63,6 +69,8 @@ workflow UpdateSamples {
             File? n_contaminations = if defined(contaminations) then select_first([contaminations, []])[m] else None
             File? n_af_segmentations = if defined(af_segmentations) then select_first([af_segmentations, []])[m] else None
             File? n_copy_ratio_segmentations = if defined(copy_ratio_segmentations) then select_first([copy_ratio_segmentations, []])[m] else None
+            File? n_af_model_parameters = if defined(af_model_parameters) then select_first([af_model_parameters, []])[m] else None
+            File? n_cr_model_parameters = if defined(cr_model_parameters) then select_first([cr_model_parameters, []])[m] else None
             File? n_called_copy_ratio_segmentations = if defined(called_copy_ratio_segmentations) then select_first([called_copy_ratio_segmentations, []])[m] else None
         }
     }
@@ -76,6 +84,8 @@ workflow UpdateSamples {
     Array[File] normal_contaminations = select_all(select_first([n_contaminations, []]))
     Array[File] normal_af_segmentations = select_all(select_first([n_af_segmentations, []]))
     Array[File] normal_copy_ratio_segmentations = select_all(select_first([n_copy_ratio_segmentations, []]))
+    Array[File] normal_af_model_parameters = select_all(select_first([n_af_model_parameters, []]))
+    Array[File] normal_cr_model_parameters = select_all(select_first([n_cr_model_parameters, []]))
     Array[File] normal_called_copy_ratio_segmentations = select_all(select_first([n_called_copy_ratio_segmentations, []]))
 
     # Update tumor samples:
@@ -190,8 +200,30 @@ workflow UpdateSamples {
     }
     Array[Sample] tumor_samples_10 = select_first([UpdateCopyRatioSegmentationTumor.updated_sample, tumor_samples_9])
 
+    if (length(tumor_af_model_parameters) > 0) {
+        scatter (pair in zip(tumor_samples_10, tumor_af_model_parameters)) {
+            call s.UpdateSample as UpdateAfModelParametersTumor {
+                input:
+                    sample = pair.left,
+                    af_model_parameters = pair.right,
+            }
+        }
+    }
+    Array[Sample] tumor_samples_11 = select_first([UpdateAfModelParametersTumor.updated_sample, tumor_samples_10])
+
+    if (length(tumor_cr_model_parameters) > 0) {
+        scatter (pair in zip(tumor_samples_11, tumor_cr_model_parameters)) {
+            call s.UpdateSample as UpdateCrModelParametersTumor {
+                input:
+                    sample = pair.left,
+                    cr_model_parameters = pair.right,
+            }
+        }
+    }
+    Array[Sample] tumor_samples_12 = select_first([UpdateCrModelParametersTumor.updated_sample, tumor_samples_11])
+
     if (length(tumor_called_copy_ratio_segmentations) > 0) {
-        scatter (pair in zip(tumor_samples_10, tumor_called_copy_ratio_segmentations)) {
+        scatter (pair in zip(tumor_samples_12, tumor_called_copy_ratio_segmentations)) {
             call s.UpdateSample as UpdateCalledCopyRatioSegmentationTumor {
                 input:
                     sample = pair.left,
@@ -199,7 +231,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] tumor_samples_11 = select_first([UpdateCalledCopyRatioSegmentationTumor.updated_sample, tumor_samples_10])
+    Array[Sample] tumor_samples_13 = select_first([UpdateCalledCopyRatioSegmentationTumor.updated_sample, tumor_samples_12])
 
     # Update normal samples:
 
@@ -313,8 +345,30 @@ workflow UpdateSamples {
     }
     Array[Sample] normal_samples_10 = select_first([UpdateCopyRatioSegmentationNormal.updated_sample, normal_samples_9])
 
+    if (length(normal_af_model_parameters) > 0) {
+        scatter (pair in zip(normal_samples_10, normal_af_model_parameters)) {
+            call s.UpdateSample as UpdateAfModelParametersNormal {
+                input:
+                    sample = pair.left,
+                    af_model_parameters = pair.right,
+            }
+        }
+    }
+    Array[Sample] normal_samples_11 = select_first([UpdateAfModelParametersNormal.updated_sample, normal_samples_10])
+
+    if (length(normal_cr_model_parameters) > 0) {
+        scatter (pair in zip(normal_samples_11, normal_cr_model_parameters)) {
+            call s.UpdateSample as UpdateCrModelParametersNormal {
+                input:
+                    sample = pair.left,
+                    cr_model_parameters = pair.right,
+            }
+        }
+    }
+    Array[Sample] normal_samples_12 = select_first([UpdateCrModelParametersNormal.updated_sample, normal_samples_11])
+
     if (length(normal_called_copy_ratio_segmentations) > 0) {
-        scatter (pair in zip(normal_samples_10, normal_called_copy_ratio_segmentations)) {
+        scatter (pair in zip(normal_samples_12, normal_called_copy_ratio_segmentations)) {
             call s.UpdateSample as UpdateCalledCopyRatioSegmentationNormal {
                 input:
                     sample = pair.left,
@@ -322,13 +376,13 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] normal_samples_11 = select_first([UpdateCalledCopyRatioSegmentationNormal.updated_sample, normal_samples_10])
+    Array[Sample] normal_samples_13 = select_first([UpdateCalledCopyRatioSegmentationNormal.updated_sample, normal_samples_12])
 
     # Update matched normal sample:
 
     if (defined(patient.matched_normal_sample)) {
         Sample previous_matched_normal_sample = select_first([patient.matched_normal_sample])
-        scatter (sample in normal_samples_11) {
+        scatter (sample in normal_samples_13) {
             if (sample.name == previous_matched_normal_sample.name) {
                 Sample matched_normal_samples = sample
             }
@@ -338,9 +392,9 @@ workflow UpdateSamples {
 
     Patient pat = object {
         name: patient.name,
-        samples: flatten([tumor_samples_11, normal_samples_11]),
-        tumor_samples: tumor_samples_11,
-        normal_samples: normal_samples_11,
+        samples: flatten([tumor_samples_13, normal_samples_13]),
+        tumor_samples: tumor_samples_13,
+        normal_samples: normal_samples_13,
         has_tumor: patient.has_tumor,
         has_normal: patient.has_normal,
         matched_normal_sample: if defined(matched_normal_sample) then matched_normal_sample else patient.matched_normal_sample,
