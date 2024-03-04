@@ -141,7 +141,7 @@ def convert_model_segments_to_alleliccapseg(args):
     alleliccapseg_seg_pd, alleliccapseg_skew = convert(model_segments_seg_pd, model_segments_af_param_pd)
 
     alleliccapseg_seg_pd.to_csv(output_filename, sep='\t', index=False, na_rep='NaN')
-    np.savetxt(output_skew_filename, alleliccapseg_skew)
+    np.savetxt(output_skew_filename, alleliccapseg_skew, fmt='%f')
 
 
 if __name__ == "__main__":
