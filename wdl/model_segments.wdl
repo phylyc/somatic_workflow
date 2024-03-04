@@ -232,7 +232,7 @@ task ModelSegmentsTask {
             ~{"--normal-allelic-counts '" + normal_allelic_counts + "'"} \
             ~{"--output-prefix '" + prefix + "'"} \
             --genotyping-base-error-rate ~{genotying_base_error_rate} \
-            --window-size [~{sep=", " window_sizes}] \
+            ~{sep=" " prefix("--window-size ", window_sizes)} \
             --output ~{output_dir}
     >>>
 
