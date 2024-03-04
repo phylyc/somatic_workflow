@@ -92,11 +92,11 @@ workflow DefineWorkflowArguments {
         Boolean run_variant_calling = true
         Boolean run_variant_filter = true
         Boolean run_realignment_filter = true
-        Boolean run_realignment_filter_only_on_high_confidence_variants = false
+        Boolean run_realignment_filter_only_on_high_confidence_variants = true
         Boolean run_collect_called_variants_allelic_coverage = true
         Boolean run_variant_annotation = true
         Boolean run_variant_annotation_scattered = false
-        Boolean run_clonal_decomposition = false
+        Boolean run_clonal_decomposition = true
 
         Boolean keep_germline = false
         Boolean compress_output = true
@@ -140,8 +140,8 @@ workflow DefineWorkflowArguments {
         String? getpileupsummaries_extra_args
         String? mutect2_extra_args
         String? filter_mutect2_extra_args
-        String? select_variants_extra_args
-        String? select_low_conficence_variants_jexl_arg = "'(vc.getAttribute(\"GERMQ\") < 30) || (vc.getAttribute(\"DP\") < 4) || (vc.getAttribute(\"MBQ\").0 == 0) || (vc.getAttribute(\"MFRL\").0 == 0)'"
+        String? select_variants_extra_args = "-select '(vc.getAttribute(\"DP\") > 3) && (vc.getAttribute(\"MBQ\").0 > 19) && (vc.getAttribute(\"MBQ\").1 > 19) && (vc.getAttribute(\"MMQ\").0 > 19) && (vc.getAttribute(\"MMQ\").1 > 19) && (vc.getAttribute(\"MFRL\").0 > 17) && (vc.getAttribute(\"MFRL\").1 > 17)'"
+        String? select_low_conficence_variants_jexl_arg = "'(vc.getAttribute(\"GERMQ\") < 30)'"
         String? realignment_extra_args
         String? funcotate_extra_args
 

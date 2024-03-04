@@ -2,6 +2,8 @@ version development
 
 import "runtime_collection.wdl" as rtc
 import "runtimes.wdl" as rt
+import "workflow_arguments.wdl" as wfargs
+import "workflow_resources.wdl" as wfres
 import "tasks.wdl"
 import "multi-sample_somatic_workflow.wdl" as mssw
 

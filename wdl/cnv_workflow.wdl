@@ -163,8 +163,11 @@ workflow CNVWorkflow {
         File? modeled_segments = ModelSegments.modeled_segments
         Array[File]? cr_segments = ModelSegments.seg_final
         Array[File]? called_cr_segments = ModelSegments.called_cr_seg
+        Array[File]? cr_plots = ModelSegments.cr_plots
         Array[File]? af_model_parameters = ModelSegments.af_model_final_parameters
         Array[File]? cr_model_parameters = ModelSegments.cr_model_final_parameters
+        Array[File]? cr_converted_acs_segments = ModelSegments.cr_converted_acs_segments
+        Array[File]? cr_converted_acs_skews = ModelSegments.cr_converted_acs_skews
 
         Array[File]? target_read_counts = read_counts
         Array[File]? denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios

@@ -141,9 +141,9 @@ workflow ModelSegments {
         Array[File] seg_final = select_all(SingleSampleInferCR.seg_final)
         Array[File] cr_seg = select_all(SingleSampleInferCR.cr_seg)
         Array[File] called_cr_seg = CallCopyRatioSegments.called_cr_seg
-        Array[File] modeled_plots = PlotModeledSegments.plot
-        Array[File] cr_acs_seg = ModelSegmentsToACSConversion.cnv_acs_conversion_seg
-        Array[File] cr_acs_skew = ModelSegmentsToACSConversion.cnv_acs_conversion_skew
+        Array[File] cr_plots = PlotModeledSegments.plot
+        Array[File] cr_converted_acs_segments = ModelSegmentsToACSConversion.cnv_acs_conversion_seg
+        Array[File] cr_converted_acs_skews = ModelSegmentsToACSConversion.cnv_acs_conversion_skew
     }
 }
 
