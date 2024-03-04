@@ -165,7 +165,7 @@ task PileupToAllelicCounts {
         set -e
         if [ "~{defined(pileup)}" == "true" ] ; then
             if [ "~{is_compressed}" == "true" ] ; then
-                bgzip -cd '~{pileup}' > '~{uncompressed_pileup}'
+                gzip -cd '~{pileup}' > '~{uncompressed_pileup}'
             else
                 cp '~{pileup}' '~{uncompressed_pileup}'
             fi
