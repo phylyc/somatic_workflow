@@ -86,7 +86,7 @@ def convert_model_segments_to_alleliccapseg(args):
         alleliccapseg_seg_pd['End.bp'] = model_segments_seg_pd['END']
         alleliccapseg_seg_pd['n_probes'] = model_segments_seg_pd['NUM_POINTS_COPY_RATIO']
         alleliccapseg_seg_pd['length'] = alleliccapseg_seg_pd['End.bp'] - alleliccapseg_seg_pd['Start.bp']
-        alleliccapseg_seg_pd['n_hets'] = model_segments_seg_pd['NUM_POINTS_ALLELE_FRACTION_1']
+        alleliccapseg_seg_pd['n_hets'] = model_segments_seg_pd['NUM_POINTS_ALLELE_FRACTION']
 
         # ModelSegments estimates posterior credible intervals, while AllelicCapSeg performs maximum a posteriori (MAP) estimation.
         # The copy-ratio and allele-fraction models fit by both also differ.
