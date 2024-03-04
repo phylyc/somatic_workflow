@@ -372,7 +372,7 @@ task ModelSegmentsToACSConversion {
 
     String output_dir = "."
 
-    String output_seg = output_dir + "/" + basename(basename(seg_final, ".seg"), ".modelFinal") + ".acs.seg"
+    String output_seg = basename(basename(seg_final, ".seg"), ".modelFinal") + ".acs.seg"
     String output_skew = output_seg + ".skew"
 
     command <<<
