@@ -96,7 +96,7 @@ def convert_model_segments_to_alleliccapseg(args):
 
         alleliccapseg_seg_pd['tau'] = 2. * 2 ** model_segments_seg_pd['LOG2_COPY_RATIO_POSTERIOR_50']
         alleliccapseg_seg_pd['sigma.tau'] = 2 ** model_segments_seg_pd['LOG2_COPY_RATIO_POSTERIOR_90'] - 2 ** model_segments_seg_pd['LOG2_COPY_RATIO_POSTERIOR_10']
-        sigma_f = (model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_90'].values - model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_10'].values) / 2.
+        sigma_f = (model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_90'].to_numpy() - model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_10'].to_numpy()) / 2.
         sigma_mu = np.sqrt(sigma_f ** 2 + alleliccapseg_seg_pd['sigma.tau'] ** 2)  # we propagate errors in the products f * tau and (1 - f) * tau in the usual way
         alleliccapseg_seg_pd['mu.minor'] = alleliccapseg_seg_pd['f'] * alleliccapseg_seg_pd['tau']
         alleliccapseg_seg_pd['sigma.minor'] = sigma_mu
@@ -129,12 +129,12 @@ def convert_model_segments_to_alleliccapseg(args):
         # If a row has less than X (set by user) hets, then assume zero
         filter_rows = alleliccapseg_seg_pd['n_hets'] < args.min_hets
         # mu.minor  sigma.minor  mu.major  sigma.major
-        alleliccapseg_seg_pd.ix[filter_rows, 'n_hets'] = 0
-        alleliccapseg_seg_pd.ix[filter_rows, 'f'] = np.NaN
-        alleliccapseg_seg_pd.ix[filter_rows, 'mu.minor'] = np.NaN
-        alleliccapseg_seg_pd.ix[filter_rows, 'sigma.minor'] = np.NaN
-        alleliccapseg_seg_pd.ix[filter_rows, 'mu.major'] = np.NaN
-        alleliccapseg_seg_pd.ix[filter_rows, 'sigma.major'] = np.NaN
+        alleliccapseg_seg_pd.loc[filter_rows, 'n_hets'] = 0
+        alleliccapseg_seg_pd.loc[filter_rows, 'f'] = np.NaN
+        alleliccapseg_seg_pd.loc[filter_rows, 'mu.minor'] = np.NaN
+        alleliccapseg_seg_pd.loc[filter_rows, 'sigma.minor'] = np.NaN
+        alleliccapseg_seg_pd.loc[filter_rows, 'mu.major'] = np.NaN
+        alleliccapseg_seg_pd.loc[filter_rows, 'sigma.major'] = np.NaN
 
         return alleliccapseg_seg_pd, alleliccapseg_skew
 
