@@ -27,7 +27,7 @@ workflow CreateReadCountPanelOfNormals {
         File? segmental_duplication_track
         File? segmental_duplication_track_idx
 
-        RuntimeCollection runtime_collection = GetRTC.rtc
+        RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
         String gatk_docker = "broadinstitute/gatk"
         File? gatk_override
@@ -52,7 +52,7 @@ workflow CreateReadCountPanelOfNormals {
     Array[File] non_optional_normal_bams = if defined(normal_bams) then select_first([normal_bams, []]) else read_lines(select_first([normal_bams_file, ""]))
     Array[File] non_optional_normal_bais = if defined(normal_bais) then select_first([normal_bais, []]) else read_lines(select_first([normal_bais_file, ""]))
 
-    call rtc.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
             gatk_docker = gatk_docker,
             gatk_override = gatk_override,

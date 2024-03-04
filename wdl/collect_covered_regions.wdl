@@ -28,7 +28,7 @@ workflow CollectCoveredRegions {
         Boolean is_paired_end = false
         String output_format = "interval_list"  # bam, bed, interval_list
 
-        RuntimeCollection runtime_collection = GetRTC.rtc
+        RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
         # Needs docker image with bedtools, samtools, and gatk
         # todo: find smaller image. This one takes ~13 mins to spin up.
@@ -45,7 +45,7 @@ workflow CollectCoveredRegions {
         Int time_collect_covered_regions = 300
     }
 
-    call rtc.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
             jupyter_docker = docker,
             gatk_override = gatk_override,

@@ -45,7 +45,7 @@ workflow CalculateContamination {
         Float maximum_population_allele_frequency = 0.2
         Int minimum_read_depth = 10
 
-        RuntimeCollection runtime_collection = GetRTC.rtc
+        RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
         String bcftools_docker = "stephb/bcftools"
         String gatk_docker = "broadinstitute/gatk"
@@ -73,7 +73,7 @@ workflow CalculateContamination {
 
     Int scatter_count = if defined(scattered_interval_list) then length(select_first([scattered_interval_list])) else 1
 
-    call rtc.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
             scatter_count = scatter_count,
             bcftools_docker = bcftools_docker,

@@ -20,7 +20,7 @@ workflow CollectReadCounts {
         File? read_count_panel_of_normals
         Boolean is_paired_end = false
 
-        RuntimeCollection runtime_collection = GetRTC.rtc
+        RuntimeCollection runtime_collection = RuntimeParameters.rtc
         String gatk_docker = "broadinstitute/gatk"
         File? gatk_override
         Int preemptible = 1
@@ -34,7 +34,7 @@ workflow CollectReadCounts {
         Int time_denoise_read_counts = 120
     }
 
-    call rtc.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
             gatk_docker = gatk_docker,
             gatk_override = gatk_override,

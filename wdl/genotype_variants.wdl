@@ -25,7 +25,7 @@ workflow GenotypeVariants {
 
         Boolean compress_output = false
 
-        RuntimeCollection runtime_collection = GetRTC.rtc
+        RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
         String genotype_docker = "civisanalytics/datascience-python:latest"
         Int preemptible = 1
@@ -38,7 +38,7 @@ workflow GenotypeVariants {
         Int time_genotype_variants = 30
     }
 
-    call rtc.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
             genotype_docker = genotype_docker,
             preemptible = preemptible,

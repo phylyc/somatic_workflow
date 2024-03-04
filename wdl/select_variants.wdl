@@ -19,7 +19,7 @@ workflow SelectVariants {
         String? normal_sample_name
         String? select_variants_extra_args
 
-        RuntimeCollection runtime_collection = GetRTC.rtc
+        RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
         String gatk_docker = "broadinstitute/gatk"
         Int preemptible = 1
@@ -35,7 +35,7 @@ workflow SelectVariants {
 
     }
 
-    call rtc.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
             gatk_docker = gatk_docker,
             preemptible = preemptible,
