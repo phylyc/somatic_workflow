@@ -24,9 +24,9 @@ workflow CNVWorkflow {
             if (args.run_collect_target_coverage) {
                 call crc.CollectReadCounts {
                     input:
-                        ref_fasta = args.ref_fasta,
-                        ref_fasta_index = args.ref_fasta_index,
-                        ref_dict = args.ref_dict,
+                        ref_fasta = args.files.ref_fasta,
+                        ref_fasta_index = args.files.ref_fasta_index,
+                        ref_dict = args.files.ref_dict,
                         sample_name = sample.name,
                         bam = sequencing_run.bam,
                         bai = sequencing_run.bai,
@@ -41,14 +41,14 @@ workflow CNVWorkflow {
             if (args.run_collect_allelic_coverage) {
                 call cac.CollectAllelicCounts {
                     input:
-                        ref_dict = args.ref_dict,
+                        ref_dict = args.files.ref_dict,
                         bam = sequencing_run.bam,
                         bai = sequencing_run.bai,
                         sample_name = sample.name + ".snp_array",
                         interval_list = sequencing_run.target_intervals,
                         scattered_interval_list = args.scattered_interval_list,
-                        common_germline_alleles = args.common_germline_alleles,
-                        common_germline_alleles_idx = args.common_germline_alleles_idx,
+                        common_germline_alleles = args.files.common_germline_alleles,
+                        common_germline_alleles_idx = args.files.common_germline_alleles_idx,
                         getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,
                         minimum_population_allele_frequency = args.min_snp_array_pop_af,
                         maximum_population_allele_frequency = args.max_snp_array_pop_af,
@@ -112,13 +112,13 @@ workflow CNVWorkflow {
         call gsa.GenotypeSNPArray {
             input:
                 scattered_interval_list = args.scattered_interval_list,
-                ref_dict = args.ref_dict,
+                ref_dict = args.files.ref_dict,
                 individual_id = ConsensusPatient.updated_patient.name,
                 sample_names = sample_names,
                 tumor_pileups = tumor_pileups,
                 normal_pileups = normal_pileups,
-                common_germline_alleles = args.common_germline_alleles,
-                common_germline_alleles_idx = args.common_germline_alleles_idx,
+                common_germline_alleles = args.files.common_germline_alleles,
+                common_germline_alleles_idx = args.files.common_germline_alleles_idx,
                 genotype_variants_script = args.genotype_variants_script,
                 genotype_variants_save_sample_genotype_likelihoods = true,
                 compress_output = args.compress_output,

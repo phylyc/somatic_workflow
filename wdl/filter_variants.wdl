@@ -39,9 +39,9 @@ workflow FilterVariants {
     # filtering."
     call FilterMutectCalls {
         input:
-            ref_fasta = args.ref_fasta,
-            ref_fasta_index = args.ref_fasta_index,
-            ref_dict = args.ref_dict,
+            ref_fasta = args.files.ref_fasta,
+            ref_fasta_index = args.files.ref_fasta_index,
+            ref_dict = args.files.ref_dict,
             vcf = vcf,
             vcf_idx = vcf_idx,
             orientation_bias = orientation_bias,
@@ -63,9 +63,9 @@ workflow FilterVariants {
 
     call tasks.SelectVariants as SelectPassingVariants {
         input:
-            ref_fasta = args.ref_fasta,
-            ref_fasta_index = args.ref_fasta_index,
-            ref_dict = args.ref_dict,
+            ref_fasta = args.files.ref_fasta,
+            ref_fasta_index = args.files.ref_fasta_index,
+            ref_dict = args.files.ref_dict,
             vcf = FilterMutectCalls.filtered_vcf,
             vcf_idx = FilterMutectCalls.filtered_vcf_idx,
             select_passing = true,
@@ -87,9 +87,9 @@ workflow FilterVariants {
         if (args.run_realignment_filter_only_on_high_confidence_variants) {
             call tasks.SelectVariants as SelectLowConfidenceVariants {
                 input:
-                    ref_fasta = args.ref_fasta,
-                    ref_fasta_index = args.ref_fasta_index,
-                    ref_dict = args.ref_dict,
+                    ref_fasta = args.files.ref_fasta,
+                    ref_fasta_index = args.files.ref_fasta_index,
+                    ref_dict = args.files.ref_dict,
                     vcf = SelectPassingVariants.selected_vcf,
                     vcf_idx = SelectPassingVariants.selected_vcf_idx,
                     compress_output = args.compress_output,
@@ -99,9 +99,9 @@ workflow FilterVariants {
 
             call tasks.SelectVariants as SelectHighConfidenceVariants {
                 input:
-                    ref_fasta = args.ref_fasta,
-                    ref_fasta_index = args.ref_fasta_index,
-                    ref_dict = args.ref_dict,
+                    ref_fasta = args.files.ref_fasta,
+                    ref_fasta_index = args.files.ref_fasta_index,
+                    ref_dict = args.files.ref_dict,
                     vcf = SelectPassingVariants.selected_vcf,
                     vcf_idx = SelectPassingVariants.selected_vcf_idx,
                     compress_output = args.compress_output,
@@ -132,9 +132,9 @@ workflow FilterVariants {
             call tasks.SelectVariants as SelectPreRealignmentVariants {
                 input:
                     interval_list = interval_list,
-                    ref_fasta = args.ref_fasta,
-                    ref_fasta_index = args.ref_fasta_index,
-                    ref_dict = args.ref_dict,
+                    ref_fasta = args.files.ref_fasta,
+                    ref_fasta_index = args.files.ref_fasta_index,
+                    ref_dict = args.files.ref_dict,
                     vcf = variants_to_realign,
                     vcf_idx = variants_to_realign_idx,
                     compress_output = args.compress_output,
@@ -143,14 +143,14 @@ workflow FilterVariants {
 
             call FilterAlignmentArtifacts {
                 input:
-                    ref_fasta = args.ref_fasta,
-                    ref_fasta_index = args.ref_fasta_index,
-                    ref_dict = args.ref_dict,
+                    ref_fasta = args.files.ref_fasta,
+                    ref_fasta_index = args.files.ref_fasta_index,
+                    ref_dict = args.files.ref_dict,
                     tumor_bams = tumor_bams,
                     tumor_bais = tumor_bais,
                     vcf = SelectPreRealignmentVariants.selected_vcf,
                     vcf_idx = SelectPreRealignmentVariants.selected_vcf_idx,
-                    bwa_mem_index_image = args.realignment_bwa_mem_index_image,
+                    bwa_mem_index_image = args.files.realignment_bwa_mem_index_image,
                     compress_output = args.compress_output,
                     max_reasonable_fragment_length = args.filter_alignment_artifacts_max_reasonable_fragment_length,
                     realignment_extra_args = args.realignment_extra_args,
@@ -169,9 +169,9 @@ workflow FilterVariants {
 
         call tasks.SelectVariants as SelectPostRealignmentVariants {
             input:
-                ref_fasta = args.ref_fasta,
-                ref_fasta_index = args.ref_fasta_index,
-                ref_dict = args.ref_dict,
+                ref_fasta = args.files.ref_fasta,
+                ref_fasta_index = args.files.ref_fasta_index,
+                ref_dict = args.files.ref_dict,
                 vcf = MergeRealignmentFilteredVCFs.merged_vcf,
                 vcf_idx = MergeRealignmentFilteredVCFs.merged_vcf_idx,
                 select_passing = true,
@@ -213,9 +213,9 @@ workflow FilterVariants {
     if (args.keep_germline) {
         call tasks.SelectVariants as SelectGermlineVariants {
             input:
-                ref_fasta = args.ref_fasta,
-                ref_fasta_index = args.ref_fasta_index,
-                ref_dict = args.ref_dict,
+                ref_fasta = args.files.ref_fasta,
+                ref_fasta_index = args.files.ref_fasta_index,
+                ref_dict = args.files.ref_dict,
                 vcf = selected_vcf,
                 vcf_idx = selected_vcf_idx,
                 select_passing = false,
@@ -228,9 +228,9 @@ workflow FilterVariants {
 
     call tasks.SelectVariants as SelectSomaticVariants {
         input:
-            ref_fasta = args.ref_fasta,
-            ref_fasta_index = args.ref_fasta_index,
-            ref_dict = args.ref_dict,
+            ref_fasta = args.files.ref_fasta,
+            ref_fasta_index = args.files.ref_fasta_index,
+            ref_dict = args.files.ref_dict,
             vcf = selected_vcf,
             vcf_idx = selected_vcf_idx,
             select_passing = true,

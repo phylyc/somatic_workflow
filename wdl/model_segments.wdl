@@ -20,7 +20,7 @@ workflow ModelSegments {
     scatter (sample in patient.samples) {
         call PileupToAllelicCounts {
             input:
-                ref_dict = args.ref_dict,
+                ref_dict = args.files.ref_dict,
                 pileup = sample.snp_array_pileups,
                 bam_name = sample.bam_name,
                 runtime_params = runtime_collection.pileup_to_allelic_counts
@@ -95,12 +95,19 @@ workflow ModelSegments {
 
         call PlotModeledSegments {
             input:
-                ref_dict = args.ref_dict,
+                ref_dict = args.files.ref_dict,
                 sample_name = sample.name,
                 segments = select_first([SingleSampleInferCR.seg_final]),
                 denoised_copy_ratios = sample.denoised_copy_ratios,
                 het_allelic_counts = SingleSampleInferCR.hets,
                 runtime_params = runtime_collection.plot_modeled_segments
+        }
+
+        call ModelSegmentsToACSConversion {
+            input:
+                seg_final = select_first([SingleSampleInferCR.seg_final]),
+                af_model_parameters = select_first([SingleSampleInferCR.af_model_final_parameters]),
+                runtime_params = runtime_collection.model_segments_to_acs_conversion
         }
     }
 
@@ -110,21 +117,12 @@ workflow ModelSegments {
             copy_ratio_segmentations = select_all(SingleSampleInferCR.seg_final),
             af_model_parameters = select_all(SingleSampleInferCR.af_model_final_parameters),
             cr_model_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters),
-            called_copy_ratio_segmentations =  CallCopyRatioSegments.called_cr_seg
+            called_copy_ratio_segmentations =  CallCopyRatioSegments.called_cr_seg,
+            acs_copy_ratio_segmentations = ModelSegmentsToACSConversion.cnv_acs_conversion_seg,
+            acs_copy_ratio_skews = ModelSegmentsToACSConversion.cnv_acs_conversion_skew
     }
 
-    # tag germline events
-
-    # filter germline events
-
-#    scatter (sample in AddSegmentationResultsToSamples.updated_patient.samples) {
-#        call ToACSConversion {
-#            input:
-#                seg_final = sample.copy_ratio_segmentation,
-#                af_model_parameters = sample.af_model_parameters,
-#                runtime_params = runtime_collection.to_acs_conversion
-#        }
-#    }
+    # todo: tag & filter germline events
 
     output {
         Patient updated_patient = AddSegmentationResultsToSamples.updated_patient
@@ -144,6 +142,8 @@ workflow ModelSegments {
         Array[File] cr_seg = select_all(SingleSampleInferCR.cr_seg)
         Array[File] called_cr_seg = CallCopyRatioSegments.called_cr_seg
         Array[File] modeled_plots = PlotModeledSegments.plot
+        Array[File] cr_acs_seg = ModelSegmentsToACSConversion.cnv_acs_conversion_seg
+        Array[File] cr_acs_skew = ModelSegmentsToACSConversion.cnv_acs_conversion_skew
     }
 }
 
@@ -158,7 +158,7 @@ task PileupToAllelicCounts {
     String non_optional_pileup = select_first([pileup, "none"])
     Boolean is_compressed = basename(non_optional_pileup, ".gz") != basename(non_optional_pileup)
     String uncompressed_pileup = basename(non_optional_pileup, ".gz")
-    String sample_name = basename(uncompressed_pileup, ".pileup")
+    String sample_name = basename(basename(uncompressed_pileup, ".pileup"), ".likelihoods")
     String output_file = sample_name + ".allelic_counts.tsv"
 
     command <<<
@@ -170,9 +170,11 @@ task PileupToAllelicCounts {
                 cp '~{pileup}' '~{uncompressed_pileup}'
             fi
 
+            # HEADER
             cat '~{ref_dict}' > '~{output_file}'
             printf "@RG\tID:GATKCopyNumber\tSM:~{bam_name}\n" >> '~{output_file}'
             printf "CONTIG\tPOSITION\tREF_COUNT\tALT_COUNT\tREF_NUCLEOTIDE\tALT_NUCLEOTIDE\n" >> '~{output_file}'
+            # CONTENT
             # The ref and alt allele information is not available in the pileup file, so we set both to "N"
             tail -n +3 '~{uncompressed_pileup}' | awk -v OFS='\t' '{print $1, $2, $3, $4, "N", "N"}' >> '~{output_file}'
 
@@ -188,7 +190,7 @@ task PileupToAllelicCounts {
 
     output {
         File? allelic_counts = output_file
-        Float? error_probability = 0.05
+        Float error_probability = 0.05
     }
 
     runtime {
@@ -216,7 +218,7 @@ task ModelSegmentsTask {
         Runtime runtime_params
     }
 
-    String output_dir = "output"
+    String output_dir = "."
 
     command <<<
         set -e
@@ -322,7 +324,7 @@ task PlotModeledSegments {
     }
 
     String prefix = sample_name
-    String output_dir = "output"
+    String output_dir = "."
 
     command <<<
         set -e
@@ -353,40 +355,51 @@ task PlotModeledSegments {
     }
 }
 
-#task ToACSConversion {
-#    input {
-#        String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/acs_conversion.py"
-#
-#        File seg_final
-#        File af_model_parameters
-#
-#        Int min_hets = 10
-#
-#        Runtime runtime_params
-#    }
-#
-#    command <<<
-#        set -e
-#        wget -O acs_conversion.py ~{script}
-#        python acs_conversion.py \
-#
-#    >>>
-#
-#    output {
-#        File cnv_acs_conversion_seg = "${output_filename}"
-#        File cnv_acs_conversion_skew = "${output_skew_filename}"
-#        Float cnv_acs_conversion_skew_float = read_float(output_skew_filename)
-#        String cnv_acs_conversion_skew_string = read_string(output_skew_filename)
-#    }
-#
-#    runtime {
-#        docker: runtime_params.docker
-#        bootDiskSizeGb: runtime_params.boot_disk_size
-#        memory: runtime_params.machine_mem + " MB"
-#        runtime_minutes: runtime_params.runtime_minutes
-#        disks: "local-disk " + runtime_params.disk + " HDD"
-#        preemptible: runtime_params.preemptible
-#        maxRetries: runtime_params.max_retries
-#        cpu: runtime_params.cpu
-#    }
-#}
+task ModelSegmentsToACSConversion {
+    input {
+        String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/acs_conversion.py"
+
+        File seg_final
+        File af_model_parameters
+
+        Int min_hets = 10
+        Float maf90_threshold = 0.485
+
+        Runtime runtime_params
+    }
+
+    String output_dir = "."
+
+    String output_seg = output_dir + "/" + basename(basename(seg_final, ".seg"), ".modelFinal") + ".acs.seg"
+    String output_skew = output_seg + ".skew"
+
+    command <<<
+        set -e
+        wget -O acs_conversion.py ~{script}
+        python acs_conversion.py \
+            --output_dir ~{output_dir} \
+            --seg ~{seg_final} \
+            --af_parameters ~{af_model_parameters} \
+            --min_hets ~{min_hets} \
+            --maf90_threshold ~{maf90_threshold} \
+            --verbose
+    >>>
+
+    output {
+        File cnv_acs_conversion_seg = output_seg
+        File cnv_acs_conversion_skew = output_skew
+        Float cnv_acs_conversion_skew_float = read_float(output_skew)
+        String cnv_acs_conversion_skew_string = read_string(output_skew)
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+}

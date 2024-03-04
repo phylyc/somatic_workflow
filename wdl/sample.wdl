@@ -9,19 +9,21 @@ struct Sample {
     Array[SequencingRun] sequencing_runs
     Boolean is_tumor
 
-    File? read_counts
-    File? denoised_copy_ratios
-    File? standardized_copy_ratios
-    File? snp_array_pileups
-    File? snp_array_allelic_counts
-    File? somatic_allelic_counts
-    File? germline_allelic_counts
-    File? contamination
-    File? af_segmentation
-    File? copy_ratio_segmentation
-    File? af_model_parameters
-    File? cr_model_parameters
-    File? called_copy_ratio_segmentation
+    File? read_counts                       # GATK CollectReadCounts
+    File? denoised_copy_ratios              # GATK DenoiseReadCounts
+    File? standardized_copy_ratios          # GATK DenoiseReadCounts
+    File? snp_array_pileups                 # GATK GetPileupSummaries
+    File? snp_array_allelic_counts          # PileupToAllelicCounts / GATK CollectAllelicCounts
+    File? somatic_allelic_counts            # GATK GetPileupSummaries
+    File? germline_allelic_counts           # GATK GetPileupSummaries
+    File? contamination                     # GATK CalculateContamination
+    File? af_segmentation                   # GATK CalculateContamination
+    File? copy_ratio_segmentation           # GATK ModelSegments
+    File? af_model_parameters               # GATK ModelSegments
+    File? cr_model_parameters               # GATK ModelSegments
+    File? called_copy_ratio_segmentation    # GATK CallCopyRatioSegments
+    File? acs_copy_ratio_segmentation       # ModelSegmentsToACSConversion
+    File? acs_copy_ratio_skew               # ModelSegmentsToACSConversion
 }
 
 
@@ -46,6 +48,8 @@ workflow UpdateSample {
         File? af_model_parameters
         File? cr_model_parameters
         File? called_copy_ratio_segmentation
+        File? acs_copy_ratio_segmentation
+        File? acs_copy_ratio_skew
     }
 
     Sample s = object {
@@ -66,7 +70,9 @@ workflow UpdateSample {
         copy_ratio_segmentation: if defined(copy_ratio_segmentation) then copy_ratio_segmentation else sample.copy_ratio_segmentation,
         af_model_parameters: if defined(af_model_parameters) then af_model_parameters else sample.af_model_parameters,
         cr_model_parameters: if defined(cr_model_parameters) then cr_model_parameters else sample.cr_model_parameters,
-        called_copy_ratio_segmentation: if defined(called_copy_ratio_segmentation) then called_copy_ratio_segmentation else sample.called_copy_ratio_segmentation
+        called_copy_ratio_segmentation: if defined(called_copy_ratio_segmentation) then called_copy_ratio_segmentation else sample.called_copy_ratio_segmentation,
+        acs_copy_ratio_segmentation: if defined(acs_copy_ratio_segmentation) then acs_copy_ratio_segmentation else sample.acs_copy_ratio_segmentation,
+        acs_copy_ratio_skew: if defined(acs_copy_ratio_skew) then acs_copy_ratio_skew else sample.acs_copy_ratio_skew
     }
 
     output {

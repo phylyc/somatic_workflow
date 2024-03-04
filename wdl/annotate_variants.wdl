@@ -26,9 +26,9 @@ workflow AnnotateVariants {
     scatter (intervals in scattered_interval_list) {
         call tasks.SelectVariants as SelectSampleVariants {
             input:
-                ref_fasta = args.ref_fasta,
-                ref_fasta_index = args.ref_fasta_index,
-                ref_dict = args.ref_dict,
+                ref_fasta = args.files.ref_fasta,
+                ref_fasta_index = args.files.ref_fasta_index,
+                ref_dict = args.files.ref_dict,
                 interval_list = intervals,
                 vcf = vcf,
                 vcf_idx = vcf_idx,
@@ -41,9 +41,9 @@ workflow AnnotateVariants {
 
         call Funcotate {
             input:
-                ref_fasta = args.ref_fasta,
-                ref_fasta_index = args.ref_fasta_index,
-                ref_dict = args.ref_dict,
+                ref_fasta = args.files.ref_fasta,
+                ref_fasta_index = args.files.ref_fasta_index,
+                ref_dict = args.files.ref_dict,
                 interval_list = intervals,
                 vcf = SelectSampleVariants.selected_vcf,
                 vcf_idx = SelectSampleVariants.selected_vcf_idx,
@@ -55,8 +55,8 @@ workflow AnnotateVariants {
                 output_format = args.funcotator_output_format,
                 variant_type = args.funcotator_variant_type,
                 transcript_selection_mode = args.funcotator_transcript_selection_mode,
-                transcript_list = args.funcotator_transcript_list,
-                data_sources_tar_gz = args.funcotator_data_sources_tar_gz,
+                transcript_list = args.files.funcotator_transcript_list,
+                data_sources_tar_gz = args.files.funcotator_data_sources_tar_gz,
                 use_gnomad = args.funcotator_use_gnomad,
                 compress_output = args.compress_output,
                 data_sources_paths = args.funcotator_data_sources_paths,

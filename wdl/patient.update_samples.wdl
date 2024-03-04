@@ -20,6 +20,8 @@ workflow UpdateSamples {
         Array[File]? af_model_parameters
         Array[File]? cr_model_parameters
         Array[File]? called_copy_ratio_segmentations
+        Array[File]? acs_copy_ratio_segmentations
+        Array[File]? acs_copy_ratio_skews
     }
 
     # Split input arrays into tumor and normal arrays
@@ -41,6 +43,8 @@ workflow UpdateSamples {
         File? t_af_model_parameters = if defined(af_model_parameters) then select_first([af_model_parameters, []])[t] else None
         File? t_cr_model_parameters = if defined(cr_model_parameters) then select_first([cr_model_parameters, []])[t] else None
         File? t_called_copy_ratio_segmentations = if defined(called_copy_ratio_segmentations) then select_first([called_copy_ratio_segmentations, []])[t] else None
+        File? t_acs_copy_ratio_segmentations = if defined(acs_copy_ratio_segmentations) then select_first([acs_copy_ratio_segmentations, []])[t] else None
+        File? t_acs_copy_ratio_skews = if defined(acs_copy_ratio_skews) then select_first([acs_copy_ratio_skews, []])[t] else None
     }
     Array[File] tumor_read_counts = select_all(t_read_counts)
     Array[File] tumor_denoised_copy_ratios = select_all(t_denoised_copy_ratios)
@@ -55,6 +59,8 @@ workflow UpdateSamples {
     Array[File] tumor_af_model_parameters = select_all(t_af_model_parameters)
     Array[File] tumor_cr_model_parameters = select_all(t_cr_model_parameters)
     Array[File] tumor_called_copy_ratio_segmentations = select_all(t_called_copy_ratio_segmentations)
+    Array[File] tumor_acs_copy_ratio_segmentations = select_all(t_acs_copy_ratio_segmentations)
+    Array[File] tumor_acs_copy_ratio_skews = select_all(t_acs_copy_ratio_skews)
 
     if (patient.has_normal) {
         scatter (n in range(num_normal_samples)) {
@@ -72,6 +78,8 @@ workflow UpdateSamples {
             File? n_af_model_parameters = if defined(af_model_parameters) then select_first([af_model_parameters, []])[m] else None
             File? n_cr_model_parameters = if defined(cr_model_parameters) then select_first([cr_model_parameters, []])[m] else None
             File? n_called_copy_ratio_segmentations = if defined(called_copy_ratio_segmentations) then select_first([called_copy_ratio_segmentations, []])[m] else None
+            File? n_acs_copy_ratio_segmentations = if defined(acs_copy_ratio_segmentations) then select_first([acs_copy_ratio_segmentations, []])[m] else None
+            File? n_acs_copy_ratio_skews = if defined(acs_copy_ratio_skews) then select_first([acs_copy_ratio_skews, []])[m] else None
         }
     }
     Array[File] normal_read_counts = select_all(select_first([n_read_counts, []]))
@@ -87,6 +95,8 @@ workflow UpdateSamples {
     Array[File] normal_af_model_parameters = select_all(select_first([n_af_model_parameters, []]))
     Array[File] normal_cr_model_parameters = select_all(select_first([n_cr_model_parameters, []]))
     Array[File] normal_called_copy_ratio_segmentations = select_all(select_first([n_called_copy_ratio_segmentations, []]))
+    Array[File] normal_acs_copy_ratio_segmentations = select_all(select_first([n_acs_copy_ratio_segmentations, []]))
+    Array[File] normal_acs_copy_ratio_skews = select_all(select_first([n_acs_copy_ratio_skews, []]))
 
     # Update tumor samples:
 

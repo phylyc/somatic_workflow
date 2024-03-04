@@ -2,32 +2,16 @@ version development
 
 import "runtime_collection.wdl" as rtc
 import "tasks.wdl"
+import "workflow_resources.wdl"
 
 
 struct WorkflowArguments {
+    WorkflowResources files
+
     Int scatter_count
-    File? interval_list
-    File? interval_blacklist
-    Array[File]? interval_lists
 
     File preprocessed_interval_list
     Array[File] scattered_interval_list
-
-    File ref_fasta
-    File ref_fasta_index
-    File ref_dict
-
-    File? force_call_alleles
-    File? force_call_alleles_idx
-    File? snv_panel_of_normals
-    File? snv_panel_of_normals_idx
-    File? germline_resource
-    File? germline_resource_tbi
-    File? common_germline_alleles
-    File? common_germline_alleles_idx
-    File? realignment_bwa_mem_index_image
-    File? funcotator_transcript_list
-    File? funcotator_data_sources_tar_gz
 
     Boolean run_collect_covered_regions
     Boolean run_collect_target_coverage
@@ -94,28 +78,9 @@ struct WorkflowArguments {
 
 workflow DefineWorkflowArguments {
     input {
+        WorkflowResources resources
+
         Int scatter_count
-
-        File? interval_list
-        File? interval_blacklist
-        Array[File]? interval_lists
-
-        File ref_fasta
-        File ref_fasta_index
-        File ref_dict
-
-        # resources
-        File? force_call_alleles
-        File? force_call_alleles_idx
-        File? snv_panel_of_normals
-        File? snv_panel_of_normals_idx
-        File? germline_resource
-        File? germline_resource_tbi
-        File? common_germline_alleles
-        File? common_germline_alleles_idx
-        File? realignment_bwa_mem_index_image
-        File? funcotator_transcript_list
-        File? funcotator_data_sources_tar_gz
 
         # workflow options
         Boolean run_collect_covered_regions = false
@@ -185,12 +150,12 @@ workflow DefineWorkflowArguments {
 
     call tasks.PreprocessIntervals {
         input:
-            interval_list = interval_list,
-            interval_blacklist = interval_blacklist,
-            interval_lists = interval_lists,
-            ref_fasta = ref_fasta,
-            ref_fasta_index = ref_fasta_index,
-            ref_dict = ref_dict,
+            interval_list = resources.interval_list,
+            interval_blacklist = resources.interval_blacklist,
+            interval_lists = resources.interval_lists,
+            ref_fasta = resources.ref_fasta,
+            ref_fasta_index = resources.ref_fasta_index,
+            ref_dict = resources.ref_dict,
             bin_length = preprocess_intervals_bin_length,
             padding = preprocess_intervals_padding,
             runtime_params = runtime_collection.preprocess_intervals,
@@ -199,9 +164,9 @@ workflow DefineWorkflowArguments {
     call tasks.SplitIntervals {
     	input:
             interval_list = PreprocessIntervals.preprocessed_interval_list,
-            ref_fasta = ref_fasta,
-            ref_fasta_index = ref_fasta_index,
-            ref_dict = ref_dict,
+            ref_fasta = resources.ref_fasta,
+            ref_fasta_index = resources.ref_fasta_index,
+            ref_dict = resources.ref_dict,
             scatter_count = scatter_count,
             split_intervals_extra_args = split_intervals_extra_args,
             runtime_params = runtime_collection.split_intervals,
@@ -210,28 +175,10 @@ workflow DefineWorkflowArguments {
     WorkflowArguments args = object {
         scatter_count: scatter_count,
 
-        interval_list: interval_list,
-        interval_blacklist: interval_blacklist,
-        interval_lists: interval_lists,
+        files: resources,
 
         preprocessed_interval_list: PreprocessIntervals.preprocessed_interval_list,
         scattered_interval_list: SplitIntervals.interval_files,
-
-        ref_fasta: ref_fasta,
-        ref_fasta_index: ref_fasta_index,
-        ref_dict: ref_dict,
-
-        force_call_alleles: force_call_alleles,
-        force_call_alleles_idx: force_call_alleles_idx,
-        snv_panel_of_normals: snv_panel_of_normals,
-        snv_panel_of_normals_idx: snv_panel_of_normals_idx,
-        germline_resource: germline_resource,
-        germline_resource_tbi: germline_resource_tbi,
-        common_germline_alleles: common_germline_alleles,
-        common_germline_alleles_idx: common_germline_alleles_idx,
-        realignment_bwa_mem_index_image: realignment_bwa_mem_index_image,
-        funcotator_transcript_list: funcotator_transcript_list,
-        funcotator_data_sources_tar_gz: funcotator_data_sources_tar_gz,
 
         run_collect_covered_regions: run_collect_covered_regions,
         run_collect_target_coverage: run_collect_target_coverage,

@@ -23,6 +23,7 @@ struct RuntimeCollection {
     Runtime model_segments
     Runtime call_copy_ratio_segments
     Runtime plot_modeled_segments
+    Runtime model_segments_to_acs_conversion
     Runtime mutect2
     Runtime learn_read_orientation_model
     Runtime merge_vcfs
@@ -138,7 +139,7 @@ workflow DefineRuntimeCollection {
         Int time_genotype_variants = 30
 
         # gatk: ModelSegments
-        Int mem_model_segments = 4096
+        Int mem_model_segments = 2048
         Int time_model_segments = 60
 
         # gatk: CallCopyRatioSegments
@@ -148,6 +149,10 @@ workflow DefineRuntimeCollection {
         # gatk: PlotModeledSegments
         Int mem_plot_modeled_segments = 4096
         Int time_plot_modeled_segments = 10
+
+        # ModelSegmentsToACSConversion
+        Int mem_model_segments_to_acs_conversion = 1024
+        Int time_model_segments_to_acs_conversion = 10
 
         # gatk: Mutect2
         Int cpu_mutect2 = 1  # good for PairHMM: 2
@@ -191,7 +196,7 @@ workflow DefineRuntimeCollection {
         # gatk: Funcotator
         Int mem_funcotate = 6144
         Int time_funcotate = 1440  # 24 h
-        Boolean run_variant_anntation_scattered = false
+#        Boolean run_variant_anntation_scattered = false
 
         # gatk: CreateReadCountPanelOfNormals
         Int mem_create_cnv_panel = 16384
@@ -359,8 +364,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime pileup_to_allelic_counts = {
-        "docker": gatk_docker,
-        "jar_override": gatk_override,
+        "docker": ubuntu_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
@@ -455,6 +459,18 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_plot_modeled_segments + mem_machine_overhead,
         "command_mem": mem_plot_modeled_segments,
         "runtime_minutes": time_startup + time_plot_modeled_segments,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime model_segments_to_acs_conversion = {
+        "docker": genotype_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_model_segments_to_acs_conversion + mem_machine_overhead,
+        "command_mem": mem_model_segments_to_acs_conversion,
+        "runtime_minutes": time_startup + time_model_segments_to_acs_conversion,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -586,7 +602,8 @@ workflow DefineRuntimeCollection {
         "cpu": cpu,
         "machine_mem": mem_funcotate + mem_machine_overhead,
         "command_mem": mem_funcotate,
-        "runtime_minutes": time_startup + if run_variant_anntation_scattered then ceil(time_funcotate / scatter_count) else time_funcotate,
+#        "runtime_minutes": time_startup + if run_variant_anntation_scattered then ceil(time_funcotate / scatter_count) else time_funcotate,
+        "runtime_minutes": time_startup + time_funcotate,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -673,6 +690,7 @@ workflow DefineRuntimeCollection {
         "model_segments": model_segments,
         "call_copy_ratio_segments": call_copy_ratio_segments,
         "plot_modeled_segments": plot_modeled_segments,
+        "model_segments_to_acs_conversion": model_segments_to_acs_conversion,
         "mutect2": mutect2,
         "learn_read_orientation_model": learn_read_orientation_model,
         "merge_vcfs": merge_vcfs,
