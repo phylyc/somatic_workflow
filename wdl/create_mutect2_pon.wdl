@@ -8,10 +8,10 @@ import "multi-sample_somatic_workflow.wdl" as mssw
 
 workflow CreateMutect2PanelOfNormals {
     input {
+        String pon_name
+
         File target_interval_list
-        File ref_fasta
-        File ref_fasta_index
-        File ref_dict
+        Int scatter_count = 10
 
         Array[File]? normal_bams
         Array[File]? normal_bais
@@ -21,47 +21,54 @@ workflow CreateMutect2PanelOfNormals {
         File germline_resource
         File germline_resource_idx
 
-        Boolean compress_output = true
         String mutect2_extra_args = ""
-        String pon_name
 
         Int min_contig_size = 1000000
         Int num_contigs = 24
 
-        RuntimeCollection runtime_collection = GetRTC.rtc
-
-        # runtime
-        Int scatter_count = 10
-        String gatk_docker = "broadinstitute/gatk"
-        File? gatk_override
-        Int preemptible = 1
-        Int max_retries = 1
-        Int disk_sizeGB = 1
-        Int cpu = 1
-
-        Int mem_machine_overhead = 2048
-        Int mem_create_mutect2_panel = 16384
-
-        Int disk_create_mutect2_panel = 10
-
-        Int time_startup = 10
-        Int time_create_mutect2_panel = 1200  # 20 h
+        WorkflowArguments args = Parameters.arguments
+        WorkflowResources resources = Files.resources
+        RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
 
-    call rtc.DefineRuntimeCollection as GetRTC {
+    call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
             scatter_count = scatter_count,
-            gatk_docker = gatk_docker,
-            gatk_override = gatk_override,
-            max_retries = max_retries,
-            preemptible = preemptible,
-            cpu = cpu,
-            disk_sizeGB = disk_sizeGB,
-            time_startup = time_startup,
-            mem_machine_overhead = mem_machine_overhead,
-            mem_create_mutect2_panel = mem_create_mutect2_panel,
-            time_create_mutect2_panel = time_create_mutect2_panel,
-            disk_create_mutect2_panel = disk_create_mutect2_panel
+    }
+
+    call wfres.DefineWorkflowResources as Files {
+        input:
+            interval_list = target_interval_list,
+            germline_resource = germline_resource,
+            germline_resource_idx = germline_resource_idx,
+    }
+
+    call wfargs.DefineWorkflowArguments as Parameters {
+        input:
+            scatter_count = scatter_count,
+            resources = resources,
+
+            run_collect_covered_regions = false,
+            run_collect_target_coverage = false,
+            run_collect_allelic_coverage = false,
+            run_contamination_model = false,
+            run_model_segments = false,
+
+            run_orientation_bias_mixture_model = false,
+            run_variant_calling = true,
+            run_variant_filter = false,
+            run_realignment_filter = false,
+            run_realignment_filter_only_on_high_confidence_variants = false,
+            run_collect_called_variants_allelic_coverage = false,
+            run_variant_annotation = false,
+            run_clonal_decomposition = false,
+
+            keep_germline = false,
+            make_bamout = false,
+
+            mutect2_extra_args = mutect2_extra_args + " --max-mnp-distance 0",  # GenpmicsDBImport can't handle MNPs
+
+            runtime_collection = runtime_collection,
     }
 
     # todo: assert either normal_bams or normal_bams_file is defined
@@ -78,35 +85,13 @@ workflow CreateMutect2PanelOfNormals {
 
         call mssw.MultiSampleSomaticWorkflow {
             input:
-                interval_list = target_interval_list,
-                ref_fasta = ref_fasta,
-                ref_fasta_index = ref_fasta_index,
-                ref_dict = ref_dict,
-
                 individual_id = GetSampleName.sample_name,
                 tumor_bams = [normal.left],
                 tumor_bais = [normal.right],
                 tumor_target_intervals = [target_interval_list],
-
-                run_collect_covered_regions = false,
-                run_collect_target_coverage = false,
-                run_collect_allelic_coverage = false,
-                run_contamination_model = false,
-                run_orientation_bias_mixture_model = false,
-                run_variant_calling = true,
-                run_variant_filter = false,
-                run_realignment_filter = false,
-                run_realignment_filter_only_on_high_confidence_variants = false,
-                run_collect_called_variants_allelic_coverage = false,
-                run_variant_annotation = false,
-
-                keep_germline = false,
-                make_bamout = false,
-
-                compress_output = compress_output,
                 scatter_count = scatter_count,
-                mutect2_extra_args = mutect2_extra_args + " --max-mnp-distance 0",  # GenpmicsDBImport can't handle MNPs
-
+                args = args,
+                resources = resources,
                 runtime_collection = runtime_collection,
         }
     }
@@ -117,10 +102,10 @@ workflow CreateMutect2PanelOfNormals {
     )
     call tasks.SplitIntervals {
         input:
-            interval_list = target_interval_list,
-            ref_fasta = ref_fasta,
-            ref_fasta_index = ref_fasta_index,
-            ref_dict = ref_dict,
+            interval_list = args.interval_list,
+            ref_fasta = args.files.ref_fasta,
+            ref_fasta_index = args.files.ref_fasta_index,
+            ref_dict = args.files.ref_dict,
             scatter_count = num_contigs,
             split_intervals_extra_args = split_intervals_extra_args,
             runtime_params = runtime_collection.split_intervals
@@ -138,12 +123,12 @@ workflow CreateMutect2PanelOfNormals {
                 input_vcfs = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf),
                 input_vcf_indices = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf_idx),
                 interval_list = scattered_intervals,
-                ref_fasta = ref_fasta,
-                ref_fasta_index = ref_fasta_index,
-                ref_dict = ref_dict,
-                compress_output = compress_output,
-                gnomad = germline_resource,
-                gnomad_idx = germline_resource_idx,
+                ref_fasta = args.files.ref_fasta,
+                ref_fasta_index = args.files.ref_fasta_index,
+                ref_dict = args.files.ref_dict,
+                compress_output = args.compress_output,
+                gnomad = args.files.germline_resource,
+                gnomad_idx = args.files.germline_resource_idx,
                 output_vcf_name = pon_name,
                 runtime_params = CreateMutect2PanelRuntime.params
         }
@@ -154,7 +139,7 @@ workflow CreateMutect2PanelOfNormals {
             vcfs = CreateMutect2Panel.output_vcf,
             vcfs_idx = CreateMutect2Panel.output_vcf_index,
             output_name = pon_name,
-            compress_output = compress_output,
+            compress_output = args.compress_output,
             runtime_params = runtime_collection.merge_vcfs
     }
 
