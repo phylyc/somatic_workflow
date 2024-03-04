@@ -214,6 +214,7 @@ task ModelSegmentsTask {
         String prefix
 
         Float genotying_base_error_rate = 0.05
+        Array[Int] window_sizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]
 
         Runtime runtime_params
     }
@@ -231,6 +232,7 @@ task ModelSegmentsTask {
             ~{"--normal-allelic-counts '" + normal_allelic_counts + "'"} \
             ~{"--output-prefix '" + prefix + "'"} \
             --genotyping-base-error-rate ~{genotying_base_error_rate} \
+            --window-size [~{sep=", " window_sizes}] \
             --output ~{output_dir}
     >>>
 
