@@ -23,7 +23,8 @@ struct Sample {
     File? cr_model_parameters               # GATK ModelSegments
     File? called_copy_ratio_segmentation    # GATK CallCopyRatioSegments
     File? acs_copy_ratio_segmentation       # ModelSegmentsToACSConversion
-    File? acs_copy_ratio_skew               # ModelSegmentsToACSConversion
+    Float? acs_copy_ratio_skew              # ModelSegmentsToACSConversion
+    File? annotated_variants                # GATK Funcotator
 }
 
 
@@ -49,7 +50,8 @@ workflow UpdateSample {
         File? cr_model_parameters
         File? called_copy_ratio_segmentation
         File? acs_copy_ratio_segmentation
-        File? acs_copy_ratio_skew
+        Float? acs_copy_ratio_skew
+        File? annotated_variants
     }
 
     Sample s = object {
@@ -72,7 +74,8 @@ workflow UpdateSample {
         cr_model_parameters: if defined(cr_model_parameters) then cr_model_parameters else sample.cr_model_parameters,
         called_copy_ratio_segmentation: if defined(called_copy_ratio_segmentation) then called_copy_ratio_segmentation else sample.called_copy_ratio_segmentation,
         acs_copy_ratio_segmentation: if defined(acs_copy_ratio_segmentation) then acs_copy_ratio_segmentation else sample.acs_copy_ratio_segmentation,
-        acs_copy_ratio_skew: if defined(acs_copy_ratio_skew) then acs_copy_ratio_skew else sample.acs_copy_ratio_skew
+        acs_copy_ratio_skew: if defined(acs_copy_ratio_skew) then acs_copy_ratio_skew else sample.acs_copy_ratio_skew,
+        annotated_variants: if defined(annotated_variants) then annotated_variants else sample.annotated_variants
     }
 
     output {

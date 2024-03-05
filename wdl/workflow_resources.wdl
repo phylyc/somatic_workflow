@@ -15,7 +15,7 @@ struct WorkflowResources {
     File? snv_panel_of_normals
     File? snv_panel_of_normals_idx
     File? germline_resource
-    File? germline_resource_tbi
+    File? germline_resource_idx
     File? common_germline_alleles
     File? common_germline_alleles_idx
     File? realignment_bwa_mem_index_image
@@ -29,15 +29,15 @@ workflow DefineWorkflowResources {
         File? interval_list
         File? interval_blacklist
         Array[File]? interval_lists
-        File ref_fasta
-        File ref_fasta_index
-        File ref_dict
+        File? ref_fasta
+        File? ref_fasta_index
+        File? ref_dict
         File? force_call_alleles
         File? force_call_alleles_idx
         File? snv_panel_of_normals
         File? snv_panel_of_normals_idx
         File? germline_resource
-        File? germline_resource_tbi
+        File? germline_resource_idx
         File? common_germline_alleles
         File? common_germline_alleles_idx
         File? realignment_bwa_mem_index_image
@@ -57,7 +57,7 @@ workflow DefineWorkflowResources {
         snv_panel_of_normals: snv_panel_of_normals,
         snv_panel_of_normals_idx: snv_panel_of_normals_idx,
         germline_resource: germline_resource,
-        germline_resource_tbi: germline_resource_tbi,
+        germline_resource_idx: germline_resource_idx,
         common_germline_alleles: common_germline_alleles,
         common_germline_alleles_idx: common_germline_alleles_idx,
         realignment_bwa_mem_index_image: realignment_bwa_mem_index_image,

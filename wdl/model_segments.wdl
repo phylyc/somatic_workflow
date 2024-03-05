@@ -66,6 +66,7 @@ workflow ModelSegments {
                 allelic_counts = ac,
                 normal_allelic_counts = normal_allelic_counts,
                 prefix = patient.name + ".segmentation",
+                window_sizes = args.model_segments_window_sizes,
                 runtime_params = runtime_collection.model_segments
         }
     }
@@ -90,6 +91,10 @@ workflow ModelSegments {
         call CallCopyRatioSegments {
             input:
                 copy_ratio_segments = select_first([SingleSampleInferCR.cr_seg]),
+                neutral_segment_copy_ratio_lower_bound = args.call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
+                neutral_segment_copy_ratio_upper_bound = args.call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
+                outlier_neutral_segment_copy_ratio_z_score_threshold = args.call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold,
+                calling_copy_ratio_z_score_threshold = args.call_copy_ratios_z_score_threshold,
                 runtime_params = runtime_collection.call_copy_ratio_segments
         }
 
@@ -102,14 +107,9 @@ workflow ModelSegments {
                 het_allelic_counts = SingleSampleInferCR.hets,
                 runtime_params = runtime_collection.plot_modeled_segments
         }
-
-        call ModelSegmentsToACSConversion {
-            input:
-                seg_final = select_first([SingleSampleInferCR.seg_final]),
-                af_model_parameters = select_first([SingleSampleInferCR.af_model_final_parameters]),
-                runtime_params = runtime_collection.model_segments_to_acs_conversion
-        }
     }
+
+    # todo: tag & filter germline events
 
     call p_update_s.UpdateSamples as AddSegmentationResultsToSamples {
         input:
@@ -117,12 +117,8 @@ workflow ModelSegments {
             copy_ratio_segmentations = select_all(SingleSampleInferCR.seg_final),
             af_model_parameters = select_all(SingleSampleInferCR.af_model_final_parameters),
             cr_model_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters),
-            called_copy_ratio_segmentations =  CallCopyRatioSegments.called_cr_seg,
-            acs_copy_ratio_segmentations = ModelSegmentsToACSConversion.cnv_acs_conversion_seg,
-            acs_copy_ratio_skews = ModelSegmentsToACSConversion.cnv_acs_conversion_skew
+            called_copy_ratio_segmentations =  CallCopyRatioSegments.called_cr_seg
     }
-
-    # todo: tag & filter germline events
 
     output {
         Patient updated_patient = AddSegmentationResultsToSamples.updated_patient
@@ -142,8 +138,6 @@ workflow ModelSegments {
         Array[File] cr_seg = select_all(SingleSampleInferCR.cr_seg)
         Array[File] called_cr_seg = CallCopyRatioSegments.called_cr_seg
         Array[File] cr_plots = PlotModeledSegments.plot
-        Array[File] cr_converted_acs_segments = ModelSegmentsToACSConversion.cnv_acs_conversion_seg
-        Array[File] cr_converted_acs_skews = ModelSegmentsToACSConversion.cnv_acs_conversion_skew
     }
 }
 
@@ -156,8 +150,9 @@ task PileupToAllelicCounts {
     }
 
     String non_optional_pileup = select_first([pileup, "none"])
-    Boolean is_compressed = basename(non_optional_pileup, ".gz") != basename(non_optional_pileup)
     String uncompressed_pileup = basename(non_optional_pileup, ".gz")
+    Boolean is_compressed = uncompressed_pileup != basename(non_optional_pileup)
+
     String sample_name = basename(basename(uncompressed_pileup, ".pileup"), ".likelihoods")
     String output_file = sample_name + ".allelic_counts.tsv"
 
@@ -343,55 +338,6 @@ task PlotModeledSegments {
 
     output {
         File plot = output_dir + "/" + prefix + ".modeled.png"
-    }
-
-    runtime {
-        docker: runtime_params.docker
-        bootDiskSizeGb: runtime_params.boot_disk_size
-        memory: runtime_params.machine_mem + " MB"
-        runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
-        preemptible: runtime_params.preemptible
-        maxRetries: runtime_params.max_retries
-        cpu: runtime_params.cpu
-    }
-}
-
-task ModelSegmentsToACSConversion {
-    input {
-        String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/acs_conversion.py"
-
-        File seg_final
-        File af_model_parameters
-
-        Int min_hets = 10
-        Float maf90_threshold = 0.485
-
-        Runtime runtime_params
-    }
-
-    String output_dir = "."
-
-    String output_seg = basename(basename(seg_final, ".seg"), ".modelFinal") + ".acs.seg"
-    String output_skew = output_seg + ".skew"
-
-    command <<<
-        set -e
-        wget -O acs_conversion.py ~{script}
-        python acs_conversion.py \
-            --output_dir ~{output_dir} \
-            --seg ~{seg_final} \
-            --af_parameters ~{af_model_parameters} \
-            --min_hets ~{min_hets} \
-            --maf90_threshold ~{maf90_threshold} \
-            --verbose
-    >>>
-
-    output {
-        File cnv_acs_conversion_seg = output_seg
-        File cnv_acs_conversion_skew = output_skew
-        Float cnv_acs_conversion_skew_float = read_float(output_skew)
-        String cnv_acs_conversion_skew_string = read_string(output_skew)
     }
 
     runtime {

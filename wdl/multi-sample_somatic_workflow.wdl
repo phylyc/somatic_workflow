@@ -7,8 +7,7 @@ import "workflow_resources.wdl" as wfres
 import "runtime_collection.wdl" as rtc
 import "cnv_workflow.wdl" as cnv
 import "snv_workflow.wdl" as snv
-#import "clonal_decomposition.wdl" as cd
-#import "calculate_tumor_mutation_burden.wdl" as tmb
+import "clonal_analysis_workflow.wdl" as clone
 
 
 workflow MultiSampleSomaticWorkflow {
@@ -44,7 +43,7 @@ workflow MultiSampleSomaticWorkflow {
             scatter_count = scatter_count,
     }
 
-    call wfres.DefineWorkflowResources as Files {}
+    call wfres.DefineWorkflowResources as Files
 
     call wfargs.DefineWorkflowArguments as Parameters {
         input:
@@ -88,38 +87,14 @@ workflow MultiSampleSomaticWorkflow {
             runtime_collection = runtime_collection,
     }
 
-#    call cd.ClonalDecomposition {
-#
-#    }
-
-#    call tmb.CalculateTumorMutationBurden as TMB {
-#
-#    }
+    call clone.ClonalAnalysisWorkflow {
+        input:
+            args = args,
+            patient = SNVWorkflow.updated_patient,
+            runtime_collection = runtime_collection,
+    }
 
     output {
-#        Array[File]? covered_regions_bed = TMB.regions_bed
-#        Array[File?]? covered_regions_bam = TMB.regions_bam
-#        Array[File?]? covered_regions_bai = TMB.regions_bai
-#        Array[File?]? covered_regions_interval_list = TMB.regions_interval_list
-
-        File? unfiltered_vcf = SNVWorkflow.unfiltered_vcf
-        File? unfiltered_vcf_idx = SNVWorkflow.unfiltered_vcf_idx
-        File? mutect_stats = SNVWorkflow.mutect_stats
-        File? bam = SNVWorkflow.bam
-        File? bai = SNVWorkflow.bai
-        File? orientation_bias = SNVWorkflow.orientation_bias
-        File? filtered_vcf = SNVWorkflow.filtered_vcf
-        File? filtered_vcf_idx = SNVWorkflow.filtered_vcf_idx
-        File? somatic_vcf = SNVWorkflow.somatic_vcf
-        File? somatic_vcf_idx = SNVWorkflow.somatic_vcf_idx
-        File? germline_vcf = SNVWorkflow.germline_vcf
-        File? germline_vcf_idx = SNVWorkflow.germline_vcf_idx
-        File? filtering_stats = SNVWorkflow.filtering_stats
-        Array[File?]? called_germline_allelic_counts = SNVWorkflow.called_germline_allelic_counts
-        Array[File?]? called_somatic_allelic_counts = SNVWorkflow.called_somatic_allelic_counts
-        Array[File]? annotated_variants = SNVWorkflow.annotated_variants
-        Array[File?]? annotated_variants_idx = SNVWorkflow.annotated_variants_idx
-
         File? genotyped_snparray_vcf = CNVWorkflow.genotyped_snparray_vcf
         File? genotyped_snparray_vcf_idx = CNVWorkflow.genotyped_snparray_vcf_idx
         File? snparray_ref_counts = CNVWorkflow.snparray_ref_counts
@@ -140,7 +115,31 @@ workflow MultiSampleSomaticWorkflow {
         Array[File]? cr_plots = CNVWorkflow.cr_plots
         Array[File]? af_model_parameters = CNVWorkflow.af_model_parameters
         Array[File]? cr_model_parameters = CNVWorkflow.cr_model_parameters
-        Array[File]? cr_converted_acs_segments = CNVWorkflow.cr_converted_acs_segments
-        Array[File]? cr_converted_acs_skew = CNVWorkflow.cr_converted_acs_skews
+
+        File? unfiltered_vcf = SNVWorkflow.unfiltered_vcf
+        File? unfiltered_vcf_idx = SNVWorkflow.unfiltered_vcf_idx
+        File? mutect_stats = SNVWorkflow.mutect_stats
+        File? locally_realigned_bam = SNVWorkflow.locally_realigned_bam
+        File? locally_realigned_bai = SNVWorkflow.locally_realigned_bai
+        File? orientation_bias = SNVWorkflow.orientation_bias
+        File? filtered_vcf = SNVWorkflow.filtered_vcf
+        File? filtered_vcf_idx = SNVWorkflow.filtered_vcf_idx
+        File? somatic_vcf = SNVWorkflow.somatic_vcf
+        File? somatic_vcf_idx = SNVWorkflow.somatic_vcf_idx
+        File? germline_vcf = SNVWorkflow.germline_vcf
+        File? germline_vcf_idx = SNVWorkflow.germline_vcf_idx
+        File? filtering_stats = SNVWorkflow.filtering_stats
+        Array[File?]? called_germline_allelic_counts = SNVWorkflow.called_germline_allelic_counts
+        Array[File?]? called_somatic_allelic_counts = SNVWorkflow.called_somatic_allelic_counts
+        Array[File]? annotated_variants = SNVWorkflow.annotated_variants
+        Array[File?]? annotated_variants_idx = SNVWorkflow.annotated_variants_idx
+
+#        Array[File]? covered_regions_bed = SNVWorkflow.covered_regions_bed
+#        Array[File?]? covered_regions_bam = SNVWorkflow.covered_regions_bam
+#        Array[File?]? covered_regions_bai = SNVWorkflow.covered_regions_bai
+#        Array[File?]? covered_regions_interval_list = SNVWorkflow.covered_regions_interval_list
+
+        Array[File]? absolute_plots = ClonalAnalysisWorkflow.absolute_plots
+        Array[File]? absolute_rdata = ClonalAnalysisWorkflow.absolute_rdata
     }
 }

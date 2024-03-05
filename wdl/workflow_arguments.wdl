@@ -39,7 +39,16 @@ struct WorkflowArguments {
     Float min_snp_array_pop_af
     Float max_snp_array_pop_af
     Int min_snp_array_read_depth
+    Array[Int] model_segments_window_sizes
+    Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound
+    Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound
+    Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold
+    Float call_copy_ratios_z_score_threshold
+
     String genotype_variants_script
+    String harmonize_copy_ratios_script
+    String merge_pileups_script
+    String acs_conversion_script
 
     # SNV WORKFLOW
     Boolean mutect2_native_pair_hmm_use_double_precision
@@ -80,7 +89,7 @@ workflow DefineWorkflowArguments {
     input {
         WorkflowResources resources
 
-        Int scatter_count
+        Int scatter_count = 10
 
         # workflow options
         Boolean run_collect_covered_regions = false
@@ -103,13 +112,23 @@ workflow DefineWorkflowArguments {
         Boolean make_bamout = false
 
         # arguments
-        # CNV WORKFLOW
         Int preprocess_intervals_bin_length = 0
         Int preprocess_intervals_padding = 0
+
+        # CNV WORKFLOW
         Float min_snp_array_pop_af = 0.01
         Float max_snp_array_pop_af = 1.0  # default: 0.2
         Int min_snp_array_read_depth = 10
+        Array[Int] model_segments_window_sizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]
+        Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
+        Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
+        Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold = 2.0
+        Float call_copy_ratios_z_score_threshold = 2.0
+
         String genotype_variants_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
+        String harmonize_copy_ratios_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/harmonize_copy_ratios.py"
+        String merge_pileups_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/merge_pileups.py"
+        String acs_conversion_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/acs_conversion.py"
 
         # SNV WORKFLOW
         Int min_read_depth = 4
@@ -173,9 +192,9 @@ workflow DefineWorkflowArguments {
     }
 
     WorkflowArguments args = object {
-        scatter_count: scatter_count,
-
         files: resources,
+
+        scatter_count: scatter_count,
 
         preprocessed_interval_list: PreprocessIntervals.preprocessed_interval_list,
         scattered_interval_list: SplitIntervals.interval_files,
@@ -204,7 +223,16 @@ workflow DefineWorkflowArguments {
         min_snp_array_pop_af: min_snp_array_pop_af,
         max_snp_array_pop_af: max_snp_array_pop_af,
         min_snp_array_read_depth: min_snp_array_read_depth,
+        model_segments_window_sizes: model_segments_window_sizes,
+        call_copy_ratios_neutral_segment_copy_ratio_lower_bound: call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
+        call_copy_ratios_neutral_segment_copy_ratio_upper_bound: call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
+        call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold: call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold,
+        call_copy_ratios_z_score_threshold: call_copy_ratios_z_score_threshold,
+
         genotype_variants_script: genotype_variants_script,
+        harmonize_copy_ratios_script: harmonize_copy_ratios_script,
+        merge_pileups_script: merge_pileups_script,
+        acs_conversion_script: acs_conversion_script,
 
         min_read_depth: min_read_depth,
         mutect2_native_pair_hmm_use_double_precision: mutect2_native_pair_hmm_use_double_precision,

@@ -66,8 +66,12 @@ workflow CNVWorkflow {
         Array[File]? read_counts = select_all(flatten(CollectReadCounts.read_counts))
     }
 
+    # todo: FilterIntervals
+
     call hs.HarmonizeSamples {
         input:
+            harmonize_copy_ratios_script = args.harmonize_copy_ratios_script,
+            merge_pileups_script = args.merge_pileups_script,
             samples = patient.samples,
             denoised_copy_ratios = CollectReadCounts.denoised_copy_ratios,
             allelic_counts = CollectAllelicCounts.pileup_summaries,
@@ -111,6 +115,7 @@ workflow CNVWorkflow {
 
         call gsa.GenotypeSNPArray {
             input:
+                genotype_variants_script = args.genotype_variants_script,
                 scattered_interval_list = args.scattered_interval_list,
                 ref_dict = args.files.ref_dict,
                 individual_id = ConsensusPatient.updated_patient.name,
@@ -119,7 +124,6 @@ workflow CNVWorkflow {
                 normal_pileups = normal_pileups,
                 common_germline_alleles = args.files.common_germline_alleles,
                 common_germline_alleles_idx = args.files.common_germline_alleles_idx,
-                genotype_variants_script = args.genotype_variants_script,
                 genotype_variants_save_sample_genotype_likelihoods = true,
                 compress_output = args.compress_output,
                 runtime_collection = runtime_collection,
@@ -145,6 +149,8 @@ workflow CNVWorkflow {
         }
     }
 
+    # todo: FuncotateSegments
+
     output {
         Patient updated_patient = select_first([ModelSegments.updated_patient, updated_patient_])
 
@@ -166,8 +172,6 @@ workflow CNVWorkflow {
         Array[File]? cr_plots = ModelSegments.cr_plots
         Array[File]? af_model_parameters = ModelSegments.af_model_final_parameters
         Array[File]? cr_model_parameters = ModelSegments.cr_model_final_parameters
-        Array[File]? cr_converted_acs_segments = ModelSegments.cr_converted_acs_segments
-        Array[File]? cr_converted_acs_skews = ModelSegments.cr_converted_acs_skews
 
         Array[File]? target_read_counts = read_counts
         Array[File]? denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios

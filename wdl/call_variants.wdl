@@ -72,7 +72,7 @@ workflow CallVariants {
                 panel_of_normals = args.files.snv_panel_of_normals,
                 panel_of_normals_idx = args.files.snv_panel_of_normals_idx,
                 germline_resource = args.files.germline_resource,
-                germline_resource_tbi = args.files.germline_resource_tbi,
+                germline_resource_idx = args.files.germline_resource_idx,
                 make_bamout = args.make_bamout,
                 get_orientation_bias_priors = args.run_orientation_bias_mixture_model,
                 compress_output = args.compress_output,
@@ -158,7 +158,7 @@ task Mutect2 {
         File? panel_of_normals
         File? panel_of_normals_idx
         File? germline_resource
-        File? germline_resource_tbi
+        File? germline_resource_idx
 
         Boolean genotype_germline_sites = false
         Boolean native_pair_hmm_use_double_precision = true
@@ -194,7 +194,7 @@ task Mutect2 {
         panel_of_normals: {localization_optional: true}
         panel_of_normals_idx: {localization_optional: true}
         germline_resource: {localization_optional: true}
-        germline_resource_tbi: {localization_optional: true}
+        germline_resource_idx: {localization_optional: true}
     }
 
     Boolean normal_is_present = defined(normal_bams) && (length(select_first([normal_bams])) > 0)
@@ -210,6 +210,7 @@ task Mutect2 {
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+        printf "Suppressing the following error message: 'Dangling End recovery killed because of a loop (findPath)'\n" >&2
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             Mutect2 \
             --reference '~{ref_fasta}' \
@@ -233,7 +234,8 @@ task Mutect2 {
             ~{"--downsampling-stride " + downsampling_stride} \
             ~{"--max-reads-per-alignment-start " + max_reads_per_alignment_start} \
             --seconds-between-progress-updates 300 \
-            ~{m2_extra_args}
+            ~{m2_extra_args} \
+            2> >(grep -v 'Dangling End recovery killed because of a loop (findPath)' >&2)
     >>>
 
     output {

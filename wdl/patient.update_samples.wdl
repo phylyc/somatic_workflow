@@ -21,7 +21,8 @@ workflow UpdateSamples {
         Array[File]? cr_model_parameters
         Array[File]? called_copy_ratio_segmentations
         Array[File]? acs_copy_ratio_segmentations
-        Array[File]? acs_copy_ratio_skews
+        Array[Float]? acs_copy_ratio_skews
+        Array[File]? annotated_variants
     }
 
     # Split input arrays into tumor and normal arrays
@@ -44,7 +45,7 @@ workflow UpdateSamples {
         File? t_cr_model_parameters = if defined(cr_model_parameters) then select_first([cr_model_parameters, []])[t] else None
         File? t_called_copy_ratio_segmentations = if defined(called_copy_ratio_segmentations) then select_first([called_copy_ratio_segmentations, []])[t] else None
         File? t_acs_copy_ratio_segmentations = if defined(acs_copy_ratio_segmentations) then select_first([acs_copy_ratio_segmentations, []])[t] else None
-        File? t_acs_copy_ratio_skews = if defined(acs_copy_ratio_skews) then select_first([acs_copy_ratio_skews, []])[t] else None
+        Float? t_acs_copy_ratio_skews = if defined(acs_copy_ratio_skews) then select_first([acs_copy_ratio_skews, []])[t] else None
     }
     Array[File] tumor_read_counts = select_all(t_read_counts)
     Array[File] tumor_denoised_copy_ratios = select_all(t_denoised_copy_ratios)
@@ -60,7 +61,7 @@ workflow UpdateSamples {
     Array[File] tumor_cr_model_parameters = select_all(t_cr_model_parameters)
     Array[File] tumor_called_copy_ratio_segmentations = select_all(t_called_copy_ratio_segmentations)
     Array[File] tumor_acs_copy_ratio_segmentations = select_all(t_acs_copy_ratio_segmentations)
-    Array[File] tumor_acs_copy_ratio_skews = select_all(t_acs_copy_ratio_skews)
+    Array[Float] tumor_acs_copy_ratio_skews = select_all(t_acs_copy_ratio_skews)
 
     if (patient.has_normal) {
         scatter (n in range(num_normal_samples)) {
@@ -79,7 +80,7 @@ workflow UpdateSamples {
             File? n_cr_model_parameters = if defined(cr_model_parameters) then select_first([cr_model_parameters, []])[m] else None
             File? n_called_copy_ratio_segmentations = if defined(called_copy_ratio_segmentations) then select_first([called_copy_ratio_segmentations, []])[m] else None
             File? n_acs_copy_ratio_segmentations = if defined(acs_copy_ratio_segmentations) then select_first([acs_copy_ratio_segmentations, []])[m] else None
-            File? n_acs_copy_ratio_skews = if defined(acs_copy_ratio_skews) then select_first([acs_copy_ratio_skews, []])[m] else None
+            Float? n_acs_copy_ratio_skews = if defined(acs_copy_ratio_skews) then select_first([acs_copy_ratio_skews, []])[m] else None
         }
     }
     Array[File] normal_read_counts = select_all(select_first([n_read_counts, []]))
@@ -96,7 +97,7 @@ workflow UpdateSamples {
     Array[File] normal_cr_model_parameters = select_all(select_first([n_cr_model_parameters, []]))
     Array[File] normal_called_copy_ratio_segmentations = select_all(select_first([n_called_copy_ratio_segmentations, []]))
     Array[File] normal_acs_copy_ratio_segmentations = select_all(select_first([n_acs_copy_ratio_segmentations, []]))
-    Array[File] normal_acs_copy_ratio_skews = select_all(select_first([n_acs_copy_ratio_skews, []]))
+    Array[Float] normal_acs_copy_ratio_skews = select_all(select_first([n_acs_copy_ratio_skews, []]))
 
     # Update tumor samples:
 
@@ -243,6 +244,28 @@ workflow UpdateSamples {
     }
     Array[Sample] tumor_samples_13 = select_first([UpdateCalledCopyRatioSegmentationTumor.updated_sample, tumor_samples_12])
 
+    if (length(tumor_acs_copy_ratio_segmentations) > 0) {
+        scatter (pair in zip(tumor_samples_13, tumor_acs_copy_ratio_segmentations)) {
+            call s.UpdateSample as UpdateAcsCopyRatioSegmentationTumor {
+                input:
+                    sample = pair.left,
+                    acs_copy_ratio_segmentation = pair.right,
+            }
+        }
+    }
+    Array[Sample] tumor_samples_14 = select_first([UpdateAcsCopyRatioSegmentationTumor.updated_sample, tumor_samples_13])
+
+    if (length(tumor_acs_copy_ratio_skews) > 0) {
+        scatter (pair in zip(tumor_samples_14, tumor_acs_copy_ratio_skews)) {
+            call s.UpdateSample as UpdateAcsCopyRatioSkewTumor {
+                input:
+                    sample = pair.left,
+                    acs_copy_ratio_skew = pair.right,
+            }
+        }
+    }
+    Array[Sample] tumor_samples_15 = select_first([UpdateAcsCopyRatioSkewTumor.updated_sample, tumor_samples_14])
+
     # Update normal samples:
 
     if (length(normal_read_counts) > 0) {
@@ -388,11 +411,33 @@ workflow UpdateSamples {
     }
     Array[Sample] normal_samples_13 = select_first([UpdateCalledCopyRatioSegmentationNormal.updated_sample, normal_samples_12])
 
+    if (length(normal_acs_copy_ratio_segmentations) > 0) {
+        scatter (pair in zip(normal_samples_13, normal_acs_copy_ratio_segmentations)) {
+            call s.UpdateSample as UpdateAcsCopyRatioSegmentationNormal {
+                input:
+                    sample = pair.left,
+                    acs_copy_ratio_segmentation = pair.right,
+            }
+        }
+    }
+    Array[Sample] normal_samples_14 = select_first([UpdateAcsCopyRatioSegmentationNormal.updated_sample, normal_samples_13])
+
+    if (length(normal_acs_copy_ratio_skews) > 0) {
+        scatter (pair in zip(normal_samples_14, normal_acs_copy_ratio_skews)) {
+            call s.UpdateSample as UpdateAcsCopyRatioSkewNormal {
+                input:
+                    sample = pair.left,
+                    acs_copy_ratio_skew = pair.right,
+            }
+        }
+    }
+    Array[Sample] normal_samples_15 = select_first([UpdateAcsCopyRatioSkewNormal.updated_sample, normal_samples_14])
+
     # Update matched normal sample:
 
     if (defined(patient.matched_normal_sample)) {
         Sample previous_matched_normal_sample = select_first([patient.matched_normal_sample])
-        scatter (sample in normal_samples_13) {
+        scatter (sample in normal_samples_15) {
             if (sample.name == previous_matched_normal_sample.name) {
                 Sample matched_normal_samples = sample
             }
@@ -402,9 +447,9 @@ workflow UpdateSamples {
 
     Patient pat = object {
         name: patient.name,
-        samples: flatten([tumor_samples_13, normal_samples_13]),
-        tumor_samples: tumor_samples_13,
-        normal_samples: normal_samples_13,
+        samples: flatten([tumor_samples_15, normal_samples_15]),
+        tumor_samples: tumor_samples_15,
+        normal_samples: normal_samples_15,
         has_tumor: patient.has_tumor,
         has_normal: patient.has_normal,
         matched_normal_sample: if defined(matched_normal_sample) then matched_normal_sample else patient.matched_normal_sample,

@@ -27,7 +27,7 @@ workflow GenotypeVariants {
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
-        String genotype_docker = "civisanalytics/datascience-python:latest"
+        String python_docker = "civisanalytics/datascience-python:latest"
         Int preemptible = 1
         Int max_retries = 1
         Int disk_sizeGB = 1
@@ -40,7 +40,7 @@ workflow GenotypeVariants {
 
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
-            genotype_docker = genotype_docker,
+            python_docker = python_docker,
             preemptible = preemptible,
             max_retries = max_retries,
             disk_sizeGB = disk_sizeGB,

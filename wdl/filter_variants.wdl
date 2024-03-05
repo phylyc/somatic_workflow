@@ -343,8 +343,8 @@ task FilterMutectCalls {
 
 task FilterAlignmentArtifacts {
     # Lifts the reads supporting the variant alleles from the tumor bams and aligns
-    # these reads to Hg38. If the reads supporting the variant allele have ambiguous
-    # alignments, the tool will mark these variants as filtered in the VCF.
+    # these reads to the index image. If the reads supporting the variant allele have
+    # ambiguous alignments, the tool will mark these variants as filtered in the VCF.
 
     input {
         File ref_fasta
@@ -373,12 +373,6 @@ task FilterAlignmentArtifacts {
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
-
-        if ~{!defined(bwa_mem_index_image)} ; then
-            echo "ERROR: bwa_mem_index_image must be supplied."
-            false
-        fi
-
         # Not skipping filtered variants is important for keeping germline variants if requested.
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             FilterAlignmentArtifacts \

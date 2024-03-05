@@ -7,6 +7,8 @@ import "runtimes.wdl" as rt
 
 workflow HarmonizeSamples {
     input {
+        String harmonize_copy_ratios_script
+        String merge_pileups_script
         Array[Sample] samples
         Array[Array[File?]] denoised_copy_ratios
         Array[Array[File?]] allelic_counts
@@ -154,7 +156,7 @@ task MergeAllelicCounts {
     >>>
 
     output {
-        Array[File] merged_allelic_counts = glob("*.pileup" + (if compress_output then ".gz" else ""))
+        Array[File] merged_allelic_counts = glob(output_dir + "/*.pileup" + (if compress_output then ".gz" else ""))
     }
 
     runtime {

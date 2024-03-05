@@ -24,6 +24,8 @@ struct RuntimeCollection {
     Runtime call_copy_ratio_segments
     Runtime plot_modeled_segments
     Runtime model_segments_to_acs_conversion
+    Runtime process_maf_for_absolute
+    Runtime absolute
     Runtime mutect2
     Runtime learn_read_orientation_model
     Runtime merge_vcfs
@@ -50,9 +52,10 @@ workflow DefineRuntimeCollection {
         String gatk_docker = "broadinstitute/gatk:4.3.0.0"
         # Needs docker image with bedtools, samtools, and gatk
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
+        String tag_cga_pipline_docker = "us.gcr.io/tag-team-160914/neovax-tag-cga-pipeline:v1"
         String ubuntu_docker = "ubuntu"
         String bcftools_docker = "staphb/bcftools"
-        String genotype_docker = "civisanalytics/datascience-python:latest"
+        String python_docker = "civisanalytics/datascience-python:latest"
         String whatshap_docker = "hangsuunc/whatshap:v1"
         String shapeit4_docker = "yussab/shapeit4:4.2.2"
         String shapeit5_docker = "lindonkambule/shapeit5_2023-05-05_d6ce1e2"
@@ -153,6 +156,14 @@ workflow DefineRuntimeCollection {
         # ModelSegmentsToACSConversion
         Int mem_model_segments_to_acs_conversion = 1024
         Int time_model_segments_to_acs_conversion = 10
+
+        # ProcessMafForAbsolute
+        Int mem_process_maf_for_absolute = 2048
+        Int time_process_maf_for_absolute = 10
+
+        # Absolute
+        Int mem_absolute = 6144
+        Int time_absolute = 180
 
         # gatk: Mutect2
         Int cpu_mutect2 = 1  # good for PairHMM: 2
@@ -376,7 +387,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime harmonize_copy_ratios = {
-        "docker": genotype_docker,
+        "docker": python_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu_harmonize_copy_ratios,
@@ -388,7 +399,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime merge_allelic_counts = {
-        "docker": genotype_docker,
+        "docker": python_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
@@ -413,7 +424,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime genotype_variants = {
-        "docker": genotype_docker,
+        "docker": python_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
@@ -464,13 +475,37 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime model_segments_to_acs_conversion = {
-        "docker": genotype_docker,
+        "docker": python_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
         "machine_mem": mem_model_segments_to_acs_conversion + mem_machine_overhead,
         "command_mem": mem_model_segments_to_acs_conversion,
         "runtime_minutes": time_startup + time_model_segments_to_acs_conversion,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime process_maf_for_absolute = {
+        "docker": python_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_process_maf_for_absolute + mem_machine_overhead,
+        "command_mem": mem_process_maf_for_absolute,
+        "runtime_minutes": time_startup + time_process_maf_for_absolute,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime absolute = {
+        "docker": tag_cga_pipline_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_absolute + mem_machine_overhead,
+        "command_mem": mem_absolute,
+        "runtime_minutes": time_startup + time_absolute,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -675,7 +710,7 @@ workflow DefineRuntimeCollection {
         "annotate_intervals": annotate_intervals,
         "preprocess_intervals": preprocess_intervals,
         "split_intervals": split_intervals,
-        "collect_covered_regions": collect_covered_regions,
+
         "collect_read_counts": collect_read_counts,
         "denoise_read_counts": denoise_read_counts,
         "vcf_to_pileup_variants": vcf_to_pileup_variants,
@@ -690,7 +725,11 @@ workflow DefineRuntimeCollection {
         "model_segments": model_segments,
         "call_copy_ratio_segments": call_copy_ratio_segments,
         "plot_modeled_segments": plot_modeled_segments,
+
         "model_segments_to_acs_conversion": model_segments_to_acs_conversion,
+        "process_maf_for_absolute": process_maf_for_absolute,
+        "absolute": absolute,
+
         "mutect2": mutect2,
         "learn_read_orientation_model": learn_read_orientation_model,
         "merge_vcfs": merge_vcfs,
@@ -703,6 +742,9 @@ workflow DefineRuntimeCollection {
         "funcotate": funcotate,
         "create_cnv_panel": create_cnv_panel,
         "create_mutect2_panel": create_mutect2_panel,
+
+        "collect_covered_regions": collect_covered_regions,
+
         "whatshap": whatshap,
         "shapeit4": shapeit4,
         "shapeit5": shapeit5

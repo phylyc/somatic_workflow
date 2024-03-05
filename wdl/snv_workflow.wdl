@@ -1,6 +1,7 @@
 version development
 
 import "patient.wdl" as p
+import "patient.update_samples.wdl" as p_update_s
 import "workflow_arguments.wdl" as wfargs
 import "runtime_collection.wdl" as rtc
 import "call_variants.wdl" as cv
@@ -8,6 +9,7 @@ import "filter_variants.wdl" as fv
 import "collect_allelic_counts.wdl" as cac
 import "harmonize_samples.wdl" as hs
 import "annotate_variants.wdl" as av
+#import "calculate_tumor_mutation_burden.wdl" as tmb
 
 
 workflow SNVWorkflow {
@@ -119,15 +121,27 @@ workflow SNVWorkflow {
                         runtime_collection = runtime_collection,
                 }
             }
+
+            call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
+                input:
+                    patient = patient,
+                    annotated_variants = AnnotateVariants.annotated_variants,
+            }
         }
+
+#        call tmb.CalculateTumorMutationBurden as TMB {
+#
+#        }
     }
 
     output {
+        Patient updated_patient = select_first([AddAnnotatedVariantsToSamples.updated_patient, patient])
+
         File? unfiltered_vcf = CallVariants.vcf
         File? unfiltered_vcf_idx = CallVariants.vcf_idx
         File? mutect_stats = CallVariants.mutect_stats
-        File? bam = CallVariants.bam
-        File? bai = CallVariants.bai
+        File? locally_realigned_bam = CallVariants.bam
+        File? locally_realigned_bai = CallVariants.bai
 
         File? orientation_bias = CallVariants.orientation_bias
         File? filtered_vcf = FilterVariants.filtered_vcf
@@ -144,5 +158,10 @@ workflow SNVWorkflow {
         Array[File]? annotated_variants = AnnotateVariants.annotated_variants
         Array[File?]? annotated_variants_idx = AnnotateVariants.annotated_variants_idx
 
+#        Array[File]? covered_regions_bed = TMB.covered_regions_bed
+#        Array[File?]? covered_regions_bam = TMB.covered_regions_bam
+#        Array[File?]? covered_regions_bai = TMB.covered_regions_bai
+#        Array[File?]? covered_regions_interval_list = TMB.covered_regions_interval_list
+#        Array[File?]? tmb = TMB.tmb
     }
 }

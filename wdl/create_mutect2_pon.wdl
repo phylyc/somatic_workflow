@@ -20,8 +20,8 @@ workflow CreateMutect2PanelOfNormals {
         File? normal_bams_file
         File? normal_bais_file
 
-        File germline_resource
-        File germline_resource_idx
+        File? germline_resource
+        File? germline_resource_idx
 
         String mutect2_extra_args = ""
 
@@ -104,7 +104,7 @@ workflow CreateMutect2PanelOfNormals {
     )
     call tasks.SplitIntervals {
         input:
-            interval_list = args.interval_list,
+            interval_list = args.preprocessed_interval_list,
             ref_fasta = args.files.ref_fasta,
             ref_fasta_index = args.files.ref_fasta_index,
             ref_dict = args.files.ref_dict,
@@ -165,8 +165,8 @@ task CreateMutect2Panel {
         String output_vcf_name
 
         Boolean compress_output = true
-        File gnomad
-        File gnomad_idx
+        File? gnomad
+        File? gnomad_idx
 
         # UMCCR found that 5 is optimizing the F2 score, but not by much compared to 2:
         # https://umccr.org/blog/panel-of-normals/
@@ -195,7 +195,7 @@ task CreateMutect2Panel {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CreateSomaticPanelOfNormals \
             -R '~{ref_fasta}' \
-            --germline-resource '~{gnomad}' \
+            ~{"--germline-resource '" + gnomad + "'"} \
             -V gendb://pon_db \
             -O '~{pon_file}' \
             --min-sample-count ~{min_sample_count} \
