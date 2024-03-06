@@ -249,8 +249,8 @@ task GetPileupSummaries {
 
         # Create an empty pileup file if there are no common_germline_alleles in the intersection
         # between the common_germline_alleles and the intervals. Will be overwritten by GetPileupSummaries
-        printf "#<METADATA>SAMPLE=~{sample_id}" > '~{output_file}'
-        printf "contig\tposition\tref_count\talt_count\tother_alt_count\tallele_frequency" >> '~{output_file}'
+        printf "#<METADATA>SAMPLE=~{sample_id}\n" > '~{output_file}'
+        printf "contig\tposition\tref_count\talt_count\tother_alt_count\tallele_frequency\n" >> '~{output_file}'
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             GetPileupSummaries \
