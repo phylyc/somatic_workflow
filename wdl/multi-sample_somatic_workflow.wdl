@@ -17,18 +17,13 @@ workflow MultiSampleSomaticWorkflow {
         Patient patient = GetPatient.patient
 
         String individual_id
-        Array[String]? tumor_sample_names
-        Array[File]+ tumor_bams
-        Array[File]+ tumor_bais
-        Array[File]+ tumor_target_intervals
-        Array[File]? tumor_annotated_target_intervals
-        Array[File]? tumor_cnv_panel_of_normals
+        Array[String]? sample_names
+        Array[File]+ bams
+        Array[File]+ bais
+        Array[File]+ target_intervals
+        Array[File]? annotated_target_intervals
+        Array[File]? cnv_panel_of_normals
         Array[String]? normal_sample_names
-        Array[File]? normal_bams
-        Array[File]? normal_bais
-        Array[File]? normal_target_intervals
-        Array[File]? normal_annotated_target_intervals
-        Array[File]? normal_cnv_panel_of_normals
 
         Int scatter_count = 10
 
@@ -39,7 +34,7 @@ workflow MultiSampleSomaticWorkflow {
 
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
-            num_bams = length(tumor_bams) + length(select_first([normal_bams, []])),
+            num_bams = length(bams),
             scatter_count = scatter_count,
     }
 
@@ -56,19 +51,13 @@ workflow MultiSampleSomaticWorkflow {
         input:
             individual_id = individual_id,
 
-            tumor_sample_names = tumor_sample_names,
-            tumor_bams = tumor_bams,
-            tumor_bais = tumor_bais,
-            tumor_target_intervals = tumor_target_intervals,
-            tumor_annotated_target_intervals = tumor_annotated_target_intervals,
-            tumor_cnv_panel_of_normals = tumor_cnv_panel_of_normals,
-
+            sample_names = sample_names,
+            bams = bams,
+            bais = bais,
+            target_intervals = target_intervals,
+            annotated_target_intervals = annotated_target_intervals,
+            cnv_panel_of_normals = cnv_panel_of_normals,
             normal_sample_names = normal_sample_names,
-            normal_bams = normal_bams,
-            normal_bais = normal_bais,
-            normal_target_intervals = normal_target_intervals,
-            normal_annotated_target_intervals = normal_annotated_target_intervals,
-            normal_cnv_panel_of_normals = normal_cnv_panel_of_normals,
 
             runtime_collection = runtime_collection,
     }

@@ -88,9 +88,9 @@ workflow CreateMutect2PanelOfNormals {
         call mssw.MultiSampleSomaticWorkflow {
             input:
                 individual_id = GetSampleName.sample_name,
-                tumor_bams = [normal.left],
-                tumor_bais = [normal.right],
-                tumor_target_intervals = [target_interval_list],
+                bams = [normal.left],
+                bais = [normal.right],
+                target_intervals = [target_interval_list],
                 scatter_count = scatter_count,
                 args = args,
                 resources = resources,

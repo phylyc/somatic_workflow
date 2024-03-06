@@ -4,6 +4,7 @@ import "runtimes.wdl" as rt
 
 
 struct RuntimeCollection {
+    Runtime get_tumor_sample_names
     Runtime get_sample_name
     Runtime annotate_intervals
     Runtime preprocess_intervals
@@ -75,6 +76,10 @@ workflow DefineRuntimeCollection {
         Int mem_additional_per_sample = 256  # this depends on bam size (WES vs WGS)
 
         Int time_startup = 10
+
+        # GetTumorSampleNames
+        Int mem_get_tumor_sample_names = 256
+        Int time_get_tumor_sample_names = 1
 
         # gatk: GetSampleName
         Int mem_get_sample_name = 256
@@ -232,6 +237,19 @@ workflow DefineRuntimeCollection {
 
     Int gatk_override_size = ceil(size(gatk_override, "GB"))
     Int disk = 2 + gatk_override_size + disk_sizeGB
+
+    Runtime get_tumor_sample_names = {
+        "docker": ubuntu_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_get_tumor_sample_names + mem_machine_overhead,
+        "command_mem": mem_get_tumor_sample_names,
+        "runtime_minutes": time_startup + time_get_tumor_sample_names,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
 
     Runtime get_sample_name = {
         "docker": gatk_docker,
