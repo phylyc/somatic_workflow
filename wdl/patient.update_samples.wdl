@@ -213,10 +213,10 @@ workflow UpdateSamples {
             Sample normal_samples = select_all(selected_normal_sample)[0]
         }
     }
+    Array[Sample] non_optional_normal_samples = select_first([normal_samples])
 
     if (defined(patient.matched_normal_sample)) {
         Sample previous_matched_normal_sample = select_first([patient.matched_normal_sample])
-        Array[Sample] non_optional_normal_samples = select_first([normal_samples])
         scatter (sample in non_optional_normal_samples) {
             if (sample.name == previous_matched_normal_sample.name) {
                 Sample matched_normal_samples = sample
@@ -227,9 +227,9 @@ workflow UpdateSamples {
 
     Patient pat = object {
         name: patient.name,
-        samples: flatten([tumor_samples, normal_samples]),
+        samples: flatten([tumor_samples, non_optional_normal_samples]),
         tumor_samples: tumor_samples,
-        normal_samples: normal_samples,
+        normal_samples: non_optional_normal_samples,
         has_tumor: patient.has_tumor,
         has_normal: patient.has_normal,
         matched_normal_sample: if defined(matched_normal_sample) then matched_normal_sample else patient.matched_normal_sample,
