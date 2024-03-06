@@ -70,7 +70,7 @@ workflow DefinePatient {
     Array[SequencingRun] seqruns_3 = select_first([UpdateCnvPanelOfNormals.updated_sequencing_run, seqruns_2])
 
     if (defined(is_paired_end)) {
-        scatter (pair in zip(seqruns_3, is_paired_end)) {
+        scatter (pair in zip(seqruns_3, select_first([is_paired_end, []]))) {
             call seq_run.UpdateSequencingRun as UpdateIsPairedEnd {
                 input:
                     sequencing_run = pair.left,

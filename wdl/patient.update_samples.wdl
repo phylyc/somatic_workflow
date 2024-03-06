@@ -216,7 +216,8 @@ workflow UpdateSamples {
 
     if (defined(patient.matched_normal_sample)) {
         Sample previous_matched_normal_sample = select_first([patient.matched_normal_sample])
-        scatter (sample in normal_samples) {
+        Array[Sample] non_optional_normal_samples = select_first([normal_samples])
+        scatter (sample in non_optional_normal_samples) {
             if (sample.name == previous_matched_normal_sample.name) {
                 Sample matched_normal_samples = sample
             }
