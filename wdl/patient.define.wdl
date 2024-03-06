@@ -97,7 +97,7 @@ workflow DefinePatient {
             runtime_params = runtime_collection.get_tumor_sample_names
     }
 
-    scatter (tumor_sample_name in GetSampleNameSets.tumor_sample_names) {
+    scatter (tumor_sample_name in GetSampleNameSets.unique_tumor_sample_names) {
         scatter (pair in sample_dict) {
             if (pair.left == tumor_sample_name) {
                 Sample selected_tumor_sample = object {
@@ -112,7 +112,7 @@ workflow DefinePatient {
     }
 
     if (has_normal) {
-        scatter (normal_sample_name in GetSampleNameSets.normal_sample_names) {
+        scatter (normal_sample_name in GetSampleNameSets.unique_normal_sample_names) {
             scatter (pair in sample_dict) {
                 if (pair.left == normal_sample_name) {
                     Sample selected_normal_sample = object {
@@ -184,8 +184,8 @@ task GetSampleNameSets {
     >>>
 
     output {
-        Array[String] tumor_sample_names = read_lines("tumor_sample_names.txt")
-        Array[String] normal_sample_names = read_lines("normal_sample_names.txt")
+        Array[String] unique_tumor_sample_names = read_lines("tumor_sample_names.txt")
+        Array[String] unique_normal_sample_names = read_lines("normal_sample_names.txt")
     }
 
     runtime {
