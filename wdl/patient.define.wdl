@@ -90,14 +90,14 @@ workflow DefinePatient {
 
     # Pick tumor and normal samples apart:
 
-    call GetTumorSampleNames {
+    call GetSampleNameSets {
         input:
             sample_names = theses_sample_names,
             normal_sample_names = non_optional_normal_sample_names,
             runtime_params = runtime_collection.get_tumor_sample_names
     }
 
-    scatter (tumor_sample_name in GetTumorSampleNames.tumor_sample_names) {
+    scatter (tumor_sample_name in GetSampleNameSets.tumor_sample_names) {
         scatter (pair in sample_dict) {
             if (pair.left == tumor_sample_name) {
                 Sample selected_tumor_sample = object {
@@ -112,7 +112,7 @@ workflow DefinePatient {
     }
 
     if (has_normal) {
-        scatter (normal_sample_name in non_optional_normal_sample_names) {
+        scatter (normal_sample_name in GetSampleNameSets.normal_sample_names) {
             scatter (pair in sample_dict) {
                 if (pair.left == normal_sample_name) {
                     Sample selected_normal_sample = object {
@@ -144,7 +144,7 @@ workflow DefinePatient {
     }
 }
 
-task GetTumorSampleNames {
+task GetSampleNameSets {
     input {
         Array[String] sample_names
         Array[String] normal_sample_names
@@ -158,17 +158,34 @@ task GetTumorSampleNames {
         IFS=',' read -r -a all_names <<< "~{sep="," sample_names}"
         IFS=',' read -r -a normal_names <<< "~{sep="," normal_sample_names}"
 
-        # Loop through all names and check if they are in the normal names list.
-        # This behaves well if normal_sample_names is empty.
+        # Create an associative array to hold unique names
+        declare -A unique_tumor_names
+        declare -A unique_normal_names
+
+        # Loop through all names
         for name in "~{dollar}{all_names[@]}"; do
-            if [[ ! " ~{dollar}{normal_names[*]} " =~ " ~{dollar}{name} " ]]; then
-                echo "$name" >> "tumor_sample_names.txt"
+            # Check if name is in the normal names list
+            if [[ " ~{dollar}{normal_names[*]} " =~ " ${name} " ]]; then
+                unique_normal_names["$name"]=1
+            else
+                unique_tumor_names["$name"]=1
             fi
+        done
+
+        # Write unique tumor names to file
+        for tumor_name in "~{dollar}{!unique_tumor_names[@]}"; do
+            echo "$tumor_name" >> "tumor_sample_names.txt"
+        done
+
+        # Write unique normal names to file
+        for normal_name in "~{dollar}{!unique_normal_names[@]}"; do
+            echo "$normal_name" >> "normal_sample_names.txt"
         done
     >>>
 
     output {
         Array[String] tumor_sample_names = read_lines("tumor_sample_names.txt")
+        Array[String] normal_sample_names = read_lines("normal_sample_names.txt")
     }
 
     runtime {
