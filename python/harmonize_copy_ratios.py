@@ -232,7 +232,7 @@ def harmonize_intervals(args):
 
     # write output files:
     os.makedirs(args.output_dir, exist_ok=True)
-    for sample_name in args.sample:
+    for sample_name in np.unique(args.sample):
         cr_header = cr_headers[sample_name][0] if len(cr_headers[sample_name]) > 0 else None
         cr_df = harmonized_cr[sample_name].reset_index() if not harmonized_cr.empty else pd.DataFrame(columns=columns)
         write_header_and_df(
