@@ -25,13 +25,12 @@ workflow ClonalAnalysisWorkflow {
                         copy_ratio_segmentation = select_first([sample.copy_ratio_segmentation]),
                         af_model_parameters = select_first([sample.af_model_parameters]),
                         annotated_variants = select_first([sample.annotated_variants]),
-                        acs_conversion_script = args.acs_conversion_script,
                         runtime_collection = runtime_collection
                 }
             }
         }
-        Array[File] plots = select_all(Absolute.absolute_plots)
-        Array[File] rdata = select_all(Absolute.absolute_rdata)
+        Array[File] plots = select_all(Absolute.plot)
+        Array[File] rdata = select_all(Absolute.rdata)
     }
 
     # phylogicNDT
