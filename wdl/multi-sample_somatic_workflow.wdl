@@ -23,6 +23,7 @@ workflow MultiSampleSomaticWorkflow {
         Array[File]+ target_intervals
         Array[File]? annotated_target_intervals
         Array[File]? cnv_panel_of_normals
+        Array[Boolean]? is_paired_end
         Array[String]? normal_sample_names
 
         Int scatter_count = 10
@@ -57,6 +58,7 @@ workflow MultiSampleSomaticWorkflow {
             target_intervals = target_intervals,
             annotated_target_intervals = annotated_target_intervals,
             cnv_panel_of_normals = cnv_panel_of_normals,
+            is_paired_end = is_paired_end,
             normal_sample_names = normal_sample_names,
 
             runtime_collection = runtime_collection,

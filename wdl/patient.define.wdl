@@ -16,6 +16,7 @@ workflow DefinePatient {
         Array[File]+ target_intervals
         Array[File]? annotated_target_intervals
         Array[File]? cnv_panel_of_normals
+        Array[Boolean]? is_paired_end
         Array[String]? sample_names
 
         Array[String]? normal_sample_names
@@ -39,6 +40,7 @@ workflow DefinePatient {
         String bam_names = DefineSequencingRun.sequencing_run.name
     }
     Array[SequencingRun] seqruns_1 = DefineSequencingRun.sequencing_run
+
     if (defined(annotated_target_intervals)) {
         scatter (pair in zip(seqruns_1, select_first([annotated_target_intervals, []]))) {
             call seq_run.UpdateSequencingRun as UpdateAnnotatedTargetIntervals {
@@ -49,6 +51,7 @@ workflow DefinePatient {
         }
     }
     Array[SequencingRun] seqruns_2 = select_first([UpdateAnnotatedTargetIntervals.updated_sequencing_run, seqruns_1])
+
     if (defined(cnv_panel_of_normals)) {
         scatter (pair in zip(seqruns_2, select_first([cnv_panel_of_normals, []]))) {
             if (size(pair.right) > 0) {
@@ -66,13 +69,24 @@ workflow DefinePatient {
     }
     Array[SequencingRun] seqruns_3 = select_first([UpdateCnvPanelOfNormals.updated_sequencing_run, seqruns_2])
 
+    if (defined(is_paired_end)) {
+        scatter (pair in zip(seqruns_3, is_paired_end)) {
+            call seq_run.UpdateSequencingRun as UpdateIsPairedEnd {
+                input:
+                    sequencing_run = pair.left,
+                    is_paired_end = pair.right,
+            }
+        }
+    }
+    Array[SequencingRun] seqruns_4 = select_first([UpdateIsPairedEnd.updated_sequencing_run, seqruns_3])
+
     # GroupBy sample name:
     # We assume that sample_names and bam_names share the same uniqueness,
     # that is if the supplied sample name is the same for two input bams, then the
     # bam names should also be the same, and vice versa.
 
     Array[String] theses_sample_names = select_first([sample_names, bam_names])
-    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_3)))
+    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_4)))
 
     # Pick tumor and normal samples apart:
 
