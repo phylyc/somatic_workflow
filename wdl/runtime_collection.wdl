@@ -130,7 +130,7 @@ workflow DefineRuntimeCollection {
         Int time_pileup_to_allelic_counts = 5
 
         # HarmonizeCopyRatios
-        Int cpu_harmonize_copy_ratios = 1  # probably worthwhile to use 4
+        Int cpu_harmonize_copy_ratios = 1
         Int mem_harmonize_copy_ratios = 1024
         Int time_harmonize_copy_ratios = 1440  # 24 h
 
@@ -171,7 +171,7 @@ workflow DefineRuntimeCollection {
         Int time_absolute = 180
 
         # gatk: Mutect2
-        Int cpu_mutect2 = 1  # good for PairHMM: 2
+        Int cpu_mutect2 = 2  # good for PairHMM: 2
         Int mem_mutect2_base = 3072
         Int time_mutect2_total = 10000  # 6 d / scatter_count
         Int disk_mutect2 = 0
@@ -212,7 +212,6 @@ workflow DefineRuntimeCollection {
         # gatk: Funcotator
         Int mem_funcotate = 6144
         Int time_funcotate = 1440  # 24 h
-#        Boolean run_variant_anntation_scattered = false
 
         # gatk: CreateReadCountPanelOfNormals
         Int mem_create_cnv_panel = 16384
