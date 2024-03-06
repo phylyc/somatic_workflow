@@ -30,12 +30,14 @@ workflow ClonalAnalysisWorkflow {
                 }
             }
         }
+        Array[File] plots = select_all(Absolute.absolute_plots)
+        Array[File] rdata = select_all(Absolute.absolute_rdata)
     }
 
     # phylogicNDT
 
     output {
-        Array[File]? absolute_plots = select_all(Absolute.plot)
-        Array[File]? absolute_rdata = select_all(Absolute.rdata)
+        Array[File]? absolute_plots = plots
+        Array[File]? absolute_rdata = rdata
     }
 }
