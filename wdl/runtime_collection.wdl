@@ -724,6 +724,7 @@ workflow DefineRuntimeCollection {
     }
 
     RuntimeCollection runtime_collection = {
+        "get_tumor_sample_names": get_tumor_sample_names,
         "get_sample_name": get_sample_name,
         "annotate_intervals": annotate_intervals,
         "preprocess_intervals": preprocess_intervals,
