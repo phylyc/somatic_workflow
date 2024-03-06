@@ -76,8 +76,10 @@ def split_intervals(intervals: pd.DataFrame, start_col: str, end_col: str):
     # Create a sorted list of all unique interval boundaries
     boundaries = sorted(set(intervals[start_col]).union(set(intervals[end_col])))
     # Use the boundaries to form non-overlapping intervals
-    new_intervals = pd.IntervalIndex.from_breaks(boundaries, closed='left')
-    return new_intervals
+    new_intervals = pd.IntervalIndex.from_breaks(boundaries, closed='both')
+    # Remove intervals with length 0 (overlapping previous and next interval)
+    filtered_intervals = new_intervals[new_intervals.map(lambda i: i.length > 1)]
+    return filtered_intervals
 
 
 def non_overlapping(intervals: pd.DataFrame, start_col: str = "START", end_col: str = "END", verbose: bool = False):
