@@ -77,9 +77,7 @@ def split_intervals(intervals: pd.DataFrame, start_col: str, end_col: str):
     boundaries = sorted(set(intervals[start_col]).union(set(intervals[end_col])))
     # Use the boundaries to form non-overlapping intervals
     new_intervals = pd.IntervalIndex.from_breaks(boundaries, closed='both')
-    # Remove intervals with length 0 (overlapping previous and next interval)
-    filtered_intervals = new_intervals[new_intervals.map(lambda i: i.length > 1)]
-    return filtered_intervals
+    return new_intervals
 
 
 def non_overlapping(intervals: pd.DataFrame, start_col: str = "START", end_col: str = "END", verbose: bool = False):
@@ -131,6 +129,12 @@ def merge_abutting_intervals(intervals: pd.DataFrame, dist: int = 1, cr_tol: flo
                 new_intervals[-1] = new_interval
                 previous_interval = new_interval
                 continue
+
+        # Reduce end of the previous interval by 1 if it overlaps with the start of the next interval.
+        # Even though we use left-closed intervals, some downstream tools expect intervals to be both left- and right-closed.
+        if previous_interval.name[0] == interval.name[0] and previous_interval.name[2] == interval.name[1]:
+            previous_interval.name = (previous_interval.name[0], previous_interval.name[1], previous_interval.name[2] - 1)
+            new_intervals[-1] = previous_interval
 
         new_intervals.append(interval)
         previous_interval = interval
