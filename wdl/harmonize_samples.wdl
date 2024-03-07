@@ -35,6 +35,7 @@ workflow HarmonizeSamples {
     if (has_dCR) {
         call HarmonizeCopyRatios {
             input:
+                script = harmonize_copy_ratios_script,
                 sample_names = seq_sample_names,
                 denoised_copy_ratios = non_optional_denoised_copy_ratios,
                 compress_output = compress_output,
@@ -57,6 +58,7 @@ workflow HarmonizeSamples {
     if (has_AC) {
         call MergeAllelicCounts {
             input:
+                script = merge_pileups_script,
                 sample_names = seq_sample_names,
                 allelic_counts = non_optional_allelic_counts,
                 compress_output = compress_output,

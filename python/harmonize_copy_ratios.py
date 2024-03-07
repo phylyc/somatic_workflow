@@ -130,7 +130,7 @@ def merge_abutting_intervals(intervals: pd.DataFrame, dist: int = 1, cr_tol: flo
                 previous_interval = new_interval
                 continue
 
-        # Reduce end of the previous interval by 1 if it overlaps with the start of the next interval.
+        # Reduce end of the previous interval by 1 if it overlaps with the start of the current interval.
         # Even though we use left-closed intervals, some downstream tools expect intervals to be both left- and right-closed.
         if previous_interval.name[0] == interval.name[0] and previous_interval.name[2] == interval.name[1]:
             previous_interval.name = (previous_interval.name[0], previous_interval.name[1], previous_interval.name[2] - 1)

@@ -93,7 +93,7 @@ workflow CNVWorkflow {
         # copy-ratio segmentation workflow, then we also need to run the contamination
         # workflow. Estimating the contamination is helpful for genotyping; however,
         # the contamination model is not used for ModelSegments.
-        # FEATURE REQUEST: Option to supply ModelSegments with genotypes.
+        # FEATURE REQUEST: Option to supply ModelSegments with genotyped data.
 
         # Prepare input for the contamination model / SNP array genotying
 

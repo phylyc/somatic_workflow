@@ -10,7 +10,7 @@ workflow Absolute {
         File af_model_parameters
         File annotated_variants
 
-        String acs_conversion_script = ""
+        String acs_conversion_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/acs_conversion.py"
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }

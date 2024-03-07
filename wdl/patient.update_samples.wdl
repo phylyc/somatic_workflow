@@ -192,7 +192,7 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_15 = select_first([UpdateAcsCopyRatioSkew.updated_sample, samples_14])
 
-    # Update patient:
+    # Select tumor and normal samples:
 
     scatter (tumor_sample in patient.tumor_samples) {
         scatter (sample in samples_15) {
@@ -224,6 +224,8 @@ workflow UpdateSamples {
         }
         Sample matched_normal_sample = select_all(matched_normal_samples)[0]
     }
+
+    # Update patient:
 
     Patient pat = object {
         name: patient.name,

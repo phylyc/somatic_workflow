@@ -90,14 +90,14 @@ workflow DefinePatient {
 
     # Pick tumor and normal samples apart:
 
-    call GetSampleNameSets {
+    call GetUniqueSampleNameSets {
         input:
             sample_names = theses_sample_names,
             normal_sample_names = non_optional_normal_sample_names,
             runtime_params = runtime_collection.get_tumor_sample_names
     }
 
-    scatter (tumor_sample_name in GetSampleNameSets.unique_tumor_sample_names) {
+    scatter (tumor_sample_name in GetUniqueSampleNameSets.unique_tumor_sample_names) {
         scatter (pair in sample_dict) {
             if (pair.left == tumor_sample_name) {
                 Sample selected_tumor_sample = object {
@@ -112,7 +112,7 @@ workflow DefinePatient {
     }
 
     if (has_normal) {
-        scatter (normal_sample_name in GetSampleNameSets.unique_normal_sample_names) {
+        scatter (normal_sample_name in GetUniqueSampleNameSets.unique_normal_sample_names) {
             scatter (pair in sample_dict) {
                 if (pair.left == normal_sample_name) {
                     Sample selected_normal_sample = object {
@@ -144,7 +144,7 @@ workflow DefinePatient {
     }
 }
 
-task GetSampleNameSets {
+task GetUniqueSampleNameSets {
     input {
         Array[String] sample_names
         Array[String] normal_sample_names
@@ -172,12 +172,12 @@ task GetSampleNameSets {
             fi
         done
 
-        # Write unique tumor names to file
+        # Write unique tumor sample names to file
         for tumor_name in "~{dollar}{!unique_tumor_names[@]}"; do
             echo "$tumor_name" >> "tumor_sample_names.txt"
         done
 
-        # Write unique normal names to file
+        # Write unique normal sample names to file
         for normal_name in "~{dollar}{!unique_normal_names[@]}"; do
             echo "$normal_name" >> "normal_sample_names.txt"
         done
