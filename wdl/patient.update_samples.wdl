@@ -28,7 +28,7 @@ workflow UpdateSamples {
     # Update samples:
 
     if (defined(read_counts)) {
-        scatter (pair in zip(patient.tumor_samples, select_first([read_counts, []]))) {
+        scatter (pair in zip(patient.samples, select_first([read_counts, []]))) {
             call s.UpdateSample as UpdateReadCounts {
                 input:
                     sample = pair.left,
@@ -192,10 +192,21 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_15 = select_first([UpdateAcsCopyRatioSkew.updated_sample, samples_14])
 
+    if (defined(annotated_variants)) {
+        scatter (pair in zip(samples_15, select_first([annotated_variants, []]))) {
+            call s.UpdateSample as UpdateAnnotatedVariants {
+                input:
+                    sample = pair.left,
+                    annotated_variants = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_16 = select_first([UpdateAnnotatedVariants.updated_sample, samples_15])
+
     # Select tumor and normal samples:
 
     scatter (tumor_sample in patient.tumor_samples) {
-        scatter (sample in samples_15) {
+        scatter (sample in samples_16) {
             if (sample.name == tumor_sample.name) {
                 Sample selected_tumor_sample = sample
             }
@@ -205,7 +216,7 @@ workflow UpdateSamples {
 
     if (patient.has_normal) {
         scatter (normal_sample in patient.normal_samples) {
-            scatter (sample in samples_15) {
+            scatter (sample in samples_16) {
                 if (sample.name == normal_sample.name) {
                     Sample selected_normal_sample = sample
                 }
