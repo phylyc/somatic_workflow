@@ -34,3 +34,10 @@ workflows:
     primaryDescriptorPath: /wdl/collect_read_counts.wdl
     authors:
       - orcid: 0000-0001-9584-9135
+
+  - name: Absolute
+    subclass: WDL
+    publish: true
+    primaryDescriptorPath: /wdl/absolute.wdl
+    authors:
+      - orcid: 0000-0001-9584-9135
