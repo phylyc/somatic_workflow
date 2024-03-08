@@ -504,7 +504,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime process_maf_for_absolute = {
-        "docker": python_docker,
+        "docker": tag_cga_pipline_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
