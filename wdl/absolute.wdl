@@ -111,9 +111,10 @@ task ProcessMAFforAbsolute {
     String output_indel_maf = sample_name + ".indel.maf"
 
     command <<<
-        print()
+        set -e
+
+        ls -l /usr/local/bin/split_maf_indel_snp.py
         cat /usr/local/bin/split_maf_indel_snp.py
-        print()
 
         if [ "~{is_compressed}" == "true" ] ; then
             gzip -cd '~{maf}' > '~{uncompressed_maf}'
