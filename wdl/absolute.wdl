@@ -106,18 +106,23 @@ task ProcessMAFforAbsolute {
     String uncompressed_maf = basename(maf, ".gz")
     Boolean is_compressed = uncompressed_maf != basename(maf)
 
+    String tmp_output_maf = "tmp." + sample_name + ".maf"
     String output_snv_maf = sample_name + ".snv.maf"
     String output_indel_maf = sample_name + ".indel.maf"
 
     command <<<
+        print()
+        cat /usr/local/bin/split_maf_indel_snp.py
+        print()
+
         if [ "~{is_compressed}" == "true" ] ; then
             gzip -cd '~{maf}' > '~{uncompressed_maf}'
         else
             cp '~{maf}' '~{uncompressed_maf}'
         fi
 
-        grep "#" '~{uncompressed_maf}' > '~{output_snv_maf}'
-        grep "#" '~{uncompressed_maf}' > '~{output_indel_maf}'
+        grep "#" '~{uncompressed_maf}' > 'tmp.~{tmp_output_maf}'
+        grep "#" '~{uncompressed_maf}' > 'tmp.~{output_indel_maf}'
 
         python <<EOF
 import pandas as pd
@@ -125,9 +130,11 @@ import pandas as pd
 maf = pd.read_csv('~{uncompressed_maf}', sep='\t', comment='#')
 cols_to_keep = [col for col in maf.columns if maf[col].astype(str).map(len).max() < 500]
 maf = maf[cols_to_keep].rename(columns={"Start_Position": "Start_position", "End_Position": "End_position"})
-maf.loc[maf["Variant_Type"].isin(["SNP", "DNP", "TNP", "MNP"]), :].to_csv('~{output_snv_maf}', sep='\t', index=False, mode='a')
-maf.loc[maf["Variant_Type"].isin(["INS", "DEL"]), :].to_csv('~{output_indel_maf}', sep='\t', index=False, mode='a')
+maf.to_csv('~{tmp_output_maf}', sep='\t', index=False, mode='a')
 EOF
+
+        python /usr/local/bin/split_maf_indel_snp.py -i '~{tmp_output_maf}' -o '~{output_snv_maf}' -f Variant_Type -v "SNP|DNP|TNP|MNP"
+        python /usr/local/bin/split_maf_indel_snp.py -i '~{tmp_output_maf}' -o '~{output_indel_maf}' -f Variant_Type -v "INS|DEL"
     >>>
 
     output {
