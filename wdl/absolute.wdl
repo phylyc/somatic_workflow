@@ -123,7 +123,7 @@ task ProcessMAFforAbsolute {
 import pandas as pd
 
 maf = pd.read_csv('~{uncompressed_maf}', sep='\t', comment='#')
-cols_to_keep = maf.columns[maf.map(lambda s: len(str(s))).max(axis=0) < 500]
+cols_to_keep = [col for col in maf.columns if maf[col].astype(str).map(len).max() < 500]
 maf = maf[cols_to_keep].rename(columns={"Start_Position": "Start_position", "End_Position": "End_position"})
 maf.loc[maf["Variant_Type"].isin(["SNP", "DNP", "TNP", "MNP"]), :].to_csv('~{output_snv_maf}', sep='\t', index=False, mode='a')
 maf.loc[maf["Variant_Type"].isin(["INS", "DEL"]), :].to_csv('~{output_indel_maf}', sep='\t', index=False, mode='a')
