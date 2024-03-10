@@ -107,33 +107,35 @@ workflow CNVWorkflow {
             scatter (normal_sample in ConsensusPatient.updated_patient.normal_samples) {
                 File? n_pileups = normal_sample.snp_array_pileups
             }
-            Array[File]? normal_pileups = select_all(n_pileups)
+            Array[File] normal_pileups = select_all(n_pileups)
         }
 
         # Run the contamination model
 
-        call gsa.GenotypeSNPArray {
-            input:
-                genotype_variants_script = args.genotype_variants_script,
-                scattered_interval_list = args.scattered_interval_list,
-                ref_dict = args.files.ref_dict,
-                individual_id = ConsensusPatient.updated_patient.name,
-                sample_names = sample_names,
-                tumor_pileups = tumor_pileups,
-                normal_pileups = normal_pileups,
-                common_germline_alleles = args.files.common_germline_alleles,
-                common_germline_alleles_idx = args.files.common_germline_alleles_idx,
-                genotype_variants_save_sample_genotype_likelihoods = true,
-                compress_output = args.compress_output,
-                runtime_collection = runtime_collection,
-        }
+        if (length(tumor_pileups) > 0) {
+            call gsa.GenotypeSNPArray {
+                input:
+                    genotype_variants_script = args.genotype_variants_script,
+                    scattered_interval_list = args.scattered_interval_list,
+                    ref_dict = args.files.ref_dict,
+                    individual_id = ConsensusPatient.updated_patient.name,
+                    sample_names = sample_names,
+                    tumor_pileups = tumor_pileups,
+                    normal_pileups = normal_pileups,
+                    common_germline_alleles = args.files.common_germline_alleles,
+                    common_germline_alleles_idx = args.files.common_germline_alleles_idx,
+                    genotype_variants_save_sample_genotype_likelihoods = true,
+                    compress_output = args.compress_output,
+                    runtime_collection = runtime_collection,
+            }
 
-        call p_update_s.UpdateSamples as AddPileupsAndContaminationToSamples {
-            input:
-                patient = ConsensusPatient.updated_patient,
-                snp_array_pileups = GenotypeSNPArray.sample_genotype_likelihoods,  # Careful: This is not technically in a pileup format!
-                contaminations = GenotypeSNPArray.contaminations,
-                af_segmentations = GenotypeSNPArray.segmentations,
+            call p_update_s.UpdateSamples as AddPileupsAndContaminationToSamples {
+                input:
+                    patient = ConsensusPatient.updated_patient,
+                    snp_array_pileups = GenotypeSNPArray.sample_genotype_likelihoods,  # Careful: This is not technically in a pileup format!
+                    contaminations = GenotypeSNPArray.contaminations,
+                    af_segmentations = GenotypeSNPArray.segmentations,
+            }
         }
     }
 
