@@ -25,11 +25,11 @@ workflow FilterVariants {
         File? c = sample.contamination
         File? s = sample.af_segmentation
     }
-    if (length(c) > 0) {
-        Array[File]? contamination_tables = select_all(c)
+    if (length(select_all(c)) > 0) {
+        Array[File] contamination_tables = select_all(c)
     }
-    if (length(s) > 0) {
-        Array[File]? segmentation_tables = select_all(s)
+    if (length(select_all(s)) > 0) {
+        Array[File] segmentation_tables = select_all(s)
     }
 
     # From the documentation: "FilterMutectCalls goes over an unfiltered vcf in
