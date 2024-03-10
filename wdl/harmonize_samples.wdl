@@ -25,22 +25,29 @@ workflow HarmonizeSamples {
         }
     }
     Array[SequencingRun] sequencing_runs = flatten(this_sequencing_run)
-    Array[File] non_optional_denoised_copy_ratios = select_all(flatten(denoised_copy_ratios))
-    Array[File] non_optional_allelic_counts = select_all(flatten(allelic_counts))
 
-    Boolean has_dCR = length(non_optional_denoised_copy_ratios) > 0
-    Boolean has_AC = length(non_optional_allelic_counts) > 0
+    scatter (pair in zip(sequencing_runs, select_all(flatten(denoised_copy_ratios)))) {
+        if (pair.left.use_for_dCR) {
+            String chosen_dcr_name = pair.left.name
+            File chosen_dcr = pair.right
+        }
+    }
+    Array[String] seq_dcr_sample_names = select_all(chosen_dcr_name)
+    Array[File] seq_denoised_copy_ratios = select_all(chosen_dcr)
+
+    scatter (pair in zip(sequencing_runs, select_all(flatten(allelic_counts)))) {
+        if (pair.left.use_for_aCR) {
+            String chosen_ac_name = pair.left.name
+            File chosen_ac = pair.right
+        }
+    }
+    Array[String] seq_acr_sample_names = select_all(chosen_ac_name)
+    Array[File] seq_allelic_counts = select_all(chosen_ac)
+
+    Boolean has_dCR = length(seq_denoised_copy_ratios) > 0
+    Boolean has_AC = length(seq_allelic_counts) > 0
 
     if (has_dCR) {
-        scatter (pair in zip(sequencing_runs, non_optional_denoised_copy_ratios)) {
-            if (pair.left.use_for_dCR) {
-                String chosen_dcr_name = pair.left.name
-                File chosen_dcr = pair.right
-            }
-        }
-        Array[String] seq_dcr_sample_names = select_all(chosen_dcr_name)
-        Array[File] seq_denoised_copy_ratios = select_all(chosen_dcr)
-
         call HarmonizeCopyRatios {
             input:
                 script = harmonize_copy_ratios_script,
@@ -64,15 +71,6 @@ workflow HarmonizeSamples {
     }
 
     if (has_AC) {
-        scatter (pair in zip(sequencing_runs, non_optional_allelic_counts)) {
-            if (pair.left.use_for_aCR) {
-                String chosen_ac_name = pair.left.name
-                File chosen_ac = pair.right
-            }
-        }
-        Array[String] seq_acr_sample_names = select_all(chosen_ac_name)
-        Array[File] seq_allelic_counts = select_all(chosen_ac)
-
         call MergeAllelicCounts {
             input:
                 script = merge_pileups_script,
