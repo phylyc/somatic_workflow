@@ -113,23 +113,20 @@ task ProcessMAFforAbsolute {
     command <<<
         set -e
 
-        ls -l /usr/local/bin/split_maf_indel_snp.py
-        cat /usr/local/bin/split_maf_indel_snp.py
-
         if [ "~{is_compressed}" == "true" ] ; then
             gzip -cd '~{maf}' > '~{uncompressed_maf}'
         else
             cp '~{maf}' '~{uncompressed_maf}'
         fi
 
-        grep "#" '~{uncompressed_maf}' > 'tmp.~{tmp_output_maf}'
-        grep "#" '~{uncompressed_maf}' > 'tmp.~{output_indel_maf}'
+        grep "#" '~{uncompressed_maf}' > '~{tmp_output_maf}'
 
         python <<EOF
 import pandas as pd
 
 maf = pd.read_csv('~{uncompressed_maf}', sep='\t', comment='#')
 cols_to_keep = [col for col in maf.columns if maf[col].astype(str).map(len).max() < 500]
+print("Removing columns: ", set(maf.columns) - set(cols_to_keep))
 maf = maf[cols_to_keep].rename(columns={"Start_Position": "Start_position", "End_Position": "End_position"})
 maf.to_csv('~{tmp_output_maf}', sep='\t', index=False, mode='a')
 EOF
