@@ -224,7 +224,7 @@ workflow UpdateSamples {
             Sample normal_samples = select_all(selected_normal_sample)[0]
         }
     }
-    Array[Sample] non_optional_normal_samples = select_first([normal_samples])
+    Array[Sample] non_optional_normal_samples = select_first([normal_samples, []])
 
     if (defined(patient.matched_normal_sample)) {
         Sample previous_matched_normal_sample = select_first([patient.matched_normal_sample])
