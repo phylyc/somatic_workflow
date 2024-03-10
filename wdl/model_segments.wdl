@@ -18,12 +18,14 @@ workflow ModelSegments {
     # more information. We first need to convert the pileup to allelic count format.
 
     scatter (sample in patient.samples) {
-        call PileupToAllelicCounts {
-            input:
-                ref_dict = args.files.ref_dict,
-                pileup = sample.snp_array_pileups,
-                bam_name = sample.bam_name,
-                runtime_params = runtime_collection.pileup_to_allelic_counts
+        if (defined(sample.snp_array_pileups)) {
+            call PileupToAllelicCounts {
+                input:
+                    ref_dict = args.files.ref_dict,
+                    pileup = sample.snp_array_pileups,
+                    bam_name = sample.bam_name,
+                    runtime_params = runtime_collection.pileup_to_allelic_counts
+            }
         }
     }
     Array[File] sample_allelic_counts = select_all(PileupToAllelicCounts.allelic_counts)
