@@ -178,6 +178,8 @@ task GetUniqueSampleNameSets {
     String dollar = "$"
 
     command <<<
+        set -euxo pipefail
+
         # Convert comma-separated strings to arrays
         IFS=',' read -r -a all_names <<< "~{sep="," sample_names}"
         IFS=',' read -r -a normal_names <<< "~{sep="," normal_sample_names}"

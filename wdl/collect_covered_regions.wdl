@@ -122,7 +122,7 @@ task CollectCoveredRegionsTask {
     String read_filter_arg = if defined(read_filters) then sep(" ", prefix("--read-filter ", select_first([read_filters, []]))) else ""
 
     command <<<
-        set -e
+        set -euo pipefail
         ~{"export GATK_LOCAL_JAR=" + runtime_params.jar_override}
 
         echo "..."

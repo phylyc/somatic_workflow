@@ -170,7 +170,7 @@ task VcfToPileupVariants {
     String af_only_vcf_idx = af_only_vcf + ".tbi"
 
     command <<<
-        set -e
+        set -euxo pipefail
 
         # Filter the VCF file to retain only rows with genotypes
         # Remove FORMAT field and retain only INFO/AF field
@@ -351,6 +351,7 @@ task SelectPileups {
     String tmp_output_file = "tmp." + output_file
 
     command <<<
+        set -uxo pipefail
         # Extract leading comment lines
         grep '^#' '~{pileup_summaries}' > '~{tmp_output_file}'
 

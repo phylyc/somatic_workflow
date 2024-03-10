@@ -157,7 +157,7 @@ task PileupToAllelicCounts {
     String output_file = sample_name + ".allelic_counts.tsv"
 
     command <<<
-        set -e
+        set -euxo pipefail
         if [ "~{defined(pileup)}" == "true" ] ; then
             if [ "~{is_compressed}" == "true" ] ; then
                 gzip -cd '~{pileup}' > '~{uncompressed_pileup}'

@@ -260,6 +260,7 @@ task SelectVariants {
             ~{"-select 'vc.getGenotype(\"" + tumor_sample_name + "\").getAD().0 < vc.getGenotype(\"" + tumor_sample_name + "\").getDP()'"} \
             ~{select_variants_extra_args}
 
+        set -uxo pipefail
         # =======================================
         # We do the selection step using grep to also select germline variants.
 
@@ -423,7 +424,7 @@ task MergeMAFs {
     String dollar = "$"
 
     command <<<
-        set -e
+        set -euxo pipefail
 
         # Convert WDL array to a temporary file
         echo '~{sep='\n' mafs}' > temp_mafs.txt

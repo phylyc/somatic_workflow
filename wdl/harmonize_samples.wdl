@@ -119,7 +119,7 @@ task HarmonizeCopyRatios {
 #    Array[String] harmonized_denoised_cr = suffix(sample_names, ".denoised_CR.tsv")
 
     command <<<
-        set -e
+        set -euxo pipefail
         wget -O harmonize_copy_ratios.py ~{script}
         python harmonize_copy_ratios.py \
             --output_dir '~{output_dir}' \
@@ -164,7 +164,7 @@ task MergeAllelicCounts {
 #    Array[String] merged_pileups = suffix(sample_names, ".pileup")
 
     command <<<
-        set -e
+        set -euxo pipefail
         wget -O merge_pileups.py ~{script}
         python merge_pileups.py \
             --output_dir '~{output_dir}' \

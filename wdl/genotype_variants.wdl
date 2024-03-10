@@ -133,7 +133,7 @@ task GenotypeVariantsTask {
 #    Array[File]? output_sample_genotype_likelihoods = if save_sample_genotype_likelihoods then prefix(output_dir + "/", possible_sample_outputs) else None
 
     command <<<
-        set -e
+        set -euxo pipefail
         wget -O genotype.py ~{script}
         python genotype.py \
             --output_dir '~{output_dir}' \
