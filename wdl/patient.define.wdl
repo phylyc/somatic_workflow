@@ -197,11 +197,13 @@ task GetUniqueSampleNameSets {
         done
 
         # Write unique tumor sample names to file
+        touch "tumor_sample_names.txt"
         for tumor_name in "~{dollar}{!unique_tumor_names[@]}"; do
             echo "$tumor_name" >> "tumor_sample_names.txt"
         done
 
         # Write unique normal sample names to file
+        touch "normal_sample_names.txt"
         for normal_name in "~{dollar}{!unique_normal_names[@]}"; do
             echo "$normal_name" >> "normal_sample_names.txt"
         done
