@@ -17,6 +17,8 @@ workflow DefinePatient {
         Array[File]? annotated_target_intervals
         Array[File]? cnv_panel_of_normals
         Array[Boolean]? is_paired_end
+        Array[Boolean]? use_for_dCR
+        Array[Boolean]? use_for_aCR
         Array[String]? sample_names
 
         Array[String]? normal_sample_names
@@ -80,13 +82,35 @@ workflow DefinePatient {
     }
     Array[SequencingRun] seqruns_4 = select_first([UpdateIsPairedEnd.updated_sequencing_run, seqruns_3])
 
+    if (defined(use_for_dCR)) {
+        scatter (pair in zip(seqruns_4, select_first([use_for_dCR, []]))) {
+            call seq_run.UpdateSequencingRun as UpdateUseForDCR {
+                input:
+                    sequencing_run = pair.left,
+                    use_for_dCR = pair.right,
+            }
+        }
+    }
+    Array[SequencingRun] seqruns_5 = select_first([UpdateUseForDCR.updated_sequencing_run, seqruns_4])
+
+    if (defined(use_for_aCR)) {
+        scatter (pair in zip(seqruns_5, select_first([use_for_aCR, []]))) {
+            call seq_run.UpdateSequencingRun as UpdateUseForACR {
+                input:
+                    sequencing_run = pair.left,
+                    use_for_aCR = pair.right,
+            }
+        }
+    }
+    Array[SequencingRun] seqruns_6 = select_first([UpdateUseForACR.updated_sequencing_run, seqruns_5])
+
     # GroupBy sample name:
     # We assume that sample_names and bam_names share the same uniqueness,
     # that is if the supplied sample name is the same for two input bams, then the
     # bam names should also be the same, and vice versa.
 
     Array[String] theses_sample_names = select_first([sample_names, bam_names])
-    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_4)))
+    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_6)))
 
     # Pick tumor and normal samples apart:
 

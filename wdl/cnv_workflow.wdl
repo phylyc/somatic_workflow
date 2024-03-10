@@ -62,7 +62,6 @@ workflow CNVWorkflow {
     if (args.run_collect_target_coverage) {
         # There is no way to harmonize the total read count data. This needs to be done
         # via a hierarchical model for the segmentation / copy ratio inference.
-        # Careful: The there is one read count file per sequencing run, not per sample!
         Array[File]? read_counts = select_all(flatten(CollectReadCounts.read_counts))
     }
 
