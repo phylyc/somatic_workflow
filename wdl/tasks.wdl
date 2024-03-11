@@ -244,7 +244,6 @@ task SelectVariants {
     String output_vcf = uncompressed_selected_vcf + if compress_output then ".gz" else ""
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
 
-    # todo: make empty input vcf not fail the task
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
@@ -264,25 +263,29 @@ task SelectVariants {
         # =======================================
         # We do the selection step using grep to also select germline variants.
 
+        set +e  # grep returns 1 if no lines are found
         grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
         num_vars=$(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
 
-        if ~{select_passing} ; then
-            echo ">> Selecting PASSing variants ... "
-            grep -v "^#" '~{select_variants_output_vcf}' | grep "PASS" >> '~{uncompressed_selected_vcf}'
-            num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
-            echo ">> Selected $num_selected_vars PASSing out of$num_vars variants."
-        fi
-        if ~{keep_germline} ; then
-            echo ">> Selecting germline variants ... "
-            grep -v "^#" '~{select_variants_output_vcf}' | grep "\tgermline\t" >> '~{uncompressed_selected_vcf}'
-            num_selected_vars=$(grep "\tgermline\t" '~{uncompressed_selected_vcf}' | wc -l)
-            echo ">> Selected $num_selected_vars germline out of $num_vars variants."
+        if [ "$num_vars" -eq 0 ] || [ "~{select_passing}" == "false" ] && [ "~{keep_germline}" == "false" ] ; then
+            echo ">> No variants selected."
+            cp '~{select_variants_output_vcf}' '~{uncompressed_selected_vcf}'
+        else
+            if [ "~{select_passing}" == "true" ] ; then
+                echo ">> Selecting PASSing variants ... "
+                grep -v "^#" '~{select_variants_output_vcf}' | grep "PASS" >> '~{uncompressed_selected_vcf}'
+                num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
+                echo ">> Selected $num_selected_vars PASSing out of$num_vars variants."
+            fi
+            if [ "~{keep_germline}" == "true" ] ; then
+                echo ">> Selecting germline variants ... "
+                grep -v "^#" '~{select_variants_output_vcf}' | grep "\tgermline\t" >> '~{uncompressed_selected_vcf}'
+                num_selected_vars=$(grep "\tgermline\t" '~{uncompressed_selected_vcf}' | wc -l)
+                echo ">> Selected $num_selected_vars germline out of $num_vars variants."
+            fi
         fi
 
-        if ~{!(select_passing || keep_germline)} ; then
-            cp '~{select_variants_output_vcf}' '~{uncompressed_selected_vcf}'
-        fi
+        set -e
 
         rm -f '~{select_variants_output_vcf}' '~{select_variants_output_vcf_idx}'
 
@@ -293,13 +296,13 @@ task SelectVariants {
         # columns. This hack assumes that only one tumor sample and/or only one normal
         # sample have been selected.
 
-        if ~{defined(tumor_sample_name)} ; then
+        if [ "~{defined(tumor_sample_name)}" == "true" ] ; then
             echo ">> Fixing tumor sample name in vcf header ... "
             input_header=$(grep "##tumor_sample=" '~{uncompressed_selected_vcf}')
             corrected_header="##tumor_sample=~{tumor_sample_name}"
             sed -i "s/$input_header/$corrected_header/g" '~{uncompressed_selected_vcf}'
         fi
-        if ~{defined(normal_sample_name)} ; then
+        if [ "~{defined(normal_sample_name)}" == "true" ] ; then
             echo ">> Fixing normal sample name in vcf header ... "
             input_header=$(grep "##normal_sample=" '~{uncompressed_selected_vcf}')
             corrected_header="##normal_sample=~{normal_sample_name}"
@@ -315,9 +318,11 @@ task SelectVariants {
             ~{"-SD '" +  ref_dict + "'"}
         rm -f 'unsorted.~{uncompressed_selected_vcf}'
 
+        set +e  # grep returns 1 if no lines are found
         grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l > num_selected_vars.txt
+        set -e
 
-        if ~{compress_output} ; then
+        if [ "~{compress_output}" == "true" ] ; then
             echo ">> Compressing selected vcf."
             bgzip -c '~{uncompressed_selected_vcf}' > '~{output_vcf}'
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
