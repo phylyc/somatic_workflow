@@ -1,43 +1,43 @@
 version: 1.2
 workflows:
-  - name: MultiSampleSomaticWorkflow
-    subclass: WDL
-    publish: true
-    primaryDescriptorPath: /wdl/multi-sample_somatic_workflow.wdl
-    authors:
-      - orcid: 0000-0001-9584-9135
-
-  - name: CreateMutect2PanelOfNormals
-    subclass: WDL
-    publish: true
-    primaryDescriptorPath: /wdl/create_mutect2_pon.wdl
-    authors:
-      - orcid: 0000-0001-9584-9135
-
-  - name: CreateReadCountPanelOfNormals
-    subclass: WDL
-    publish: true
-    primaryDescriptorPath: /wdl/create_read_count_pon.wdl
-    authors:
-      - orcid: 0000-0001-9584-9135
-
-  - name: CollectAllelicCounts
-    subclass: WDL
-    publish: true
-    primaryDescriptorPath: /wdl/collect_allelic_counts.wdl
-    authors:
-      - orcid: 0000-0001-9584-9135
-
-  - name: CollectReadCounts
-    subclass: WDL
-    publish: true
-    primaryDescriptorPath: /wdl/collect_read_counts.wdl
-    authors:
-      - orcid: 0000-0001-9584-9135
-
-  - name: Absolute
-    subclass: WDL
-    publish: true
-    primaryDescriptorPath: /wdl/absolute.wdl
-    authors:
-      - orcid: 0000-0001-9584-9135
+#  - name: MultiSampleSomaticWorkflow
+#    subclass: WDL
+#    publish: true
+#    primaryDescriptorPath: /wdl/multi-sample_somatic_workflow.wdl
+#    authors:
+#      - orcid: 0000-0001-9584-9135
+#
+#  - name: CreateMutect2PanelOfNormals
+#    subclass: WDL
+#    publish: true
+#    primaryDescriptorPath: /wdl/create_mutect2_pon.wdl
+#    authors:
+#      - orcid: 0000-0001-9584-9135
+#
+#  - name: CreateReadCountPanelOfNormals
+#    subclass: WDL
+#    publish: true
+#    primaryDescriptorPath: /wdl/create_read_count_pon.wdl
+#    authors:
+#      - orcid: 0000-0001-9584-9135
+#
+#  - name: CollectAllelicCounts
+#    subclass: WDL
+#    publish: true
+#    primaryDescriptorPath: /wdl/collect_allelic_counts.wdl
+#    authors:
+#      - orcid: 0000-0001-9584-9135
+#
+#  - name: CollectReadCounts
+#    subclass: WDL
+#    publish: true
+#    primaryDescriptorPath: /wdl/collect_read_counts.wdl
+#    authors:
+#      - orcid: 0000-0001-9584-9135
+#
+#  - name: Absolute
+#    subclass: WDL
+#    publish: true
+#    primaryDescriptorPath: /wdl/absolute.wdl
+#    authors:
+#      - orcid: 0000-0001-9584-9135
