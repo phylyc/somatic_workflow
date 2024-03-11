@@ -23,9 +23,9 @@ workflow MultiSampleSomaticWorkflow {
         Array[File]+ target_intervals
         Array[File]? annotated_target_intervals
         Array[File]? cnv_panel_of_normals
-        Array[Boolean]? is_paired_end
-        Array[Boolean]? use_sample_for_dCR
-        Array[Boolean]? use_sample_for_aCR
+        Array[Boolean]? is_paired_end       # make sure those are boolean inputs, not strings!
+        Array[Boolean]? use_sample_for_dCR  # make sure those are boolean inputs, not strings!
+        Array[Boolean]? use_sample_for_aCR  # make sure those are boolean inputs, not strings!
         Array[String]? normal_sample_names
 
         Int scatter_count = 10
