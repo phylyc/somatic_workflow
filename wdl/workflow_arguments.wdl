@@ -119,7 +119,7 @@ workflow DefineWorkflowArguments {
         Float min_snp_array_pop_af = 0.01
         Float max_snp_array_pop_af = 1.0  # default: 0.2
         Int min_snp_array_read_depth = 10
-        Array[Int] model_segments_window_sizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]
+        Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512]
         Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
         Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold = 2.0
