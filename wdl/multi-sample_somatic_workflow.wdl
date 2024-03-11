@@ -16,16 +16,33 @@ workflow MultiSampleSomaticWorkflow {
 
         Patient patient = GetPatient.patient
 
+        # This string is used to label the outputs of the workflow.
         String individual_id
+        # If defined, all arrays must have the same length. Each entry corresponds to a
+        # sequencing run, and the same index in each array corresponds to the same run.
+        # Several sequencing runs from the same physical sample are allowed and will be
+        # grouped based on the sample name. If the sample name is not provided, it will
+        # be inferred from the bam.
         Array[String]? sample_names
         Array[File]+ bams
         Array[File]+ bais
+        # For targeted sequencing, the (possibly padded and ideally blacklist-removed)
+        # target intervals must be supplied. For whole genome sequencing, the intervals
+        # are just the chromosomal intervals (ideally blacklist-removed).
         Array[File]+ target_intervals
         Array[File]? annotated_target_intervals
+        # If a panel of normals is not available for the sequencing platform of a sample,
+        # it corresponding path must point to an empty file. The annotated_target_intervals
+        # will instead be used for denoising.
         Array[File]? cnv_panel_of_normals
-        Array[Boolean]? is_paired_end       # make sure those are boolean inputs, not strings!
-        Array[Boolean]? use_sample_for_dCR  # make sure those are boolean inputs, not strings!
-        Array[Boolean]? use_sample_for_aCR  # make sure those are boolean inputs, not strings!
+        Array[Boolean]? is_paired_end       # Boolean inputs, ensure correct format!
+        # Whether to use the sample for denoised copy ratio (dCR) and allelic copy ratio
+        # (aCR) estimation. If not provided, all samples will be used.
+        Array[Boolean]? use_sample_for_dCR  # Boolean inputs, ensure correct format!
+        Array[Boolean]? use_sample_for_aCR  # Boolean inputs, ensure correct format!
+
+        # A list of normal sample names. If not provided, all samples will be treated as
+        # tumor samples.
         Array[String]? normal_sample_names
 
         Int scatter_count = 10
@@ -124,8 +141,8 @@ workflow MultiSampleSomaticWorkflow {
         File? germline_vcf = SNVWorkflow.germline_vcf
         File? germline_vcf_idx = SNVWorkflow.germline_vcf_idx
         File? filtering_stats = SNVWorkflow.filtering_stats
-        Array[File?]? called_germline_allelic_counts = SNVWorkflow.called_germline_allelic_counts
         Array[File?]? called_somatic_allelic_counts = SNVWorkflow.called_somatic_allelic_counts
+        Array[File?]? called_germline_allelic_counts = SNVWorkflow.called_germline_allelic_counts
         Array[File]? annotated_variants = SNVWorkflow.annotated_variants
         Array[File?]? annotated_variants_idx = SNVWorkflow.annotated_variants_idx
 

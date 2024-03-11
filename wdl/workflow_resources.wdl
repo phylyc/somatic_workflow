@@ -2,24 +2,39 @@ version development
 
 
 struct WorkflowResources {
+    # Intervals for short variant calling. The interval_list and interval_lists will
+    # be combined and interval_blacklist will be subtracted from the result.
     File? interval_list
     File? interval_blacklist
     Array[File]? interval_lists
 
+    # Reference fasta, index, and dictionary files.
     File ref_fasta
     File ref_fasta_index
     File ref_dict
 
+    # VCF file of variants to force mutation calling at.
+    # Note: As of GATK v4.3.0.0 force-calling alleles leads to mis-classification
+    # of filtered variants in the same way as the flag -genotype-germline-sites does:
+    # https://github.com/broadinstitute/gatk/issues/7391
     File? force_call_alleles
     File? force_call_alleles_idx
+    # VCF file of common sequencing artifacts to filter out.
     File? snv_panel_of_normals
     File? snv_panel_of_normals_idx
+    # VCF file of germline alleles to filter out.
     File? germline_resource
     File? germline_resource_idx
+    # VCF file of common germline alleles (population allele frequency > 5%) to collect
+    # allelic counts at for allelic copy ratio (aCR) and contamination estimation.
     File? common_germline_alleles
     File? common_germline_alleles_idx
+    # BWA index image file for realignment task (to hg38).
     File? realignment_bwa_mem_index_image
+    # List of transcript names to use for the Funcotator annotation.
     File? funcotator_transcript_list
+    # Tarball of data sources for Funcotator. If not provided, the tarball will automatically
+    # be downloaded from the GATK resource bundle, which is much slower.
     File? funcotator_data_sources_tar_gz
 }
 
