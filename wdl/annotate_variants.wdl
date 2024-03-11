@@ -148,7 +148,7 @@ task Funcotate {
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
-        if [[ "~{output_format}" != "MAF" ]] && [[ "~{output_format}" != "VCF" ]] ; then
+        if [ "~{output_format}" != "MAF" ] && [ "~{output_format}" != "VCF" ] ; then
             echo "ERROR: Output format must be MAF or VCF."
             false
         fi
