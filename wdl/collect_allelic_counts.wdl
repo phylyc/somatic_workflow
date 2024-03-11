@@ -178,6 +178,7 @@ task VcfToPileupVariants {
             | bcftools annotate -x FORMAT,^INFO/AF \
             > '~{tmp_vcf}'
 
+        set +e  # grep returns 1 if no lines are found
         # Separate header lines (lines starting with '#') into a separate file
         grep "^#" '~{tmp_vcf}' > '~{uncompressed_vcf}'
 
@@ -186,6 +187,7 @@ task VcfToPileupVariants {
         grep -v "^#" '~{tmp_vcf}' \
             | awk 'BEGIN {OFS="\t"} {$8 = "AF=~{AF}"; print}' \
             >> '~{uncompressed_vcf}'
+        set -e
 
         # Compress the modified VCF file (bgzip is not available)
         bcftools convert -O z -o '~{af_only_vcf}' '~{uncompressed_vcf}'
