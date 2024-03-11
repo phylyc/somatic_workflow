@@ -28,7 +28,7 @@ workflow HarmonizeSamples {
 
     scatter (pair in zip(sequencing_runs, select_all(flatten(denoised_copy_ratios)))) {
         if (pair.left.use_for_dCR) {
-            String chosen_dcr_name = pair.left.name
+            String chosen_dcr_name = pair.left.sample_name
             File chosen_dcr = pair.right
         }
     }
@@ -37,7 +37,7 @@ workflow HarmonizeSamples {
 
     scatter (pair in zip(sequencing_runs, select_all(flatten(allelic_counts)))) {
         if (pair.left.use_for_aCR) {
-            String chosen_ac_name = pair.left.name
+            String chosen_ac_name = pair.left.sample_name
             File chosen_ac = pair.right
         }
     }

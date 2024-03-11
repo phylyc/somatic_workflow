@@ -104,13 +104,24 @@ workflow DefinePatient {
     }
     Array[SequencingRun] seqruns_6 = select_first([UpdateUseForACR.updated_sequencing_run, seqruns_5])
 
+    if (defined(sample_names)) {
+        scatter (pair in zip(seqruns_6, select_first([sample_names, []]))) {
+            call seq_run.UpdateSequencingRun as UpdateSampleName {
+                input:
+                    sequencing_run = pair.left,
+                    sample_name = pair.right,
+            }
+        }
+    }
+    Array[SequencingRun] seqruns_7 = select_first([UpdateSampleName.updated_sequencing_run, seqruns_6])
+
     # GroupBy sample name:
     # We assume that sample_names and bam_names share the same uniqueness,
     # that is if the supplied sample name is the same for two input bams, then the
     # bam names should also be the same, and vice versa.
 
     Array[String] theses_sample_names = select_first([sample_names, bam_names])
-    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_6)))
+    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_7)))
 
     # Pick tumor and normal samples apart:
 

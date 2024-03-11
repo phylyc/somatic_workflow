@@ -8,6 +8,7 @@ import "tasks.wdl"
 workflow DefineSequencingRun {
     input {
         String? name
+        String? sample_name
         File bam
         File bai
         File target_intervals
@@ -32,6 +33,7 @@ workflow DefineSequencingRun {
     # Replace "object" with name of the struct in the future.
     SequencingRun seq_run = object {
         name: select_first([name, GetSampleName.sample_name]),
+        sample_name: select_first([sample_name, GetSampleName.sample_name]),
         bam: bam,
         bai: bai,
         target_intervals: target_intervals,

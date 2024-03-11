@@ -3,6 +3,7 @@ version development
 
 struct SequencingRun {
     String name
+    String sample_name
     File bam
     File bai
     File target_intervals
@@ -18,6 +19,7 @@ workflow UpdateSequencingRun {
     input {
         SequencingRun sequencing_run
         String? name
+        String? sample_name
         File? bam
         File? bai
         File? target_intervals
@@ -30,6 +32,7 @@ workflow UpdateSequencingRun {
 
     SequencingRun seq_run = object {
         name: select_first([name, sequencing_run.name]),
+        sample_name: select_first([sample_name, sequencing_run.sample_name]),
         bam: select_first([bam, sequencing_run.bam]),
         bai: select_first([bai, sequencing_run.bai]),
         target_intervals: select_first([target_intervals, sequencing_run.target_intervals]),
