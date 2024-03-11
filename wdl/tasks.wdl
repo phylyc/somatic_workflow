@@ -432,24 +432,25 @@ task MergeMAFs {
         set -euxo pipefail
 
         # Convert WDL array to a temporary file
-        echo '~{sep='\n' mafs}' > temp_mafs.txt
+        printf "~{sep='\n' mafs}" > temp_mafs.txt
 
         # Read temporary file into a shell array
-        mapfile -t mafs < temp_mafs.txt
+        mapfile -t maf_files < temp_mafs.txt
 
         # Extract leading comment lines from first file
-        grep "^#" "~{mafs[0]}" > '~{uncompressed_output_maf}'
+        grep "^#" "~{dollar}{maf_files[0]}" > '~{uncompressed_output_maf}'
 
         # Extract column headers from first file
-        grep -v "^#" "~{mafs[0]}" | head -n 1 >> '~{uncompressed_output_maf}'
+        # (|| true is necessary since either grep or head return non-zero exit code; don't understand why.)
+        grep -v "^#" "~{dollar}{maf_files[0]}" | head -n 1 >> '~{uncompressed_output_maf}' || true
 
         # Extract variants
-        for maf in ~{dollar}{mafs[@]} ; do
-            grep -v "^#" "$maf" | tail -n +2 >> '~{uncompressed_output_maf}'
+        for maf in "~{dollar}{maf_files[@]}" ; do
+            grep -v "^#" "$maf" | tail -n +2 >> '~{uncompressed_output_maf}' || true
         done
 
-        if ~{compress_output} ; then
-            echo ">> Compressing merged maf."
+        if [ "~{compress_output}" == "true" ] ; then
+            echo ">> Compressing merged MAF."
             gzip -c '~{uncompressed_output_maf}' > '~{output_maf}'
             rm -f '~{uncompressed_output_maf}'
         fi
