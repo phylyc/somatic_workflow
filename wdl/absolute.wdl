@@ -72,7 +72,7 @@ task ModelSegmentsToACSConversion {
         python acs_conversion.py \
             --output_dir ~{output_dir} \
             --seg '~{seg_final}' \
-            --af_parameters ~{af_model_parameters} \
+            --af_parameters '~{af_model_parameters}' \
             --min_hets ~{min_hets} \
             --maf90_threshold ~{maf90_threshold} \
             --verbose
@@ -119,20 +119,21 @@ task ProcessMAFforAbsolute {
             cp '~{maf}' '~{uncompressed_maf}'
         fi
 
-        grep "#" '~{uncompressed_maf}' > '~{tmp_output_maf}'
+        grep "#" '~{uncompressed_maf}' > '~{output_snv_maf}'
+        grep "#" '~{uncompressed_maf}' > '~{output_indel_maf}'
 
         python <<EOF
 import pandas as pd
 
 maf = pd.read_csv('~{uncompressed_maf}', sep='\t', comment='#')
-cols_to_keep = [col for col in maf.columns if maf[col].astype(str).map(len).max() < 500]
-print("Removing columns: ", set(maf.columns) - set(cols_to_keep))
+cols_to_keep = [col for col in maf.columns if maf[col].astype(str).map(len).max() < 1000]
+print("Removing columns:", set(maf.columns) - set(cols_to_keep))
 maf = maf[cols_to_keep].rename(columns={"Start_Position": "Start_position", "End_Position": "End_position"})
-maf.to_csv('~{tmp_output_maf}', sep='\t', index=False, mode='a')
+snv = maf.loc[maf["Variant_Type"].isin(["SNP", "DNP", "TNP", "MNP"])]
+indel = maf.loc[maf["Variant_Type"].isin(["INS", "DEL"])]
+snv.to_csv('~{output_snv_maf}', sep='\t', index=False, mode='a')
+indel.to_csv('~{output_indel_maf}', sep='\t', index=False, mode='a')
 EOF
-
-        python /usr/local/bin/split_maf_indel_snp.py -i '~{tmp_output_maf}' -o '~{output_snv_maf}' -f Variant_Type -v "SNP|DNP|TNP|MNP"
-        python /usr/local/bin/split_maf_indel_snp.py -i '~{tmp_output_maf}' -o '~{output_indel_maf}' -f Variant_Type -v "INS|DEL"
     >>>
 
     output {
