@@ -111,7 +111,7 @@ task ProcessMAFforAbsolute {
     String output_indel_maf = sample_name + ".indel.maf"
 
     command <<<
-        set -e
+        set -euxo pipefail
 
         if [ "~{is_compressed}" == "true" ] ; then
             gzip -cd '~{maf}' > '~{uncompressed_maf}'
@@ -167,7 +167,7 @@ task AbsoluteTask {
     String output_dir = "."
 
     command <<<
-        set -euxo pipefail
+        set -e
         Rscript /xchip/tcga/Tools/absolute/releases/v1.5/run/ABSOLUTE_cli_start.R \
             --seg_dat_fn ~{seg_file} \
             --maf_fn ~{snv_maf} \
