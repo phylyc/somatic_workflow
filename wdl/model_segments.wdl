@@ -32,7 +32,7 @@ workflow ModelSegments {
 
     # Save the allelic counts in each sample object (if they exist)
 
-    if (length(sample_allelic_counts) > 1) {
+    if (length(sample_allelic_counts) > 0) {
         call p_update_s.UpdateSamples as AddAllelicCountsToSamples {
             input:
                 patient = patient,
@@ -87,6 +87,7 @@ workflow ModelSegments {
                 allelic_counts = ac_list,
                 normal_allelic_counts = normal_allelic_counts,
                 prefix = sample.name,
+                window_sizes = args.model_segments_window_sizes,
                 runtime_params = runtime_collection.model_segments
         }
 
