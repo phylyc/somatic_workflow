@@ -18,6 +18,7 @@ def parse_args():
     parser.add_argument("--af_parameters",  type=str,   required=True,  help="Path to the GATK ModelSegments modelFinal.af.param output file.")
     parser.add_argument("--output_dir",     type=str,   required=True,  help="Path to the output directory.")
     parser.add_argument("--min_hets",       type=int,   default=10,     help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
+    parser.add_argument("--min_probes",     type=int,   default=4,     help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
     parser.add_argument("--maf90_threshold",type=float, default=0.485,  help="Threshold of 90% quantile for setting minor allele fraction to 0.5.")
     parser.add_argument("--verbose",        default=False,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
@@ -70,7 +71,8 @@ def convert_model_segments_to_alleliccapseg(args):
         'sigma.minor',
         'mu.major',
         'sigma.major',
-        'SegLabelCNLOH']
+        'SegLabelCNLOH'
+    ]
 
     def simple_determine_allelic_fraction(model_segments_seg_pd):
         result = model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_50']
@@ -126,8 +128,9 @@ def convert_model_segments_to_alleliccapseg(args):
         model_segments_reference_bias = model_segments_af_param_pd[model_segments_af_param_pd['PARAMETER_NAME'] == 'MEAN_BIAS']['POSTERIOR_50']
         alleliccapseg_skew = 2. / (1. + model_segments_reference_bias)
 
-        # If a row has less than X (set by user) hets, then assume zero
+        # If a row has less than X (set by user) hets or number of target intervals, then assume zero
         filter_rows = alleliccapseg_seg_pd['n_hets'] < args.min_hets
+        filter_rows |= model_segments_seg_pd["NUM_POINTS_COPY_RATIO"] < args.min_probes
         # mu.minor  sigma.minor  mu.major  sigma.major
         alleliccapseg_seg_pd.loc[filter_rows, 'n_hets'] = 0
         alleliccapseg_seg_pd.loc[filter_rows, 'f'] = np.NaN

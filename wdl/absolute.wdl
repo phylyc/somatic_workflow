@@ -119,8 +119,8 @@ task ProcessMAFforAbsolute {
             cp '~{maf}' '~{uncompressed_maf}'
         fi
 
-        grep "#" '~{uncompressed_maf}' > '~{output_snv_maf}'
-        grep "#" '~{uncompressed_maf}' > '~{output_indel_maf}'
+        grep "^#" '~{uncompressed_maf}' > '~{output_snv_maf}'
+        grep "^#" '~{uncompressed_maf}' > '~{output_indel_maf}'
 
         python <<EOF
 import pandas as pd
@@ -167,12 +167,13 @@ task AbsoluteTask {
     String output_dir = "."
 
     command <<<
-        set -e
+         set -euxo pipefail
+        # sidenote: no packages GenomicRanges, gplots, and more. :/
         Rscript /xchip/tcga/Tools/absolute/releases/v1.5/run/ABSOLUTE_cli_start.R \
-            --seg_dat_fn ~{seg_file} \
-            --maf_fn ~{snv_maf} \
-            --indelmaf_fn ~{indel_maf} \
-            --sample_name ~{sample_name} \
+            --seg_dat_fn '~{seg_file}' \
+            --maf_fn '~{snv_maf}' \
+            --indelmaf_fn '~{indel_maf}' \
+            --sample_name '~{sample_name}' \
             --results_dir ~{output_dir} \
             --ssnv_skew ~{skew} \
             --abs_lib_dir /xchip/tcga/Tools/absolute/releases/v1.5/
