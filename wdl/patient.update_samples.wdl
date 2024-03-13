@@ -12,6 +12,7 @@ workflow UpdateSamples {
         Array[File]? standardized_copy_ratios
         Array[File]? snp_array_pileups
         Array[File]? snp_array_allelic_counts
+        Array[Float]? genotype_error_probabilities
         Array[File]? somatic_allelic_counts
         Array[File]? germline_allelic_counts
         Array[File]? contaminations
@@ -82,6 +83,17 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_5 = select_first([UpdateSnpArrayAllelicCounts.updated_sample, samples_4])
 
+    if (defined(genotype_error_probabilities)) {
+        scatter (pair in zip(samples_5, select_first([genotype_error_probabilities, []]))) {
+            call s.UpdateSample as UpdateGenotypeErrorProbabilities {
+                input:
+                    sample = pair.left,
+                    genotype_error_probabilities = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_6 = select_first([UpdateGenotypeErrorProbabilities.updated_sample, samples_5])
+
     if (defined(somatic_allelic_counts)) {
         scatter (pair in zip(samples_5, select_first([somatic_allelic_counts, []]))) {
             call s.UpdateSample as UpdateSomaticAllelicCounts {
@@ -91,7 +103,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_6 = select_first([UpdateSomaticAllelicCounts.updated_sample, samples_5])
+    Array[Sample] samples_7 = select_first([UpdateSomaticAllelicCounts.updated_sample, samples_6])
 
     if (defined(germline_allelic_counts)) {
         scatter (pair in zip(samples_6, select_first([germline_allelic_counts, []]))) {
@@ -102,7 +114,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_7 = select_first([UpdateGermlineAllelicCounts.updated_sample, samples_6])
+    Array[Sample] samples_8 = select_first([UpdateGermlineAllelicCounts.updated_sample, samples_7])
 
     if (defined(contaminations)) {
         scatter (pair in zip(samples_7, select_first([contaminations, []]))) {
@@ -113,7 +125,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_8 = select_first([UpdateContamination.updated_sample, samples_7])
+    Array[Sample] samples_9 = select_first([UpdateContamination.updated_sample, samples_8])
 
     if (defined(af_segmentations)) {
         scatter (pair in zip(samples_8, select_first([af_segmentations, []]))) {
@@ -124,7 +136,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_9 = select_first([UpdateAfSegmentation.updated_sample, samples_8])
+    Array[Sample] samples_10 = select_first([UpdateAfSegmentation.updated_sample, samples_9])
 
     if (defined(copy_ratio_segmentations)) {
         scatter (pair in zip(samples_9, select_first([copy_ratio_segmentations, []]))) {
@@ -135,7 +147,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_10 = select_first([UpdateCopyRatioSegmentation.updated_sample, samples_9])
+    Array[Sample] samples_11 = select_first([UpdateCopyRatioSegmentation.updated_sample, samples_10])
 
     if (defined(af_model_parameters)) {
         scatter (pair in zip(samples_10, select_first([af_model_parameters, []]))) {
@@ -146,7 +158,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_11 = select_first([UpdateAfModelParameters.updated_sample, samples_10])
+    Array[Sample] samples_12 = select_first([UpdateAfModelParameters.updated_sample, samples_11])
 
     if (defined(cr_model_parameters)) {
         scatter (pair in zip(samples_11, select_first([cr_model_parameters, []]))) {
@@ -157,7 +169,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_12 = select_first([UpdateCrModelParameters.updated_sample, samples_11])
+    Array[Sample] samples_13 = select_first([UpdateCrModelParameters.updated_sample, samples_12])
 
     if (defined(called_copy_ratio_segmentations)) {
         scatter (pair in zip(samples_12, select_first([called_copy_ratio_segmentations, []]))) {
@@ -168,7 +180,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_13 = select_first([UpdateCalledCopyRatioSegmentation.updated_sample, samples_12])
+    Array[Sample] samples_14 = select_first([UpdateCalledCopyRatioSegmentation.updated_sample, samples_13])
 
     if (defined(acs_copy_ratio_segmentations)) {
         scatter (pair in zip(samples_13, select_first([acs_copy_ratio_segmentations, []]))) {
@@ -179,7 +191,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_14 = select_first([UpdateAcsCopyRatioSegmentation.updated_sample, samples_13])
+    Array[Sample] samples_15 = select_first([UpdateAcsCopyRatioSegmentation.updated_sample, samples_14])
 
     if (defined(acs_copy_ratio_skews)) {
         scatter (pair in zip(samples_14, select_first([acs_copy_ratio_skews, []]))) {
@@ -190,7 +202,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_15 = select_first([UpdateAcsCopyRatioSkew.updated_sample, samples_14])
+    Array[Sample] samples_16 = select_first([UpdateAcsCopyRatioSkew.updated_sample, samples_15])
 
     if (defined(annotated_variants)) {
         scatter (pair in zip(samples_15, select_first([annotated_variants, []]))) {
@@ -201,12 +213,12 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_16 = select_first([UpdateAnnotatedVariants.updated_sample, samples_15])
+    Array[Sample] samples_17 = select_first([UpdateAnnotatedVariants.updated_sample, samples_16])
 
     # Select tumor and normal samples:
 
     scatter (tumor_sample in patient.tumor_samples) {
-        scatter (sample in samples_16) {
+        scatter (sample in samples_17) {
             if (sample.name == tumor_sample.name) {
                 Sample selected_tumor_sample = sample
             }
@@ -216,7 +228,7 @@ workflow UpdateSamples {
 
     if (patient.has_normal) {
         scatter (normal_sample in patient.normal_samples) {
-            scatter (sample in samples_16) {
+            scatter (sample in samples_17) {
                 if (sample.name == normal_sample.name) {
                     Sample selected_normal_sample = sample
                 }

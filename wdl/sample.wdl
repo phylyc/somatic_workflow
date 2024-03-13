@@ -14,6 +14,7 @@ struct Sample {
     File? standardized_copy_ratios          # GATK DenoiseReadCounts
     File? snp_array_pileups                 # GATK GetPileupSummaries
     File? snp_array_allelic_counts          # PileupToAllelicCounts / GATK CollectAllelicCounts
+    Float? genotype_error_probabilities     # PileupToAllelicCounts
     File? somatic_allelic_counts            # GATK GetPileupSummaries
     File? germline_allelic_counts           # GATK GetPileupSummaries
     File? contamination                     # GATK CalculateContamination
@@ -41,6 +42,7 @@ workflow UpdateSample {
         File? standardized_copy_ratios
         File? snp_array_pileups
         File? snp_array_allelic_counts
+        Float? genotype_error_probabilities
         File? somatic_allelic_counts
         File? germline_allelic_counts
         File? contamination
@@ -65,6 +67,7 @@ workflow UpdateSample {
         standardized_copy_ratios: if defined(standardized_copy_ratios) then standardized_copy_ratios else sample.standardized_copy_ratios,
         snp_array_pileups: if defined(snp_array_pileups) then snp_array_pileups else sample.snp_array_pileups,
         snp_array_allelic_counts: if defined(snp_array_allelic_counts) then snp_array_allelic_counts else sample.snp_array_allelic_counts,
+        genotype_error_probabilities: if defined(genotype_error_probabilities) then genotype_error_probabilities else sample.genotype_error_probabilities,
         somatic_allelic_counts: if defined(somatic_allelic_counts) then somatic_allelic_counts else sample.somatic_allelic_counts,
         germline_allelic_counts: if defined(germline_allelic_counts) then germline_allelic_counts else sample.germline_allelic_counts,
         contamination: if defined(contamination) then contamination else sample.contamination,

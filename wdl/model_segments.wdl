@@ -29,6 +29,7 @@ workflow ModelSegments {
         }
     }
     Array[File] sample_allelic_counts = select_all(PileupToAllelicCounts.allelic_counts)
+    Array[Float] sample_error_probabilities = select_all(PileupToAllelicCounts.error_probability)
 
     # Save the allelic counts in each sample object (if they exist)
 
@@ -37,6 +38,7 @@ workflow ModelSegments {
             input:
                 patient = patient,
                 snp_array_allelic_counts = sample_allelic_counts,
+                genotype_error_probabilities = sample_error_probabilities
         }
     }
     Patient pat = select_first([AddAllelicCountsToSamples.updated_patient, patient])
@@ -80,12 +82,16 @@ workflow ModelSegments {
         if (defined(sample.snp_array_allelic_counts)) {
             Array[File] ac_list = select_all([sample.snp_array_allelic_counts])
         }
+        if (defined(sample.genotype_error_probabilities)) {
+            Float error_probability = select_first([sample.genotype_error_probabilities])
+        }
         call ModelSegmentsTask as SingleSampleInferCR {
             input:
                 segments = MultiSampleModelSegments.multi_sample_segments,
                 denoised_copy_ratios = dcr_list,
                 allelic_counts = ac_list,
                 normal_allelic_counts = normal_allelic_counts,
+                genotying_base_error_rate = error_probability,
                 prefix = sample.name,
                 window_sizes = args.model_segments_window_sizes,
                 runtime_params = runtime_collection.model_segments
@@ -177,18 +183,23 @@ task PileupToAllelicCounts {
             tail -n +3 '~{uncompressed_pileup}' | awk -v OFS='\t' '{print $1, $2, $3, $4, "N", "N"}' >> '~{output_file}'
 
             # Calculate the error probability:
-            # The error probability is calculated as a ratio of 'other_alt_count' to the
-            # total counts, clipped within specified bounds.
-#            ref_counts=$(awk '{sum+=$3} END {print sum}' '~{uncompressed_pileup}')
-#            alt_counts=$(awk '{sum+=$4} END {print sum}' '~{uncompressed_pileup}')
-#            other_alt_counts=$(awk '{sum+=$5} END {print sum}' '~{uncompressed_pileup}')
-            # todo: finish this
+            # The error probability is calculated as a ratio of total 'other_alt_count'
+            # and total counts, clipped within specified bounds.
+            ref_counts=$(awk '{sum+=$3} END {print sum}' '~{uncompressed_pileup}')
+            alt_counts=$(awk '{sum+=$4} END {print sum}' '~{uncompressed_pileup}')
+            other_alt_counts=$(awk '{sum+=$5} END {print sum}' '~{uncompressed_pileup}')
+            total_counts=$((ref_counts + alt_counts + other_alt_counts))
+            error_probability=$( \
+                awk -v ref=$ref_counts -v alt=$alt_counts -v other=$other_alt_counts -v total=$total_counts \
+                'BEGIN {print total > 0 ? ( (other / total) > 0.1 ? 0.1 : ( (other / total) < 0.001 ? 0.001 : (other / total) ) ) : 0.05}' \
+            )
+            printf "$error_probability" > error_probability.txt
         fi
     >>>
 
     output {
         File? allelic_counts = output_file
-        Float error_probability = 0.05
+        Float error_probability = read_float("error_probability.txt")
     }
 
     runtime {
