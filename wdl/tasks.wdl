@@ -213,6 +213,67 @@ task SplitIntervals {
     }
 }
 
+task VariantFiltration {
+    input {
+        File? interval_list
+        File? ref_fasta
+        File? ref_fasta_index
+        File? ref_dict
+        File vcf
+        File vcf_idx
+
+        Boolean compress_output = false
+
+        Array[String] filter_expressions
+        Array[String] filter_names
+        String? variant_filtration_extra_args
+
+        Runtime runtime_params
+    }
+
+    String output_vcf = basename(basename(vcf, ".gz"), ".vcf") + ".hard_filtered.vcf" + if compress_output then ".gz" else ""
+    String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
+
+    command <<<
+        set -e
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            VariantFiltration \
+            ~{"-R '" + ref_fasta + "'"} \
+            ~{"-L '" + interval_list + "'"} \
+            -V '~{vcf}' \
+            ~{if (length(filter_names) > 0) then " --filter-name '" else ""}~{default="" sep="' --filter-name '" filter_names}~{if (length(filter_names) > 0) then "'" else ""} \
+            ~{if (length(filter_expressions) > 0) then " --filter-expression '" else ""}~{default="" sep="' --filter-expression '" filter_expressions}~{if (length(filter_expressions) > 0) then "'" else ""}
+            --output '~{output_vcf}' \
+            ~{variant_filtration_extra_args}
+    >>>
+
+    output {
+        File filtered_vcf = output_vcf
+        File filtered_vcf_idx = output_vcf_idx
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        interval_list: {localization_optional: true}
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
+        vcf: {localization_optional: true}
+        vcf_idx: {localization_optional: true}
+    }
+}
+
 task SelectVariants {
     input {
         File? interval_list
