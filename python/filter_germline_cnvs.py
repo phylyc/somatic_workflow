@@ -22,7 +22,8 @@ def parse_args():
     parser.usage = "python filter_germline_cnvs.py --tumor_called_copy_ratio_segmentation <tumor_called_copy_ratio_segmentation> --normal_called_copy_ratio_segmentation <normal_called_copy_ratio_segmentation> [-O <output_dir>] [--verbose]"
     parser.add_argument("--tumor_called_copy_ratio_segmentation",   type=str,   required=True,  help="Path to the called segmented copy ratio file of the tumor sample (output of GATK's ModelSegments + CallCopyRatioSegments).")
     parser.add_argument("--normal_called_copy_ratio_segmentation",  type=str,   required=True,  help="Path to the called segmented copy ratio file of the normal sample (output of GATK's ModelSegments + CallCopyRatioSegments).")
-    parser.add_argument("-O", "--output",                           type=str,   default=".",    help="Path to the output file.")
+    parser.add_argument("-O", "--output",                           type=str,   required=True,  help="Path to the output file.")
+    parser.add_argument("--threads",                                type=int,   default=1,      help="Number of threads to use for parallelization over chromosomes.")
     parser.add_argument("--min_segment_length",                     type=int,   default=100,    help="Minimum length of a segment to be included in output.")
     parser.add_argument("--compress_output",                                    default=False,  action="store_true", help="Compress output files.")
     parser.add_argument("--verbose",                                            default=False,  action="store_true", help="Print information to stdout during execution.")
@@ -111,7 +112,7 @@ def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
     return pd.MultiIndex.from_frame(temp_df[["CONTIG", "START", "END"]])
 
 
-def merge_abutting_intervals(intervals: pd.DataFrame, dist: int = 1, tol: float = 1e-3):
+def merge_abutting_intervals(intervals: pd.DataFrame, cols: list[str], dist: int = 1, tol: float = 1e-3):
     new_intervals = []
     previous_interval = None
     for i, interval in intervals.iterrows():
@@ -122,7 +123,7 @@ def merge_abutting_intervals(intervals: pd.DataFrame, dist: int = 1, tol: float 
 
         # interval.name == (contig, start, end)
         if interval.name[0] == previous_interval.name[0] and abs(interval.name[1] - previous_interval.name[2]) <= dist:
-            if (abs(previous_interval - interval) < tol).all():
+            if (abs(previous_interval[cols] - interval[cols]) < tol).all() & (previous_interval["CALL"] == interval["CALL"]):
                 new_interval = copy(previous_interval)
                 new_interval.name = (new_interval.name[0], new_interval.name[1], interval.name[2])
                 new_intervals[-1] = new_interval
@@ -176,7 +177,7 @@ def harmonize_loci_parallel(copy_ratios: pd.DataFrame, verbose: bool = False, ma
     return pd.concat(harmonized_loci_by_contig)
 
 
-def harmonize_and_filter(copy_ratios: list[pd.DataFrame], sample_name: str, normal_sample_name: str, min_target_length: int = 1, max_processes: int = 1, verbose: bool = False):
+def harmonize_and_filter(copy_ratios: list[pd.DataFrame], sample_name: str, normal_sample_name: str, merge_on_cols: list[str], min_target_length: int = 1, max_processes: int = 1, verbose: bool = False):
     cr = pd.concat(copy_ratios, ignore_index=True)
     if cr.empty:
         print("  No loci found to harmonize in any of the input files.") if verbose else None
@@ -187,7 +188,7 @@ def harmonize_and_filter(copy_ratios: list[pd.DataFrame], sample_name: str, norm
     print(f"Harmonizing intervals took {time.perf_counter() - t:.3f} seconds.") if verbose else None
 
     aggregate = harmonized_loci.groupby(by=["CONTIG", "START", "END", "SAMPLE"]).agg(
-        {key: "mean" for key in harmonized_loci.columns if key not in ["CONTIG", "START", "END", "SAMPLE"]}
+        {key: "sum" for key in harmonized_loci.columns if key not in ["CONTIG", "START", "END", "SAMPLE"]}
     ).unstack(level="SAMPLE").swaplevel(axis=1)
     aggregate = aggregate.reindex(sort_genomic_positions(index=aggregate.index))
 
@@ -198,7 +199,7 @@ def harmonize_and_filter(copy_ratios: list[pd.DataFrame], sample_name: str, norm
 
     # Drop intervals that are called as amp or del in the normal sample:
     germline_mask = aggregate[(normal_sample_name, "CALL")].isin(["-", "+"])
-    somatic_intervals = aggregate.loc[~germline_mask, sample_name]
+    somatic_intervals = aggregate.loc[~germline_mask, sample_name].dropna(how="all")
     n_somatic = somatic_intervals.shape[0]
     pct_drop = 100 * (1 - n_somatic / n_harmonized)
     print(f"  Number of loci after dropping loci called as CNV in germline sample: {n_somatic} (-{pct_drop:.3f}%)") if verbose else None
@@ -206,7 +207,7 @@ def harmonize_and_filter(copy_ratios: list[pd.DataFrame], sample_name: str, norm
         return somatic_intervals
 
     # merge abutting intervals with same copy ratio
-    merged_consensus_intervals = merge_abutting_intervals(somatic_intervals)
+    merged_consensus_intervals = merge_abutting_intervals(somatic_intervals, cols=merge_on_cols)
     n_merged = merged_consensus_intervals.shape[0]
     pct_drop = 100 * (1 - n_merged / n_somatic)
     print(f"  Number of loci after merging abutting intervals with the same copy ratio: {n_merged} (-{pct_drop:.3f}%)") if verbose else None
@@ -256,19 +257,23 @@ def harmonize_intervals(args):
     print() if args.verbose else None
 
     print("Harmonizing and filter copy ratio intervals:") if args.verbose else None
-    filtered_cr = harmonize_and_filter(
-        copy_ratios=[cr_df, normal_cr_df],
-        sample_name=sample_name,
-        normal_sample_name=normal_sample_name,
-        min_target_length=args.min_target_length,
-        max_processes=args.threads,
-        verbose=args.verbose
-    )
-    print() if args.verbose else None
+    if not cr_df.empty and not normal_cr_df.empty:
+        filtered_cr = harmonize_and_filter(
+            copy_ratios=[cr_df, normal_cr_df],
+            sample_name=sample_name,
+            normal_sample_name=normal_sample_name,
+            merge_on_cols=["LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_90", "MINOR_ALLELE_FRACTION_POSTERIOR_10", "MINOR_ALLELE_FRACTION_POSTERIOR_50", "MINOR_ALLELE_FRACTION_POSTERIOR_90"],
+            min_target_length=args.min_segment_length,
+            max_processes=args.threads,
+            verbose=args.verbose
+        )
+        print() if args.verbose else None
+    else:
+        filtered_cr = cr_df
 
     write_header_and_df(
         header=cr_header,
-        df=filtered_cr,
+        df=filtered_cr.reset_index()[columns] if not filtered_cr.empty else pd.DataFrame(columns=columns),
         file_path=args.output,
         verbose=args.verbose
     )

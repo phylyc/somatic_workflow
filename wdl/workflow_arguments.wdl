@@ -46,6 +46,7 @@ struct WorkflowArguments {
     Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound
     Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold
     Float call_copy_ratios_z_score_threshold
+    Int filter_germline_cnvs_min_segment_length
 
     String genotype_variants_script
     String harmonize_copy_ratios_script
@@ -136,6 +137,7 @@ workflow DefineWorkflowArguments {
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
         Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold = 2.0
         Float call_copy_ratios_z_score_threshold = 2.0
+        Int filter_germline_cnvs_min_segment_length = 100
 
         String genotype_variants_script =       "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
         String harmonize_copy_ratios_script =   "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
@@ -264,6 +266,7 @@ workflow DefineWorkflowArguments {
         call_copy_ratios_neutral_segment_copy_ratio_upper_bound: call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
         call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold: call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold,
         call_copy_ratios_z_score_threshold: call_copy_ratios_z_score_threshold,
+        filter_germline_cnvs_min_segment_length: filter_germline_cnvs_min_segment_length,
 
         genotype_variants_script: genotype_variants_script,
         harmonize_copy_ratios_script: harmonize_copy_ratios_script,

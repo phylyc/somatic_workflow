@@ -23,6 +23,7 @@ workflow FilterSegments {
                         script = args.filter_germline_cnvs_script,
                         tumor_called_copy_ratio_segmentation = select_first([sample.called_copy_ratio_segmentation]),
                         normal_called_copy_ratio_segmentation = select_first([matched_normal_sample.called_copy_ratio_segmentation]),
+                        min_segment_length = args.filter_germline_cnvs_min_segment_length,
                         runtime_params = runtime_collection.filter_germline_cnvs
                 }
             }
