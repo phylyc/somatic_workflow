@@ -167,7 +167,7 @@ task CollectCoveredRegionsTask {
 
         rm -f '~{filtered_bam}' '~{filtered_bai}'
 
-        if [[ "~{output_format}" == "bam" ]] ; then
+        if [ "~{output_format}" == "bam" ] ; then
             echo "$(date +'%H:%M:%S.%3N') Create bam from bed file:"
             echo "Replace target names with dots to avoid bedtools error [E::bam_aux_next] Corrupted aux data for read ..."
 
@@ -196,7 +196,7 @@ task CollectCoveredRegionsTask {
             rm -f 'tmp.~{name}.bam' 'tmp.annotated.~{name}.bam'
         fi
 
-        if [[ "~{output_format}" == "interval_list" ]] ; then
+        if [ "~{output_format}" == "interval_list" ] ; then
             echo "$(date +'%H:%M:%S.%3N') Create interval_list from bed file:"
 
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \

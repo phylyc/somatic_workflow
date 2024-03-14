@@ -110,7 +110,7 @@ task CollectReadCountsTask {
             --interval-merging-rule ~{interval_merging_rule} \
             --format ~{format} \
             ~{if is_paired_end then "--read-filter FirstOfPairReadFilter " else ""} \
-            ~{if is_paired_end then "--read-filter PairedReadFilter " else ""} \
+            ~{if is_paired_end then "--read-filter PairedReadFilter " else ""}
 	>>>
 
 	output {

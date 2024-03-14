@@ -16,15 +16,18 @@ workflow ClonalAnalysisWorkflow {
     }
 
     if (args.run_clonal_decomposition) {
-        scatter (sample in patient.samples) {
-            if (defined(sample.copy_ratio_segmentation) && defined(sample.af_model_parameters) && defined(sample.annotated_variants)) {
+        scatter (sample in patient.tumor_samples) {
+            if (defined(sample.called_copy_ratio_segmentation) && defined(sample.af_model_parameters) && defined(sample.annotated_variants)) {
                 call abs.Absolute {
                     input:
                         acs_conversion_script = args.acs_conversion_script,
                         sample_name = sample.name,
-                        copy_ratio_segmentation = select_first([sample.copy_ratio_segmentation]),
+                        copy_ratio_segmentation = select_first([sample.called_copy_ratio_segmentation]),
                         af_model_parameters = select_first([sample.af_model_parameters]),
                         annotated_variants = select_first([sample.annotated_variants]),
+                        min_hets = args.absolute_min_hets,
+                        min_probes = args.absolute_min_probes,
+                        maf90_threshold = args.absolute_maf90_threshold,
                         runtime_collection = runtime_collection
                 }
             }
