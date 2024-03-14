@@ -16,9 +16,9 @@ The workflow is organized into the following main tasks:
 ### 2. CNV Calling
 Tasks involved in the detection and analysis of copy number variations:
 - **2.1 Read Count Collection**: Collect read counts in target intervals and perform denoising of total copy ratios per target interval.
-- **2.2 Allelic Count Collection**: Collect allelic counts at common germline sites.
-- **2.3 Harmonization of Target Intervals**: Ensure consistency of target intervals across samples; merge data from multiple sequencing runs per sample.
-- **2.4 Genotyping and Contamination Estimation**: Perform genotyping of allelic count data at common germline sites and estimate sample contamination.
+- **2.2 Allelic Count Collection**: Collect allelic counts at common germline sites (SNP panel).
+- **2.3 Harmonization of Target Intervals**: Ensure consistency of target intervals across samples, removing intervals not present in all samples; merge data from multiple sequencing runs per sample.
+- **2.4 Genotyping and Contamination Estimation**: Genotype allelic count data at common germline sites, harmonize allelic loci across samples, and estimate out-of-patient contamination in each sample.
 - **2.5 Multi-sample Segmentation**: Segment denoised copy ratios and allelic counts across multiple samples.
 - **2.6 Per-sample Copy Ratio Inference**: Infer copy ratios for each sample.
 - **2.7 Per-sample Event Calling**: Call amplifications and deletions for each sample. 
@@ -28,8 +28,8 @@ Tasks involved in the detection and analysis of copy number variations:
 Tasks involved in the detection and analysis of short nucleotide variations:
 - **3.1 Mutect2 Multi-sample Calling**: Use Mutect2 for multi-sample mutation calling.
 - **3.2 Filter Mutect2 Calls**: Apply filters for germline variants, read orientation bias, and contamination (from CNV workflow), among others.
-- **3.3 Realignment Filter**: Filter based on realignment success (to hg38 or whichever reference is given by `realignment_bwa_mem_index_image`).
-- **3.4 Hard Filtering**: Apply hard filters based on mappability, base quality, fragment length, and read depth (can be set via `select_variants_extra_args`).
+- **3.3 Hard Filtering**: Apply hard filters based on mappability, base quality, fragment length, and read depth (can be set via `select_variants_extra_args`).
+- **3.4 Realignment Filter**: Filter based on realignment success (to hg38 or whichever reference is given by `realignment_bwa_mem_index_image`).
 - **3.5 Annotate SNVs**: Annotate short nucleotide variants with functional information.
 
 ### 4. Clonal Analysis
@@ -56,11 +56,17 @@ Array[File]+ bais
 # target intervals must be supplied. For whole genome sequencing, the intervals 
 # are just the binned chromosomal intervals (ideally blacklist-removed). 
 Array[File]+ target_intervals
+# The target_intervals annotated with gc content, mappability, and segmental duplications. 
 Array[File]? annotated_target_intervals
 # If a panel of normals is not available for the sequencing platform of a sample,
-# it corresponding path must point to an empty file. The annotated_target_intervals
-# will instead be used for denoising.
+# its corresponding path must point to an empty file (of size 0B). The 
+# annotated_target_intervals will instead be used for denoising.
 Array[File]? cnv_panel_of_normals
+# Paired-end reads that overlap at some sites of interest lead to double counting. 
+# This process in general is more of an issue in cell-free DNA where the vast majority 
+# of templates are ~166bp long, which is shorter than twice the read length. The result 
+# is that many bases on a given template are reported twice, once from each paired-end 
+# read. This is mitigated by setting the respective `is_paired_end` entry to `true`.
 Array[Boolean]? is_paired_end       # Boolean inputs, ensure correct format!
 # Whether to use the sample for denoised copy ratio (dCR) and allelic copy ratio 
 # (aCR) estimation. If not provided, all samples will be used.
@@ -85,11 +91,11 @@ File ref_fasta
 File ref_fasta_index
 File ref_dict
 
-# VCF file of variants to force mutation calling at.
+# VCF file of sites to force mutation calling at, e.g. COSMIC or known driver mutations.
 File? force_call_alleles
 File? force_call_alleles_idx
 # VCF file of common sequencing artifacts to filter out. This should match the 
-# sequencing platform of the samples.
+# sequencing platform(s) of the samples.
 File? snv_panel_of_normals
 File? snv_panel_of_normals_idx
 # VCF file of germline alleles to filter out (gnomAD).
@@ -117,7 +123,8 @@ File? genotyped_snparray_vcf_idx
 File? snparray_ref_counts
 File? snparray_alt_counts
 File? snparray_other_alt_counts
-# Sample cross-correlation table of variant genotypes.
+# Sample cross-correlation table of variant genotypes. Low correlation indicates
+# high contamination or sample swaps.
 File? sample_snp_correlation
 # Pileup tables at sites of the SNP panel with genotype likelihoods
 Array[File]? sample_snparray_genotype_likelihoods
@@ -127,26 +134,26 @@ Array[File]? snparray_pileups
 Array[File]? snparray_allelic_counts
 # Contamination estimates for each sample
 Array[File]? contamination_tables
-# Rough allelic copy ratio segmentations for each sample
+# Coarse allelic copy ratio segmentations for each sample
 Array[File]? segmentation_tables
-# Read counts in target intervals for each sequencing run (!)
+# Read counts in supplied target intervals for each sequencing run (!)
 Array[File?]? target_read_counts
 # Harmonized denoised copy ratios for each sample
 Array[File?]? denoised_copy_ratios
 
 # Multi-sample segmentation intervals
 File? modeled_segments
-# dCR and aCR copy ratio segmentation per sample 
+# Denoised copy ratio and allelic copy ratio segmentations per sample
 Array[File]? cr_segments
-# +- called segments
+# -0+ called segments
 Array[File]? called_cr_segments
-# Modeled dCR and aCR segments plots
+# Denoised copy ratio and allelic copy ratio segmentation model plots
 Array[File]? cr_plots
 # Model parameters from GATK's ModelSegments 
 Array[File]? af_model_parameters
 Array[File]? cr_model_parameters
 
-# Pure Mutect2 output of called variants
+# Mutect2 output of called variants
 File? unfiltered_vcf
 File? unfiltered_vcf_idx
 File? mutect_stats
@@ -180,9 +187,10 @@ Array[File]? absolute_rdata
 ```
 
 ## Important Notes :
-- It is recommended to move all output files to a separate bucket or directory after workflow completion as intermediate files can be large and unnecessarily consume storage. 
-- As of GATK v4.3.0.0 force-calling alleles leads to mis-classification of filtered variants in the same way as [the flag -genotype-germline-sites does](https://github.com/broadinstitute/gatk/issues/7391). It is therefore recommended to use `keep_germline=false` (default).
-- Mutect2: `use_linked_de_bruijn_graph` has trouble calling variants in complex regions. Strongly recommended to use with `recover_all_dangling_branches` (both turned on by default). This increases compute cost though, and may still not guarantee that all variants are being called. Ideally, run with and without these options and use the joint call set.
+- It is recommended to move all output files to a separate bucket or directory after workflow completion as intermediate files can be large and unnecessarily consume storage ($$$). 
+- Allelic counts are collected via GetPileupSummaries. This tool ignores certain MNVs and INDELs and should eventually be replaced by [CollectByBaseCounts](https://github.com/broadinstitute/gatk/pull/6545). The GenotypeSNPArray workflow corrects some of its shortcomings.
+- As of GATK v4.3.0.0 force-calling alleles leads to mis-classification of filtered variants in the same way as [the flag `--genotype-germline-sites` does](https://github.com/broadinstitute/gatk/issues/7391). It is therefore recommended to use `keep_germline=false` (default) until this has been fixed. Ideally, run Mutect2 also only the force-calling sites and merge the results with the main call set.
+- `use_linked_de_bruijn_graph`, while increasing sensitivity, has trouble calling variants in complex regions. Strongly recommended to use with `recover_all_dangling_branches` (both turned on by default). Ideally, run with and without these options and use the joint call set.
 - Runtime parameters are optimized for implementations on Google Cloud Platform (GCP) and HPC cluster with SLURM scheduler.
 - For assistance running workflows on GCP or locally, refer to the [GATK tutorial](https://gatk.broadinstitute.org/hc/en-us/articles/360035530952).
 - Access necessary reference and resources bundles via the [GATK Resource Bundle](https://gatk.broadinstitute.org/hc/en-us/articles/360036212652).
