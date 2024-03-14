@@ -274,6 +274,10 @@ workflow DefineWorkflowArguments {
         filter_germline_cnvs_script: filter_germline_cnvs_script,
         acs_conversion_script: acs_conversion_script,
 
+        absolute_min_hets: absolute_min_hets,
+        absolute_min_probes: absolute_min_probes,
+        absolute_maf90_threshold: absolute_maf90_threshold,
+
         min_read_depth: min_read_depth,
         mutect2_native_pair_hmm_use_double_precision: mutect2_native_pair_hmm_use_double_precision,
         mutect2_use_linked_de_bruijn_graph: mutect2_use_linked_de_bruijn_graph,
@@ -287,6 +291,8 @@ workflow DefineWorkflowArguments {
         filter_mutect2_min_alt_median_mapping_quality: filter_mutect2_min_alt_median_mapping_quality,
         filter_mutect2_min_median_read_position: filter_mutect2_min_median_read_position,
         filter_alignment_artifacts_max_reasonable_fragment_length: filter_alignment_artifacts_max_reasonable_fragment_length,
+        hard_filter_expressions: hard_filter_expressions,
+        hard_filter_names: hard_filter_names,
         funcotator_reference_version: funcotator_reference_version,
         funcotator_output_format: funcotator_output_format,
         funcotator_variant_type: funcotator_variant_type,
