@@ -17,7 +17,6 @@ workflow UpdateSamples {
         Array[File]? germline_allelic_counts
         Array[File]? contaminations
         Array[File]? af_segmentations
-        Array[File]? copy_ratio_segmentations
         Array[File]? af_model_parameters
         Array[File]? cr_model_parameters
         Array[File]? called_copy_ratio_segmentations
@@ -95,7 +94,7 @@ workflow UpdateSamples {
     Array[Sample] samples_6 = select_first([UpdateGenotypeErrorProbabilities.updated_sample, samples_5])
 
     if (defined(somatic_allelic_counts)) {
-        scatter (pair in zip(samples_5, select_first([somatic_allelic_counts, []]))) {
+        scatter (pair in zip(samples_6, select_first([somatic_allelic_counts, []]))) {
             call s.UpdateSample as UpdateSomaticAllelicCounts {
                 input:
                     sample = pair.left,
@@ -106,7 +105,7 @@ workflow UpdateSamples {
     Array[Sample] samples_7 = select_first([UpdateSomaticAllelicCounts.updated_sample, samples_6])
 
     if (defined(germline_allelic_counts)) {
-        scatter (pair in zip(samples_6, select_first([germline_allelic_counts, []]))) {
+        scatter (pair in zip(samples_7, select_first([germline_allelic_counts, []]))) {
             call s.UpdateSample as UpdateGermlineAllelicCounts {
                 input:
                     sample = pair.left,
@@ -117,7 +116,7 @@ workflow UpdateSamples {
     Array[Sample] samples_8 = select_first([UpdateGermlineAllelicCounts.updated_sample, samples_7])
 
     if (defined(contaminations)) {
-        scatter (pair in zip(samples_7, select_first([contaminations, []]))) {
+        scatter (pair in zip(samples_8, select_first([contaminations, []]))) {
             call s.UpdateSample as UpdateContamination {
                 input:
                     sample = pair.left,
@@ -128,7 +127,7 @@ workflow UpdateSamples {
     Array[Sample] samples_9 = select_first([UpdateContamination.updated_sample, samples_8])
 
     if (defined(af_segmentations)) {
-        scatter (pair in zip(samples_8, select_first([af_segmentations, []]))) {
+        scatter (pair in zip(samples_9, select_first([af_segmentations, []]))) {
             call s.UpdateSample as UpdateAfSegmentation {
                 input:
                     sample = pair.left,
@@ -137,17 +136,6 @@ workflow UpdateSamples {
         }
     }
     Array[Sample] samples_10 = select_first([UpdateAfSegmentation.updated_sample, samples_9])
-
-    if (defined(copy_ratio_segmentations)) {
-        scatter (pair in zip(samples_9, select_first([copy_ratio_segmentations, []]))) {
-            call s.UpdateSample as UpdateCopyRatioSegmentation {
-                input:
-                    sample = pair.left,
-                    copy_ratio_segmentation = pair.right,
-            }
-        }
-    }
-    Array[Sample] samples_11 = select_first([UpdateCopyRatioSegmentation.updated_sample, samples_10])
 
     if (defined(af_model_parameters)) {
         scatter (pair in zip(samples_10, select_first([af_model_parameters, []]))) {
@@ -158,7 +146,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_12 = select_first([UpdateAfModelParameters.updated_sample, samples_11])
+    Array[Sample] samples_11 = select_first([UpdateAfModelParameters.updated_sample, samples_10])
 
     if (defined(cr_model_parameters)) {
         scatter (pair in zip(samples_11, select_first([cr_model_parameters, []]))) {
@@ -169,7 +157,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_13 = select_first([UpdateCrModelParameters.updated_sample, samples_12])
+    Array[Sample] samples_12 = select_first([UpdateCrModelParameters.updated_sample, samples_11])
 
     if (defined(called_copy_ratio_segmentations)) {
         scatter (pair in zip(samples_12, select_first([called_copy_ratio_segmentations, []]))) {
@@ -180,7 +168,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_14 = select_first([UpdateCalledCopyRatioSegmentation.updated_sample, samples_13])
+    Array[Sample] samples_13 = select_first([UpdateCalledCopyRatioSegmentation.updated_sample, samples_12])
 
     if (defined(acs_copy_ratio_segmentations)) {
         scatter (pair in zip(samples_13, select_first([acs_copy_ratio_segmentations, []]))) {
@@ -191,7 +179,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_15 = select_first([UpdateAcsCopyRatioSegmentation.updated_sample, samples_14])
+    Array[Sample] samples_14 = select_first([UpdateAcsCopyRatioSegmentation.updated_sample, samples_13])
 
     if (defined(acs_copy_ratio_skews)) {
         scatter (pair in zip(samples_14, select_first([acs_copy_ratio_skews, []]))) {
@@ -202,7 +190,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_16 = select_first([UpdateAcsCopyRatioSkew.updated_sample, samples_15])
+    Array[Sample] samples_15 = select_first([UpdateAcsCopyRatioSkew.updated_sample, samples_14])
 
     if (defined(annotated_variants)) {
         scatter (pair in zip(samples_15, select_first([annotated_variants, []]))) {
@@ -213,12 +201,12 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_17 = select_first([UpdateAnnotatedVariants.updated_sample, samples_16])
+    Array[Sample] samples_16 = select_first([UpdateAnnotatedVariants.updated_sample, samples_15])
 
     # Select tumor and normal samples:
 
     scatter (tumor_sample in patient.tumor_samples) {
-        scatter (sample in samples_17) {
+        scatter (sample in samples_16) {
             if (sample.name == tumor_sample.name) {
                 Sample selected_tumor_sample = sample
             }
@@ -228,7 +216,7 @@ workflow UpdateSamples {
 
     if (patient.has_normal) {
         scatter (normal_sample in patient.normal_samples) {
-            scatter (sample in samples_17) {
+            scatter (sample in samples_16) {
                 if (sample.name == normal_sample.name) {
                     Sample selected_normal_sample = sample
                 }

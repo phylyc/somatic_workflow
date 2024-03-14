@@ -23,7 +23,9 @@ struct RuntimeCollection {
     Runtime genotype_variants
     Runtime model_segments
     Runtime call_copy_ratio_segments
+    Runtime merge_calls_with_modeled_segments
     Runtime plot_modeled_segments
+    Runtime filter_germline_cnvs
     Runtime model_segments_to_acs_conversion
     Runtime process_maf_for_absolute
     Runtime absolute
@@ -34,6 +36,7 @@ struct RuntimeCollection {
     Runtime merge_mutect_stats
     Runtime merge_bams
     Runtime filter_mutect_calls
+    Runtime variant_filtration
     Runtime filter_alignment_artifacts
     Runtime select_variants
     Runtime funcotate
@@ -77,6 +80,10 @@ workflow DefineRuntimeCollection {
 
         Int time_startup = 10
 
+        #######################################################################
+        ### Preprocessing
+        #######################################################################
+
         # GetTumorSampleNames
         Int mem_get_tumor_sample_names = 256
         Int time_get_tumor_sample_names = 1
@@ -96,6 +103,10 @@ workflow DefineRuntimeCollection {
         # gatk: SplitIntervals
         Int mem_split_intervals = 1024
         Int time_split_intervals = 1
+
+        #######################################################################
+        # CNV workflow
+        #######################################################################
 
         # CollectCoveredRegions
         Int mem_collect_covered_regions = 8192
@@ -154,21 +165,21 @@ workflow DefineRuntimeCollection {
         Int mem_call_copy_ratio_segments = 2048
         Int time_call_copy_ratio_segments = 10
 
+        # custom task to merge calls with modeled segments
+        Int mem_merge_calls_with_modeled_segments = 512
+        Int time_merge_calls_with_modeled_segments = 1
+
         # gatk: PlotModeledSegments
         Int mem_plot_modeled_segments = 4096
         Int time_plot_modeled_segments = 10
 
-        # ModelSegmentsToACSConversion
-        Int mem_model_segments_to_acs_conversion = 1024
-        Int time_model_segments_to_acs_conversion = 10
+        # custom filtering script
+        Int mem_filter_germline_cnvs = 2048
+        Int time_filter_germline_cnvs = 10
 
-        # ProcessMafForAbsolute
-        Int mem_process_maf_for_absolute = 2048
-        Int time_process_maf_for_absolute = 10
-
-        # Absolute
-        Int mem_absolute = 6144
-        Int time_absolute = 180
+        #######################################################################
+        ### SNV workflow
+        #######################################################################
 
         # gatk: Mutect2
         Int cpu_mutect2 = 4  # good for PairHMM: 4
@@ -200,6 +211,10 @@ workflow DefineRuntimeCollection {
         Int mem_filter_mutect_calls = 4096
         Int time_filter_mutect_calls = 800  # 13 h
 
+        # gatk: VariantFiltration
+        Int mem_variant_filtration = 2048
+        Int time_variant_filtration = 5
+
         # gatk: FilterAlignmentArtifacts
         Int cpu_filter_alignment_artifacts = 4  # good for PairHMM: 4
         Int mem_filter_alignment_artifacts_base = 3072  # needs to be increased in some cases
@@ -212,6 +227,26 @@ workflow DefineRuntimeCollection {
         # gatk: Funcotator
         Int mem_funcotate = 6144
         Int time_funcotate = 1440  # 24 h
+
+        #######################################################################
+        ### Clonal Analysis worklflow
+        #######################################################################
+
+        # ModelSegmentsToACSConversion
+        Int mem_model_segments_to_acs_conversion = 1024
+        Int time_model_segments_to_acs_conversion = 10
+
+        # ProcessMafForAbsolute
+        Int mem_process_maf_for_absolute = 2048
+        Int time_process_maf_for_absolute = 10
+
+        # Absolute
+        Int mem_absolute = 6144
+        Int time_absolute = 60
+
+        #######################################################################
+        ### Assorted
+        #######################################################################
 
         # gatk: CreateReadCountPanelOfNormals
         Int mem_create_cnv_panel = 16384
@@ -478,6 +513,18 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime merge_calls_with_modeled_segments = {
+        "docker": ubuntu_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_merge_calls_with_modeled_segments + mem_machine_overhead,
+        "command_mem": mem_merge_calls_with_modeled_segments,
+        "runtime_minutes": time_startup + time_merge_calls_with_modeled_segments,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Runtime plot_modeled_segments = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
@@ -487,6 +534,18 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_plot_modeled_segments + mem_machine_overhead,
         "command_mem": mem_plot_modeled_segments,
         "runtime_minutes": time_startup + time_plot_modeled_segments,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime filter_germline_cnvs = {
+        "docker": python_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_filter_germline_cnvs + mem_machine_overhead,
+        "command_mem": mem_filter_germline_cnvs,
+        "runtime_minutes": time_startup + time_filter_germline_cnvs,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -504,7 +563,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime process_maf_for_absolute = {
-        "docker": tag_cga_pipline_docker,
+        "docker": python_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
@@ -615,6 +674,19 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_filter_mutect_calls + mem_machine_overhead,
         "command_mem": mem_filter_mutect_calls,
         "runtime_minutes": time_startup + time_filter_mutect_calls,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime variant_filtration = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_variant_filtration + mem_machine_overhead,
+        "command_mem": mem_variant_filtration,
+        "runtime_minutes": time_startup + time_variant_filtration,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -742,7 +814,9 @@ workflow DefineRuntimeCollection {
         "genotype_variants": genotype_variants,
         "model_segments": model_segments,
         "call_copy_ratio_segments": call_copy_ratio_segments,
+        "merge_calls_with_modeled_segments": merge_calls_with_modeled_segments,
         "plot_modeled_segments": plot_modeled_segments,
+        "filter_germline_cnvs": filter_germline_cnvs,
 
         "model_segments_to_acs_conversion": model_segments_to_acs_conversion,
         "process_maf_for_absolute": process_maf_for_absolute,
@@ -755,6 +829,7 @@ workflow DefineRuntimeCollection {
         "merge_mutect_stats": merge_mutect_stats,
         "merge_bams": merge_bams,
         "filter_mutect_calls": filter_mutect_calls,
+        "variant_filtration": variant_filtration,
         "filter_alignment_artifacts": filter_alignment_artifacts,
         "select_variants": select_variants,
         "funcotate": funcotate,

@@ -10,6 +10,7 @@ import "collect_allelic_counts.wdl" as cac
 import "harmonize_samples.wdl" as hs
 import "genotype_snp_array.wdl" as gsa
 import "model_segments.wdl" as ms
+import "filter_segments.wdl" as fs
 
 
 workflow CNVWorkflow {
@@ -44,6 +45,7 @@ workflow CNVWorkflow {
                         ref_dict = args.files.ref_dict,
                         bam = sequencing_run.bam,
                         bai = sequencing_run.bai,
+                        is_paired_end = sequencing_run.is_paired_end,
                         sample_name = sample.name + ".snp_array",
                         interval_list = sequencing_run.target_intervals,
                         scattered_interval_list = args.scattered_interval_list,
@@ -148,12 +150,19 @@ workflow CNVWorkflow {
                 args = args,
                 runtime_collection = runtime_collection,
         }
+
+        call fs.FilterSegments {
+            input:
+                patient = ModelSegments.updated_patient,
+                args = args,
+                runtime_collection = runtime_collection,
+        }
     }
 
     # todo: FuncotateSegments
 
     output {
-        Patient updated_patient = select_first([ModelSegments.updated_patient, updated_patient_])
+        Patient updated_patient = select_first([FilterSegments.updated_patient, updated_patient_])
 
         File? genotyped_snparray_vcf = GenotypeSNPArray.genotyped_vcf
         File? genotyped_snparray_vcf_idx = GenotypeSNPArray.genotyped_vcf_idx
@@ -168,8 +177,7 @@ workflow CNVWorkflow {
         Array[File]? segmentation_tables = GenotypeSNPArray.segmentations
 
         File? modeled_segments = ModelSegments.modeled_segments
-        Array[File]? cr_segments = ModelSegments.seg_final
-        Array[File]? called_cr_segments = ModelSegments.called_cr_seg
+        Array[File]? called_copy_ratio_segmentations = ModelSegments.called_copy_ratio_segmentations
         Array[File]? cr_plots = ModelSegments.cr_plots
         Array[File]? af_model_parameters = ModelSegments.af_model_final_parameters
         Array[File]? cr_model_parameters = ModelSegments.cr_model_final_parameters

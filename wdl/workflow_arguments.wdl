@@ -21,6 +21,7 @@ struct WorkflowArguments {
     Boolean run_orientation_bias_mixture_model
     Boolean run_variant_calling
     Boolean run_variant_filter
+    Boolean run_variant_hard_filter
     Boolean run_realignment_filter
     Boolean run_realignment_filter_only_on_high_confidence_variants
     Boolean run_collect_called_variants_allelic_coverage
@@ -48,7 +49,12 @@ struct WorkflowArguments {
     String genotype_variants_script
     String harmonize_copy_ratios_script
     String merge_pileups_script
+    String filter_germline_cnvs_script
     String acs_conversion_script
+
+    Int absolute_min_hets
+    Int absolute_min_probes
+    Float absolute_maf90_threshold
 
     # SNV WORKFLOW
     Boolean mutect2_native_pair_hmm_use_double_precision
@@ -63,6 +69,8 @@ struct WorkflowArguments {
     Int filter_mutect2_min_alt_median_mapping_quality
     Int filter_mutect2_min_median_read_position
     Int filter_alignment_artifacts_max_reasonable_fragment_length
+    Array[String] hard_filter_expressions
+    Array[String] hard_filter_names
     String funcotator_reference_version
     String funcotator_output_format
     String funcotator_variant_type
@@ -78,6 +86,7 @@ struct WorkflowArguments {
     String? getpileupsummaries_extra_args
     String? mutect2_extra_args
     String? filter_mutect2_extra_args
+    String? variant_filtration_extra_args
     String? select_variants_extra_args
     String? select_low_conficence_variants_jexl_arg
     String? realignment_extra_args
@@ -100,6 +109,7 @@ workflow DefineWorkflowArguments {
         Boolean run_orientation_bias_mixture_model = true
         Boolean run_variant_calling = true
         Boolean run_variant_filter = true
+        Boolean run_variant_hard_filter = true
         Boolean run_realignment_filter = true
         Boolean run_realignment_filter_only_on_high_confidence_variants = true
         Boolean run_collect_called_variants_allelic_coverage = true
@@ -125,10 +135,15 @@ workflow DefineWorkflowArguments {
         Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold = 2.0
         Float call_copy_ratios_z_score_threshold = 2.0
 
-        String genotype_variants_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
-        String harmonize_copy_ratios_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/harmonize_copy_ratios.py"
-        String merge_pileups_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/merge_pileups.py"
-        String acs_conversion_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/acs_conversion.py"
+        String genotype_variants_script =       "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
+        String harmonize_copy_ratios_script =   "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
+        String merge_pileups_script =           "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
+        String filter_germline_cnvs_script =    "https://github.com/phylyc/somatic_workflow/raw/master/python/filter_germline_cnvs.py"
+        String acs_conversion_script =          "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
+
+        Int absolute_min_hets = 10
+        Int absolute_min_probes = 4
+        Float absolute_maf90_threshold = 0.485
 
         # SNV WORKFLOW
         Int min_read_depth = 4
@@ -144,6 +159,22 @@ workflow DefineWorkflowArguments {
         Int filter_mutect2_min_alt_median_mapping_quality = 20  # default: -1
         Int filter_mutect2_min_median_read_position = 5  # default: 1
         Int filter_alignment_artifacts_max_reasonable_fragment_length = 10000 # default: 100000
+        Array[String] hard_filter_expressions = [
+            "DP < 10",
+            "MBQ.0 < 20", "MBQ.1 < 20",
+            "MMQ.0 < 20", "MMQ.1 < 20",
+            "MFRL.0 < 18", "MFRL.1 < 18",
+            "MPOS.0 < 6",
+            "ROQ < 10"
+        ]
+        Array[String] hard_filter_names = [
+            "lowDP",
+            "lowMBQ.0", "lowMBQ.1",
+            "lowMMQ.0", "lowMMQ.1",
+            "lowMFRL.0", "lowMFRL.1",
+            "lowMPOS",
+            "lowROQ"
+        ]
         String funcotator_reference_version = "hg19"
         String funcotator_output_format = "MAF"
         String funcotator_variant_type = "somatic"  # alternative: germline
@@ -159,7 +190,8 @@ workflow DefineWorkflowArguments {
         String? getpileupsummaries_extra_args
         String? mutect2_extra_args
         String? filter_mutect2_extra_args
-        String? select_variants_extra_args = "-select '(vc.getAttribute(\"DP\") > 3) && (vc.getAttribute(\"MBQ\").0 > 19) && (vc.getAttribute(\"MBQ\").1 > 19) && (vc.getAttribute(\"MMQ\").0 > 19) && (vc.getAttribute(\"MMQ\").1 > 19) && (vc.getAttribute(\"MFRL\").0 > 17) && (vc.getAttribute(\"MFRL\").1 > 17)'"
+        String? variant_filtration_extra_args
+        String? select_variants_extra_args
         String? select_low_conficence_variants_jexl_arg = "'(vc.getAttribute(\"GERMQ\") < 30)'"
         String? realignment_extra_args
         String? funcotate_extra_args
@@ -207,6 +239,7 @@ workflow DefineWorkflowArguments {
         run_orientation_bias_mixture_model: run_orientation_bias_mixture_model,
         run_variant_calling: run_variant_calling,
         run_variant_filter: run_variant_filter,
+        run_variant_hard_filter: run_variant_hard_filter,
         run_realignment_filter: run_realignment_filter,
         run_realignment_filter_only_on_high_confidence_variants: run_realignment_filter_only_on_high_confidence_variants,
         run_collect_called_variants_allelic_coverage: run_collect_called_variants_allelic_coverage,
@@ -232,6 +265,7 @@ workflow DefineWorkflowArguments {
         genotype_variants_script: genotype_variants_script,
         harmonize_copy_ratios_script: harmonize_copy_ratios_script,
         merge_pileups_script: merge_pileups_script,
+        filter_germline_cnvs_script: filter_germline_cnvs_script,
         acs_conversion_script: acs_conversion_script,
 
         min_read_depth: min_read_depth,
@@ -261,6 +295,7 @@ workflow DefineWorkflowArguments {
         getpileupsummaries_extra_args: getpileupsummaries_extra_args,
         mutect2_extra_args: mutect2_extra_args,
         filter_mutect2_extra_args: filter_mutect2_extra_args,
+        variant_filtration_extra_args: variant_filtration_extra_args,
         select_variants_extra_args: select_variants_extra_args,
         select_low_conficence_variants_jexl_arg: select_low_conficence_variants_jexl_arg,
         realignment_extra_args: realignment_extra_args,

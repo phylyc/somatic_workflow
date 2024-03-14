@@ -107,6 +107,13 @@ workflow ModelSegments {
                 runtime_params = runtime_collection.call_copy_ratio_segments
         }
 
+        call MergeCallsWithModeledSegments {
+            input:
+                copy_ratio_segments = select_first([SingleSampleInferCR.seg_final]),
+                called_copy_ratio_segments = CallCopyRatioSegments.called_cr_seg,
+                runtime_params = runtime_collection.merge_calls_with_modeled_segments
+        }
+
         call PlotModeledSegments {
             input:
                 ref_dict = args.files.ref_dict,
@@ -118,15 +125,12 @@ workflow ModelSegments {
         }
     }
 
-    # todo: tag & filter germline events
-
     call p_update_s.UpdateSamples as AddSegmentationResultsToSamples {
         input:
             patient = pat,
-            copy_ratio_segmentations = select_all(SingleSampleInferCR.seg_final),
             af_model_parameters = select_all(SingleSampleInferCR.af_model_final_parameters),
             cr_model_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters),
-            called_copy_ratio_segmentations =  CallCopyRatioSegments.called_cr_seg
+            called_copy_ratio_segmentations =  MergeCallsWithModeledSegments.merged_segments,
     }
 
     output {
@@ -143,9 +147,7 @@ workflow ModelSegments {
         Array[File] igv_af = select_all(SingleSampleInferCR.igv_af)
         Array[File] igv_cr = select_all(SingleSampleInferCR.igv_cr)
         Array[File] seg_begin = select_all(SingleSampleInferCR.seg_begin)
-        Array[File] seg_final = select_all(SingleSampleInferCR.seg_final)
-        Array[File] cr_seg = select_all(SingleSampleInferCR.cr_seg)
-        Array[File] called_cr_seg = CallCopyRatioSegments.called_cr_seg
+        Array[File] called_copy_ratio_segmentations = MergeCallsWithModeledSegments.merged_segments
         Array[File] cr_plots = PlotModeledSegments.plot
     }
 }
@@ -167,6 +169,10 @@ task PileupToAllelicCounts {
 
     command <<<
         set -euxo pipefail
+
+        # Set default value
+        printf "0.05" > error_probability.txt
+
         if [ "~{defined(pileup)}" == "true" ] ; then
             if [ "~{is_compressed}" == "true" ] ; then
                 gzip -cd '~{pileup}' > '~{uncompressed_pileup}'
@@ -319,6 +325,41 @@ task CallCopyRatioSegments {
 
     parameter_meta {
 #        copy_ratio_segments: {localization_optional: true}
+    }
+}
+
+task MergeCallsWithModeledSegments {
+    input {
+        File copy_ratio_segments
+        File called_copy_ratio_segments
+        Runtime runtime_params
+    }
+
+    String dollar = "$"
+
+    String output_file = basename(copy_ratio_segments, ".seg") + ".called.seg"
+
+    command <<<
+        # Extract headers (lines starting with "@") from the first file
+        grep "^@" '~{copy_ratio_segments}' > '~{output_file}'
+
+        # Merge the data (excluding headers) from both files
+        paste <(grep -v "^@" '~{copy_ratio_segments}') <(grep -v "^@" '~{called_copy_ratio_segments}' | awk -F'\t' '{print $NF}') >> '~{output_file}'
+    >>>
+
+    output {
+        File merged_segments = output_file
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
     }
 }
 

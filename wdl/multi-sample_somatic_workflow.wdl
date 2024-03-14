@@ -122,8 +122,7 @@ workflow MultiSampleSomaticWorkflow {
         Array[File?]? denoised_copy_ratios = CNVWorkflow.denoised_copy_ratios
 
         File? modeled_segments = CNVWorkflow.modeled_segments
-        Array[File]? cr_segments = CNVWorkflow.cr_segments
-        Array[File]? called_cr_segments = CNVWorkflow.called_cr_segments
+        Array[File]? called_copy_ratio_segmentations = CNVWorkflow.called_copy_ratio_segmentations
         Array[File]? cr_plots = CNVWorkflow.cr_plots
         Array[File]? af_model_parameters = CNVWorkflow.af_model_parameters
         Array[File]? cr_model_parameters = CNVWorkflow.cr_model_parameters

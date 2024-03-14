@@ -29,5 +29,6 @@ python -u harmonize_copy_ratios.py \
   $cr_args \
   --verbose \
   --threads 4 \
+  --min_target_length 2 \
   > $output_dir/$individual_id.log \
   2>&1
