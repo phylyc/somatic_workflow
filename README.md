@@ -22,13 +22,14 @@ Tasks involved in the detection and analysis of copy number variations:
 - **2.5 Multi-sample Segmentation**: Segment denoised copy ratios and allelic counts across multiple samples.
 - **2.6 Per-sample Copy Ratio Inference**: Infer copy ratios for each sample.
 - **2.7 Per-sample Event Calling**: Call amplifications and deletions for each sample. 
-- **2.8 Per-sample Segmentation Plotting**: Plot the segmented denoised copy ratios and allelic copy ratios for each sample.
+- **2.8 Per-sample Germline Filtering**: Filter segments called as amp/del in the matched normal sample from the tumor segmentations.
+- **2.9 Per-sample Segmentation Plotting**: Plot the segmented denoised copy ratios and allelic copy ratios for each sample.
 
 ### 3. SNV Calling
 Tasks involved in the detection and analysis of short nucleotide variations:
 - **3.1 Mutect2 Multi-sample Calling**: Use Mutect2 for multi-sample mutation calling.
 - **3.2 Filter Mutect2 Calls**: Apply filters for germline variants, read orientation bias, and contamination (from CNV workflow), among others.
-- **3.3 Hard Filtering**: Apply hard filters based on mappability, base quality, fragment length, and read depth (can be set via `select_variants_extra_args`).
+- **3.3 Hard Filtering**: Apply hard filters based on base quality, mappability, fragment length, read depth, read orientation quality, and position on the read.
 - **3.4 Realignment Filter**: Filter based on realignment success (to hg38 or whichever reference is given by `realignment_bwa_mem_index_image`).
 - **3.5 Annotate SNVs**: Annotate short nucleotide variants with functional information.
 
