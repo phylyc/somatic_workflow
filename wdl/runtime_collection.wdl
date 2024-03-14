@@ -53,7 +53,7 @@ workflow DefineRuntimeCollection {
         Int num_bams = 1
 
         Int scatter_count = 10
-        String gatk_docker = "broadinstitute/gatk:4.3.0.0"
+        String gatk_docker = "broadinstitute/gatk:4.5.0.0"
         # Needs docker image with bedtools, samtools, and gatk
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
         String tag_cga_pipline_docker = "us.gcr.io/tag-team-160914/neovax-tag-cga-pipeline:v1"
@@ -142,8 +142,8 @@ workflow DefineRuntimeCollection {
 
         # HarmonizeCopyRatios
         Int cpu_harmonize_copy_ratios = 4
-        Int mem_harmonize_copy_ratios_base = 2048
-        Int time_harmonize_copy_ratios = 1440  # 24 h
+        Int mem_harmonize_copy_ratios_base = 4096
+        Int time_harmonize_copy_ratios = 60
 
         # MergeAllelicCounts
         Int mem_merge_allelic_counts = 4096
