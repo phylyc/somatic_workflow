@@ -227,8 +227,8 @@ task Mutect2 {
             ~{"--intervals '" + interval_list + "'"} \
             ~{"--alleles '" + force_call_alleles + "'"} \
             ~{"-pon '" + panel_of_normals + "'"} \
-            ~{if make_bamout then "--bam-output " + output_bam else ""} \
-            ~{if get_orientation_bias_priors then "--f1r2-tar-gz " + output_artifact_priors else ""} \
+            ~{if make_bamout then "--bam-output '" + output_bam + "'" else ""} \
+            ~{if get_orientation_bias_priors then "--f1r2-tar-gz '" + output_artifact_priors + "'" else ""} \
             ~{"--germline-resource '" + germline_resource + "'"} \
             ~{if genotype_germline_sites then "--genotype-germline-sites true" else ""} \
             ~{if use_linked_de_bruijn_graph then "--linked-de-bruijn-graph true" else ""} \
