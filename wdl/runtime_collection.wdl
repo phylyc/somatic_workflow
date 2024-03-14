@@ -141,8 +141,8 @@ workflow DefineRuntimeCollection {
         Int time_pileup_to_allelic_counts = 5
 
         # HarmonizeCopyRatios
-        Int cpu_harmonize_copy_ratios = 1
-        Int mem_harmonize_copy_ratios = 1024
+        Int cpu_harmonize_copy_ratios = 4
+        Int mem_harmonize_copy_ratios_base = 2048
         Int time_harmonize_copy_ratios = 1440  # 24 h
 
         # MergeAllelicCounts
@@ -438,6 +438,7 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Int mem_harmonize_copy_ratios = mem_harmonize_copy_ratios_base + num_bams * mem_additional_per_sample
     Runtime harmonize_copy_ratios = {
         "docker": python_docker,
         "preemptible": preemptible,
