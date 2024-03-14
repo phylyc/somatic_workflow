@@ -190,14 +190,19 @@ task PileupToAllelicCounts {
 
             # Calculate the error probability:
             # The error probability is calculated as a ratio of total 'other_alt_count'
-            # and total counts, clipped within specified bounds.
+            # and total counts, clipped within reasonable bounds.
             ref_counts=$(awk '{sum+=$3} END {print sum}' '~{uncompressed_pileup}')
             alt_counts=$(awk '{sum+=$4} END {print sum}' '~{uncompressed_pileup}')
             other_alt_counts=$(awk '{sum+=$5} END {print sum}' '~{uncompressed_pileup}')
             total_counts=$((ref_counts + alt_counts + other_alt_counts))
             error_probability=$( \
-                awk -v ref=$ref_counts -v alt=$alt_counts -v other=$other_alt_counts -v total=$total_counts \
-                'BEGIN {print total > 0 ? ( (other / total) > 0.1 ? 0.1 : ( (other / total) < 0.001 ? 0.001 : (other / total) ) ) : 0.05}' \
+                awk -v other=$other_alt_counts -v total=$total_counts \
+                'BEGIN {
+                    ratio = (total > 0) ? other / total : 0.05;
+                    ratio = (ratio < 0.0001) ? 0.0001 : ratio;
+                    ratio = (ratio > 0.1) ? 0.1 : ratio;
+                    print ratio;
+                }' \
             )
             printf "$error_probability" > error_probability.txt
         fi

@@ -82,6 +82,8 @@ workflow CallVariants {
                 recover_all_dangling_branches = args.mutect2_recover_all_dangling_branches,
                 pileup_detection = args.mutect2_pileup_detection,
                 downsampling_stride = args.mutect2_downsampling_stride,
+                pcr_snv_qual = args.mutect2_pcr_snv_qual,
+                pcr_indel_qual = args.mutect2_pcr_indel_qual,
                 max_reads_per_alignment_start = args.mutect2_max_reads_per_alignment_start,
                 m2_extra_args = args.mutect2_extra_args,
                 runtime_params = runtime_collection.mutect2,
@@ -170,8 +172,12 @@ task Mutect2 {
         # in complex regions, even when recovering all dangling branches.
         # Reducing the downsampling by increasing the following parameters might
         # solve the issue. It increases compute cost though.
-        Int downsampling_stride = 1
+        Int downsampling_stride = 50
         Int max_reads_per_alignment_start = 50
+
+        # Increase for high quality panel sequencing data
+        Int pcr_snv_qual = 40
+        Int pcr_indel_qual = 40
 
         String? m2_extra_args
 
@@ -210,7 +216,7 @@ task Mutect2 {
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
-        printf "Suppressing the following error message: 'Dangling End recovery killed because of a loop (findPath)'\n" >&2
+        printf "Suppressing the following warning message: 'Dangling End recovery killed because of a loop (findPath)'\n" >&2
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             Mutect2 \
             --reference '~{ref_fasta}' \
@@ -228,6 +234,8 @@ task Mutect2 {
             ~{if use_linked_de_bruijn_graph then "--linked-de-bruijn-graph true" else ""} \
             ~{if recover_all_dangling_branches then "--recover-all-dangling-branches true" else ""} \
             ~{if pileup_detection then "--pileup-detection true" else ""} \
+            --pcr-snv-qual ~{pcr_snv_qual} \
+            --pcr-indel-qual ~{pcr_indel_qual} \
             --smith-waterman FASTEST_AVAILABLE \
             --pair-hmm-implementation FASTEST_AVAILABLE \
             ~{if native_pair_hmm_use_double_precision then "--native-pair-hmm-use-double-precision true" else ""} \
