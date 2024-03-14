@@ -66,6 +66,8 @@ struct WorkflowArguments {
     Boolean mutect2_genotype_germline_sites
     Int mutect2_downsampling_stride
     Int mutect2_max_reads_per_alignment_start
+    Int mutect2_pcr_snv_qual
+    Int mutect2_pcr_indel_qual
     Int filter_mutect2_max_median_fragment_length_difference
     Int filter_mutect2_min_alt_median_base_quality
     Int filter_mutect2_min_alt_median_mapping_quality
@@ -156,8 +158,13 @@ workflow DefineWorkflowArguments {
         Boolean mutect2_recover_all_dangling_branches = true
         Boolean mutect2_pileup_detection = true
         Boolean mutect2_genotype_germline_sites = false  # use with care! (see above)
-        Int mutect2_downsampling_stride = 1  # default: 1
+        # The stride is the window in which the AVERAGE depth is required to meet
+        # the max_reads_per_alignment_start. Usually a good idea to have a value of 20-50.
+        Int mutect2_downsampling_stride = 50  # default: 1
         Int mutect2_max_reads_per_alignment_start = 100  # default: 50
+        # Increase for high quality (de-duplexed, high-depth) panel sequencing data
+        Int mutect2_pcr_snv_qual = 40 # default: 40
+        Int mutect2_pcr_indel_qual = 40  # default: 40
         Int filter_mutect2_max_median_fragment_length_difference = 10000  # default: 10000
         Int filter_mutect2_min_alt_median_base_quality = 20  # default: 20
         Int filter_mutect2_min_alt_median_mapping_quality = 20  # default: -1
@@ -286,6 +293,8 @@ workflow DefineWorkflowArguments {
         mutect2_genotype_germline_sites: mutect2_genotype_germline_sites,
         mutect2_downsampling_stride: mutect2_downsampling_stride,
         mutect2_max_reads_per_alignment_start: mutect2_max_reads_per_alignment_start,
+        mutect2_pcr_snv_qual: mutect2_pcr_snv_qual,
+        mutect2_pcr_indel_qual: mutect2_pcr_indel_qual,
         filter_mutect2_max_median_fragment_length_difference: filter_mutect2_max_median_fragment_length_difference,
         filter_mutect2_min_alt_median_base_quality: filter_mutect2_min_alt_median_base_quality,
         filter_mutect2_min_alt_median_mapping_quality: filter_mutect2_min_alt_median_mapping_quality,
