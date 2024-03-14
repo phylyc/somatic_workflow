@@ -76,6 +76,7 @@ workflow CNVWorkflow {
             samples = patient.samples,
             denoised_copy_ratios = CollectReadCounts.denoised_copy_ratios,
             allelic_counts = CollectAllelicCounts.pileup_summaries,
+            harmonize_min_target_length = args.harmonize_min_target_length,
             compress_output = false,
             runtime_collection = runtime_collection,
     }

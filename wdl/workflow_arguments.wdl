@@ -40,6 +40,7 @@ struct WorkflowArguments {
     Float min_snp_array_pop_af
     Float max_snp_array_pop_af
     Int min_snp_array_read_depth
+    Int harmonize_min_target_length
     Array[Int] model_segments_window_sizes
     Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound
     Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound
@@ -129,6 +130,7 @@ workflow DefineWorkflowArguments {
         Float min_snp_array_pop_af = 0.01
         Float max_snp_array_pop_af = 1.0  # default: 0.2
         Int min_snp_array_read_depth = 10
+        Int harmonize_min_target_length = 100
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512]
         Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
@@ -256,6 +258,7 @@ workflow DefineWorkflowArguments {
         min_snp_array_pop_af: min_snp_array_pop_af,
         max_snp_array_pop_af: max_snp_array_pop_af,
         min_snp_array_read_depth: min_snp_array_read_depth,
+        harmonize_min_target_length: harmonize_min_target_length,
         model_segments_window_sizes: model_segments_window_sizes,
         call_copy_ratios_neutral_segment_copy_ratio_lower_bound: call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
         call_copy_ratios_neutral_segment_copy_ratio_upper_bound: call_copy_ratios_neutral_segment_copy_ratio_upper_bound,

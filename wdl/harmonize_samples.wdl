@@ -14,6 +14,7 @@ workflow HarmonizeSamples {
         Array[Array[File?]] denoised_copy_ratios
         Array[Array[File?]] allelic_counts
 
+        Int harmonize_min_target_length = 100
         Boolean compress_output = false
 
         RuntimeCollection runtime_collection
@@ -53,6 +54,7 @@ workflow HarmonizeSamples {
                 script = harmonize_copy_ratios_script,
                 sample_names = seq_dcr_sample_names,
                 denoised_copy_ratios = seq_denoised_copy_ratios,
+                min_target_length = harmonize_min_target_length,
                 compress_output = compress_output,
                 runtime_params = runtime_collection.harmonize_copy_ratios
         }
@@ -106,6 +108,7 @@ task HarmonizeCopyRatios {
 
         Array[String]+ sample_names
         Array[File]+ denoised_copy_ratios
+        Int min_target_length = 100
         Boolean compress_output = false
         Boolean verbose = true
 
@@ -125,6 +128,7 @@ task HarmonizeCopyRatios {
             ~{sep="' " prefix("--copy_ratio '", denoised_copy_ratios)}' \
             --suffix ".harmonized.denoised_CR" \
             --threads ~{runtime_params.cpu} \
+            --min_target_length ~{min_target_length} \
             ~{if compress_output then "--compress_output" else ""} \
             ~{if verbose then "--verbose" else ""}
     >>>

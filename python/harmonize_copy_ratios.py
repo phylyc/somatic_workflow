@@ -19,12 +19,13 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "harmonize_copy_ratios.py --sample <sample> [--sample <sample> ...] -I <copy_ratio> [-I <copy_ratio> ...] [-O <output_dir>] [--compress_output] [--verbose]"
+    parser.usage = "harmonize_copy_ratios.py --sample <sample> [--sample <sample> ...] -I <copy_ratio> [-I <copy_ratio> ...] [-O <output_dir>] [--suffix <suffix>] [--threads <threads>] [--compress_output] [--verbose]"
     parser.add_argument("--sample",                 type=str,   required=True,  action="append",     help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file header.")
     parser.add_argument("-I", "--copy_ratio",       type=str,   required=True,  action="append",     help="Path to the (denoised) copy ratio file (output of GATK's DenoiseReadCounts).")
     parser.add_argument("-O", "--output_dir",       type=str,   default=".",    help="Path to the output directory.")
     parser.add_argument("--suffix",                 type=str,   default=".harmonized.CR",            help="Suffix to append to each sample name to create the output file name.")
-    parser.add_argument("--threads",                type=int,   default=1,      help="Number of threads to use for parallelization over samples.")
+    parser.add_argument("--threads",                type=int,   default=1,      help="Number of threads to use for parallelization over chromosomes.")
+    parser.add_argument("--min_target_length",      type=int,   default=100,    help="Minimum length of a harmonized target to be included in output.")
     parser.add_argument("--compress_output",                    default=False,  action="store_true", help="Compress output files.")
     parser.add_argument("--verbose",                            default=False,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
@@ -112,7 +113,7 @@ def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
     return pd.MultiIndex.from_frame(temp_df[["CONTIG", "START", "END"]])
 
 
-def merge_abutting_intervals(intervals: pd.DataFrame, dist: int = 1, cr_tol: float = 1e-3):
+def merge_abutting_intervals(intervals: pd.DataFrame, dist: int = 1, tol: float = 1e-3):
     new_intervals = []
     previous_interval = None
     for i, interval in intervals.iterrows():
@@ -123,7 +124,7 @@ def merge_abutting_intervals(intervals: pd.DataFrame, dist: int = 1, cr_tol: flo
 
         # interval.name == (contig, start, end)
         if interval.name[0] == previous_interval.name[0] and abs(interval.name[1] - previous_interval.name[2]) <= dist:
-            if (abs(previous_interval - interval) < cr_tol).all():
+            if (abs(previous_interval - interval) < tol).all():
                 new_interval = copy(previous_interval)
                 new_interval.name = (new_interval.name[0], new_interval.name[1], interval.name[2])
                 new_intervals[-1] = new_interval
@@ -142,6 +143,11 @@ def merge_abutting_intervals(intervals: pd.DataFrame, dist: int = 1, cr_tol: flo
     merged_intervals = pd.DataFrame(new_intervals)
     merged_intervals.index.names = ["CONTIG", "START", "END"]
     return merged_intervals
+
+
+def select_intervals(intervals: pd.DataFrame, min_length: int = 1):
+    lengths = intervals.index.get_level_values("END") - intervals.index.get_level_values("START") + 1
+    return intervals[lengths >= min_length]
 
 
 def harmonize_loci_parallel(copy_ratios: pd.DataFrame, verbose: bool = False, max_processes: int = 1):
@@ -172,7 +178,7 @@ def harmonize_loci_parallel(copy_ratios: pd.DataFrame, verbose: bool = False, ma
     return pd.concat(harmonized_loci_by_contig)
 
 
-def harmonize(copy_ratios: list[pd.DataFrame], max_processes: int = 1, verbose: bool = False):
+def harmonize(copy_ratios: list[pd.DataFrame], min_target_length: int = 1, max_processes: int = 1, verbose: bool = False):
     cr = pd.concat(copy_ratios, ignore_index=True)
     if cr.empty:
         print("  No loci found to harmonize in any of the input files.") if verbose else None
@@ -208,7 +214,13 @@ def harmonize(copy_ratios: list[pd.DataFrame], max_processes: int = 1, verbose: 
     pct_drop = 100 * (1 - n_merged / n_consensus)
     print(f"  Number of loci after merging abutting intervals with the same copy ratio: {n_merged} (-{pct_drop:.3f}%)") if verbose else None
 
-    return merged_consensus_intervals
+    # Drop intervals that are too short:
+    selected_merged_consensus_intervals = select_intervals(merged_consensus_intervals, min_length=min_target_length)
+    n_selected = selected_merged_consensus_intervals.shape[0]
+    pct_drop = 100 * (1 - n_selected / n_merged)
+    print(f"  Number of loci after dropping loci shorter than {min_target_length} bp: {n_selected} (-{pct_drop:.3f}%)") if verbose else None
+
+    return selected_merged_consensus_intervals
 
 
 def harmonize_intervals(args):
@@ -233,7 +245,7 @@ def harmonize_intervals(args):
 
     # harmonize intervals:
     print("Harmonizing copy ratio intervals:") if args.verbose else None
-    harmonized_cr = harmonize(copy_ratios=cr, max_processes=args.threads, verbose=args.verbose)
+    harmonized_cr = harmonize(copy_ratios=cr, min_target_length=args.min_target_length, max_processes=args.threads, verbose=args.verbose)
     print() if args.verbose else None
 
     # write output files:
