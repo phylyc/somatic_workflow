@@ -25,6 +25,7 @@ workflow CollectAllelicCounts {
         String sample_name
         File bam
         File bai
+        Boolean? is_paired_end
         File? interval_list
         File? interval_blacklist
         Array[File]? scattered_interval_list
@@ -95,6 +96,7 @@ workflow CollectAllelicCounts {
                 input:
                     input_bam = bam,
                     input_bai = bai,
+                    is_paired_end = is_paired_end,
                     interval_list = interval_list,
                     interval_blacklist = interval_blacklist,
                     scattered_intervals = scattered_intervals,
@@ -121,6 +123,7 @@ workflow CollectAllelicCounts {
             input:
                 input_bam = bam,
                 input_bai = bai,
+                is_paired_end = is_paired_end,
                 interval_list = interval_list,
                 interval_blacklist = interval_blacklist,
                 sample_name = sample_name,
@@ -232,6 +235,7 @@ task GetPileupSummaries {
         File input_bai
         File common_germline_alleles
         File common_germline_alleles_idx
+        Boolean is_paired_end = false
         String? sample_name
         String? getpileupsummaries_extra_args
 
@@ -267,6 +271,8 @@ task GetPileupSummaries {
             -max-af '~{maximum_population_allele_frequency}' \
             --min-mapping-quality ~{min_mapping_quality} \
             --output '~{output_file}' \
+            ~{if is_paired_end then "--read-filter FirstOfPairReadFilter " else ""} \
+            ~{if is_paired_end then "--read-filter PairedReadFilter " else ""} \
             ~{getpileupsummaries_extra_args}
 
         # It only fails due to empty intersection between common_germline_alleles and intervals, which is ok.
