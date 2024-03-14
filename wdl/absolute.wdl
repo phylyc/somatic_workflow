@@ -11,6 +11,9 @@ workflow Absolute {
         File annotated_variants
 
         String acs_conversion_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/acs_conversion.py"
+        Int min_hets = 10
+        Int min_probes = 4
+        Float maf90_threshold = 0.485
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -22,6 +25,9 @@ workflow Absolute {
             script = acs_conversion_script,
             seg_final = copy_ratio_segmentation,
             af_model_parameters = af_model_parameters,
+            min_hets = min_hets,
+            min_probes = min_probes,
+            maf90_threshold = maf90_threshold,
             runtime_params = runtime_collection.model_segments_to_acs_conversion
     }
 
@@ -56,6 +62,7 @@ task ModelSegmentsToACSConversion {
         File af_model_parameters
 
         Int min_hets = 10
+        Int min_probes = 4
         Float maf90_threshold = 0.485
 
         Runtime runtime_params
@@ -63,7 +70,7 @@ task ModelSegmentsToACSConversion {
 
     String output_dir = "."
 
-    String output_seg = basename(basename(seg_final, ".seg"), ".modelFinal") + ".acs.seg"
+    String output_seg = basename(seg_final, ".seg") + ".acs.seg"
     String output_skew = output_seg + ".skew"
 
     command <<<
@@ -74,6 +81,7 @@ task ModelSegmentsToACSConversion {
             --seg '~{seg_final}' \
             --af_parameters '~{af_model_parameters}' \
             --min_hets ~{min_hets} \
+            --min_probes ~{min_probes} \
             --maf90_threshold ~{maf90_threshold} \
             --verbose
     >>>
@@ -106,7 +114,6 @@ task ProcessMAFforAbsolute {
     String uncompressed_maf = basename(maf, ".gz")
     Boolean is_compressed = uncompressed_maf != basename(maf)
 
-    String tmp_output_maf = "tmp." + sample_name + ".maf"
     String output_snv_maf = sample_name + ".snv.maf"
     String output_indel_maf = sample_name + ".indel.maf"
 
@@ -115,8 +122,7 @@ task ProcessMAFforAbsolute {
 
         if [ "~{is_compressed}" == "true" ] ; then
             gzip -cd '~{maf}' > '~{uncompressed_maf}'
-        else
-            cp '~{maf}' '~{uncompressed_maf}'
+        # else '~{maf}' == '~{uncompressed_maf}'
         fi
 
         grep "^#" '~{uncompressed_maf}' > '~{output_snv_maf}'
@@ -128,11 +134,10 @@ import pandas as pd
 maf = pd.read_csv('~{uncompressed_maf}', sep='\t', comment='#')
 cols_to_keep = [col for col in maf.columns if maf[col].astype(str).map(len).max() < 1000]
 print("Removing columns:", set(maf.columns) - set(cols_to_keep))
+
 maf = maf[cols_to_keep].rename(columns={"Start_Position": "Start_position", "End_Position": "End_position"})
-snv = maf.loc[maf["Variant_Type"].isin(["SNP", "DNP", "TNP", "MNP"])]
-indel = maf.loc[maf["Variant_Type"].isin(["INS", "DEL"])]
-snv.to_csv('~{output_snv_maf}', sep='\t', index=False, mode='a')
-indel.to_csv('~{output_indel_maf}', sep='\t', index=False, mode='a')
+maf.loc[maf["Variant_Type"].isin(["SNP", "DNP", "TNP", "MNP"])].to_csv('~{output_snv_maf}', sep='\t', index=False, mode='a')
+maf.loc[maf["Variant_Type"].isin(["INS", "DEL"])].to_csv('~{output_indel_maf}', sep='\t', index=False, mode='a')
 EOF
     >>>
 
@@ -167,7 +172,7 @@ task AbsoluteTask {
     String output_dir = "."
 
     command <<<
-         set -euxo pipefail
+        set -euxo pipefail
         # sidenote: no packages GenomicRanges, gplots, and more. :/
         Rscript /xchip/tcga/Tools/absolute/releases/v1.5/run/ABSOLUTE_cli_start.R \
             --seg_dat_fn '~{seg_file}' \
