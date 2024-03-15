@@ -816,11 +816,13 @@ class GenotypeData(object):
         Raises:
             Warning: If genotype correlations between samples are below the threshold.
         """
+        sample_gt_list = []
+        for pl in self.pileup_likelihoods:
+            confident_calls = genotyper.select_confident_calls(likelihoods=pl.df)
+            if not confident_calls.empty:
+                sample_gt_list.append(confident_calls[genotyper.genotypes].idxmax(axis=1).to_frame(pl.assigned_sample_name))
         sample_genotypes = pd.concat(
-            [
-                genotyper.select_confident_calls(likelihoods=pl.df)[genotyper.genotypes].idxmax(axis=1).to_frame(pl.assigned_sample_name)
-                for pl in self.pileup_likelihoods
-            ],
+            sample_gt_list,
             join="outer",
             axis=1
         ).fillna("./.").replace("./.", np.nan).replace("0/0", 0).replace("0/1", 1).replace("1/1", 2)
@@ -859,8 +861,12 @@ class GenotypeData(object):
                 {sample_pair: pval for sample_pair, pval in zip(sample_pairs, pvalues)}
             ).unstack().reindex(index=sample_names, columns=sample_names)
 
-        sample_correlation = corr.where(~corr.isna(), corr.T).fillna(1)
-        pval = pval.where(~pval.isna(), pval.T).fillna(0)
+        sample_correlation = corr.where(~corr.isna(), corr.T)
+        pval = pval.where(~pval.isna(), pval.T)
+        np.fill_diagonal(sample_correlation.values, 1)
+        np.fill_diagonal(pval.values, 0)
+        sample_correlation = sample_correlation.fillna(0)
+        pval = pval.fillna(1)
 
         if self.verbose:
             if len(num_loci):

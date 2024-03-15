@@ -238,6 +238,7 @@ task Mutect2 {
             --pcr-indel-qual ~{pcr_indel_qual} \
             --smith-waterman FASTEST_AVAILABLE \
             --pair-hmm-implementation FASTEST_AVAILABLE \
+            --native-pair-hmm-threads ~{runtime_params.cpu} \
             ~{if native_pair_hmm_use_double_precision then "--native-pair-hmm-use-double-precision true" else ""} \
             ~{"--downsampling-stride " + downsampling_stride} \
             ~{"--max-reads-per-alignment-start " + max_reads_per_alignment_start} \
