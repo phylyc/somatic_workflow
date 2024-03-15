@@ -32,19 +32,21 @@ workflow FilterSegments {
         scatter (sample in patient.normal_samples) {
             File? normal_called_copy_ratio_segmentation = sample.called_copy_ratio_segmentation
         }
+        Array[File] segmentations = flatten([
+            select_all(FilterGermlineCNVs.filtered_called_copy_ratio_segmentation),
+            select_all(normal_called_copy_ratio_segmentation)
+        ])
 
         call p_update_s.UpdateSamples as UpdateSegmentations {
             input:
                 patient = patient,
-                called_copy_ratio_segmentations = flatten([
-                    select_all(FilterGermlineCNVs.filtered_called_copy_ratio_segmentation),
-                    select_all(normal_called_copy_ratio_segmentation)
-                ])
+                called_copy_ratio_segmentations = segmentations
         }
     }
 
     output {
         Patient updated_patient = select_first([UpdateSegmentations.updated_patient, patient])
+        Array[File]? filtered_called_copy_ratio_segmentations = segmentations
     }
 }
 
