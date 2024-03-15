@@ -821,6 +821,9 @@ class GenotypeData(object):
             confident_calls = genotyper.select_confident_calls(likelihoods=pl.df)
             if not confident_calls.empty:
                 sample_gt_list.append(confident_calls[genotyper.genotypes].idxmax(axis=1).to_frame(pl.assigned_sample_name))
+            else:
+                sample_gt_list.append(pd.DataFrame(index=confident_calls.index, columns=[pl.assigned_sample_name]))
+
         sample_genotypes = pd.concat(
             sample_gt_list,
             join="outer",
