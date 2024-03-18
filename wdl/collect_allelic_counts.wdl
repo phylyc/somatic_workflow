@@ -273,6 +273,7 @@ task GetPileupSummaries {
             --output '~{output_file}' \
             ~{if is_paired_end then "--read-filter FirstOfPairReadFilter " else ""} \
             ~{if is_paired_end then "--read-filter PairedReadFilter " else ""} \
+            --seconds-between-progress-updates 60 \
             ~{getpileupsummaries_extra_args}
 
         # It only fails due to empty intersection between common_germline_alleles and intervals, which is ok.

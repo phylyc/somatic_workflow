@@ -242,7 +242,7 @@ task Mutect2 {
             ~{if native_pair_hmm_use_double_precision then "--native-pair-hmm-use-double-precision true" else ""} \
             ~{"--downsampling-stride " + downsampling_stride} \
             ~{"--max-reads-per-alignment-start " + max_reads_per_alignment_start} \
-            --seconds-between-progress-updates 300 \
+            --seconds-between-progress-updates 60 \
             ~{m2_extra_args} \
             2> >(grep -v 'Dangling End recovery killed because of a loop (findPath)' >&2)
     >>>

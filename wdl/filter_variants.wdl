@@ -320,7 +320,7 @@ task FilterMutectCalls {
             ~{"--min-median-mapping-quality " + min_alt_median_mapping_quality} \
             ~{"--min-median-read-position " + min_median_read_position} \
             --filtering-stats '~{output_base_name}.stats' \
-            --seconds-between-progress-updates 300 \
+            --seconds-between-progress-updates 60 \
             ~{m2_filter_extra_args}
     >>>
 
@@ -397,6 +397,7 @@ task FilterAlignmentArtifacts {
             --output '~{output_vcf}' \
             --max-reasonable-fragment-length ~{max_reasonable_fragment_length} \
             --dont-skip-filtered-variants true \
+            --seconds-between-progress-updates 60 \
             ~{realignment_extra_args}
     >>>
 

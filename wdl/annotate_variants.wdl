@@ -199,6 +199,7 @@ task Funcotate {
             --annotation-default 'individual_id:~{individual_id}' \
             --annotation-default 'tumor_barcode:~{tumor_sample_name}' \
             --annotation-default 'normal_barcode:~{normal_sample_name}' \
+            --seconds-between-progress-updates 60 \
             ~{annotation_default_arg} \
             ~{annotation_override_arg} \
             ~{exclude_fields_arg} \
