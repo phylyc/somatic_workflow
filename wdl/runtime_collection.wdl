@@ -182,7 +182,7 @@ workflow DefineRuntimeCollection {
         #######################################################################
 
         # gatk: Mutect2
-        Int cpu_mutect2 = 4  # good for PairHMM: 4
+        Int cpu_mutect2 = 4
         Int mem_mutect2_base = 3072
         Int time_mutect2_total = 10000  # 6 d / scatter_count
         Int disk_mutect2 = 0
@@ -216,7 +216,7 @@ workflow DefineRuntimeCollection {
         Int time_variant_filtration = 5
 
         # gatk: FilterAlignmentArtifacts
-        Int cpu_filter_alignment_artifacts = 4  # good for PairHMM: 4
+        Int cpu_filter_alignment_artifacts = 4
         Int mem_filter_alignment_artifacts_base = 3072  # needs to be increased in some cases
         Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count
 
