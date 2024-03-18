@@ -153,6 +153,7 @@ workflow DefineWorkflowArguments {
 
         # SNV WORKFLOW
         Int min_read_depth = 4
+        # This is essentially a custom implementation of the mitochondiral model:
         Boolean mutect2_native_pair_hmm_use_double_precision = true
         Boolean mutect2_use_linked_de_bruijn_graph = true
         Boolean mutect2_recover_all_dangling_branches = true
@@ -161,6 +162,7 @@ workflow DefineWorkflowArguments {
         # The stride is the window in which the AVERAGE depth is required to meet
         # the max_reads_per_alignment_start. Usually a good idea to have a value of 20-50.
         Int mutect2_downsampling_stride = 50  # default: 1
+        # Set to 0 to disable downsampling:
         Int mutect2_max_reads_per_alignment_start = 100  # default: 50
         # Increase for high quality (de-duplexed, high-depth) panel sequencing data
         Int mutect2_pcr_snv_qual = 40 # default: 40
@@ -203,7 +205,7 @@ workflow DefineWorkflowArguments {
         String? filter_mutect2_extra_args
         String? variant_filtration_extra_args
         String? select_variants_extra_args
-        String? select_low_conficence_variants_jexl_arg = "'(vc.getAttribute(\"GERMQ\") < 30)'"
+        String? select_low_conficence_variants_jexl_arg = "GERMQ < 30"
         String? realignment_extra_args
         String? funcotate_extra_args
 

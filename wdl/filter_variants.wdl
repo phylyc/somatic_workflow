@@ -107,7 +107,7 @@ workflow FilterVariants {
                     vcf = SelectPassingVariants.selected_vcf,
                     vcf_idx = SelectPassingVariants.selected_vcf_idx,
                     compress_output = args.compress_output,
-                    select_variants_extra_args = "-select " + args.select_low_conficence_variants_jexl_arg,
+                    select_variants_extra_args = "-select '" + args.select_low_conficence_variants_jexl_arg + "'",
                     runtime_params = runtime_collection.select_variants
             }
 
@@ -119,7 +119,7 @@ workflow FilterVariants {
                     vcf = SelectPassingVariants.selected_vcf,
                     vcf_idx = SelectPassingVariants.selected_vcf_idx,
                     compress_output = args.compress_output,
-                    select_variants_extra_args = "-select " + args.select_low_conficence_variants_jexl_arg + " -invertSelect true",
+                    select_variants_extra_args = "-select '" + args.select_low_conficence_variants_jexl_arg + "' -invertSelect true",
                     runtime_params = runtime_collection.select_variants
             }
         }
