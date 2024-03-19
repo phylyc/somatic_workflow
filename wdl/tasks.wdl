@@ -237,6 +237,8 @@ task VariantFiltration {
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+        # Some variants don't have certain INFO fields, so we suppress the warning messages.
+        printf "Suppressing the following warning message: 'WARN  JexlEngine - '\n" >&2
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             VariantFiltration \
             ~{"-R '" + ref_fasta + "'"} \
@@ -245,7 +247,8 @@ task VariantFiltration {
             ~{if (length(filter_names) > 0) then " --filter-name '" else ""}~{default="" sep="' --filter-name '" filter_names}~{if (length(filter_names) > 0) then "'" else ""} \
             ~{if (length(filter_expressions) > 0) then " --filter-expression '" else ""}~{default="" sep="' --filter-expression '" filter_expressions}~{if (length(filter_expressions) > 0) then "'" else ""} \
             --output '~{output_vcf}' \
-            ~{variant_filtration_extra_args}
+            ~{variant_filtration_extra_args} \
+            2> >(grep -v "WARN  JexlEngine - " >&2)
     >>>
 
     output {
@@ -336,7 +339,7 @@ task SelectVariants {
                 echo ">> Selecting PASSing variants ... "
                 grep -v "^#" '~{select_variants_output_vcf}' | grep "PASS" >> '~{uncompressed_selected_vcf}'
                 num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
-                echo ">> Selected $num_selected_vars PASSing out of$num_vars variants."
+                echo ">> Selected $num_selected_vars PASSing out of $num_vars variants."
             fi
             if [ "~{keep_germline}" == "true" ] ; then
                 echo ">> Selecting germline variants ... "
