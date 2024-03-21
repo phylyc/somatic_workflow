@@ -165,6 +165,7 @@ task AbsoluteTask {
         Float skew
         File snv_maf
         File indel_maf
+        String? platform
 
         Runtime runtime_params
     }
@@ -172,16 +173,25 @@ task AbsoluteTask {
     String output_dir = "."
 
     command <<<
-        set -euxo pipefail
-        # sidenote: no packages GenomicRanges, gplots, and more. :/
-        Rscript /xchip/tcga/Tools/absolute/releases/v1.5/run/ABSOLUTE_cli_start.R \
-            --seg_dat_fn '~{seg_file}' \
-            --maf_fn '~{snv_maf}' \
-            --indelmaf_fn '~{indel_maf}' \
-            --sample_name '~{sample_name}' \
-            --results_dir ~{output_dir} \
-            --ssnv_skew ~{skew} \
-            --abs_lib_dir /xchip/tcga/Tools/absolute/releases/v1.5/
+        set -e
+        set -uxo pipefail
+
+        num_segments=$(( $(wc -l < '~{seg_file}') - 1 ))
+
+        if [ $num_segments -gt 0 ] ; then
+            # sidenote: no packages GenomicRanges, gplots, and more. :/
+            Rscript /xchip/tcga/Tools/absolute/releases/v1.5/run/ABSOLUTE_cli_start.R \
+                --seg_dat_fn '~{seg_file}' \
+                --maf_fn '~{snv_maf}' \
+                --indelmaf_fn '~{indel_maf}' \
+                --sample_name '~{sample_name}' \
+                --results_dir ~{output_dir} \
+                --ssnv_skew ~{skew} \
+                ~{"--platform " + platform} \
+                --abs_lib_dir /xchip/tcga/Tools/absolute/releases/v1.5/
+        else
+            echo "No segments found in the input segmentation file. Exiting." >&2
+        fi
     >>>
 
     output {
