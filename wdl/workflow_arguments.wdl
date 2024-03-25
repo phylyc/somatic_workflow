@@ -141,11 +141,11 @@ workflow DefineWorkflowArguments {
         Float call_copy_ratios_z_score_threshold = 2.0
         Int filter_germline_cnvs_min_segment_length = 100
 
-        String genotype_variants_script =       "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
-        String harmonize_copy_ratios_script =   "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
-        String merge_pileups_script =           "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
-        String filter_germline_cnvs_script =    "https://github.com/phylyc/somatic_workflow/raw/master/python/filter_germline_cnvs.py"
-        String acs_conversion_script =          "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
+        String genotype_variants_script =       "https://github.com/phylyc/somatic_workflow/raw/v1.0.0/python/genotype.py"
+        String harmonize_copy_ratios_script =   "https://github.com/phylyc/somatic_workflow/raw/v1.0.0/python/harmonize_copy_ratios.py"
+        String merge_pileups_script =           "https://github.com/phylyc/somatic_workflow/raw/v1.0.0/python/merge_pileups.py"
+        String filter_germline_cnvs_script =    "https://github.com/phylyc/somatic_workflow/raw/v1.0.0/python/filter_germline_cnvs.py"
+        String acs_conversion_script =          "https://github.com/phylyc/somatic_workflow/raw/v1.0.0/python/acs_conversion.py"
 
         Int absolute_min_hets = 10
         Int absolute_min_probes = 4
