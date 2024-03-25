@@ -158,12 +158,11 @@ workflow DefineWorkflowArguments {
         Boolean mutect2_use_linked_de_bruijn_graph = true
         Boolean mutect2_recover_all_dangling_branches = true
         Boolean mutect2_pileup_detection = true
-        Boolean mutect2_genotype_germline_sites = false  # use with care! (see above)
+        Boolean mutect2_genotype_germline_sites = false
         # The stride is the window in which the AVERAGE depth is required to meet
         # the max_reads_per_alignment_start. Usually a good idea to have a value of 20-50.
-        Int mutect2_downsampling_stride = 50  # default: 1
-        # Set to 0 to disable downsampling:
-        Int mutect2_max_reads_per_alignment_start = 100  # default: 50
+        Int mutect2_downsampling_stride = 1  # default: 1
+        Int mutect2_max_reads_per_alignment_start = 0  # default: 50
         # Increase for high quality (de-duplexed, high-depth) panel sequencing data
         Int mutect2_pcr_snv_qual = 40 # default: 40
         Int mutect2_pcr_indel_qual = 40  # default: 40

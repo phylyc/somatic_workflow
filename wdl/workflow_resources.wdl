@@ -14,9 +14,6 @@ struct WorkflowResources {
     File ref_dict
 
     # VCF file of variants to force mutation calling at.
-    # Note: As of GATK v4.3.0.0 force-calling alleles leads to mis-classification
-    # of filtered variants in the same way as the flag -genotype-germline-sites does:
-    # https://github.com/broadinstitute/gatk/issues/7391
     File? force_call_alleles
     File? force_call_alleles_idx
     # VCF file of common sequencing artifacts to filter out.

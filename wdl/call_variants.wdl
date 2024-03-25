@@ -3,6 +3,12 @@ version development
 ## Call variants with Mutect2
 ##
 ## Known issues:
+## use_linked_de_bruijn_graph: This has trouble calling variants in complex regions.
+##      Strongly recommended to use with recover_all_dangling_branches. This increases
+##      compute cost though, and may still not guarantee that all variants are
+##      being called. Ideally, run with and without and use the joint callset.
+##
+## SOLVED IN GATK v4.6.0.0:
 ## force_call_alleles:
 ## genotype_germline_sites: Use with care! https://github.com/broadinstitute/gatk/issues/7391
 ##      @David Benjamin, 2021:
@@ -14,10 +20,6 @@ version development
 ##      so that they work as intended."
 ##      force-calling alleles of a large SNP panel influences the germline filtering
 ##      model in the same way.
-## use_linked_de_bruijn_graph: This has trouble calling variants in complex regions.
-##      Strongly recommended to use with recover_all_dangling_branches. This increases
-##      compute cost though, and may still not guarantee that all variants are
-##      being called. Ideally, run with and without and use the joint callset.
 
 import "patient.wdl" as p
 import "workflow_arguments.wdl" as wfargs
@@ -172,10 +174,12 @@ task Mutect2 {
         # in complex regions, even when recovering all dangling branches.
         # Reducing the downsampling by increasing the following parameters might
         # solve the issue. It increases compute cost though.
-        Int downsampling_stride = 50
+        Int downsampling_stride = 1
         Int max_reads_per_alignment_start = 50
 
         # Increase for high quality panel sequencing data
+        # 40 = 1e-2 error rate (standard WES)
+        # 80 = 1e-4 error rate (duplex sequencing)
         Int pcr_snv_qual = 40
         Int pcr_indel_qual = 40
 
