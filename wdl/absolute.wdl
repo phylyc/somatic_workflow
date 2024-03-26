@@ -49,8 +49,8 @@ workflow Absolute {
     }
 
     output {
-        File plot = AbsoluteTask.plot
-        File rdata = AbsoluteTask.rdata
+        File? plot = AbsoluteTask.plot
+        File? rdata = AbsoluteTask.rdata
     }
 }
 
@@ -195,8 +195,8 @@ task AbsoluteTask {
     >>>
 
     output {
-        File plot = output_dir + "/" + sample_name + ".ABSOLUTE_plot.pdf"
-        File rdata = output_dir + "/" + sample_name + ".PP-modes.data.RData"
+        File? plot = output_dir + "/" + sample_name + ".ABSOLUTE_plot.pdf"
+        File? rdata = output_dir + "/" + sample_name + ".PP-modes.data.RData"
     }
 
     runtime {
