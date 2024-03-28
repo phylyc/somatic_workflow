@@ -220,7 +220,13 @@ task Mutect2 {
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
-        printf "Suppressing the following warning message: 'Dangling End recovery killed because of a loop (findPath)'\n" >&2
+
+        # This warning is from enabling the linked de-Bruijn graph implementation:
+        printf "Suppressing the following warning messages: 'Dangling End recovery killed because of a loop (findPath)'\n" >&2
+
+        # This warning appears if multiple sequencing runs from the same sample are supplied:
+        printf "Suppressing the following warning messages: 'WARN Fragment - More than two reads with the same name found. Using two reads randomly to combine as a fragment.'\n" >&2
+
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             Mutect2 \
             --reference '~{ref_fasta}' \
@@ -248,7 +254,11 @@ task Mutect2 {
             ~{"--max-reads-per-alignment-start " + max_reads_per_alignment_start} \
             --seconds-between-progress-updates 60 \
             ~{m2_extra_args} \
-            2> >(grep -v 'Dangling End recovery killed because of a loop (findPath)' >&2)
+            2> >( \
+                grep -v 'Dangling End recovery killed because of a loop (findPath)' | \
+                grep -v 'WARN Fragment - More than two reads with the same name found. Using two reads randomly to combine as a fragment.' \
+                >&2 \
+            )
     >>>
 
     output {
