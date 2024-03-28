@@ -792,7 +792,7 @@ class GenotypeData(object):
         if not is_same.all():
             warnings.warn("Allele frequencies in pileups are not the same across samples for each locus (though they should)! Please check your inputs!")
 
-    def validate_sample_correlation(self, genotyper: Genotyper, correlation_threshold: float = 0.95) -> pd.DataFrame:
+    def validate_sample_correlation(self, genotyper: Genotyper, correlation_threshold: float = 0.90) -> pd.DataFrame:
         """
         Validates the correlation of sample genotypes.
 
