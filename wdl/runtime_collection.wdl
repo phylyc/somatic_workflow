@@ -76,7 +76,7 @@ workflow DefineRuntimeCollection {
         # Increasing cpus likely increases costs by the same factor.
 
         Int mem_machine_overhead = 512
-        Int mem_additional_per_sample = 256  # this depends on bam size (WES vs WGS)
+        Int mem_additional_per_sample = 384  # this depends on bam size (WES vs WGS)
 
         Int time_startup = 10
 
@@ -142,7 +142,7 @@ workflow DefineRuntimeCollection {
 
         # HarmonizeCopyRatios
         Int cpu_harmonize_copy_ratios = 4
-        Int mem_harmonize_copy_ratios_base = 4096
+        Int mem_harmonize_copy_ratios_base = 8192
         Int time_harmonize_copy_ratios = 60
 
         # MergeAllelicCounts
