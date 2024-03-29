@@ -173,7 +173,8 @@ task AbsoluteTask {
     String output_dir = "."
 
     command <<<
-        set -e
+        # ABSOLUTE may fail for various reasons, but we still want to capture the output files for all other samples.
+        set +e
         set -uxo pipefail
 
         num_segments=$(( $(wc -l < '~{seg_file}') - 1 ))
@@ -192,6 +193,8 @@ task AbsoluteTask {
         else
             echo "No segments found in the input segmentation file. Exiting." >&2
         fi
+
+        exit 0
     >>>
 
     output {
