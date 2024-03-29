@@ -158,7 +158,7 @@ workflow DefineRuntimeCollection {
         Int time_genotype_variants = 30
 
         # gatk: ModelSegments
-        Int mem_model_segments = 2048
+        Int mem_model_segments = 8192  # technically scales with number of samples; but 8G is ok for 50 samples.
         Int time_model_segments = 60
 
         # gatk: CallCopyRatioSegments
