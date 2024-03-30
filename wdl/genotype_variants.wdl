@@ -134,6 +134,7 @@ task GenotypeVariantsTask {
 
     command <<<
         set -euxo pipefail
+        n_threads=$(nproc)
         wget -O genotype.py ~{script}
         python genotype.py \
             --output_dir '~{output_dir}' \
@@ -147,6 +148,7 @@ task GenotypeVariantsTask {
             --min_genotype_likelihood ~{min_genotype_likelihood} \
             --model ~{model} \
             --format ~{format} \
+            --threads $n_threads \
             ~{if select_hets then "--select_hets" else ""} \
             ~{if save_sample_genotype_likelihoods then "--save_sample_genotype_likelihoods" else ""} \
             ~{if compress_output then "--compress_output" else ""} \

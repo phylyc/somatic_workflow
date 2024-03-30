@@ -124,13 +124,14 @@ task HarmonizeCopyRatios {
 
     command <<<
         set -euxo pipefail
+        n_threads=$(nproc)
         wget -O harmonize_copy_ratios.py ~{script}
         python harmonize_copy_ratios.py \
             --output_dir '~{output_dir}' \
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("--copy_ratio '", denoised_copy_ratios)}' \
             --suffix ".harmonized.denoised_CR" \
-            --threads ~{runtime_params.cpu} \
+            --threads $n_threads \
             --min_target_length ~{min_target_length} \
             ~{if compress_output then "--compress_output" else ""} \
             ~{if verbose then "--verbose" else ""}

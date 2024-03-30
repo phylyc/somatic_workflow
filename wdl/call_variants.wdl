@@ -219,6 +219,7 @@ task Mutect2 {
 
     command <<<
         set -e
+        n_threads=$(nproc)
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
         echo ""
@@ -250,7 +251,7 @@ task Mutect2 {
             --pcr-indel-qual ~{pcr_indel_qual} \
             --smith-waterman FASTEST_AVAILABLE \
             --pair-hmm-implementation FASTEST_AVAILABLE \
-            --native-pair-hmm-threads ~{runtime_params.cpu} \
+            --native-pair-hmm-threads $n_threads \
             ~{if native_pair_hmm_use_double_precision then "--native-pair-hmm-use-double-precision true" else ""} \
             ~{"--downsampling-stride " + downsampling_stride} \
             ~{"--max-reads-per-alignment-start " + max_reads_per_alignment_start} \
@@ -258,7 +259,7 @@ task Mutect2 {
             ~{m2_extra_args} \
             2> >( \
                 grep -v 'Dangling End recovery killed because of a loop (findPath)' | \
-                grep -v 'More than two reads with the same name found. Using two reads randomly to combine as a fragment.' \
+                grep -v 'More than two reads with the same name found' \
                 >&2 \
             )
     >>>
