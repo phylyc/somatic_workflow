@@ -201,6 +201,8 @@ task Mutect2 {
         tumor_bais: {localization_optional: true}
         normal_bams: {localization_optional: true}
         normal_bais: {localization_optional: true}
+        force_call_alleles: {localization_optional: true}
+        force_call_alleles_idx: {localization_optional: true}
         panel_of_normals: {localization_optional: true}
         panel_of_normals_idx: {localization_optional: true}
         germline_resource: {localization_optional: true}
