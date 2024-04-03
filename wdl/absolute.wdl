@@ -132,12 +132,15 @@ task ProcessMAFforAbsolute {
 import pandas as pd
 
 maf = pd.read_csv('~{uncompressed_maf}', sep='\t', comment='#')
-cols_to_keep = [col for col in maf.columns if maf[col].astype(str).map(len).max() < 1000]
-print("Removing columns:", set(maf.columns) - set(cols_to_keep))
+if maf.empty:
+    print("No variants found in the input MAF file.")
+else:
+    cols_to_keep = [col for col in maf.columns if maf[col].astype(str).map(len).max() < 1000]
+    print("Removing columns:", set(maf.columns) - set(cols_to_keep))
 
-maf = maf[cols_to_keep].rename(columns={"Start_Position": "Start_position", "End_Position": "End_position"})
-maf.loc[maf["Variant_Type"].isin(["SNP", "DNP", "TNP", "MNP"])].to_csv('~{output_snv_maf}', sep='\t', index=False, mode='a')
-maf.loc[maf["Variant_Type"].isin(["INS", "DEL"])].to_csv('~{output_indel_maf}', sep='\t', index=False, mode='a')
+    maf = maf[cols_to_keep].rename(columns={"Start_Position": "Start_position", "End_Position": "End_position"})
+    maf.loc[maf["Variant_Type"].isin(["SNP", "DNP", "TNP", "MNP"])].to_csv('~{output_snv_maf}', sep='\t', index=False, mode='a')
+    maf.loc[maf["Variant_Type"].isin(["INS", "DEL"])].to_csv('~{output_indel_maf}', sep='\t', index=False, mode='a')
 EOF
     >>>
 
