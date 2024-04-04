@@ -76,7 +76,6 @@ workflow DefineRuntimeCollection {
         # Increasing cpus likely increases costs by the same factor.
 
         Int mem_machine_overhead = 512
-        Int mem_additional_per_sample = 384  # this depends on bam size (WES vs WGS)
 
         Int time_startup = 10
 
@@ -125,7 +124,7 @@ workflow DefineRuntimeCollection {
         Int time_vcf_to_pileup_variants = 5
 
         # gatk: GetPileupSummaries
-        Int mem_get_pileup_summaries = 4096  # needs at least 2G
+        Int mem_get_pileup_summaries = 2560  # needs at least 2G
         Int time_get_pileup_summaries = 4500  # 3 d / scatter_count
 
         # gatk: GatherPileupSummaries
@@ -143,6 +142,7 @@ workflow DefineRuntimeCollection {
         # HarmonizeCopyRatios
         Int cpu_harmonize_copy_ratios = 4
         Int mem_harmonize_copy_ratios_base = 8192
+        Int mem_harmonize_copy_ratios_additional_per_sample = 256
         Int time_harmonize_copy_ratios = 60
 
         # MergeAllelicCounts
@@ -150,7 +150,7 @@ workflow DefineRuntimeCollection {
         Int time_merge_allelic_counts = 10
 
         # gatk: CalculateContamination
-        Int mem_calculate_contamination = 3072  # depends on the variants_for_contamination resource
+        Int mem_calculate_contamination = 3072
         Int time_calculate_contamination = 10
 
         # custom genotyping script based on CalculateContamination model
@@ -158,7 +158,8 @@ workflow DefineRuntimeCollection {
         Int time_genotype_variants = 30
 
         # gatk: ModelSegments
-        Int mem_model_segments = 8192  # technically scales with number of samples; but 8G is ok for 50 samples.
+        Int mem_model_segments_base = 1024
+        Int mem_model_segments_additional_per_sample = 128
         Int time_model_segments = 60
 
         # gatk: CallCopyRatioSegments
@@ -183,7 +184,8 @@ workflow DefineRuntimeCollection {
 
         # gatk: Mutect2
         Int cpu_mutect2 = 4
-        Int mem_mutect2_base = 3072
+        Int mem_mutect2_base = 2560
+        Int mem_mutect2_additional_per_sample = 512
         Int time_mutect2_total = 10000  # 6 d / scatter_count
         Int disk_mutect2 = 0
 
@@ -204,7 +206,8 @@ workflow DefineRuntimeCollection {
         Int time_merge_bams = 60
 
         # gatk: LearnReadOrientationModel
-        Int mem_learn_read_orientation_model_base = 4096
+        Int mem_learn_read_orientation_model_base = 2048
+        Int mem_learn_read_orientation_model_additional_per_sample = 1024
         Int time_learn_read_orientation_model = 180  # 3 h
 
         # gatk: FilterMutectCalls
@@ -217,7 +220,8 @@ workflow DefineRuntimeCollection {
 
         # gatk: FilterAlignmentArtifacts
         Int cpu_filter_alignment_artifacts = 4
-        Int mem_filter_alignment_artifacts_base = 3072  # needs to be increased in some cases
+        Int mem_filter_alignment_artifacts_base = 2048
+        Int mem_filter_alignment_artifacts_additional_per_sample = 256
         Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count
 
         # gatk: SelectVariants
@@ -438,7 +442,7 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Int mem_harmonize_copy_ratios = mem_harmonize_copy_ratios_base + num_bams * mem_additional_per_sample
+    Int mem_harmonize_copy_ratios = mem_harmonize_copy_ratios_base + num_bams * mem_harmonize_copy_ratios_additional_per_sample
     Runtime harmonize_copy_ratios = {
         "docker": python_docker,
         "preemptible": preemptible,
@@ -488,6 +492,7 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Int mem_model_segments = mem_model_segments_base + num_bams * mem_model_segments_additional_per_sample
     Runtime model_segments = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
@@ -587,7 +592,7 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Int mem_mutect2 = mem_mutect2_base + num_bams * mem_additional_per_sample
+    Int mem_mutect2 = mem_mutect2_base + num_bams * mem_mutect2_additional_per_sample
     Runtime mutect2 = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
@@ -601,7 +606,7 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Int mem_learn_read_orientation_model = mem_learn_read_orientation_model_base + num_bams * mem_additional_per_sample
+    Int mem_learn_read_orientation_model = mem_learn_read_orientation_model_base + num_bams * mem_learn_read_orientation_model_additional_per_sample
     Runtime learn_read_orientation_model = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
@@ -692,7 +697,7 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Int mem_filter_alignment_artifacts = mem_filter_alignment_artifacts_base + num_bams * mem_additional_per_sample
+    Int mem_filter_alignment_artifacts = mem_filter_alignment_artifacts_base + num_bams * mem_filter_alignment_artifacts_additional_per_sample
     Runtime filter_alignment_artifacts = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
