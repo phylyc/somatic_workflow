@@ -185,6 +185,11 @@ task Funcotate {
             fi
         fi
 
+        echo ""
+        # using a custom list of transcripts gives this INFO message:
+        printf "Suppressing the following INFO messages: 'Adding transcript ID to transcript set:'\n" >&2
+        echo ""
+
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             Funcotator \
             ~{sep=" " prefix("--data-sources-path ", select_first([data_sources_paths, ["$DATA_SOURCES_FOLDER"]]))} \
@@ -203,7 +208,11 @@ task Funcotate {
             ~{annotation_default_arg} \
             ~{annotation_override_arg} \
             ~{exclude_fields_arg} \
-            ~{funcotate_extra_args}
+            ~{funcotate_extra_args} \
+            2> >( \
+                grep -v 'Adding transcript ID to transcript set' \
+                >&2 \
+            )
 
         rm -rf $DATA_SOURCES_FOLDER
     >>>
