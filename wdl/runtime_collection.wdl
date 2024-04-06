@@ -150,7 +150,7 @@ workflow DefineRuntimeCollection {
         Int time_merge_allelic_counts = 10
 
         # gatk: CalculateContamination
-        Int mem_calculate_contamination = 3072
+        Int mem_calculate_contamination = 1024
         Int time_calculate_contamination = 10
 
         # custom genotyping script based on CalculateContamination model
@@ -163,7 +163,7 @@ workflow DefineRuntimeCollection {
         Int time_model_segments = 60
 
         # gatk: CallCopyRatioSegments
-        Int mem_call_copy_ratio_segments = 2048
+        Int mem_call_copy_ratio_segments = 1024
         Int time_call_copy_ratio_segments = 10
 
         # custom task to merge calls with modeled segments
@@ -171,7 +171,7 @@ workflow DefineRuntimeCollection {
         Int time_merge_calls_with_modeled_segments = 1
 
         # gatk: PlotModeledSegments
-        Int mem_plot_modeled_segments = 4096
+        Int mem_plot_modeled_segments = 1024
         Int time_plot_modeled_segments = 10
 
         # custom filtering script
@@ -183,8 +183,9 @@ workflow DefineRuntimeCollection {
         #######################################################################
 
         # gatk: Mutect2
-        Int cpu_mutect2 = 4
-        Int mem_mutect2_base = 2560
+        # The GATK only parallelizes a few parts of the computation, so any extra cores would be idle for a large fraction of time.
+        Int cpu_mutect2 = 1
+        Int mem_mutect2_base = 6144
         Int mem_mutect2_additional_per_sample = 512
         Int time_mutect2_total = 10000  # 6 d / scatter_count
         Int disk_mutect2 = 0
@@ -206,21 +207,21 @@ workflow DefineRuntimeCollection {
         Int time_merge_bams = 60
 
         # gatk: LearnReadOrientationModel
-        Int mem_learn_read_orientation_model_base = 2048
+        Int mem_learn_read_orientation_model_base = 8192
         Int mem_learn_read_orientation_model_additional_per_sample = 1024
         Int time_learn_read_orientation_model = 180  # 3 h
 
         # gatk: FilterMutectCalls
-        Int mem_filter_mutect_calls = 4096
+        Int mem_filter_mutect_calls = 1024
         Int time_filter_mutect_calls = 800  # 13 h
 
         # gatk: VariantFiltration
-        Int mem_variant_filtration = 2048
+        Int mem_variant_filtration = 512
         Int time_variant_filtration = 5
 
         # gatk: FilterAlignmentArtifacts
-        Int cpu_filter_alignment_artifacts = 4
-        Int mem_filter_alignment_artifacts_base = 2048
+        Int cpu_filter_alignment_artifacts = 1
+        Int mem_filter_alignment_artifacts_base = 1024
         Int mem_filter_alignment_artifacts_additional_per_sample = 256
         Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count
 
