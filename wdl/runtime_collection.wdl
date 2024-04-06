@@ -150,7 +150,7 @@ workflow DefineRuntimeCollection {
         Int time_merge_allelic_counts = 10
 
         # gatk: CalculateContamination
-        Int mem_calculate_contamination = 1024
+        Int mem_calculate_contamination = 3072
         Int time_calculate_contamination = 10
 
         # custom genotyping script based on CalculateContamination model
