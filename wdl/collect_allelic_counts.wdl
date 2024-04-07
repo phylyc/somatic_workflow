@@ -22,7 +22,7 @@ workflow CollectAllelicCounts {
         File ref_dict
 
         # SequencingRun sequencing_run = GetSeqRun.sequencing_run
-        String sample_name
+        String sample_name = basename(bam, ".bam")
         File bam
         File bai
         Boolean? is_paired_end

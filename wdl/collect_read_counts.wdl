@@ -12,7 +12,7 @@ workflow CollectReadCounts {
         File ref_dict
         String format = "TSV"
 
-        String sample_name
+        String sample_name = basename(bam, ".bam")
         File bam
         File bai
         File interval_list
