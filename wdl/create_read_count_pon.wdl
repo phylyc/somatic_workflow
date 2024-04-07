@@ -20,6 +20,8 @@ workflow CreateReadCountPanelOfNormals {
 
         String pon_name
 
+        Boolean is_paired_end = false
+
         File? annotated_interval_list
         # If annotated_interval_list is specified, those args are ignored:
         File? mappability_track
@@ -77,6 +79,7 @@ workflow CreateReadCountPanelOfNormals {
                 ref_dict = ref_dict,
                 bam = normal_bam.left,
                 bai = normal_bam.right,
+                is_paired_end = is_paired_end,
                 format = "HDF5",
                 gatk_override = gatk_override,
                 gatk_docker = gatk_docker,
