@@ -142,7 +142,7 @@ workflow DefineRuntimeCollection {
         # HarmonizeCopyRatios
         Int cpu_harmonize_copy_ratios = 4
         Int mem_harmonize_copy_ratios_base = 8192
-        Int mem_harmonize_copy_ratios_additional_per_sample = 256
+        Int mem_harmonize_copy_ratios_additional_per_sample = 1024
         Int time_harmonize_copy_ratios = 60
 
         # MergeAllelicCounts
@@ -150,6 +150,7 @@ workflow DefineRuntimeCollection {
         Int time_merge_allelic_counts = 10
 
         # gatk: CalculateContamination
+        # Memory depends on size of SNP array; gnomad v2.1.1 in WES target regions gives ~50k variants, which uses ~120 MB
         Int mem_calculate_contamination = 3072
         Int time_calculate_contamination = 10
 
