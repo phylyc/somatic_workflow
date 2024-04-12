@@ -60,6 +60,7 @@ struct WorkflowArguments {
 
     # SNV WORKFLOW
     Boolean mutect2_native_pair_hmm_use_double_precision
+    Boolean mutect2_dont_use_soft_clipped_bases
     Boolean mutect2_use_linked_de_bruijn_graph
     Boolean mutect2_recover_all_dangling_branches
     Boolean mutect2_pileup_detection
@@ -289,6 +290,7 @@ workflow DefineWorkflowArguments {
 
         min_read_depth: min_read_depth,
         mutect2_native_pair_hmm_use_double_precision: mutect2_native_pair_hmm_use_double_precision,
+        mutect2_dont_use_soft_clipped_bases: mutect2_dont_use_soft_clipped_bases,
         mutect2_use_linked_de_bruijn_graph: mutect2_use_linked_de_bruijn_graph,
         mutect2_recover_all_dangling_branches: mutect2_recover_all_dangling_branches,
         mutect2_pileup_detection: mutect2_pileup_detection,
