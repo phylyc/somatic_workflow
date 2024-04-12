@@ -186,9 +186,12 @@ workflow DefineRuntimeCollection {
         # gatk: Mutect2
         # The GATK only parallelizes a few parts of the computation, so any extra cores would be idle for a large fraction of time.
         Int cpu_mutect2 = 1
-        Int mem_mutect2_base = 6144
+        Int mem_mutect2_base = 3072
         Int mem_mutect2_additional_per_sample = 512
+        Int mem_mutect2_overhead = 1024  # needs to be at least 1GB to run decently
         Int time_mutect2_total = 10000  # 6 d / scatter_count
+        Int preemptible_mutect2 = 1
+        Int max_retries_mutect2 = 2
         Int disk_mutect2 = 0
 
         # gatk: MergeVCFs
@@ -598,10 +601,10 @@ workflow DefineRuntimeCollection {
     Runtime mutect2 = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
+        "preemptible": preemptible_mutect2,
+        "max_retries": max_retries_mutect2,
         "cpu": cpu_mutect2,
-        "machine_mem": mem_mutect2 + mem_machine_overhead,
+        "machine_mem": mem_mutect2 + mem_mutect2_overhead,
         "command_mem": mem_mutect2,
         "runtime_minutes": time_startup + ceil(time_mutect2_total / scatter_count),
         "disk": disk + disk_mutect2,

@@ -7,6 +7,13 @@ version development
 ##      Strongly recommended to use with recover_all_dangling_branches. This increases
 ##      compute cost though, and may still not guarantee that all variants are
 ##      being called. Ideally, run with and without and use the joint callset.
+## --dont-use-soft-clipped-bases: https://gatk.broadinstitute.org/hc/en-us/community/posts/7259437599771-Evil-default
+##      Using soft-clipped bases is necessary for indel calling. However, it can
+##      introduce false positives, especially when DNA is sequenced from shorter
+##      than 2xread_length fragments (like cfDNA), resulting in frequent read-through
+##      into the adapters, which has lots of soft-clipped bases, and thus totally
+##      unexpected mutation calls. The solution for that is to hard-clip the adapters
+##      before variant calling.
 ##
 ## SOLVED IN GATK v4.6.0.0:
 ## force_call_alleles:
@@ -80,6 +87,7 @@ workflow CallVariants {
                 compress_output = args.compress_output,
                 genotype_germline_sites = args.mutect2_genotype_germline_sites,
                 native_pair_hmm_use_double_precision = args.mutect2_native_pair_hmm_use_double_precision,
+                dont_use_soft_clipped_bases = args.mutect2_dont_use_soft_clipped_bases,
                 use_linked_de_bruijn_graph = args.mutect2_use_linked_de_bruijn_graph,
                 recover_all_dangling_branches = args.mutect2_recover_all_dangling_branches,
                 pileup_detection = args.mutect2_pileup_detection,
@@ -166,6 +174,7 @@ task Mutect2 {
 
         Boolean genotype_germline_sites = false
         Boolean native_pair_hmm_use_double_precision = true
+        Boolean dont_use_soft_clipped_bases = false
         Boolean use_linked_de_bruijn_graph = true
         Boolean recover_all_dangling_branches = true
         Boolean pileup_detection = true
@@ -219,10 +228,28 @@ task Mutect2 {
     String output_bai = individual_id + ".bamout.bai"
     String output_artifact_priors = individual_id + ".f1r2_counts.tar.gz"
 
+    String dollar = "$"
+
     command <<<
         set -e
-        n_threads=$(nproc)
+
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+
+        # Dynamically calculate memory usage for Cromwell's retry_with_more_memory feature:
+        # This only works in a cloud VM! For HPC, you need to check cgroups.
+        machine_mb=$( free -m | awk '{ print $NF }' | head -n 2 | tail -1 )   # change to -g for GB output from free
+
+        ## get 90% memory
+        # command_mb=$(( $machine_mb * 90 / 100 ))
+
+        overhead_mb=~{runtime_params.machine_mem - runtime_params.command_mem}
+        command_mb=$(( $machine_mb  - $overhead_mb ))   # leave >=1GB for heap overhead
+
+        n_threads=$(nproc)
+
+        echo ""
+        echo "Using $command_mb MB of memory and $n_threads threads."
+        echo ""
 
         echo ""
         # This warning is from enabling the linked de-Bruijn graph implementation:
@@ -232,7 +259,7 @@ task Mutect2 {
         printf "Suppressing the following warning messages: 'More than two reads with the same name found. Using two reads randomly to combine as a fragment.'\n" >&2
         echo ""
 
-        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+        gatk --java-options "-Xmx~{dollar}{command_mb}m" \
             Mutect2 \
             --reference '~{ref_fasta}' \
             ~{sep="' " prefix("-I '", tumor_bams)}' \
@@ -246,6 +273,7 @@ task Mutect2 {
             ~{if get_orientation_bias_priors then "--f1r2-tar-gz '" + output_artifact_priors + "'" else ""} \
             ~{"--germline-resource '" + germline_resource + "'"} \
             ~{if genotype_germline_sites then "--genotype-germline-sites true" else ""} \
+            ~{if dont_use_soft_clipped_bases then "--dont-use-soft-clipped-bases true" else ""} \
             ~{if use_linked_de_bruijn_graph then "--linked-de-bruijn-graph true" else ""} \
             ~{if recover_all_dangling_branches then "--recover-all-dangling-branches true" else ""} \
             ~{if pileup_detection then "--pileup-detection true" else ""} \

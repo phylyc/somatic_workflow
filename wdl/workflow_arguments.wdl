@@ -155,6 +155,7 @@ workflow DefineWorkflowArguments {
         Int min_read_depth = 4
         # This is essentially a custom implementation of the mitochondiral model:
         Boolean mutect2_native_pair_hmm_use_double_precision = true
+        Boolean mutect2_dont_use_soft_clipped_bases = false
         Boolean mutect2_use_linked_de_bruijn_graph = true
         Boolean mutect2_recover_all_dangling_branches = true
         Boolean mutect2_pileup_detection = true
