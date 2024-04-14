@@ -239,24 +239,31 @@ task Mutect2 {
         # This only works in a cloud VM! For HPC, you need to check cgroups.
         machine_mb=$( free -m | awk '{ print $NF }' | head -n 2 | tail -1 )   # change to -g for GB output from free
 
-        ## get 90% memory
-        # command_mb=$(( $machine_mb * 90 / 100 ))
+        ten_percent_machine_mb=$(( $machine_mb * 10 / 100 ))
+        runtime_overhead_mb=~{runtime_params.machine_mem - runtime_params.command_mem}
 
-        overhead_mb=~{runtime_params.machine_mem - runtime_params.command_mem}
-        command_mb=$(( $machine_mb  - $overhead_mb ))   # leave >=1GB for heap overhead
+        # Leave 10% of memory or runtime_overhead for overhead, whichever is larger
+        if [ $ten_percent_machine_mb -gt $runtime_overhead_mb ]; then
+            overhead_mb=$ten_percent_machine_mb
+        else
+            overhead_mb=$runtime_overhead_mb
+        fi
+        command_mb=$(( $machine_mb  - $overhead_mb ))
 
         n_threads=$(nproc)
 
         echo ""
-        echo "Using $command_mb MB of memory and $n_threads threads."
+        echo "Machine memory: $machine_mb MB."
+        echo "Overhead: $overhead_mb MB."
+        echo "Using $command_mb MB of memory for GATK and $n_threads threads."
         echo ""
 
         echo ""
         # This warning is from enabling the linked de-Bruijn graph implementation:
-        printf "Suppressing the following warning messages: 'Dangling End recovery killed because of a loop (findPath)'\n" >&2
+        echo "Suppressing the following warning messages: 'Dangling End recovery killed because of a loop (findPath)'"
 
         # This warning appears if multiple sequencing runs from the same sample are supplied:
-        printf "Suppressing the following warning messages: 'More than two reads with the same name found. Using two reads randomly to combine as a fragment.'\n" >&2
+        echo "Suppressing the following warning messages: 'More than two reads with the same name found. Using two reads randomly to combine as a fragment.'"
         echo ""
 
         gatk --java-options "-Xmx~{dollar}{command_mb}m" \
