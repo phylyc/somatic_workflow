@@ -135,7 +135,11 @@ maf = pd.read_csv('~{uncompressed_maf}', sep='\t', comment='#')
 if maf.empty:
     print("No variants found in the input MAF file.")
 else:
-    cols_to_keep = [col for col in maf.columns if maf[col].astype(str).map(len).max() < 1000]
+    cols_to_keep = [
+        col
+        for col in maf.columns
+        if maf[col].astype(str).map(len).max() < 1000 || maf[col].isna().all()
+    ]
     print("Removing columns:", set(maf.columns) - set(cols_to_keep))
 
     maf = maf[cols_to_keep].rename(columns={"Start_Position": "Start_position", "End_Position": "End_position"})
