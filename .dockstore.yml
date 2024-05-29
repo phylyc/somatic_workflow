@@ -40,10 +40,26 @@ workflows:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
 
+  - name: CollectCoveredRegions
+    subclass: WDL
+    publish: true
+    primaryDescriptorPath: /wdl/collect_covered_regions.wdl
+    authors:
+      - orcid: 0000-0001-9584-9135
+      - name: Philipp Hähnel
+
   - name: Absolute
     subclass: WDL
     publish: true
     primaryDescriptorPath: /wdl/absolute.wdl
+    authors:
+      - orcid: 0000-0001-9584-9135
+      - name: Philipp Hähnel
+
+  - name: AbsoluteExtractSolution
+    subclass: WDL
+    publish: true
+    primaryDescriptorPath: /wdl/absolute_extract.wdl
     authors:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel

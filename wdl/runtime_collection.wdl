@@ -29,6 +29,7 @@ struct RuntimeCollection {
     Runtime model_segments_to_acs_conversion
     Runtime process_maf_for_absolute
     Runtime absolute
+    Runtime absolute_extract
     Runtime mutect2
     Runtime learn_read_orientation_model
     Runtime merge_vcfs
@@ -57,6 +58,7 @@ workflow DefineRuntimeCollection {
         # Needs docker image with bedtools, samtools, and gatk
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
         String tag_cga_pipline_docker = "us.gcr.io/tag-team-160914/neovax-tag-cga-pipeline:v1"
+        String absolute_extract_docker = "danielrbroad/absolute_extract_and_1d_clustering_docker"
         String ubuntu_docker = "ubuntu"
         String bcftools_docker = "staphb/bcftools"
         String python_docker = "civisanalytics/datascience-python:latest"
@@ -226,7 +228,7 @@ workflow DefineRuntimeCollection {
         # gatk: FilterAlignmentArtifacts
         Int cpu_filter_alignment_artifacts = 1
         Int mem_filter_alignment_artifacts_base = 1024
-        Int mem_filter_alignment_artifacts_additional_per_sample = 256
+        Int mem_filter_alignment_artifacts_additional_per_sample = 192
         Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count
 
         # gatk: SelectVariants
@@ -597,6 +599,18 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime absolute_extract = {
+        "docker": tag_cga_pipline_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_absolute + mem_machine_overhead,
+        "command_mem": mem_absolute,
+        "runtime_minutes": time_startup + time_absolute,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Int mem_mutect2 = mem_mutect2_base + num_bams * mem_mutect2_additional_per_sample
     Runtime mutect2 = {
         "docker": gatk_docker,
@@ -832,6 +846,7 @@ workflow DefineRuntimeCollection {
         "model_segments_to_acs_conversion": model_segments_to_acs_conversion,
         "process_maf_for_absolute": process_maf_for_absolute,
         "absolute": absolute,
+        "absolute_extract": absolute_extract,
 
         "mutect2": mutect2,
         "learn_read_orientation_model": learn_read_orientation_model,
