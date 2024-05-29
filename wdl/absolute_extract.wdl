@@ -40,17 +40,18 @@ task absolute_extract{
     command <<<
         set -ex
 
-        ls -lht /xchip/tcga/Tools/absolute/releases/v1.5/run/
+#        ls -lht /xchip/tcga/Tools/absolute/releases/v1.5/run/
+#
+#        echo ""
+#        cat /xchip/tcga/Tools/absolute/releases/v1.5/run/ABSOLUTE_cli_review.R
+#
+#        echo ""
+#        cat /xchip/tcga/Tools/absolute/releases/v1.5/run/pre_extract.R
 
         echo ""
+        cat /usr/local/bin/ABSOLUTE_extract_cli_start.R
 
-        cat /xchip/tcga/Tools/absolute/releases/v1.5/run/ABSOLUTE_cli_review.R
 
-        echo ""
-
-        cat /xchip/tcga/Tools/absolute/releases/v1.5/run/pre_extract.R
-
-        # Rscript /usr/local/bin/ABSOLUTE_extract_cli_start.R
 #        Rscript /xchip/tcga/Tools/absolute/releases/v1.5/run/ABSOLUTE_extract_cli_start.R \
 #            --solution_num $absolute_called_solution \
 #            --analyst_id "${analyst_id}" \
