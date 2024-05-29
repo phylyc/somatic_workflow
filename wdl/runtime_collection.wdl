@@ -600,7 +600,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime absolute_extract = {
-        "docker": tag_cga_pipline_docker,
+        "docker": absolute_extract_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
