@@ -10,7 +10,7 @@ workflow Absolute {
         File af_model_parameters
         File annotated_variants
 
-        String acs_conversion_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/acs_conversion.py"
+        String acs_conversion_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
         Int min_hets = 10
         Int min_probes = 4
         Float maf90_threshold = 0.485
@@ -56,7 +56,7 @@ workflow Absolute {
 
 task ModelSegmentsToACSConversion {
     input {
-        String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/acs_conversion.py"
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
 
         File seg_final
         File af_model_parameters
@@ -143,7 +143,7 @@ else:
     print("Removing columns:", set(maf.columns) - set(cols_to_keep))
 
     maf = maf[cols_to_keep].rename(columns={"Start_Position": "Start_position", "End_Position": "End_position"})
-    maf.loc[maf["Variant_Type"].isin(["SNP", "DNP", "TNP", "MNP"])].to_csv('~{output_snv_maf}', sep='\t', index=False, mode='a')
+    maf.loc[maf["Variant_Type"].isin(["SNP", "DNP", "TNP", "MNP", "ONP"])].to_csv('~{output_snv_maf}', sep='\t', index=False, mode='a')
     maf.loc[maf["Variant_Type"].isin(["INS", "DEL"])].to_csv('~{output_indel_maf}', sep='\t', index=False, mode='a')
 EOF
     >>>

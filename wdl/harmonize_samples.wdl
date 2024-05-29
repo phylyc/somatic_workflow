@@ -107,7 +107,7 @@ workflow HarmonizeSamples {
 
 task HarmonizeCopyRatios {
     input {
-        String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/harmonize_copy_ratios.py"
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
 
         Array[String]+ sample_names
         Array[File]+ denoised_copy_ratios
@@ -155,7 +155,7 @@ task HarmonizeCopyRatios {
 
 task MergeAllelicCounts {
     input {
-        String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/merge_pileups.py"
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
 
         Array[String]+ sample_names
         Array[File]+ allelic_counts

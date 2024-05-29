@@ -6,7 +6,7 @@ import "runtimes.wdl" as rt
 
 workflow GenotypeVariants {
     input {
-        String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
 
         String individual_id
         Array[String] sample_names
@@ -97,7 +97,7 @@ workflow GenotypeVariants {
 
 task GenotypeVariantsTask {
     input {
-        String script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
 
         String individual_id
         Array[String] sample_names

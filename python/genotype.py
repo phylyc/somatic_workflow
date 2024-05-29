@@ -808,7 +808,7 @@ class GenotypeData(object):
 
         Args:
             genotyper (Genotyper): Genotyper object.
-            correlation_threshold (float, optional): Threshold for genotype correlation.
+            correlation_threshold (float, optional): Threshold for genotype correlation to raise warning.
 
         Returns:
             pandas.DataFrame: DataFrame containing the sample correlation matrix.

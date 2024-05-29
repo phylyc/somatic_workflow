@@ -253,7 +253,7 @@ task Mutect2 {
         n_threads=$(nproc)
 
         echo ""
-        echo "Machine memory: $machine_mb MB."
+        echo "Available memory: $machine_mb MB."
         echo "Overhead: $overhead_mb MB."
         echo "Using $command_mb MB of memory for GATK and $n_threads threads."
         echo ""
