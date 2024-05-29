@@ -3,11 +3,11 @@ version development
 import "runtime_collection.wdl" as rtc
 
 
-workflow absolute_extract_workflow {
+workflow AbsoluteExtract {
     input {
         String sample_name
-        File absolute_summary_data_gatk_acnv
-        Int absolute_called_solution
+        File rdata
+        Int called_solution
         String analyst_id
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
@@ -15,32 +15,32 @@ workflow absolute_extract_workflow {
 
     call rtc.DefineRuntimeCollection as RuntimeParameters
 
-    call absolute_extract {
+    call AbsoluteExtractTask {
         input:
             sample_name = sample_name,
-            absolute_summary_data_gatk_acnv = absolute_summary_data_gatk_acnv,
-            absolute_called_solution = absolute_called_solution,
+            rdata = rdata,
+            called_solution = called_solution,
             analyst_id = analyst_id,
             runtime_params = runtime_collection.absolute_extract
 
     }
 
     output {
-        File absolute_annotated_maf_capture = absolute_extract.absolute_annotated_maf_capture
-        File absolute_seg_file = absolute_extract.absolute_seg_file
-        File absolute_segdat_file = absolute_extract.absolute_segdat_file
-        File absolute_table = absolute_extract.absolute_table
-        String purity = absolute_extract.purity
-        String ploidy = absolute_extract.ploidy
+        File absolute_annotated_maf_capture = AbsoluteExtractTask.absolute_annotated_maf_capture
+        File absolute_seg_file = AbsoluteExtractTask.absolute_seg_file
+        File absolute_segdat_file = AbsoluteExtractTask.absolute_segdat_file
+        File absolute_table = AbsoluteExtractTask.absolute_table
+        String purity = AbsoluteExtractTask.purity
+        String ploidy = AbsoluteExtractTask.ploidy
     }
 }
 
 
-task absolute_extract{
+task AbsoluteExtractTask {
     input {
         String sample_name
-        File absolute_summary_data_gatk_acnv
-        Int absolute_called_solution
+        File rdata
+        Int called_solution
         String analyst_id
 
         Runtime runtime_params
@@ -50,9 +50,9 @@ task absolute_extract{
         set -euxo pipefail
 
         Rscript /usr/local/bin/ABSOLUTE_extract_cli_start.R \
-            --solution_num ~{absolute_called_solution} \
+            --solution_num ~{called_solution} \
             --analyst_id "~{analyst_id}" \
-            --rdata_modes_fn "~{absolute_summary_data_gatk_acnv}" \
+            --rdata_modes_fn "~{rdata}" \
             --sample_name "~{sample_name}" \
             --results_dir . \
             --abs_lib_dir /xchip/tcga/Tools/absolute/releases/v1.5/
