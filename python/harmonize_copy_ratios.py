@@ -74,24 +74,17 @@ def write_header_and_df(header: str, df: pd.DataFrame, file_path: str, verbose: 
 
 
 def split_intervals(intervals: pd.DataFrame, start_col: str, end_col: str):
-    starts = intervals[start_col]
-    ends = intervals[end_col]
-    boundaries = sorted(set(starts) | set(ends))
-    old_intervals = pd.IntervalIndex.from_arrays(starts, ends, closed="neither").unique()
-    new_intervals = pd.IntervalIndex.from_breaks(boundaries, closed="both")
-
-    # Remove intervals that are not in the original intervals
-
-    def overlaps_old(i):
-        found_overlap = False
-        for s in old_intervals:
-            if i.overlaps(s):
-                found_overlap = True
-                break
-        return found_overlap
-
-    mask = new_intervals.map(lambda i: i.length == 1 or overlaps_old(i))
-    new_intervals = new_intervals[mask]
+    starts = pd.DataFrame(data={"start": 1}, index=intervals[start_col])
+    ends = pd.DataFrame(data={"end": -1}, index=intervals[end_col])
+    transitions = pd.merge(starts, ends, how="outer", left_index=True, right_index=True).fillna(0)
+    # This dataframe stores per position the type of transitions. Automatically sorted.
+    # Now, we need to know at each position if we are at an interval start or not.
+    # This can be done by counting the opening & closing parenthesis.
+    transitions["is_start"] = (transitions.pop("start") + transitions.pop("end")).cumsum().astype(bool)
+    # This handles overlapping intervals.
+    # Create interval indices and take all intervals that have a valid start.
+    new_intervals = pd.IntervalIndex.from_breaks(transitions.index, closed="both")[transitions["is_start"][:-1]]
+    new_intervals = new_intervals[new_intervals.length > 0].unique()
 
     # Remove intervals of length 1 that are abutting with the previous and next interval.
     if new_intervals.size > 2:
@@ -99,7 +92,7 @@ def split_intervals(intervals: pd.DataFrame, start_col: str, end_col: str):
         new_ends = new_intervals.right
         abutting = new_starts[1:] == new_ends[:-1]
         mid_abutting = np.concatenate([[False], abutting[1:] & abutting[:-1], [False]])
-        length1 = new_intervals.length == 1
+        length1 = new_intervals.length <= 1
         # don't remove length 1 intervals next to other length 1 intervals
         good_length1 = np.concatenate([[False], ~length1[:-2] & length1[1:-1] & ~length1[2:], [False]])
         mask = mid_abutting & good_length1
