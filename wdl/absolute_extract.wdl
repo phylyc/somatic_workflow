@@ -24,6 +24,15 @@ workflow absolute_extract_workflow {
             runtime_params = runtime_collection.absolute_extract
 
     }
+
+    output {
+        File absolute_annotated_maf_capture = absolute_extract.absolute_annotated_maf_capture
+        File absolute_seg_file = absolute_extract.absolute_seg_file
+        File absolute_segdat_file = absolute_extract.absolute_segdat_file
+        File absolute_table = absolute_extract.absolute_table
+        String purity = absolute_extract.purity
+        String ploidy = absolute_extract.ploidy
+    }
 }
 
 
@@ -41,20 +50,20 @@ task absolute_extract{
         set -euxo pipefail
 
         Rscript /usr/local/bin/ABSOLUTE_extract_cli_start.R \
-            --solution_num $absolute_called_solution \
-            --analyst_id "${analyst_id}" \
-            --rdata_modes_fn "${absolute_summary_data_gatk_acnv}" \
-            --sample_name "${sample_name}" \
+            --solution_num ~{absolute_called_solution} \
+            --analyst_id "~{analyst_id}" \
+            --rdata_modes_fn "~{absolute_summary_data_gatk_acnv}" \
+            --sample_name "~{sample_name}" \
             --results_dir . \
             --abs_lib_dir /xchip/tcga/Tools/absolute/releases/v1.5/
 
-        cp "reviewed/SEG_MAF/${sample_name}_ABS_MAF.txt" .
-        cp "reviewed/SEG_MAF/${sample_name}.segtab.txt" .
-        cp "reviewed/samples/${sample_name}.ABSOLUTE.${analyst_id}.called.RData" .
-        cp "reviewed/${sample_name}.${analyst_id}.ABSOLUTE.table.txt" .
+        cp "reviewed/SEG_MAF/~{sample_name}_ABS_MAF.txt" .
+        cp "reviewed/SEG_MAF/~{sample_name}.segtab.txt" .
+        cp "reviewed/samples/~{sample_name}.ABSOLUTE.~{analyst_id}.called.RData" .
+        cp "reviewed/~{sample_name}.~{analyst_id}.ABSOLUTE.table.txt" .
 
-        cut -f4 "${sample_name}.${analyst_id}.ABSOLUTE.table.txt" | tail -n 1 > purity
-        cut -f5 "${sample_name}.${analyst_id}.ABSOLUTE.table.txt" | tail -n 1 > ploidy
+        cut -f4 "~{sample_name}.~{analyst_id}.ABSOLUTE.table.txt" | tail -n 1 > purity
+        cut -f5 "~{sample_name}.~{analyst_id}.ABSOLUTE.table.txt" | tail -n 1 > ploidy
     >>>
 
     output {
