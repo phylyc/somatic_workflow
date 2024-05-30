@@ -9,7 +9,13 @@ import numpy as np
 import os
 import pandas as pd
 import scipy.stats as st
+import time
 import warnings
+
+
+def message(*args, **kwargs) -> None:
+    print(f"{time.strftime('%H:%M:%S')} ", *args, **kwargs)
+    return None
 
 
 def parse_args():
@@ -74,7 +80,7 @@ def main():
 
 def print_args(args):
     if args.verbose:
-        print("Calling Genotyper")
+        message("Calling Genotyper")
         print("Arguments:")
         for key, value in vars(args).items():
             print(f"  {key}: {value}")
@@ -623,14 +629,14 @@ class Genotyper(object):
             ).apply(np.nanmean, axis=1)
 
         df = pd.DataFrame.from_dict(genotype_likelihood)
-        print(f"Processed {df.shape[0]} records.") if self.verbose else None
+        message(f"Processed {df.shape[0]} records.") if self.verbose else None
 
         df = self.select_confident_calls(likelihoods=df)
-        print(f"Selected  {df.shape[0]} confident calls.") if self.verbose else None
+        message(f"Selected  {df.shape[0]} confident calls.") if self.verbose else None
 
         if self.select_hets:
             df = self.select_confident_calls(likelihoods=df, genotypes=["0/1"])
-            print(f"Selected  {df.shape[0]} heterozygous SNPs.") if self.verbose else None
+            message(f"Selected  {df.shape[0]} heterozygous SNPs.") if self.verbose else None
 
         return df
 
@@ -665,7 +671,7 @@ class GenotypeData(object):
 
     def __init__(self, individual_id: str, samples: list[str], variant: str = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 10, verbose: bool = False):
         self.verbose = verbose
-        print("Loading data:") if verbose else None
+        message("Loading data:") if verbose else None
         self.individual_id = individual_id
         self.samples = samples
 
@@ -753,7 +759,7 @@ class GenotypeData(object):
         processes = np.min([max_processes, len(self.samples), os.cpu_count()])
         if processes > 1:
             try:
-                print(f"Parallel execution with {processes} processes: ", end="", flush=True) if self.verbose else None
+                message(f"Parallel execution with {processes} processes: ", end="", flush=True) if self.verbose else None
                 with mp.Pool(processes=processes) as pool:
                     pileup_likelihoods = pool.starmap(
                         func=self.get_pileup_likelihood,
@@ -767,7 +773,7 @@ class GenotypeData(object):
 
             except Exception as e:
                 print(f"Error in parallel execution: {e}")
-        print("Serial execution: ", end="", flush=True) if self.verbose else None
+        message("Serial execution: ", end="", flush=True) if self.verbose else None
         pileup_likelihoods = [
             self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, contamination, segments)
             for assigned_sample_name, pileup, contamination, segments in zip(self.samples, self.pileups, self.contaminations, self.segments)
@@ -824,6 +830,7 @@ class GenotypeData(object):
             else:
                 sample_gt_list.append(pd.DataFrame(index=confident_calls.index, columns=[pl.assigned_sample_name]))
 
+        pd.set_option("future.no_silent_downcasting", True)
         sample_genotypes = pd.concat(
             sample_gt_list,
             join="outer",
@@ -873,7 +880,7 @@ class GenotypeData(object):
 
         if self.verbose:
             if len(num_loci):
-                print(f"\nConcordance of samples is evaluated at", f"between {np.min(num_loci)} and {np.max(num_loci)}" if len(num_loci) > 1 else f"{num_loci[0]}", "variant loci.")
+                message(f"Concordance of samples is evaluated at", f"between {np.min(num_loci)} and {np.max(num_loci)}" if len(num_loci) > 1 else f"{num_loci[0]}", "variant loci.")
             print("Kendall-tau correlation of variant genotypes between samples:")
             print(sample_correlation.round(3).to_string())
             print()
@@ -881,13 +888,13 @@ class GenotypeData(object):
             print(pval.round(3).to_string())
             print()
         if sample_correlation.lt(correlation_threshold).any().any():
-            message = (
+            warning_message = (
                 f"\n\n"
                 f"\tGenotypes between samples are not well correlated (< {correlation_threshold})!\n"
                 f"\tIt is likely that not all samples are from the same individual.\n"
                 f"\tPlease check your inputs!\n"
             )
-            warnings.warn(message)
+            warnings.warn(warning_message)
         return sample_correlation
 
     @staticmethod
@@ -922,7 +929,7 @@ class GenotypeData(object):
             if not self.vcf.df.empty
             else self.joint_genotype_likelihood.index
         )
-        print(f"Subset to {len(index)} loci (aligned to cleaned reference variant input vcf).") if self.verbose else None
+        message(f"Subset to {len(index)} loci (aligned to cleaned reference variant input vcf).") if self.verbose else None
         index = self.sort_genomic_positions(index=index)
         self.pileup_likelihoods = [pl.reindex(index) for pl in self.pileup_likelihoods]
         # If pileup summaries of one sample do not cover a locus in another pileup,
@@ -945,7 +952,7 @@ class GenotypeData(object):
             vcf_format (str, optional): Format of the VCF FORMAT output.
             args (argparse.Namespace, optional): Arguments passed to the script, used for additional information in the output.
         """
-        print(f"\nWriting output to {output_dir} ...") if args.verbose else None
+        message(f"Writing output to {output_dir} ...") if args.verbose else None
         os.makedirs(output_dir, exist_ok=True)
         self.write_sample_correlation(output_dir=output_dir, args=args)
         self.write_sample_likelihoods(output_dir=output_dir, args=args)
