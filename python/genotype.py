@@ -287,18 +287,19 @@ def join_contaminations(contaminations: list["Contamination"]):
     return joint
 
 
-def join_segments(segments: list["Segments"]):
+def harmonize_segments(segments: list["Segments"]):
     joint = Segments()
     segs = pd.concat([s.df for s in segments], ignore_index=True)
     split_segs = pd.concat([non_overlapping(contig_group) for contig, contig_group in segs.groupby(by=["contig"])])
-    joint.df = split_segs.groupby(["contig", "start", "end"]).agg({"minor_allele_fraction": "min"}).reset_index()
+    segs = split_segs.groupby(["contig", "start", "end"]).agg({"minor_allele_fraction": "min"})
+    joint.df = merge_abutting_intervals(segs).reset_index()
     joint.bam_sample_name = np.unique([s.bam_sample_name for s in segments])[0]  # should be the same
     return joint
 
 
-def split_intervals(intervals):
-    starts = pd.DataFrame(data={"start": 1}, index=intervals["start"])
-    ends = pd.DataFrame(data={"end": -1}, index=intervals["end"])
+def split_intervals(intervals: pd.DataFrame, start_col: str, end_col: str):
+    starts = pd.DataFrame(data={"start": 1}, index=intervals[start_col])
+    ends = pd.DataFrame(data={"end": -1}, index=intervals[end_col])
     transitions = pd.merge(starts, ends, how="outer", left_index=True, right_index=True).fillna(0)
     # This dataframe stores per position the type of transitions. Automatically sorted.
     # Now, we need to know at each position if we are at an interval start or not.
@@ -306,23 +307,70 @@ def split_intervals(intervals):
     transitions["is_start"] = (transitions.pop("start") + transitions.pop("end")).cumsum().astype(bool)
     # This handles overlapping intervals.
     # Create interval indices and take all intervals that have a valid start.
-    new_intervals = pd.IntervalIndex.from_breaks(transitions.index, closed="left")[transitions["is_start"][:-1]]
-    return new_intervals[~new_intervals.is_empty]
+    new_intervals = pd.IntervalIndex.from_breaks(transitions.index, closed="both")[transitions["is_start"][:-1]]
+    new_intervals = new_intervals[new_intervals.length > 0].unique()
+
+    # Remove intervals of length 1 that are abutting with the previous and next interval.
+    if new_intervals.size > 2:
+        new_starts = new_intervals.left
+        new_ends = new_intervals.right
+        abutting = new_starts[1:] == new_ends[:-1]
+        mid_abutting = np.concatenate([[False], abutting[1:] & abutting[:-1], [False]])
+        length1 = new_intervals.length <= 1
+        # don't remove length 1 intervals next to other length 1 intervals
+        good_length1 = np.concatenate([[False], ~length1[:-2] & length1[1:-1] & ~length1[2:], [False]])
+        mask = mid_abutting & good_length1
+        new_intervals = new_intervals[~mask]
+    return new_intervals
 
 
-def non_overlapping(intervals):
-    new_intervals = split_intervals(intervals)
-    non_overlapping_interval_list = []
+def non_overlapping(intervals: pd.DataFrame, start_col: str = "start", end_col: str = "end", verbose: bool = False):
+    new_intervals = split_intervals(intervals, start_col, end_col)
+
+    # Map each original interval to the new non-overlapping intervals
+    non_overlapping_intervals = []
+    for new_interval in new_intervals:
+        contains_interval = intervals[(intervals[start_col] <= new_interval.left) & (intervals[end_col] > new_interval.left)]
+        for _, interval in contains_interval.iterrows():
+            new_row = copy(interval)
+            new_row[start_col] = new_interval.left
+            new_row[end_col] = new_interval.right
+            non_overlapping_intervals.append(new_row)
+
+    non_overlapping_df = pd.DataFrame(non_overlapping_intervals)
+    return non_overlapping_df
+
+
+def merge_abutting_intervals(intervals: pd.DataFrame, dist: int = 1, tol: float = 1e-3):
+    new_intervals = []
+    previous_interval = None
     for i, interval in intervals.iterrows():
-        pd_interval = pd.Interval(interval["start"], interval["end"], closed="left")
-        overlapping_new_intervals = [n_i for n_i in new_intervals if pd_interval.overlaps(n_i)]
-        # Split interval and content into new intervals:
-        for new_interval in overlapping_new_intervals:
-            new_split_interval = copy(interval)
-            new_split_interval["start"] = new_interval.left
-            new_split_interval["end"] = new_interval.right
-            non_overlapping_interval_list.append(new_split_interval)
-    return pd.DataFrame(non_overlapping_interval_list)
+        if previous_interval is None:
+            previous_interval = interval
+            new_intervals.append(interval)
+            continue
+
+        # interval.name == (contig, start, end)
+        if interval.name[0] == previous_interval.name[0] and abs(interval.name[1] - previous_interval.name[2]) <= dist:
+            if (abs(previous_interval - interval) < tol).all():
+                new_interval = copy(previous_interval)
+                new_interval.name = (new_interval.name[0], new_interval.name[1], interval.name[2])
+                new_intervals[-1] = new_interval
+                previous_interval = new_interval
+                continue
+
+        # Reduce end of the previous interval by 1 if it overlaps with the start of the current interval.
+        # Even though we use left-closed intervals, some downstream tools expect intervals to be both left- and right-closed.
+        if previous_interval.name[0] == interval.name[0] and previous_interval.name[2] == interval.name[1]:
+            previous_interval.name = (previous_interval.name[0], previous_interval.name[1], previous_interval.name[2] - 1)
+            new_intervals[-1] = previous_interval
+
+        new_intervals.append(interval)
+        previous_interval = interval
+
+    merged_intervals = pd.DataFrame(new_intervals)
+    merged_intervals.index.names = ["contig", "start", "end"]
+    return merged_intervals
 
 
 class VCF(object):
@@ -735,7 +783,7 @@ class GenotypeData(object):
             samples.append(s)
             pileups.append(join_pileups([self.pileups[i] for i in s_idx]))
             contaminations.append(join_contaminations([self.contaminations[i] for i in s_idx]))
-            segments.append(join_segments([self.segments[i] for i in s_idx]))
+            segments.append(harmonize_segments([self.segments[i] for i in s_idx]))
 
         self.samples = samples
         self.pileups = pileups
@@ -793,6 +841,9 @@ class GenotypeData(object):
         Raises:
             Warning: If allele frequencies are not consistent across samples.
         """
+        for pl in self.pileup_likelihoods:
+            print(pl.assigned_sample_name)
+            print(pl.df.loc[pl.df.index.duplicated(keep=False)])
         allele_frequency = pd.concat([pl.df["allele_frequency"] for pl in self.pileup_likelihoods], axis=1)
         is_same = allele_frequency.apply(lambda row: row.nunique() == 1, axis=1)
         if not is_same.all():
