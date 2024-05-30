@@ -841,9 +841,6 @@ class GenotypeData(object):
         Raises:
             Warning: If allele frequencies are not consistent across samples.
         """
-        for pl in self.pileup_likelihoods:
-            print(pl.assigned_sample_name)
-            print(pl.df.loc[pl.df.index.duplicated(keep=False)])
         allele_frequency = pd.concat([pl.df["allele_frequency"] for pl in self.pileup_likelihoods], axis=1)
         is_same = allele_frequency.apply(lambda row: row.nunique() == 1, axis=1)
         if not is_same.all():
