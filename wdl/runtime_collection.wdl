@@ -144,7 +144,7 @@ workflow DefineRuntimeCollection {
         # HarmonizeCopyRatios
         Int cpu_harmonize_copy_ratios = 4
         Int mem_harmonize_copy_ratios_base = 8192
-        Int mem_harmonize_copy_ratios_additional_per_sample = 1024
+        Int mem_harmonize_copy_ratios_additional_per_sample = 1280
         Int time_harmonize_copy_ratios = 60
 
         # MergeAllelicCounts
