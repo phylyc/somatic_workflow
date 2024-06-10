@@ -73,10 +73,29 @@ def write_header_and_df(header: str, df: pd.DataFrame, file_path: str, verbose: 
 
 
 def split_intervals(intervals: pd.DataFrame, start_col: str, end_col: str):
-    # Create a sorted list of all unique interval boundaries
-    boundaries = sorted(set(intervals[start_col]).union(set(intervals[end_col])))
-    # Use the boundaries to form non-overlapping intervals
-    new_intervals = pd.IntervalIndex.from_breaks(boundaries, closed='both')
+    starts = pd.DataFrame(data={"start": 1}, index=intervals[start_col])
+    ends = pd.DataFrame(data={"end": -1}, index=intervals[end_col])
+    transitions = pd.merge(starts, ends, how="outer", left_index=True, right_index=True).fillna(0)
+    # This dataframe stores per position the type of transitions. Automatically sorted.
+    # Now, we need to know at each position if we are at an interval start or not.
+    # This can be done by counting the opening & closing parenthesis.
+    transitions["is_start"] = (transitions.pop("start") + transitions.pop("end")).cumsum().astype(bool)
+    # This handles overlapping intervals.
+    # Create interval indices and take all intervals that have a valid start.
+    new_intervals = pd.IntervalIndex.from_breaks(transitions.index, closed="both")[transitions["is_start"][:-1]]
+    new_intervals = new_intervals[new_intervals.length > 0].unique()
+
+    # Remove intervals of length 1 that are abutting with the previous and next interval.
+    if new_intervals.size > 2:
+        new_starts = new_intervals.left
+        new_ends = new_intervals.right
+        abutting = new_starts[1:] == new_ends[:-1]
+        mid_abutting = np.concatenate([[False], abutting[1:] & abutting[:-1], [False]])
+        length1 = new_intervals.length <= 1
+        # don't remove length 1 intervals next to other length 1 intervals
+        good_length1 = np.concatenate([[False], ~length1[:-2] & length1[1:-1] & ~length1[2:], [False]])
+        mask = mid_abutting & good_length1
+        new_intervals = new_intervals[~mask]
     return new_intervals
 
 
@@ -84,19 +103,13 @@ def non_overlapping(intervals: pd.DataFrame, start_col: str = "START", end_col: 
     new_intervals = split_intervals(intervals, start_col, end_col)
 
     # Map each original interval to the new non-overlapping intervals
-    interval_mapping = defaultdict(list)
-    for interval in new_intervals:
-        contained_by_interval = intervals[(intervals[start_col] <= interval.left) & (intervals[end_col] > interval.left)]
-        for _, row in contained_by_interval.iterrows():
-            interval_mapping[interval].append(row)
-
-    # Flatten the mapping into a list of non-overlapping intervals with their corresponding data
     non_overlapping_intervals = []
-    for interval, rows in interval_mapping.items():
-        for row in rows:
-            new_row = copy(row)
-            new_row[start_col] = interval.left
-            new_row[end_col] = interval.right
+    for new_interval in new_intervals:
+        contains_interval = intervals[(intervals[start_col] <= new_interval.left) & (intervals[end_col] > new_interval.left)]
+        for _, interval in contains_interval.iterrows():
+            new_row = copy(interval)
+            new_row[start_col] = new_interval.left
+            new_row[end_col] = new_interval.right
             non_overlapping_intervals.append(new_row)
 
     non_overlapping_df = pd.DataFrame(non_overlapping_intervals)
