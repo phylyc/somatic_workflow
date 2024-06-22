@@ -21,6 +21,8 @@ workflow CollectReadCounts {
         Boolean is_paired_end = false
         Int max_soft_clipped_bases = 0
 
+        Boolean compress_output = false
+
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
         String gatk_docker = "broadinstitute/gatk"
         File? gatk_override
@@ -61,6 +63,7 @@ workflow CollectReadCounts {
             sample_name = sample_name,
             is_paired_end = is_paired_end,
             max_soft_clipped_bases = max_soft_clipped_bases,
+            compress_output = compress_output,
             runtime_params = runtime_collection.collect_read_counts
 	}
 
@@ -71,6 +74,7 @@ workflow CollectReadCounts {
                 sample_name = sample_name,
                 annotated_interval_list = annotated_interval_list,
                 count_panel_of_normals = read_count_panel_of_normals,
+                compress_output = compress_output,
                 runtime_params = runtime_collection.denoise_read_counts
         }
     }
@@ -96,10 +100,13 @@ task CollectReadCountsTask {
         Boolean is_paired_end = false
         Int max_soft_clipped_bases = 0
 
+        Boolean compress_output = false
+
         Runtime runtime_params
     }
 
-    String output_name = sample_name + ".read_counts.tsv"
+    String tsv_output = sample_name + ".read_counts.tsv"
+    String output_name = tsv_output + if compress_output then ".gz" else ""
 
 	command <<<
         set -e
@@ -109,7 +116,7 @@ task CollectReadCountsTask {
             -I '~{bam}' \
             -L '~{interval_list}' \
             -R '~{ref_fasta}' \
-            -O '~{output_name}' \
+            -O '~{tsv_output}' \
             --interval-merging-rule ~{interval_merging_rule} \
             --format ~{format} \
             ~{if is_paired_end then "--read-filter FirstOfPairReadFilter " else ""} \
@@ -117,6 +124,10 @@ task CollectReadCountsTask {
             --read-filter ExcessiveEndClippedReadFilter \
                 --max-clipped-bases ~{max_soft_clipped_bases} \
             --seconds-between-progress-updates 60
+
+        if [ "~{compress_output}" == "true" ] ; then
+            bgzip -c '~{tsv_output}' > '~{output_name}'
+        fi
 	>>>
 
 	output {
@@ -152,23 +163,41 @@ task DenoiseReadCounts {
         File? count_panel_of_normals
         Int? number_of_eigensamples
 
+        Boolean compress_output = false
+
         Runtime runtime_params
     }
 
-    String output_denoised_copy_ratios = sample_name + ".denoised_CR.tsv"
-    String output_standardized_copy_ratios = sample_name + ".standardized_CR.tsv"
+    String uncompressed_read_counts = basename(read_counts, ".gz")
+    Boolean is_compressed = uncompressed_read_counts != basename(read_counts)
+
+    String tsv_denoised_copy_ratios = sample_name + ".denoised_CR.tsv"
+    String tsv_standardized_copy_ratios = sample_name + ".standardized_CR.tsv"
+    String output_denoised_copy_ratios = tsv_denoised_copy_ratios + if compress_output then ".gz" else ""
+    String output_standardized_copy_ratios = tsv_standardized_copy_ratios + if compress_output then ".gz" else ""
 
 	command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+
+        if [ "~{is_compressed}" == "true" ] ; then
+            bgzip -cd '~{read_counts}' > '~{uncompressed_read_counts}'
+        # else '~{read_counts}' == '~{uncompressed_read_counts}'
+        fi
+
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             DenoiseReadCounts \
-            -I '~{read_counts}' \
-            --denoised-copy-ratios '~{output_denoised_copy_ratios}' \
-            --standardized-copy-ratios '~{output_standardized_copy_ratios}' \
+            -I '~{uncompressed_read_counts}' \
+            --denoised-copy-ratios '~{tsv_denoised_copy_ratios}' \
+            --standardized-copy-ratios '~{tsv_standardized_copy_ratios}' \
             ~{"--number-of-eigensamples " + number_of_eigensamples} \
             ~{"--annotated-intervals '" + annotated_interval_list + "'"} \
             ~{"--count-panel-of-normals '" + count_panel_of_normals + "'"}
+
+        if [ "~{compress_output}" == "true" ] ; then
+            bgzip -c '~{tsv_denoised_copy_ratios}' > '~{output_denoised_copy_ratios}'
+            bgzip -c '~{tsv_standardized_copy_ratios}' > '~{output_standardized_copy_ratios}'
+        fi
 	>>>
 
 	output {
