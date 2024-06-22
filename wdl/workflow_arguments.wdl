@@ -37,6 +37,7 @@ struct WorkflowArguments {
     # CNV WORKFLOW
     Int preprocess_intervals_bin_length
     Int preprocess_intervals_padding
+    Int collect_read_counts_max_soft_clipped_bases
     Float min_snp_array_pop_af
     Float max_snp_array_pop_af
     Int min_snp_array_read_depth
@@ -131,6 +132,7 @@ workflow DefineWorkflowArguments {
         Int preprocess_intervals_padding = 0
 
         # CNV WORKFLOW
+        Int collect_read_counts_max_soft_clipped_bases = 0
         Float min_snp_array_pop_af = 0.01
         Float max_snp_array_pop_af = 1.0  # default: 0.2
         Int min_snp_array_read_depth = 10
@@ -268,6 +270,7 @@ workflow DefineWorkflowArguments {
 
         preprocess_intervals_bin_length: preprocess_intervals_bin_length,
         preprocess_intervals_padding: preprocess_intervals_padding,
+        collect_read_counts_max_soft_clipped_bases: collect_read_counts_max_soft_clipped_bases,
         min_snp_array_pop_af: min_snp_array_pop_af,
         max_snp_array_pop_af: max_snp_array_pop_af,
         min_snp_array_read_depth: min_snp_array_read_depth,

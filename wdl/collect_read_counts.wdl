@@ -19,6 +19,7 @@ workflow CollectReadCounts {
         File? annotated_interval_list
         File? read_count_panel_of_normals
         Boolean is_paired_end = false
+        Int max_soft_clipped_bases = 0
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
         String gatk_docker = "broadinstitute/gatk"
@@ -59,6 +60,7 @@ workflow CollectReadCounts {
             format = format,
             sample_name = sample_name,
             is_paired_end = is_paired_end,
+            max_soft_clipped_bases = max_soft_clipped_bases,
             runtime_params = runtime_collection.collect_read_counts
 	}
 
@@ -92,6 +94,7 @@ task CollectReadCountsTask {
         String interval_merging_rule = "OVERLAPPING_ONLY"
         String format = "TSV"
         Boolean is_paired_end = false
+        Int max_soft_clipped_bases = 0
 
         Runtime runtime_params
     }
@@ -111,6 +114,8 @@ task CollectReadCountsTask {
             --format ~{format} \
             ~{if is_paired_end then "--read-filter FirstOfPairReadFilter " else ""} \
             ~{if is_paired_end then "--read-filter PairedReadFilter " else ""} \
+            --read-filter ExcessiveEndClippedReadFilter \
+                --max-clipped-bases ~{max_soft_clipped_bases} \
             --seconds-between-progress-updates 60
 	>>>
 

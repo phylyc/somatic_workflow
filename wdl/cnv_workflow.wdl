@@ -35,6 +35,7 @@ workflow CNVWorkflow {
                         annotated_interval_list = sequencing_run.annotated_target_intervals,
                         read_count_panel_of_normals = sequencing_run.cnv_panel_of_normals,
                         is_paired_end = sequencing_run.is_paired_end,
+                        max_soft_clipped_bases = args.collect_read_counts_max_soft_clipped_bases,
                         runtime_collection = runtime_collection,
                 }
             }
