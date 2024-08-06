@@ -190,12 +190,12 @@ Array[File]? absolute_rdata
 ## Important Notes :
 - It is recommended to move all output files to a separate bucket or directory after workflow completion as intermediate files can be large and unnecessarily consume storage ($$$). 
 - Allelic counts are collected via GetPileupSummaries. This tool ignores certain MNVs and INDELs and should eventually be replaced by [CollectByBaseCounts](https://github.com/broadinstitute/gatk/pull/6545). The GenotypeSNPArray workflow corrects some of its shortcomings.
-- As of GATK v4.3.0.0 force-calling alleles leads to mis-classification of filtered variants in the same way as [the flag `--genotype-germline-sites` does](https://github.com/broadinstitute/gatk/issues/7391). It is therefore recommended to use `keep_germline=false` (default) until this has been fixed. Ideally, run Mutect2 also only the force-calling sites and merge the results with the main call set.
-- `use_linked_de_bruijn_graph`, while increasing sensitivity, has trouble calling variants in complex regions. Strongly recommended to use with `recover_all_dangling_branches` (both turned on by default). Ideally, run with and without these options and use the joint call set.
+- As of GATK v4.5.0.0 force-calling alleles leads to mis-classification of filtered variants in the same way as [the flag `--genotype-germline-sites` does](https://github.com/broadinstitute/gatk/issues/7391). This has been fixed in v4.6.0.0.
+- `use_linked_de_bruijn_graph`, while increasing sensitivity, has trouble calling variants in complex regions. Strongly recommended (necessary) to use with `recover_all_dangling_branches` (both turned on by default). Ideally, run with and without these options and use the joint call set.
 - Runtime parameters are optimized for implementations on Google Cloud Platform (GCP) and HPC cluster with SLURM scheduler.
 - For assistance running workflows on GCP or locally, refer to the [GATK tutorial](https://gatk.broadinstitute.org/hc/en-us/articles/360035530952).
 - Access necessary reference and resources bundles via the [GATK Resource Bundle](https://gatk.broadinstitute.org/hc/en-us/articles/360036212652).
 
 ## Software version requirements :
-- **GATK**: Version 4.3.0.0. 
+- **GATK**: Version 4.6.0.0. 
 - **Cromwell**: Tested successfully on version 86.
