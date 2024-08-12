@@ -241,7 +241,6 @@ task GetPileupSummaries {
 
         Float minimum_population_allele_frequency = 0.01
         Float maximum_population_allele_frequency = 0.2
-        Int min_mapping_quality = 50
 
         Runtime runtime_params
 	}
@@ -269,14 +268,14 @@ task GetPileupSummaries {
             --variant '~{common_germline_alleles}' \
             -min-af '~{minimum_population_allele_frequency}' \
             -max-af '~{maximum_population_allele_frequency}' \
-            --min-mapping-quality ~{min_mapping_quality} \
             --output '~{output_file}' \
             ~{if is_paired_end then "--read-filter FirstOfPairReadFilter " else ""} \
             ~{if is_paired_end then "--read-filter PairedReadFilter " else ""} \
             --seconds-between-progress-updates 60 \
             ~{getpileupsummaries_extra_args}
 
-        # It only fails due to empty intersection between common_germline_alleles and intervals, which is ok.
+        # It only fails due to empty intersection between common_germline_alleles and intervals,
+        # which is ok since we prepared an empty pileup file.
         exit 0
     >>>
 
