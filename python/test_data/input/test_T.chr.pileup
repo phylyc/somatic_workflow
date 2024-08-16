@@ -1,0 +1,19 @@
+#<METADATA>SAMPLE=Test-T
+contig	position	ref_count	alt_count	other_alt_count	allele_frequency
+chr1	1	10	10	0	0.1
+chr1	10	10	10	0	0.2
+chr1	11	0	10	0	0.3
+chr1	12	10	0	0	0.4
+chr1	16	0	0	10	0.5
+chr1	17	1	1	1	0.6
+chr1	18	5	5	0	0.7
+chr2	1	10	10	10	0.1
+chr2	35	0	10	10	0.4
+chr2	45	10	0	0	0.2
+chr2	55	10	0	0	0.2
+chr3	1	10	10	0	0.3
+chr3	3	10	10	0	0.3
+chr3	10	10	10	0	0.3
+chr4	1	10	0	0	0.3
+chr4	3	0	10	0	0.3
+chr4	10	0	0	10	0.3

@@ -67,7 +67,10 @@ def write_header_and_df(header: str, df: pd.DataFrame, file_path: str, verbose: 
 
 
 def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
-    contig_order = [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+    contig_order = (
+        [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+        + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
+    )
     temp_df = pd.DataFrame(index=index).reset_index()
     temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contig_order, ordered=True)
     temp_df.sort_values(by=["contig", "position"], inplace=True)

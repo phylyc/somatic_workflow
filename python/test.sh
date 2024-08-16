@@ -10,6 +10,7 @@ bash test_call_merge_pileups.sh          test       "test_N,test_T"         "tes
 bash test_call_merge_pileups.sh          test_one   "test_N"                "test_N"
 bash test_call_merge_pileups.sh          test_empty "test_empty"            "test_empty"
 bash test_call_merge_pileups.sh          test_dup   "test_N,test_T,test_T2" "test_N,test_T,test_T"
+bash test_call_merge_pileups.sh          test_chr   "test_T.chr"            "test_T.chr"
 
 bash test_call_harmonize_copy_ratios.sh  test       "test_N,test_T"         "test_N,test_T"
 bash test_call_harmonize_copy_ratios.sh  test_one   "test_N"                "test_N"
