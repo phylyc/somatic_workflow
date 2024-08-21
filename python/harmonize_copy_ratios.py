@@ -221,6 +221,7 @@ class Harmonizer(object):
         with open_func(file_path, "wt") as file:
             if header is not None:
                 file.write(header)
+            df = df.astype({c: t for c, t in self.column_types.items() if c in df.columns})
             df.to_csv(file, sep="\t", index=False)
 
     def split_intervals(self, intervals: pd.DataFrame):
