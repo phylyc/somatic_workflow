@@ -115,7 +115,7 @@ def merge_pileups(args):
         merged_pileup = aggregate.reindex(sort_genomic_positions(index=aggregate.index)).reset_index()
         print(f"Number of loci in merged pileup for {sample_name}: {merged_pileup.shape[0]}") if args.verbose else None
         merged_headers[sample_name] = headers[sample_name][0] if len(headers[sample_name]) > 0 else None
-        merged_pileups[sample_name] = merged_pileup
+        merged_pileups[sample_name] = merged_pileup.astype(column_types)
     print() if args.verbose else None
 
     # write output files:
