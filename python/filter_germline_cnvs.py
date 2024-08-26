@@ -118,7 +118,11 @@ def non_overlapping(intervals: pd.DataFrame, start_col: str = "START", end_col: 
 
 
 def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
-    contig_order = [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+    contig_order = (
+        [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+        + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
+    )
+    contig_order += list(set(index.get_level_values("CONTIG")) - set(contig_order))
     temp_df = pd.DataFrame(index=index).reset_index()
     temp_df["CONTIG"] = pd.Categorical(temp_df["CONTIG"], categories=contig_order, ordered=True)
     temp_df.sort_values(by=["CONTIG", "START", "END"], inplace=True)

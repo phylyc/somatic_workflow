@@ -269,7 +269,11 @@ class Harmonizer(object):
 
     def sort_genomic_positions(self, index: pd.MultiIndex, by=None) -> pd.MultiIndex:
         by = [self.contig_col, self.start_col, self.end_col] if by is None else by
-        contig_order = [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+        contig_order = (
+            [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+            + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
+        )
+        contig_order += list(set(index.get_level_values(self.contig_col)) - set(contig_order))
         temp_df = pd.DataFrame(index=index).reset_index().astype({c: t for c, t in self.column_types.items() if c in index.names})
         temp_df[self.contig_col] = pd.Categorical(temp_df[self.contig_col], categories=contig_order, ordered=True)
         temp_df.sort_values(by=by, inplace=True)
