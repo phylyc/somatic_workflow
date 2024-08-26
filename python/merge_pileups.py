@@ -71,6 +71,7 @@ def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
         [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
         + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
     )
+    contig_order += list(set(index.get_level_values("contig")) - set(contig_order))
     temp_df = pd.DataFrame(index=index).reset_index()
     temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contig_order, ordered=True)
     temp_df.sort_values(by=["contig", "position"], inplace=True)
