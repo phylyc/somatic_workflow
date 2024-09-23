@@ -42,6 +42,10 @@ def parse_args():
     parser.add_argument("-M", "--model",                        type=str,   default="betabinom", choices=["binom", "betabinom"], help="Genotype likelihood model.")
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
     parser.add_argument("-p", "--min_genotype_likelihood",      type=float, default=0.95,   help="Probability threshold for calling and retaining genotypes.")
+    parser.add_argument("-s", "--overdispersion",               type=float, default=50,     help="")
+    parser.add_argument("-l", "--ref_bias",                     type=float, default=1.05,   help="")
+    parser.add_argument("--min_error_rate",                     type=float, default=1e-3,   help="")
+    parser.add_argument("--max_error_rate",                     type=float, default=1e-1,   help="")
     parser.add_argument("-F", "--format",                       type=str,   default="GT",   help="VCF format field. (GT: genotype; AD: allele depth; DP: total depth; PL: phred-scaled genotype likelihoods.)")
     parser.add_argument("--threads",                            type=int,   default=1,      help="Number of threads to use for parallelization over samples.")
     parser.add_argument("--select_hets",                                    default=False,  action="store_true", help="Keep only heterozygous sites.")
@@ -56,7 +60,11 @@ def main():
     print_args(args)
     genotyper = Genotyper(
         model=args.model,
+        overdispersion=args.overdispersion,
+        ref_bias=args.ref_bias,
         min_genotype_likelihood=args.min_genotype_likelihood,
+        min_error_rate=args.min_error_rate,
+        max_error_rate=args.max_error_rate,
         select_hets=args.select_hets,
         verbose=args.verbose
     )
@@ -457,16 +465,17 @@ class Genotyper(object):
     """
     genotypes = ["0/0", "0/1", "1/1", "./."]
 
-    def __init__(self, model: str = "betabinom", overdispersion: float = 100, ref_bias: float = 1.1, min_genotype_likelihood: float = 0.95, select_hets: bool = False, verbose: bool = False):
+    def __init__(self, model: str = "betabinom", overdispersion: float = 100, ref_bias: float = 1.1, min_genotype_likelihood: float = 0.95, min_error_rate: float = 1e-4, max_error_rate: float = 1e-1, select_hets: bool = False, verbose: bool = False):
         self.model = model
         self.overdispersion = overdispersion  # overdispersion parameter for beta-binomial model
         self.ref_bias = ref_bias  # SNP bias of the ref allele
         self.min_genotype_likelihood = min_genotype_likelihood
+        self.min_error_rate = min_error_rate
+        self.max_error_rate = max_error_rate
         self.select_hets = select_hets
         self.verbose = verbose
 
-    @staticmethod
-    def get_error_prob(pileup: pd.DataFrame, min_error: float = 1e-6, max_error: float = 1e-1) -> float:
+    def get_error_prob(self, pileup: pd.DataFrame) -> float:
         """
         Estimates the error probability based on the pileup data.
 
@@ -475,15 +484,13 @@ class Genotyper(object):
 
         Args:
             pileup (pd.DataFrame): DataFrame containing pileup data.
-            min_error (float, optional): Minimum bound for the error probability.
-            max_error (float, optional): Maximum bound for the error probability.
 
         Returns:
             float: Estimated error probability.
         """
         other_alt_counts = pileup["other_alt_count"].sum()
         total_counts = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1).sum()
-        return np.clip(1.5 * other_alt_counts / min(1, total_counts), a_min=min_error, a_max=max_error)
+        return np.clip(1.5 * other_alt_counts / min(1, total_counts), a_min=self.min_error_rate, a_max=self.max_error_rate)
 
     def select_confident_calls(self, likelihoods: pd.DataFrame, genotypes: list[str] = None) -> pd.DataFrame:
         """
