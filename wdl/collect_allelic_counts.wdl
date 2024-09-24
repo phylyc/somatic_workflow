@@ -40,6 +40,8 @@ workflow CollectAllelicCounts {
         Float maximum_population_allele_frequency = 0.2
         Int minimum_read_depth = 0
 
+        Boolean compress_output = false
+
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
         String bcftools_docker = "stephb/bcftools"
@@ -105,6 +107,7 @@ workflow CollectAllelicCounts {
                     getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                     minimum_population_allele_frequency = minimum_population_allele_frequency,
                     maximum_population_allele_frequency = maximum_population_allele_frequency,
+                    compress_output = false,
                     runtime_params = runtime_collection.get_pileup_summaries,
             }
         }
@@ -114,6 +117,7 @@ workflow CollectAllelicCounts {
                 input_tables = ScatteredGetPileupSummaries.pileup_summaries,
                 ref_dict = ref_dict,
                 sample_name = sample_name,
+                compress_output = compress_output,
                 runtime_params = runtime_collection.gather_pileup_summaries,
         }
     }
@@ -132,6 +136,7 @@ workflow CollectAllelicCounts {
                 getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
                 maximum_population_allele_frequency = maximum_population_allele_frequency,
+                compress_output = compress_output,
                 runtime_params = runtime_collection.get_pileup_summaries,
         }
     }
@@ -142,6 +147,7 @@ workflow CollectAllelicCounts {
                 pileup_summaries = select_first([GatherPileupSummaries.merged_pileup_summaries, GetPileupSummaries.pileup_summaries]),
                 sample_name = sample_name,
                 minimum_read_depth = minimum_read_depth,
+                compress_output = compress_output,
                 runtime_params = runtime_collection.select_pileup_summaries,
         }
     }
@@ -242,11 +248,14 @@ task GetPileupSummaries {
         Float minimum_population_allele_frequency = 0.01
         Float maximum_population_allele_frequency = 0.2
 
+        Boolean compress_output
+
         Runtime runtime_params
 	}
 
     String sample_id = if defined(sample_name) then sample_name else basename(input_bam, ".bam")
-    String output_file = sample_id + ".pileup"
+    String pileup_file = sample_id + ".pileup"
+    String output_file = pileup_file + if compress_output then ".gz" else ""
 
     command <<<
         set +e
@@ -268,11 +277,15 @@ task GetPileupSummaries {
             --variant '~{common_germline_alleles}' \
             -min-af '~{minimum_population_allele_frequency}' \
             -max-af '~{maximum_population_allele_frequency}' \
-            --output '~{output_file}' \
+            --output '~{pileup_file}' \
             ~{if is_paired_end then "--read-filter FirstOfPairReadFilter " else ""} \
             ~{if is_paired_end then "--read-filter PairedReadFilter " else ""} \
             --seconds-between-progress-updates 60 \
             ~{getpileupsummaries_extra_args}
+
+        if [ "~{compress_output}" == "true" ] ; then
+            bgzip -c '~{pileup_file}' > '~{output_file}'
+        fi
 
         # It only fails due to empty intersection between common_germline_alleles and intervals,
         # which is ok since we prepared an empty pileup file.
@@ -309,10 +322,13 @@ task GatherPileupSummaries {
         File ref_dict
         String sample_name
 
+        Boolean compress_output
+
         Runtime runtime_params
     }
 
-    String output_file = sample_name + ".pileup"
+    String pileup_file = sample_name + ".pileup"
+    String output_file = pileup_file + if compress_output then ".gz" else ""
 
     command <<<
         set -e
@@ -321,7 +337,11 @@ task GatherPileupSummaries {
             GatherPileupSummaries \
             --sequence-dictionary '~{ref_dict}' \
             ~{sep="' " prefix("-I '", input_tables)}' \
-            -O '~{output_file}'
+            -O '~{pileup_file}'
+
+        if [ "~{compress_output}" == "true" ] ; then
+            bgzip -c '~{pileup_file}' > '~{output_file}'
+        fi
     >>>
 
     output {
@@ -352,31 +372,47 @@ task SelectPileups {
         String sample_name
         Int minimum_read_depth
 
+        Boolean compress_output
+
         Runtime runtime_params
     }
 
-    String output_file = sample_name + ".pileup"
-    String tmp_output_file = "tmp." + output_file
+    String uncompressed_pileup_summaries = basename(pileup_summaries, ".gz")
+    Boolean is_compressed = uncompressed_pileup_summaries != basename(pileup_summaries)
+
+    String pileup_file = sample_name + ".pileup"
+    String output_file = pileup_file + if compress_output then ".gz" else ""
+    String tmp_pileup_file = "tmp." + pileup_file
 
     command <<<
         set -uxo pipefail
+
+        if [ "~{is_compressed}" == "true" ] ; then
+            bgzip -cd '~{pileup_summaries}' > '~{uncompressed_pileup_summaries}'
+        # else '~{pileup_summaries}' == '~{uncompressed_pileup_summaries}'
+        fi
+
         # Extract leading comment lines
-        grep '^#' '~{pileup_summaries}' > '~{tmp_output_file}'
+        grep '^#' '~{uncompressed_pileup_summaries}' > '~{tmp_pileup_file}'
 
         # Extract column headers
-        grep -v '^#' '~{pileup_summaries}' | head -n 1 >> '~{tmp_output_file}'
+        grep -v '^#' '~{uncompressed_pileup_summaries}' | head -n 1 >> '~{tmp_pileup_file}'
 
         # Count the number of lines that are not comments (headers)
-        num_variants_plus_one=$(grep -vc '^#' '~{pileup_summaries}')
+        num_variants_plus_one=$(grep -vc '^#' '~{uncompressed_pileup_summaries}')
 
         if [ "$num_variants_plus_one" -gt 1 ]; then
             # Extract table and select lines with read depth >= min_read_depth
-            grep -v '^#' '~{pileup_summaries}' | tail -n +2 \
+            grep -v '^#' '~{uncompressed_pileup_summaries}' | tail -n +2 \
                 | awk -F"\t" '$3 + $4 + $5 >= ~{minimum_read_depth}' \
-                >> '~{tmp_output_file}'
+                >> '~{tmp_pileup_file}'
         fi
 
-        mv '~{tmp_output_file}' '~{output_file}'
+        mv '~{tmp_pileup_file}' '~{pileup_file}'
+
+        if [ "~{compress_output}" == "true" ] ; then
+            bgzip -c '~{pileup_file}' > '~{output_file}'
+        fi
     >>>
 
     output {
