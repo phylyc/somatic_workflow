@@ -400,10 +400,10 @@ task SelectPileups {
         # Extract column headers
         grep -v '^#' '~{uncompressed_pileup_summaries}' | head -n 1 >> '~{tmp_pileup_file}'
 
-        # Count the number of lines that are not comments (headers)
-        num_variants_plus_one=$(grep -vc '^#' '~{uncompressed_pileup_summaries}')
+        # Count the number of lines that are not comments (headers) or column headers
+        num_variants=$(( $(grep -vc '^#' '~{uncompressed_pileup_summaries}') - 1 ))
 
-        if [ "$num_variants_plus_one" -gt 1 ]; then
+        if [ "$num_variants" -gt 0 ]; then
             # Extract table and select lines with read depth >= min_read_depth
             grep -v '^#' '~{uncompressed_pileup_summaries}' | tail -n +2 \
                 | awk -F"\t" '$3 + $4 + $5 >= ~{minimum_read_depth}' \
@@ -411,6 +411,11 @@ task SelectPileups {
         fi
 
         mv '~{tmp_pileup_file}' '~{pileup_file}'
+
+        # Count the number of lines that are not comments (headers) or column headers
+        num_selected_variants=$(( $(grep -vc '^#' '~{pileup_file}') - 1 ))
+
+        echo ">> Selected $num_selected_variants loci out of $num_variants."
 
         if [ "~{compress_output}" == "true" ] ; then
             bgzip -c '~{pileup_file}' > '~{output_file}'
