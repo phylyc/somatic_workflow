@@ -439,6 +439,8 @@ task MergeVCFs {
         Runtime runtime_params
     }
 
+    Int diskGB = runtime_params.disk + ceil(1.5 * size(vcfs, "GB"))
+
     String output_vcf = output_name + ".vcf" + if compress_output then ".gz" else ""
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
 
@@ -463,7 +465,7 @@ task MergeVCFs {
         bootDiskSizeGb: runtime_params.boot_disk_size
         memory: runtime_params.machine_mem + " MB"
         runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
+        disks: "local-disk " + diskGB + " HDD"
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
