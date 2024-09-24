@@ -5,7 +5,7 @@ import "runtimes.wdl" as rt
 import "tasks.wdl"
 
 
-workflow CreateAFonlyVcf {
+workflow CreateAFonlyVCF {
     input {
         File ref_fasta
         File ref_fasta_index
