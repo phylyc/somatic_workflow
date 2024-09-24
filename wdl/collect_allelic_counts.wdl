@@ -327,6 +327,8 @@ task GatherPileupSummaries {
         Runtime runtime_params
     }
 
+    # TODO: handle compressed input tables
+
     String pileup_file = sample_name + ".pileup"
     String output_file = pileup_file + if compress_output then ".gz" else ""
 

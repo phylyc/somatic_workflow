@@ -430,7 +430,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime select_pileup_summaries = {
-        "docker": ubuntu_docker,
+        "docker": gatk_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
