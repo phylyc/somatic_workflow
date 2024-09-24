@@ -24,6 +24,22 @@ workflows:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
 
+  - name: CreateAFonlyVCF
+    subclass: WDL
+    publish: true
+    primaryDescriptorPath: /wdl/create_AF_only_germline_resource.wdl
+    authors:
+      - orcid: 0000-0001-9584-9135
+      - name: Philipp Hähnel
+
+  - name: CreateAFonlyVCFfromFile
+    subclass: WDL
+    publish: true
+    primaryDescriptorPath: /wdl/create_AF_only_germline_resource_from_file.wdl
+    authors:
+      - orcid: 0000-0001-9584-9135
+      - name: Philipp Hähnel
+
   - name: CollectAllelicCounts
     subclass: WDL
     publish: true

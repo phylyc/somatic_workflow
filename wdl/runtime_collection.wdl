@@ -43,6 +43,7 @@ struct RuntimeCollection {
     Runtime funcotate
     Runtime create_cnv_panel
     Runtime create_mutect2_panel
+    Runtime select_af_only_from_vcf
     Runtime whatshap
     Runtime shapeit4
     Runtime shapeit5
@@ -240,7 +241,7 @@ workflow DefineRuntimeCollection {
         Int time_funcotate = 1440  # 24 h
 
         #######################################################################
-        ### Clonal Analysis worklflow
+        ### Clonal Analysis workflow
         #######################################################################
 
         # ModelSegmentsToACSConversion
@@ -268,6 +269,9 @@ workflow DefineRuntimeCollection {
         Int mem_create_mutect2_panel = 16384
         Int time_create_mutect2_panel = 1200  # 20 h
         Int disk_create_mutect2_panel = 10
+
+        Int mem_select_af_only_from_vcf = 2024
+        Int time_select_af_only_from_vcf = 1440
 
         # Whatshap
         Int cpu_whatshap = 1
@@ -783,6 +787,18 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime select_af_only_from_vcf = {
+        "docker": bcftools_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_select_af_only_from_vcf + mem_machine_overhead,
+        "command_mem": mem_select_af_only_from_vcf,
+        "runtime_minutes": time_startup + time_select_af_only_from_vcf,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Runtime whatshap = {
         "docker": whatshap_docker,
         "preemptible": preemptible,
@@ -863,6 +879,7 @@ workflow DefineRuntimeCollection {
         "create_mutect2_panel": create_mutect2_panel,
 
         "collect_covered_regions": collect_covered_regions,
+        "select_af_only_from_vcf": select_af_only_from_vcf,
 
         "whatshap": whatshap,
         "shapeit4": shapeit4,
