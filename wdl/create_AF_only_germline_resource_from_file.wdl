@@ -42,8 +42,8 @@ workflow CreateAFonlyVCFfromFile {
 
     call tasks.MergeVCFs as MergeAFonlyVCFs {
         input:
-            input_vcfs = CreateAFonlyVcf.af_only_vcf,
-            input_vcf_indices = CreateAFonlyVcf.af_only_vcf_idx,
+            input_vcfs = CreateAFonlyVCF.af_only_vcf,
+            input_vcf_indices = CreateAFonlyVCF.af_only_vcf_idx,
             output_name = "af_only.filtered",
             compress_output = compress_output,
             runtime_params = runtime_collection.merge_vcfs
@@ -52,8 +52,8 @@ workflow CreateAFonlyVCFfromFile {
     if (create_biallelic) {
         call tasks.MergeVCFs as MergeBiallelicAFonlyVCFs {
             input:
-                input_vcfs = select_all(CreateAFonlyVcf.biallelic_af_only_vcf),
-                input_vcf_indices = select_all(CreateAFonlyVcf.biallelic_af_only_vcf_idx),
+                input_vcfs = select_all(CreateAFonlyVCF.biallelic_af_only_vcf),
+                input_vcf_indices = select_all(CreateAFonlyVCF.biallelic_af_only_vcf_idx),
                 output_name = "af_only.filtered.biallelic",
                 compress_output = compress_output,
                 runtime_params = runtime_collection.merge_vcfs
@@ -63,8 +63,8 @@ workflow CreateAFonlyVCFfromFile {
     if (create_multiallelic) {
         call tasks.MergeVCFs as MergeMultiallelicAFonlyVCFs {
             input:
-                input_vcfs = select_all(CreateAFonlyVcf.multiallelic_af_only_vcf),
-                input_vcf_indices = select_all(CreateAFonlyVcf.multiallelic_af_only_vcf_idx),
+                input_vcfs = select_all(CreateAFonlyVCF.multiallelic_af_only_vcf),
+                input_vcf_indices = select_all(CreateAFonlyVCF.multiallelic_af_only_vcf_idx),
                 output_name = "af_only.filtered.multiallelic",
                 compress_output = compress_output,
                 runtime_params = runtime_collection.merge_vcfs
