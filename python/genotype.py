@@ -41,11 +41,13 @@ def parse_args():
     parser.add_argument("-V", "--variant",                      type=str,   default=None,   help="A VCF file containing common germline variants and population allele frequencies. (Used to get pileup summaries.)")
     parser.add_argument("-M", "--model",                        type=str,   default="betabinom", choices=["binom", "betabinom"], help="Genotype likelihood model.")
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
+    parser.add_argument("--min_allele_frequency",               type=float, default=1e-2,   help="Minimum population allele frequency to consider a site.")
     parser.add_argument("-p", "--min_genotype_likelihood",      type=float, default=0.95,   help="Probability threshold for calling and retaining genotypes.")
     parser.add_argument("-s", "--overdispersion",               type=float, default=50,     help="")
     parser.add_argument("-l", "--ref_bias",                     type=float, default=1.05,   help="")
     parser.add_argument("--min_error_rate",                     type=float, default=1e-3,   help="")
     parser.add_argument("--max_error_rate",                     type=float, default=1e-1,   help="")
+    parser.add_argument("--outlier_prior",                      type=float, default=1e-4,   help="Prior probability for a variant to be an outlier.")
     parser.add_argument("-F", "--format",                       type=str,   default="GT",   help="VCF format field. (GT: genotype; AD: allele depth; DP: total depth; PL: phred-scaled genotype likelihoods.)")
     parser.add_argument("--threads",                            type=int,   default=1,      help="Number of threads to use for parallelization over samples.")
     parser.add_argument("--select_hets",                                    default=False,  action="store_true", help="Keep only heterozygous sites.")
@@ -65,6 +67,7 @@ def main():
         min_genotype_likelihood=args.min_genotype_likelihood,
         min_error_rate=args.min_error_rate,
         max_error_rate=args.max_error_rate,
+        outlier_prior=args.outlier_prior,
         select_hets=args.select_hets,
         verbose=args.verbose
     )
@@ -78,11 +81,13 @@ def main():
         min_read_depth=args.min_read_depth,
         verbose=args.verbose
     )
+    data.deduplicate_samples()
+    data.subset_data()
     data.pileup_likelihoods = data.get_pileup_likelihoods_parallel(genotyper=genotyper, max_processes=args.threads)
     data.validate_pileup_likelihood_allele_frequencies()
     data.sample_correlation = data.validate_sample_correlation(genotyper=genotyper)
     data.joint_genotype_likelihood = genotyper.get_joint_genotype_likelihood(pileup_likelihoods=data.pileup_likelihoods)
-    data.subset_data()
+    data.sort_genomic_positions()
     data.write_output(output_dir=args.output_dir, vcf_format=args.format, args=args)
 
 
@@ -113,7 +118,7 @@ class Pileup(object):
         min_read_depth (int): Minimum read depth threshold for filtering data.
     """
 
-    def __init__(self, file_path: str = None, min_read_depth: int = 0):
+    def __init__(self, file_path: str = None, min_read_depth: int = 0, min_allele_frequency: float = 0):
         self.file_path = file_path
         self.columns = ["contig", "position", "ref_count", "alt_count", "other_alt_count", "allele_frequency"]
         try:
@@ -127,6 +132,7 @@ class Pileup(object):
             warnings.warn(f"Setting pileup to empty DataFrame.")
             self.df = pd.DataFrame(columns=self.columns)
         self.df = self.df.loc[self.df[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1) >= min_read_depth]
+        self.df = self.df.loc[self.df["allele_frequency"] >= min_allele_frequency]
         self.bam_sample_name = None
         if file_path is not None:
             open_func = gzip.open if file_path.endswith(".gz") else open
@@ -401,17 +407,19 @@ class VCF(object):
     def __init__(self, file_path: str = None, verbose: bool = False):
         self.file_path = file_path
         self.ref_dict = self.get_vcf_sequence_dict()
+        self.contigs = self.get_contigs()
         self.df = (
             pd.read_csv(file_path, sep="\t", comment="#", header=None, low_memory=False, names=self.columns)
             if file_path is not None
             else pd.DataFrame(columns=self.columns)
         )
         self.df = self.df.astype({"CHROM": str, "POS": int, "ID": str, "REF": str, "ALT": str, "INFO": str})
-        # GetPileupSummaries only supports SNVs well.
-        # CAUTION: the input vcf may contain multi-allelic sites and other stuff!!!! (removed here)
-        snv_mask = (self.df["REF"].apply(len) == 1) & (self.df["ALT"].apply(len) == 1) & ~self.df["REF"].isin(["-", "."]) & ~self.df["ALT"].isin(["-", "."])
         n_input_vars = self.df.shape[0]
-        self.df = self.df.loc[snv_mask].drop_duplicates(subset=["CHROM", "POS"], keep=False)
+        ## GetPileupSummaries only supports SNVs well.
+        ## CAUTION: the input vcf may contain multi-allelic sites and other stuff!!!! (removed here)
+        # snv_mask = (self.df["REF"].apply(len) == 1) & (self.df["ALT"].apply(len) == 1) & ~self.df["REF"].isin(["-", "."]) & ~self.df["ALT"].isin(["-", "."])
+        # self.df = self.df.loc[snv_mask]
+        self.df = self.df.drop_duplicates(subset=["CHROM", "POS"], keep=False)
         n_kept_vars = self.df.shape[0]
         if n_kept_vars < n_input_vars:
             print(f"    Dropping {n_input_vars - n_kept_vars} non-SNV or multi-allelic loci from Variants. {n_kept_vars} loci remaining.") if verbose else None
@@ -441,6 +449,8 @@ class VCF(object):
         ifile.close()
         return ref_dict
 
+    def get_contigs(self):
+        return [c.split("ID=")[-1].split(",")[0] for c in self.ref_dict]
 
 class Genotyper(object):
     """
@@ -465,13 +475,14 @@ class Genotyper(object):
     """
     genotypes = ["0/0", "0/1", "1/1", "./."]
 
-    def __init__(self, model: str = "betabinom", overdispersion: float = 100, ref_bias: float = 1.1, min_genotype_likelihood: float = 0.95, min_error_rate: float = 1e-4, max_error_rate: float = 1e-1, select_hets: bool = False, verbose: bool = False):
+    def __init__(self, model: str = "betabinom", overdispersion: float = 100, ref_bias: float = 1.1, min_genotype_likelihood: float = 0.95, min_error_rate: float = 1e-4, max_error_rate: float = 1e-1, outlier_prior: float = 1e-4, select_hets: bool = False, verbose: bool = False):
         self.model = model
         self.overdispersion = overdispersion  # overdispersion parameter for beta-binomial model
         self.ref_bias = ref_bias  # SNP bias of the ref allele
         self.min_genotype_likelihood = min_genotype_likelihood
         self.min_error_rate = min_error_rate
         self.max_error_rate = max_error_rate
+        self.outlier_prior = outlier_prior
         self.select_hets = select_hets
         self.verbose = verbose
 
@@ -602,6 +613,8 @@ class Genotyper(object):
         f_ba = contamination * f + (1 - contamination) * (1 - minor_af)
         f_bb = contamination * f + (1 - contamination) * (1 - error)
         s = self.overdispersion
+        logo = np.log(self.outlier_prior)
+        log1o = np.log1p(-self.outlier_prior)
 
         def bias(_f):
             return _f / (_f + (1 - _f) * self.ref_bias)
@@ -617,15 +630,15 @@ class Genotyper(object):
             ab = log1f + logf + st.binom(n, bias(f_ab)).logpmf(alt)
             ba = log1f + logf + st.binom(n, bias(f_ba)).logpmf(alt)
             bb = 2 * logf + st.binom(n, bias(f_bb)).logpmf(alt)
-            # outlier = log1f + logf + st.binom(n, 0.5).logpmf(alt)  # max entropy
+            # outlier = logo + st.binom(n, 0.5).logpmf(alt)  # max entropy
             outlier = -np.inf
         elif self.model == "betabinom":
-            aa = 2 * log1f + st.binom(n, bias(f_aa)).logpmf(alt)
-            ab = log1f + logf + st.betabinom(n, bias(f_ab) * s, (1 - bias(f_ab)) * s).logpmf(alt)
-            ba = log1f + logf + st.betabinom(n, bias(f_ba) * s, (1 - bias(f_ba)) * s).logpmf(alt)
-            bb = 2 * logf + st.binom(n, bias(f_bb)).logpmf(alt)
-            # outlier = log1f + logf + st.betabinom(n, 1, 1).logpmf(alt)  # max entropy
-            outlier = -np.inf
+            aa = log1o + 2 * log1f + st.binom(n, bias(f_aa)).logpmf(alt)
+            ab = log1o + log1f + logf + st.betabinom(n, bias(f_ab) * s, (1 - bias(f_ab)) * s).logpmf(alt)
+            ba = log1o + log1f + logf + st.betabinom(n, bias(f_ba) * s, (1 - bias(f_ba)) * s).logpmf(alt)
+            bb = log1o + 2 * logf + st.binom(n, bias(f_bb)).logpmf(alt)
+            outlier = logo + st.betabinom(n, 1, 1).logpmf(alt)  # max entropy
+            # outlier = -np.inf
         else:
             raise ValueError(f"model is {self.model} but has to be one of binom, betabinom.")
 
@@ -724,7 +737,7 @@ class GenotypeData(object):
         min_read_depth (int, optional): Minimum read depth threshold for filtering data.
     """
 
-    def __init__(self, individual_id: str, samples: list[str], variant: str = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 10, verbose: bool = False):
+    def __init__(self, individual_id: str, samples: list[str], variant: str = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 10, min_allele_frequency: float = 0.01, verbose: bool = False):
         self.verbose = verbose
         message("Loading data:") if verbose else None
         self.individual_id = individual_id
@@ -736,7 +749,7 @@ class GenotypeData(object):
         self.pileups = (
             [Pileup()] * len(samples)
             if pileup is None
-            else [Pileup(file_path=p, min_read_depth=min_read_depth) for p in pileup]
+            else [Pileup(file_path=p, min_read_depth=min_read_depth, min_allele_frequency=min_allele_frequency) for p in pileup]
         )
         print("  Contamination") if verbose else None
         self.contaminations = (
@@ -751,8 +764,6 @@ class GenotypeData(object):
             else [Segments(file_path=s) for s in segments]
         )
         print() if verbose else None
-
-        self.deduplicate_samples()
 
         self.pileup_likelihoods = None
         self.sample_correlation = None
@@ -796,6 +807,23 @@ class GenotypeData(object):
         self.pileups = pileups
         self.contaminations = contaminations
         self.segments = segments
+
+    def subset_data(self):
+        """
+        Subsets the data to the intersection of all pileup and variant input files.
+
+        Aligns and trims the data to ensure it only contains information relevant
+        to both the pileup and variant data.
+        """
+        pileup_loci = pd.MultiIndex.from_frame(df=pd.concat([p.df[["contig", "position"]] for p in self.pileups]).drop_duplicates())
+        index = pileup_loci if self.vcf.df.empty else pileup_loci.join(self.vcf.df.index, how="inner")
+        message(f"Subset data to {len(index)} loci (aligned to reference variant input vcf).") if self.verbose else None
+        for s, p in zip(self.samples, self.pileups):
+            n_loci = p.df.shape[0]
+            _p = p.df.set_index(["contig", "position"])
+            mask = _p.index.isin(index)
+            p.df = p.df.loc[mask]
+            message(f"Subset pileups for {s} to {p.df.shape[0]}/{n_loci}.")
 
     def get_pileup_likelihood(self, genotyper: Genotyper, assigned_sample_name: str, pileup: Pileup, contamination: Contamination, segments: Segments) -> PileupLikelihood:
         pileup_likelihood = PileupLikelihood(
@@ -952,52 +980,39 @@ class GenotypeData(object):
             warnings.warn(warning_message)
         return sample_correlation
 
-    @staticmethod
-    def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
+    def sort_genomic_positions(self) -> None:
         """
         Sorts a MultiIndex by genomic positions ('contig' and 'position' levels).
 
-        Genomic contigs are sorted numerically and then by 'X', 'Y', 'MT'. Positions
-        within contigs are sorted numerically.
-
-        Args:
-            index (pd.MultiIndex): MultiIndex to be sorted, expected to have 'contig' and 'position' levels.
-
-        Returns:
-            pd.MultiIndex: Sorted MultiIndex.
+        Genomic contigs are sorted according to header in variants VCF.
+        Positions within contigs are sorted numerically.
         """
-        contig_order = (
-            [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
-            + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
-        )
-        contig_order += list(set(index.get_level_values("contig")) - set(contig_order))
-        temp_df = pd.DataFrame(index=index).reset_index()
-        temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contig_order, ordered=True)
-        temp_df.sort_values(by=["contig", "position"], inplace=True)
-        return pd.MultiIndex.from_frame(temp_df[["contig", "position"]])
+        # contig_order = self.vcf.contigs
+        message("Sorting loci ... ")
 
-    def subset_data(self):
-        """
-        Subsets the data to the intersection of all pileup and variant input files.
+        def sort(index):
+            temp_df = pd.DataFrame(index=index).reset_index()
+            contigs = self.vcf.contigs
+            # Add all remaining contigs that are not in vcf reference
+            contigs += list(sorted(set(temp_df["contig"]) - set(self.vcf.contigs)))
+            temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contigs, ordered=True)
+            temp_df.sort_values(by=["contig", "position"], inplace=True)
+            return pd.MultiIndex.from_frame(temp_df[["contig", "position"]])
 
-        Aligns and trims the data to ensure it only contains information relevant
-        to both the pileup and variant data.
-        """
-        index = (
-            self.joint_genotype_likelihood.index.join(self.vcf.df.index, how="inner")
-            if not self.vcf.df.empty
-            else self.joint_genotype_likelihood.index
-        )
-        message(f"Subset to {len(index)} loci (aligned to cleaned reference variant input vcf).") if self.verbose else None
-        index = self.sort_genomic_positions(index=index)
-        self.pileup_likelihoods = [pl.reindex(index) for pl in self.pileup_likelihoods]
-        # If pileup summaries of one sample do not cover a locus in another pileup,
-        # the allele frequency is set to 0. This is rescuing those allele frequencies:
-        for pl in self.pileup_likelihoods:
-            pl.df["allele_frequency"] = self.joint_genotype_likelihood["allele_frequency"]
-        self.joint_genotype_likelihood = self.joint_genotype_likelihood.loc[index]
-        if not self.vcf.df.empty:
-            self.vcf.df = self.vcf.df.reindex(index)
+        if self.pileups is not None:
+            for p in self.pileups:
+                idx = sort(pd.MultiIndex.from_frame(p.df[["contig", "position"]]))
+                p.df = p.df.set_index(["contig", "position"]).loc[idx].reset_index()
+
+        if self.pileup_likelihoods is not None:
+            for pl in self.pileup_likelihoods:
+                idx = sort(pl.df.index)
+                pl.df = pl.df.loc[idx]
+
+        if self.joint_genotype_likelihood is not None:
+            idx = sort(self.joint_genotype_likelihood.index)
+            self.joint_genotype_likelihood = self.joint_genotype_likelihood.loc[idx]
+
 
     def write_output(self, output_dir: str, vcf_format: str = "GT", args: argparse.Namespace = None):
         """
