@@ -46,7 +46,7 @@ def parse_args():
     parser.add_argument("-s", "--overdispersion",               type=float, default=50,     help="")
     parser.add_argument("-l", "--ref_bias",                     type=float, default=1.05,   help="")
     parser.add_argument("--min_error_rate",                     type=float, default=1e-3,   help="")
-    parser.add_argument("--max_error_rate",                     type=float, default=1e-1,   help="")
+    parser.add_argument("--max_error_rate",                     type=float, default=1e-2,   help="")
     parser.add_argument("--outlier_prior",                      type=float, default=1e-4,   help="Prior probability for a variant to be an outlier.")
     parser.add_argument("-F", "--format",                       type=str,   default="GT",   help="VCF format field. (GT: genotype; AD: allele depth; DP: total depth; PL: phred-scaled genotype likelihoods.)")
     parser.add_argument("--threads",                            type=int,   default=1,      help="Number of threads to use for parallelization over samples.")
@@ -480,8 +480,8 @@ class Genotyper(object):
         self.overdispersion = overdispersion  # overdispersion parameter for beta-binomial model
         self.ref_bias = ref_bias  # SNP bias of the ref allele
         self.min_genotype_likelihood = min_genotype_likelihood
-        self.min_error_rate = min_error_rate
-        self.max_error_rate = max_error_rate
+        self.min_error_rate = min(min_error_rate, max_error_rate)
+        self.max_error_rate = max(min_error_rate, max_error_rate)
         self.outlier_prior = outlier_prior
         self.select_hets = select_hets
         self.verbose = verbose
@@ -630,14 +630,14 @@ class Genotyper(object):
             ab = log1f + logf + st.binom(n, bias(f_ab)).logpmf(alt)
             ba = log1f + logf + st.binom(n, bias(f_ba)).logpmf(alt)
             bb = 2 * logf + st.binom(n, bias(f_bb)).logpmf(alt)
-            # outlier = logo + st.binom(n, 0.5).logpmf(alt)  # max entropy
+            # outlier = logo + 2 * log1f + st.binom(n, 0.5).logpmf(alt)  # max entropy
             outlier = -np.inf
         elif self.model == "betabinom":
             aa = log1o + 2 * log1f + st.binom(n, bias(f_aa)).logpmf(alt)
             ab = log1o + log1f + logf + st.betabinom(n, bias(f_ab) * s, (1 - bias(f_ab)) * s).logpmf(alt)
             ba = log1o + log1f + logf + st.betabinom(n, bias(f_ba) * s, (1 - bias(f_ba)) * s).logpmf(alt)
             bb = log1o + 2 * logf + st.binom(n, bias(f_bb)).logpmf(alt)
-            outlier = logo + st.betabinom(n, 1, 1).logpmf(alt)  # max entropy
+            outlier = logo + 2 * log1f + st.betabinom(n, 1, 1).logpmf(alt)  # max entropy
             # outlier = -np.inf
         else:
             raise ValueError(f"model is {self.model} but has to be one of binom, betabinom.")
@@ -990,29 +990,17 @@ class GenotypeData(object):
         # contig_order = self.vcf.contigs
         message("Sorting loci ... ")
 
-        def sort(index):
-            temp_df = pd.DataFrame(index=index).reset_index()
-            contigs = self.vcf.contigs
-            # Add all remaining contigs that are not in vcf reference
-            contigs += list(sorted(set(temp_df["contig"]) - set(self.vcf.contigs)))
-            temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contigs, ordered=True)
-            temp_df.sort_values(by=["contig", "position"], inplace=True)
-            return pd.MultiIndex.from_frame(temp_df[["contig", "position"]])
+        temp_df = pd.DataFrame(index=self.joint_genotype_likelihood.index).reset_index()
+        contigs = self.vcf.contigs
+        # Add all remaining contigs that are not in vcf reference
+        contigs += list(sorted(set(temp_df["contig"]) - set(self.vcf.contigs)))
+        temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contigs, ordered=True)
+        temp_df.sort_values(by=["contig", "position"], inplace=True)
+        sorted_index = pd.MultiIndex.from_frame(temp_df[["contig", "position"]])
 
-        if self.pileups is not None:
-            for p in self.pileups:
-                idx = sort(pd.MultiIndex.from_frame(p.df[["contig", "position"]]))
-                p.df = p.df.set_index(["contig", "position"]).loc[idx].reset_index()
-
-        if self.pileup_likelihoods is not None:
-            for pl in self.pileup_likelihoods:
-                idx = sort(pl.df.index)
-                pl.df = pl.df.loc[idx]
-
-        if self.joint_genotype_likelihood is not None:
-            idx = sort(self.joint_genotype_likelihood.index)
-            self.joint_genotype_likelihood = self.joint_genotype_likelihood.loc[idx]
-
+        self.joint_genotype_likelihood = self.joint_genotype_likelihood.loc[sorted_index]
+        for pl in self.pileup_likelihoods:
+            pl.df = pl.df.reindex(sorted_index)
 
     def write_output(self, output_dir: str, vcf_format: str = "GT", args: argparse.Namespace = None):
         """
@@ -1033,6 +1021,11 @@ class GenotypeData(object):
         self.write_counts_tables(output_dir=output_dir, args=args)
         self.write_genotype_vcf(output_dir=output_dir, vcf_format=vcf_format, args=args)
 
+    def write_sample_correlation(self, output_dir: str, args: argparse.Namespace = None):
+        file = f"{output_dir}/{self.individual_id}.sample_correlation.tsv" + (".gz" if args.compress_output else "")
+        self.sample_correlation.to_csv(file, sep="\t")
+        print(f"  {file}") if args.verbose else None
+
     def write_sample_likelihoods(self, output_dir: str, args: argparse.Namespace = None):
         if args.save_sample_genotype_likelihoods:
             for pl in self.pileup_likelihoods:
@@ -1040,18 +1033,13 @@ class GenotypeData(object):
                 open_func = gzip.open if args.compress_output else open
                 with open_func(sample_file, "wt") as output_file:
                     output_file.write(f"#<METADATA>SAMPLE={pl.bam_sample_name}\n")
-                    pl.df.to_csv(output_file, sep="\t")
+                    pl.df.fillna(0).astype({"ref_count": int, "alt_count": int, "other_alt_count": int}).to_csv(output_file, sep="\t")
                 print(f"  {sample_file}") if args.verbose else None
-
-    def write_sample_correlation(self, output_dir: str, args: argparse.Namespace = None):
-        file = f"{output_dir}/{self.individual_id}.sample_correlation.tsv" + (".gz" if args.compress_output else "")
-        self.sample_correlation.to_csv(file, sep="\t")
-        print(f"  {file}") if args.verbose else None
 
     def write_counts_tables(self, output_dir: str, args: argparse.Namespace = None):
         for count in ["ref_count", "alt_count", "other_alt_count"]:
             table = pd.concat(
-                [pl.df[count].to_frame(pl.assigned_sample_name) for pl in self.pileup_likelihoods],
+                [pl.df[count].to_frame(pl.assigned_sample_name).fillna(0) for pl in self.pileup_likelihoods],
                 axis=1
             ).fillna(0).astype(int)
             file = f"{output_dir}/{self.individual_id}.hets.{count}.tsv" + (".gz" if args.compress_output else "")
