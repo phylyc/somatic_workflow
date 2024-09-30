@@ -116,6 +116,7 @@ class Harmonizer(object):
     ):
         self.copy_ratio_files = copy_ratio_files
         self.headers = defaultdict(list)
+        self.contigs = []
         self.copy_ratios = []
         self.harmonized_copy_ratios = None
         self.sample_names = sample_names
@@ -160,6 +161,27 @@ class Harmonizer(object):
                 header, df = load_file(file_path=cr_file_path, sample_name=sample_name)
                 self.headers[sample_name].append(header)
         print() if self.verbose else None
+
+        self.contigs = self.get_contigs()
+
+    def get_contigs(self):
+        contigs = []
+        for _, header in self.headers.items():
+            contigs = [
+                h.split("\t")[1].removeprefix("SN:")
+                for h in header[0].split("\n")
+                if h.startswith(f"{self.comment_char}SQ")
+            ]
+            print(contigs)
+            if len(contigs):
+                break
+        if not len(contigs):
+            # Add default contigs for hg19 and hg38 in case no headers were found:
+            contigs = (
+                [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+                + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
+            )
+        return contigs
 
     def get_header_and_df(self, file_path: str):
         open_func = gzip.open if file_path.endswith(".gz") else open
@@ -269,11 +291,8 @@ class Harmonizer(object):
 
     def sort_genomic_positions(self, index: pd.MultiIndex, by=None) -> pd.MultiIndex:
         by = [self.contig_col, self.start_col, self.end_col] if by is None else by
-        contig_order = (
-            [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
-            + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
-        )
-        contig_order += list(set(index.get_level_values(self.contig_col)) - set(contig_order))
+        contig_order = self.contigs
+        contig_order += list(sorted(set(index.get_level_values(self.contig_col)) - set(self.contigs)))
         temp_df = pd.DataFrame(index=index).reset_index().astype({c: t for c, t in self.column_types.items() if c in index.names})
         temp_df[self.contig_col] = pd.Categorical(temp_df[self.contig_col], categories=contig_order, ordered=True)
         temp_df.sort_values(by=by, inplace=True)
