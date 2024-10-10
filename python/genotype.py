@@ -702,6 +702,9 @@ class Genotyper(object):
         df = self.select_confident_calls(likelihoods=df)
         message(f"Selected  {df.shape[0]} confident calls.") if self.verbose else None
 
+        df = self.select_confident_calls(likelihoods=df, genotypes=[g for g in self.genotypes if g != "./."])
+        message(f"Selected  {df.shape[0]} non-outliers.") if self.verbose else None
+
         if self.select_hets:
             df = self.select_confident_calls(likelihoods=df, genotypes=["0/1"])
             message(f"Selected  {df.shape[0]} heterozygous SNPs.") if self.verbose else None
@@ -1059,27 +1062,29 @@ class GenotypeData(object):
 
         df = self.joint_genotype_likelihood
 
-        df["id"] = "."
-        df["ref"] = self.vcf.df["REF"] if not self.vcf.df.empty else "N"
-        df["alt"] = self.vcf.df["ALT"] if not self.vcf.df.empty else "N"
-        df["qual"] = "."
-        df["filter"] = "."
-        df["info"] = df["allele_frequency"].apply(lambda af: f"AF={af:.6f}")
-        df["format"] = vcf_format
+        if not df.empty:
+            df["id"] = "."
+            df["ref"] = self.vcf.df["REF"] if not self.vcf.df.empty else "N"
+            df["alt"] = self.vcf.df["ALT"] if not self.vcf.df.empty else "N"
+            df["qual"] = "."
+            df["filter"] = "."
+            df["info"] = df["allele_frequency"].apply(lambda af: f"AF={af:.6f}")
+            df["format"] = vcf_format
 
-        # create fields for "SAMPLE" column:
-        df["GT"] = df[['0/0', '0/1', '1/1', './.']].astype(float).idxmax(axis=1)
-        if "AD" in vcf_format:
-            df["AD"] = df[['ref_count', 'alt_count']].astype(int).apply(lambda row: f"{row['ref_count']},{row['alt_count']}", axis=1)
-        if "DP" in vcf_format:
-            df["DP"] = df[['ref_count', 'alt_count', 'other_alt_count']].sum(axis=1).astype(int).astype(str)
-        if "PL" in vcf_format:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=RuntimeWarning)
-                phred = np.clip(-10 * np.log(df[['0/0', '0/1', '1/1', './.']]), 0, 99).astype(int)
-            pl_min = phred.min(axis=1)
-            df["PL"] = phred.sub(pl_min, axis=0).apply(lambda row: ",".join([str(p) for p in row]), axis=1)
-        df["sample"] = df[vcf_format.split(":")].apply(lambda row: ":".join([str(f) for f in row]), axis=1)
+            # create fields for "SAMPLE" column:
+            df["GT"] = df[['0/0', '0/1', '1/1', './.']].astype(float).idxmax(axis=1)
+            if "AD" in vcf_format:
+                df["AD"] = df[['ref_count', 'alt_count']].astype(int).apply(lambda row: f"{row['ref_count']},{row['alt_count']}", axis=1)
+            if "DP" in vcf_format:
+                df["DP"] = df[['ref_count', 'alt_count', 'other_alt_count']].sum(axis=1).astype(int).astype(str)
+            if "PL" in vcf_format:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=RuntimeWarning)
+                    phred = np.clip(-10 * np.log(df[['0/0', '0/1', '1/1', './.']]), 0, 99).astype(int)
+                pl_min = phred.min(axis=1)
+                df["PL"] = phred.sub(pl_min, axis=0).apply(lambda row: ",".join([str(p) for p in row]), axis=1)
+            df["sample"] = df[vcf_format.split(":")].apply(lambda row: ":".join([str(f) for f in row]), axis=1)
+            df = df.dropna()
 
         open_func = gzip.open if args.compress_output else open
         with open_func(file, "wt") as vcf:
@@ -1103,7 +1108,8 @@ class GenotypeData(object):
                     source_comment += f" --{key} {value}"
             vcf.write(f"{source_comment}\n")
             vcf.write(f"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{self.individual_id}\n")
-            df.reset_index()[["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "sample"]].to_csv(vcf, sep="\t", index=False, header=False, na_rep=".")
+            if not df.empty:
+                df.reset_index()[["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "sample"]].to_csv(vcf, sep="\t", index=False, header=False, na_rep=".")
 
         print(f"  {file}") if args.verbose else None
 
