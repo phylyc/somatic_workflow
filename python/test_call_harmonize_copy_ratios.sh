@@ -27,6 +27,7 @@ python -u harmonize_copy_ratios.py \
   --output_dir $output_dir \
   $sample_args \
   $cr_args \
+  --suffix ".harmonized.CR.tsv" \
   --verbose \
   --threads 4 \
   --min_target_length 2 \

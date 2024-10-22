@@ -25,7 +25,8 @@ def parse_args():
     parser.add_argument("-S", "--sample",           type=str,                       action="append",        help="Assigned name of the sample paired to the input file. Does not have to coincide with the sample name in the file header.")
     parser.add_argument("-P", "--patient",          type=str,   default="Patient",                          help="Assigned name of the patient.")
     parser.add_argument("-O", "--output_dir",       type=str,   default=".",                                help="Path to the output directory.")
-    parser.add_argument("--suffix",                 type=str,   default=".harmonized.CR",                   help="Suffix to append to each sample name to create the output file name.")
+    parser.add_argument("--normal_sample",          type=str,                                               help="Assigned name of the normal sample.")
+    parser.add_argument("--suffix",                 type=str,   default=".harmonized.CR.tsv",               help="Suffix to append to each sample name to create the output file name.")
     parser.add_argument("--threads",                type=int,   default=1,                                  help="Number of threads to use for parallelization over chromosomes.")
     parser.add_argument("--min_target_length",      type=int,   default=100,                                help="Minimum length of a harmonized target to be included in output.")
     parser.add_argument("--compress_output",                    default=False,      action="store_true",    help="Compress output files.")
@@ -39,6 +40,7 @@ def parse_args():
     parser.add_argument("--comment_char",           type=str,   default="@",                                help="Character that starts a comment line in the input files.")
     parser.add_argument("--agg_col",                type=str,   default=None,       action="append",        help="Name of additional column to aggregate over.")
     parser.add_argument("--agg_func",               type=str,   default=None,       action="append",        help="Function to aggregate over additional column. Needs to be listed in same order as --agg_col.")
+    parser.add_argument("--filter_germline_calls",              default=False,      action="store_true",    help="If --normal_sample is given, filter all CALL segments with + or - assignment.")
     parser.add_argument("--verbose",                            default=False,      action="store_true",    help="Print information to stdout during execution.")
     args = parser.parse_args()
 
@@ -53,7 +55,6 @@ def parse_args():
 def main():
     args = parse_args()
     print_args(args)
-    # harmonize_intervals(args=args)
     h = Harmonizer.from_args(args)
     h.harmonize()
 
@@ -73,6 +74,7 @@ class Harmonizer(object):
         return Harmonizer(
             copy_ratio_files=args.copy_ratio,
             sample_names=args.sample,
+            normal_sample=args.normal_sample,
             patient=args.patient,
             output_dir=args.output_dir,
             suffix=args.suffix,
@@ -84,11 +86,11 @@ class Harmonizer(object):
             contig_col=args.contig_col,
             start_col=args.start_col,
             end_col=args.end_col,
-            copy_ratio_col=args.copy_ratio_col,
             sample_col=args.sample_col,
             comment_char=args.comment_char,
             agg_col=args.agg_col,
             agg_func=args.agg_func,
+            filter_germline_calls=args.filter_germline_calls,
             verbose=args.verbose,
         )
 
@@ -96,6 +98,7 @@ class Harmonizer(object):
         self,
         copy_ratio_files: Union[tuple[str], list[str]],
         sample_names: Union[tuple[str], list[str]] = None,
+        normal_sample: str = None,
         patient: str = "Patient",
         output_dir: str = ".",
         suffix: str = ".harmonized.CR",
@@ -107,11 +110,11 @@ class Harmonizer(object):
         contig_col: str = "CONTIG",
         start_col: str = "START",
         end_col: str = "END",
-        copy_ratio_col: str = "LOG2_COPY_RATIO",
         sample_col: str = "SAMPLE",
         comment_char: str = "@",
         agg_col: Union[tuple[str], list[str]] = None,
         agg_func: Union[tuple[str], list[str]] = None,
+        filter_germline_calls: bool = False,
         verbose: bool = False,
     ):
         self.copy_ratio_files = copy_ratio_files
@@ -120,6 +123,7 @@ class Harmonizer(object):
         self.copy_ratios = []
         self.harmonized_copy_ratios = None
         self.sample_names = sample_names
+        self.normal_sample = normal_sample
         self.patient = patient
         self.output_dir = output_dir
         self.suffix = suffix
@@ -131,11 +135,11 @@ class Harmonizer(object):
         self.contig_col = contig_col
         self.start_col = start_col
         self.end_col = end_col
-        self.copy_ratio_col = copy_ratio_col
         self.sample_col = sample_col
         self.comment_char = comment_char
         self.agg_col = agg_col if agg_col is not None else []
         self.agg_func = agg_func if agg_func is not None else []
+        self.filter_germline_calls = filter_germline_calls
         self.verbose = verbose
 
     def harmonize(self):
@@ -172,7 +176,6 @@ class Harmonizer(object):
                 for h in header[0].split("\n")
                 if h.startswith(f"{self.comment_char}SQ")
             ]
-            print(contigs)
             if len(contigs):
                 break
         if not len(contigs):
@@ -220,7 +223,7 @@ class Harmonizer(object):
             self.write_header_and_df(
                 header=header,
                 df=df,
-                file_path=f"{self.output_dir}/{self.patient}{self.suffix}.tsv" + (".gz" if self.compress_output else ""),
+                file_path=f"{self.output_dir}/{self.patient}{self.suffix}" + (".gz" if self.compress_output else ""),
             )
         else:
             for sample_name in np.unique(self.sample_names):
@@ -233,7 +236,7 @@ class Harmonizer(object):
                 self.write_header_and_df(
                     header=header,
                     df=df,
-                    file_path=f"{self.output_dir}/{sample_name}{self.suffix}.tsv" + (".gz" if self.compress_output else ""),
+                    file_path=f"{self.output_dir}/{sample_name}{self.suffix}" + (".gz" if self.compress_output else ""),
                 )
 
     def write_header_and_df(self, header: str, df: pd.DataFrame, file_path: str):
@@ -310,7 +313,16 @@ class Harmonizer(object):
 
             # interval.name == (contig, start, end)
             if interval.name[0] == previous_interval.name[0] and abs(interval.name[1] - previous_interval.name[2]) <= dist:
-                if (abs(previous_interval - interval) < tol).all():
+                equal = previous_interval.shape[0] > 0
+                for _pi, _i in zip(previous_interval, interval):
+                    try:
+                        equal &= abs(_pi - _i) < tol
+                    except:
+                        try:
+                            equal &= _pi == _i
+                        except:
+                            pass
+                if equal:
                     new_interval = copy(previous_interval)
                     new_interval.name = (new_interval.name[0], new_interval.name[1], interval.name[2])
                     new_intervals[-1] = new_interval
@@ -366,6 +378,10 @@ class Harmonizer(object):
             return lambda x: x.values[np.argmax(np.abs(x.values))]
         elif func == "error_mean":
             return lambda x: np.sqrt(np.mean(x ** 2))
+        elif func == "first":
+            return lambda x: x.values[0]
+        elif func == "last":
+            return lambda x: x.values[-1]
         return func
 
     def _harmonize(self):
@@ -416,8 +432,20 @@ class Harmonizer(object):
         if n_consensus == 0:
             return consensus_intervals
 
+        # Drop intervals that are called as amp or del in the matched normal sample:
+        if self.filter_germline_calls and self.normal_sample is not None and "CALL" in self.column_names:
+            germline_mask = consensus_intervals[(self.normal_sample, "CALL")].isin(["-", "+"])
+            somatic_intervals = consensus_intervals.loc[~germline_mask]
+            n_somatic = somatic_intervals.shape[0]
+            pct_drop = 100 * (1 - n_somatic / n_harmonized)
+            print(f"  Number of loci after dropping loci called as CNV in germline sample: {n_somatic} (-{pct_drop:.3f}%)") if self.verbose else None
+            if n_somatic == 0:
+                return somatic_intervals
+        else:
+            somatic_intervals = consensus_intervals
+
         # merge abutting intervals with same copy ratio
-        merged_consensus_intervals = self.merge_abutting_intervals(consensus_intervals)
+        merged_consensus_intervals = self.merge_abutting_intervals(somatic_intervals)
         n_merged = merged_consensus_intervals.shape[0]
         pct_drop = 100 * (1 - n_merged / n_consensus)
         print(f"  Number of loci after merging abutting intervals with the same copy ratio: {n_merged} (-{pct_drop:.3f}%)") if self.verbose else None

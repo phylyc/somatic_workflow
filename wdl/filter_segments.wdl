@@ -14,71 +14,124 @@ workflow FilterSegments {
         RuntimeCollection runtime_collection
     }
 
+    scatter (sample in patient.samples) {
+        String sample_name = sample.name
+        File? called_copy_ratio_segmentation = sample.called_copy_ratio_segmentation
+    }
+    Array[File] sample_names = select_all(sample_name)
+    Array[File] copy_ratios = select_all(called_copy_ratio_segmentation)
+
     if (defined(patient.matched_normal_sample)) {
-        scatter (sample in patient.tumor_samples) {
-            Sample matched_normal_sample = select_first([patient.matched_normal_sample])
-            if (defined(sample.called_copy_ratio_segmentation) && defined(matched_normal_sample.called_copy_ratio_segmentation)) {
-                call FilterGermlineCNVs {
-                    input:
-                        script = args.filter_germline_cnvs_script,
-                        tumor_called_copy_ratio_segmentation = select_first([sample.called_copy_ratio_segmentation]),
-                        normal_called_copy_ratio_segmentation = select_first([matched_normal_sample.called_copy_ratio_segmentation]),
-                        min_segment_length = args.filter_germline_cnvs_min_segment_length,
-                        runtime_params = runtime_collection.filter_germline_cnvs
-                }
-            }
+        Sample matched_normal_sample = select_first([patient.matched_normal_sample])
+        call FilterGermlineCNVs {
+            input:
+                script = args.harmonize_copy_ratios_script,
+                sample_names = sample_names,
+                normal_sample = matched_normal_sample.name,
+                copy_ratios = copy_ratios,
+                compress_output = args.compress_output,
+                min_segment_length = args.filter_germline_cnvs_min_segment_length,
+                suffix = ".modelFinal.called.germline_filtered.seg",
+                runtime_params = runtime_collection.harmonize_copy_ratios
         }
 
-        scatter (sample in patient.normal_samples) {
-            File? normal_called_copy_ratio_segmentation = sample.called_copy_ratio_segmentation
+        # sort output to match order of sample_names since glob doesn't guarantee order
+        scatter (sample in patient.samples) {
+            scatter (fccr in FilterGermlineCNVs.filtered_called_copy_ratio) {
+                String this_sample_name = basename(fccr, ".modelFinal.called.germline_filtered.seg")
+                if (sample.name == this_sample_name) {
+                    File this_cr = fccr
+                }
+            }
+            Array[File] this_sample_cr = select_all(this_cr)
         }
-        Array[File] segmentations = flatten([
-            select_all(FilterGermlineCNVs.filtered_called_copy_ratio_segmentation),
-            select_all(normal_called_copy_ratio_segmentation)
-        ])
+        Array[File] sorted_filtered_copy_ratios = flatten(this_sample_cr)
 
         call p_update_s.UpdateSamples as UpdateSegmentations {
             input:
                 patient = patient,
-                called_copy_ratio_segmentations = segmentations
+                called_copy_ratio_segmentations = sorted_filtered_copy_ratios
         }
     }
 
     output {
         Patient updated_patient = select_first([UpdateSegmentations.updated_patient, patient])
-        Array[File]? filtered_called_copy_ratio_segmentations = segmentations
+        Array[File]? filtered_called_copy_ratio_segmentations = sorted_filtered_copy_ratios
     }
 }
 
 task FilterGermlineCNVs {
     input {
-        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/filter_germline_cnvs.py"
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
 
-        File tumor_called_copy_ratio_segmentation
-        File normal_called_copy_ratio_segmentation
+        Array[String]+ sample_names
+        Array[File]+ copy_ratios
+        String? normal_sample
+        Int min_target_length = 100
+        Boolean compress_output = false
+        Boolean verbose = true
 
         Int min_segment_length = 100
 
+        Boolean compress_output = false
         Boolean verbose = true
+
+        String suffix = ".germline_filtered.seg"
 
         Runtime runtime_params
     }
 
-    String filtered_called_copy_ratio_segmentation = basename(tumor_called_copy_ratio_segmentation, ".seg") + ".germline_filtered.seg"
+    String output_dir = "."
 
     command <<<
         set -euxo pipefail
-        wget -O filter_germline_cnvs.py ~{script}
-        python filter_germline_cnvs.py \
-            --tumor_called_copy_ratio_segmentation '~{tumor_called_copy_ratio_segmentation}' \
-            --normal_called_copy_ratio_segmentation '~{normal_called_copy_ratio_segmentation}' \
-            --output '~{filtered_called_copy_ratio_segmentation}' \
-            --min_segment_length ~{min_segment_length} \
+        n_threads=$(nproc)
+        wget -O harmonize_copy_ratios.py ~{script}
+        python harmonize_copy_ratios.py \
+            --output_dir '~{output_dir}' \
+            ~{sep="' " prefix("--sample '", sample_names)}' \
+            ~{sep="' " prefix("--copy_ratio '", copy_ratios)}' \
+            ~{"--normal_sample '" + normal_sample + "'"} \
+            --suffix ".germline_filtered.seg" \
+            --column_names \
+                CONTIG START END \
+                NUM_POINTS_COPY_RATIO NUM_POINTS_ALLELE_FRACTION \
+                LOG2_COPY_RATIO_POSTERIOR_10 LOG2_COPY_RATIO_POSTERIOR_50 LOG2_COPY_RATIO_POSTERIOR_90 \
+                MINOR_ALLELE_FRACTION_POSTERIOR_10 MINOR_ALLELE_FRACTION_POSTERIOR_50 MINOR_ALLELE_FRACTION_POSTERIOR_90 \
+                CALL \
+            --column_types \
+                str int int \
+                int int \
+                float float float \
+                float float float \
+                str \
+            --agg_col NUM_POINTS_COPY_RATIO \
+            --agg_func mean \
+            --agg_col NUM_POINTS_ALLELE_FRACTION \
+            --agg_func mean \
+            --agg_col LOG2_COPY_RATIO_POSTERIOR_10 \
+            --agg_func mean \
+            --agg_col LOG2_COPY_RATIO_POSTERIOR_50 \
+            --agg_func mean \
+            --agg_col LOG2_COPY_RATIO_POSTERIOR_90 \
+            --agg_func mean \
+            --agg_col MINOR_ALLELE_FRACTION_POSTERIOR_10 \
+            --agg_func mean \
+            --agg_col MINOR_ALLELE_FRACTION_POSTERIOR_50 \
+            --agg_func mean \
+            --agg_col MINOR_ALLELE_FRACTION_POSTERIOR_90 \
+            --agg_func mean \
+            --agg_col CALL \
+            --agg_func first \
+            --filter_germline_calls \
+            --threads $n_threads \
+            --min_target_length ~{min_segment_length} \
+            ~{if compress_output then "--compress_output" else ""} \
             ~{if verbose then "--verbose" else ""}
     >>>
 
     output {
-        File filtered_called_copy_ratio_segmentation = filtered_called_copy_ratio_segmentation
+        Array[File] filtered_called_copy_ratio = glob("*" + suffix)
     }
 
     runtime {
