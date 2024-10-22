@@ -17,3 +17,7 @@ contig	position	ref_count	alt_count	other_alt_count	allele_frequency
 4	1	10	0	0	0.3
 4	3	0	10	0	0.3
 4	10	0	0	10	0.3
+10	1	10	10	10	0.5
+11	2	10	10	10	0.5
+12	3	10	10	10	0.5
+20	4	10	10	10	0.5

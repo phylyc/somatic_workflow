@@ -81,9 +81,9 @@ def get_contigs(ref_dict: str) -> list[str]:
             [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
             + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
         )
-    ref_dict = pd.read_csv(ref_dict, sep="\t", comment="@HD", header=None)
-    contigs = ref_dict[1].apply(lambda s: s.removeprefix("SN:")).to_list()
-    return contigs
+    with open(ref_dict, "rt") as file:
+        contig_header = [line for line in file if line.startswith("@SQ")]
+    return [h.split("\t")[1].removeprefix("SN:") for h in contig_header]
 
 
 def merge_pileups(args):
