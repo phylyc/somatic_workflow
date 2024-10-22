@@ -52,7 +52,6 @@ struct WorkflowArguments {
     String genotype_variants_script
     String harmonize_copy_ratios_script
     String merge_pileups_script
-    String filter_germline_cnvs_script
     String acs_conversion_script
 
     Int absolute_min_hets
@@ -93,6 +92,7 @@ struct WorkflowArguments {
     String? mutect2_extra_args
     String? filter_mutect2_extra_args
     String? variant_filtration_extra_args
+    String? left_align_and_trim_variants_extra_args
     String? select_variants_extra_args
     String? select_low_conficence_variants_jexl_arg
     String? realignment_extra_args
@@ -147,7 +147,6 @@ workflow DefineWorkflowArguments {
         String genotype_variants_script =       "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
         String harmonize_copy_ratios_script =   "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
         String merge_pileups_script =           "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
-        String filter_germline_cnvs_script =    "https://github.com/phylyc/somatic_workflow/raw/master/python/filter_germline_cnvs.py"
         String acs_conversion_script =          "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
 
         Int absolute_min_hets = 10
@@ -208,6 +207,7 @@ workflow DefineWorkflowArguments {
         String? mutect2_extra_args
         String? filter_mutect2_extra_args
         String? variant_filtration_extra_args
+        String? left_align_and_trim_variants_extra_args
         String? select_variants_extra_args
         String? select_low_conficence_variants_jexl_arg = "GERMQ < 30"
         String? realignment_extra_args
@@ -285,7 +285,6 @@ workflow DefineWorkflowArguments {
         genotype_variants_script: genotype_variants_script,
         harmonize_copy_ratios_script: harmonize_copy_ratios_script,
         merge_pileups_script: merge_pileups_script,
-        filter_germline_cnvs_script: filter_germline_cnvs_script,
         acs_conversion_script: acs_conversion_script,
 
         absolute_min_hets: absolute_min_hets,
@@ -325,6 +324,7 @@ workflow DefineWorkflowArguments {
         mutect2_extra_args: mutect2_extra_args,
         filter_mutect2_extra_args: filter_mutect2_extra_args,
         variant_filtration_extra_args: variant_filtration_extra_args,
+        left_align_and_trim_variants_extra_args: left_align_and_trim_variants_extra_args,
         select_variants_extra_args: select_variants_extra_args,
         select_low_conficence_variants_jexl_arg: select_low_conficence_variants_jexl_arg,
         realignment_extra_args: realignment_extra_args,

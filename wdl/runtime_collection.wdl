@@ -38,6 +38,7 @@ struct RuntimeCollection {
     Runtime merge_bams
     Runtime filter_mutect_calls
     Runtime variant_filtration
+    Runtime left_align_and_trim_variants
     Runtime filter_alignment_artifacts
     Runtime select_variants
     Runtime funcotate
@@ -225,6 +226,10 @@ workflow DefineRuntimeCollection {
         # gatk: VariantFiltration
         Int mem_variant_filtration = 512
         Int time_variant_filtration = 5
+
+        # gatk: LeftAlignAndTrimVariants
+        Int mem_left_align_and_trim_variants = 1024
+        Int time_left_align_and_trim_variants = 10
 
         # gatk: FilterAlignmentArtifacts
         Int cpu_filter_alignment_artifacts = 1
@@ -720,6 +725,19 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime left_align_and_trim_variants = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_left_align_and_trim_variants + mem_machine_overhead,
+        "command_mem": mem_left_align_and_trim_variants,
+        "runtime_minutes": time_startup + time_left_align_and_trim_variants,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Int mem_filter_alignment_artifacts = mem_filter_alignment_artifacts_base + num_bams * mem_filter_alignment_artifacts_additional_per_sample
     Runtime filter_alignment_artifacts = {
         "docker": gatk_docker,
@@ -872,6 +890,7 @@ workflow DefineRuntimeCollection {
         "merge_bams": merge_bams,
         "filter_mutect_calls": filter_mutect_calls,
         "variant_filtration": variant_filtration,
+        "left_align_and_trim_variants": left_align_and_trim_variants,
         "filter_alignment_artifacts": filter_alignment_artifacts,
         "select_variants": select_variants,
         "funcotate": funcotate,

@@ -277,6 +277,65 @@ task VariantFiltration {
     }
 }
 
+task LeftAlignAndTrimVariants {
+    input {
+        File? ref_fasta
+        File? ref_fasta_index
+        File? ref_dict
+        File vcf
+        File vcf_idx
+        Int max_indel_length = 200
+        Boolean dont_trim_alleles = false
+        Boolean split_multi_allelics = false
+
+        Boolean compress_output = false
+        String? left_align_and_trim_variants_extra_args
+
+        Runtime runtime_params
+    }
+
+    String output_vcf_ = basename(basename(vcf, ".gz"), ".vcf") + ".split.trimmed.vcf" + if compress_output then ".gz" else ""
+    String output_vcf_idx_ = output_vcf_ + if compress_output then ".tbi" else ".idx"
+
+    command <<<
+        set -e
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            LeftAlignAndTrimVariants \
+            -R '~{ref_fasta}' \
+            -V '~{vcf}' \
+            --output '~{output_vcf_}' \
+            --max-indel-length ~{max_indel_length} \
+            ~{if (dont_trim_alleles) then " --dont-trim-alleles " else ""} \
+            ~{if (split_multi_allelics) then " --split-multi-allelics " else ""} \
+            ~{left_align_and_trim_variants_extra_args}
+    >>>
+
+    output {
+        File output_vcf = output_vcf_
+        File output_vcf_idx = output_vcf_idx_
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
+        vcf: {localization_optional: true}
+        vcf_idx: {localization_optional: true}
+    }
+}
+
 task SelectVariants {
     input {
         File? interval_list
@@ -293,8 +352,6 @@ task SelectVariants {
         String? select_variants_extra_args
 
         Runtime runtime_params
-        # arguments require gatk 4.3.0.0
-        # needs to be updated for gatk 4.4.0.0
     }
 
     String uncompressed_input_vcf = basename(vcf, ".gz")
