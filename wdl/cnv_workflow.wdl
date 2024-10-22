@@ -72,6 +72,7 @@ workflow CNVWorkflow {
 
     call hs.HarmonizeSamples {
         input:
+            ref_dict = args.files.ref_dict,
             harmonize_copy_ratios_script = args.harmonize_copy_ratios_script,
             merge_pileups_script = args.merge_pileups_script,
             samples = patient.samples,

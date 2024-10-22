@@ -8,6 +8,7 @@ import "runtimes.wdl" as rt
 
 workflow HarmonizeSamples {
     input {
+        File ref_dict
         String harmonize_copy_ratios_script
         String merge_pileups_script
         Array[Sample] samples
@@ -79,6 +80,7 @@ workflow HarmonizeSamples {
         call MergeAllelicCounts {
             input:
                 script = merge_pileups_script,
+                ref_dict = ref_dict,
                 sample_names = seq_acr_sample_names,
                 allelic_counts = seq_allelic_counts,
                 compress_output = compress_output,
@@ -119,8 +121,7 @@ task HarmonizeCopyRatios {
     }
 
     String output_dir = "."
-
-#    Array[String] harmonized_denoised_cr = suffix(sample_names, ".denoised_CR.tsv")
+    String suffix = ".harmonized.denoised_CR.tsv"
 
     command <<<
         set -euxo pipefail
@@ -130,7 +131,7 @@ task HarmonizeCopyRatios {
             --output_dir '~{output_dir}' \
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("--copy_ratio '", denoised_copy_ratios)}' \
-            --suffix ".harmonized.denoised_CR" \
+            --suffix ~{suffix} \
             --threads $n_threads \
             --min_target_length ~{min_target_length} \
             ~{if compress_output then "--compress_output" else ""} \
@@ -138,7 +139,7 @@ task HarmonizeCopyRatios {
     >>>
 
     output {
-        Array[File] harmonized_denoised_copy_ratios = glob("*.harmonized.denoised_CR.tsv")
+        Array[File] harmonized_denoised_copy_ratios = glob(output_dir + "/*" + suffix)
     }
 
     runtime {
@@ -157,6 +158,7 @@ task MergeAllelicCounts {
     input {
         String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
 
+        File ref_dict
         Array[String]+ sample_names
         Array[File]+ allelic_counts
         Boolean compress_output = false
@@ -174,6 +176,7 @@ task MergeAllelicCounts {
         wget -O merge_pileups.py ~{script}
         python merge_pileups.py \
             --output_dir '~{output_dir}' \
+            -D ~{ref_dict} \
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("-P '", allelic_counts)}' \
             ~{if compress_output then "--compress_output" else ""} \
