@@ -121,6 +121,7 @@ class Pileup(object):
     def __init__(self, file_path: str = None, min_read_depth: int = 0, min_allele_frequency: float = 0):
         self.file_path = file_path
         self.columns = ["contig", "position", "ref_count", "alt_count", "other_alt_count", "allele_frequency"]
+        self.column_types = [str, int, int, int, int, float]
         try:
             self.df = (
                 pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.columns, low_memory=False)
@@ -131,6 +132,7 @@ class Pileup(object):
             warnings.warn(f"Exception reading pileup file {file_path}: {e}")
             warnings.warn(f"Setting pileup to empty DataFrame.")
             self.df = pd.DataFrame(columns=self.columns)
+        self.df = self.df.astype({key: dtype for key, dtype in zip(self.columns, self.column_types)})
         self.df = self.df.loc[self.df[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1) >= min_read_depth]
         self.df = self.df.loc[self.df["allele_frequency"] >= min_allele_frequency]
         self.bam_sample_name = None
