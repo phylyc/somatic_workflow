@@ -61,6 +61,8 @@ workflow SNVWorkflow {
 
                         call hs.MergeAllelicCounts as MergeGermlineAllelicCounts {
                             input:
+                                ref_dict = args.files.ref_dict,
+                                script = args.merge_pileups_script,
                                 sample_names = germline_seq_sample_names,
                                 allelic_counts = GermlineAllelicCounts.pileup_summaries,
                                 compress_output = args.compress_output,
@@ -89,6 +91,8 @@ workflow SNVWorkflow {
 
                     call hs.MergeAllelicCounts as MergeSomaticAllelicCounts {
                         input:
+                            ref_dict = args.files.ref_dict,
+                            script = args.merge_pileups_script,
                             sample_names = somatic_seq_sample_names,
                             allelic_counts = SomaticAllelicCounts.pileup_summaries,
                             compress_output = args.compress_output,
