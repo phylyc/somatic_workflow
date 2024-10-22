@@ -182,7 +182,8 @@ task DenoiseReadCounts {
 
         if [ "~{is_compressed}" == "true" ] ; then
             bgzip -cd '~{read_counts}' > '~{uncompressed_read_counts}'
-        # else '~{read_counts}' == '~{uncompressed_read_counts}'
+        else
+            mv '~{read_counts}' '~{uncompressed_read_counts}'
         fi
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \

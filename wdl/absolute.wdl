@@ -122,7 +122,8 @@ task ProcessMAFforAbsolute {
 
         if [ "~{is_compressed}" == "true" ] ; then
             gzip -cd '~{maf}' > '~{uncompressed_maf}'
-        # else '~{maf}' == '~{uncompressed_maf}'
+        else
+            mv '~{maf}' '~{uncompressed_maf}'
         fi
 
         grep "^#" '~{uncompressed_maf}' > '~{output_snv_maf}'

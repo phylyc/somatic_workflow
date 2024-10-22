@@ -61,7 +61,8 @@ task SelectPileups {
 
         if [ "~{is_compressed}" == "true" ] ; then
             bgzip -cd '~{pileup_summaries}' > '~{uncompressed_pileup_summaries}'
-        # else '~{pileup_summaries}' == '~{uncompressed_pileup_summaries}'
+        else
+            mv '~{pileup_summaries}' '~{uncompressed_pileup_summaries}'
         fi
 
         # Extract leading comment lines
