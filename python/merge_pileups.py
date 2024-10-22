@@ -17,9 +17,10 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "genotype.py --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-O <output_dir>] [--compress_output] [--verbose]"
+    parser.usage = "merge_pileups.py --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-D <ref_dict>] [-O <output_dir>] [--compress_output] [--verbose]"
     parser.add_argument("--sample",             type=str,   required=True,  action="append",    help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file header.")
     parser.add_argument("-P", "--pileup",       type=str,   required=True,  action="append",    help="Path to the allelic pileup file (output of GATK's GetPileupSummaries; used for CalculateContamination).")
+    parser.add_argument("-D", "--ref_dict",     type=str,                   help="Path to the reference dictionary to sort rows.")
     parser.add_argument("-O", "--output_dir",   type=str,   default=".",    help="Path to the output directory.")
     parser.add_argument("--compress_output",                default=False,  action="store_true", help="Compress output files.")
     parser.add_argument("--verbose",                        default=False,  action="store_true", help="Print information to stdout during execution.")
@@ -66,16 +67,23 @@ def write_header_and_df(header: str, df: pd.DataFrame, file_path: str, verbose: 
         df.to_csv(file, sep="\t", index=False)
 
 
-def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
-    contig_order = (
-        [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
-        + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
-    )
+def sort_genomic_positions(index: pd.MultiIndex, contig_order: list[str]) -> pd.MultiIndex:
     contig_order += list(set(index.get_level_values("contig")) - set(contig_order))
     temp_df = pd.DataFrame(index=index).reset_index()
     temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contig_order, ordered=True)
     temp_df.sort_values(by=["contig", "position"], inplace=True)
     return pd.MultiIndex.from_frame(temp_df[["contig", "position"]])
+
+
+def get_contigs(ref_dict: str) -> list[str]:
+    if ref_dict is None:
+        return (
+            [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+            + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
+        )
+    ref_dict = pd.read_csv(ref_dict, sep="\t", comment="@HD", header=None)
+    contigs = ref_dict[1].apply(lambda s: s.removeprefix("SN:")).to_list()
+    return contigs
 
 
 def merge_pileups(args):
@@ -90,6 +98,8 @@ def merge_pileups(args):
     }
     headers = defaultdict(list)
     pileups = defaultdict(list)
+
+    contig_order = get_contigs(args.ref_dict)
 
     # load data (per sequencing run):
     for sample_name, file_path in zip(args.sample, args.pileup):
@@ -113,7 +123,7 @@ def merge_pileups(args):
                 "allele_frequency": "max"
             }
         )
-        merged_pileup = aggregate.reindex(sort_genomic_positions(index=aggregate.index)).reset_index()
+        merged_pileup = aggregate.reindex(sort_genomic_positions(index=aggregate.index, contig_order=contig_order)).reset_index()
         print(f"Number of loci in merged pileup for {sample_name}: {merged_pileup.shape[0]}") if args.verbose else None
         merged_headers[sample_name] = headers[sample_name][0] if len(headers[sample_name]) > 0 else None
         merged_pileups[sample_name] = merged_pileup.astype(column_types)
