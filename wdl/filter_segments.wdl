@@ -29,7 +29,6 @@ workflow FilterSegments {
                 sample_names = sample_names,
                 normal_sample = matched_normal_sample.name,
                 copy_ratios = copy_ratios,
-                compress_output = args.compress_output,
                 min_segment_length = args.filter_germline_cnvs_min_segment_length,
                 suffix = ".modelFinal.called.germline_filtered.seg",
                 runtime_params = runtime_collection.harmonize_copy_ratios

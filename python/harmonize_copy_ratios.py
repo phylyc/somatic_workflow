@@ -443,11 +443,12 @@ class Harmonizer(object):
                 return somatic_intervals
         else:
             somatic_intervals = consensus_intervals
+            n_somatic = n_consensus
 
         # merge abutting intervals with same copy ratio
         merged_consensus_intervals = self.merge_abutting_intervals(somatic_intervals)
         n_merged = merged_consensus_intervals.shape[0]
-        pct_drop = 100 * (1 - n_merged / n_consensus)
+        pct_drop = 100 * (1 - n_merged / n_somatic)
         print(f"  Number of loci after merging abutting intervals with the same copy ratio: {n_merged} (-{pct_drop:.3f}%)") if self.verbose else None
 
         # Drop intervals that are too short:
