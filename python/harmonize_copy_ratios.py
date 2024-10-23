@@ -437,7 +437,7 @@ class Harmonizer(object):
             germline_mask = consensus_intervals[(self.normal_sample, "CALL")].isin(["-", "+"])
             somatic_intervals = consensus_intervals.loc[~germline_mask]
             n_somatic = somatic_intervals.shape[0]
-            pct_drop = 100 * (1 - n_somatic / n_harmonized)
+            pct_drop = 100 * (1 - n_somatic / n_consensus)
             print(f"  Number of loci after dropping loci called as CNV in germline sample: {n_somatic} (-{pct_drop:.3f}%)") if self.verbose else None
             if n_somatic == 0:
                 return somatic_intervals

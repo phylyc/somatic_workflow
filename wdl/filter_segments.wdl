@@ -92,7 +92,7 @@ task FilterGermlineCNVs {
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("--copy_ratio '", copy_ratios)}' \
             ~{"--normal_sample '" + normal_sample + "'"} \
-            --suffix ".germline_filtered.seg" \
+            --suffix ~{suffix} \
             --column_names \
                 CONTIG START END \
                 NUM_POINTS_COPY_RATIO NUM_POINTS_ALLELE_FRACTION \
@@ -131,7 +131,7 @@ task FilterGermlineCNVs {
     >>>
 
     output {
-        Array[File] filtered_called_copy_ratio = glob("*" + suffix)
+        Array[File] filtered_called_copy_ratio = glob(output_dir + "/*" + suffix)
     }
 
     runtime {
