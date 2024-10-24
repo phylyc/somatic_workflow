@@ -66,7 +66,6 @@ task FilterGermlineCNVs {
         Array[String]+ sample_names
         Array[File]+ copy_ratios
         String? normal_sample
-        Int min_target_length = 100
         Boolean compress_output = false
         Boolean verbose = true
 

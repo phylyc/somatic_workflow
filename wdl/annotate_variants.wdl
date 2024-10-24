@@ -66,6 +66,8 @@ workflow AnnotateVariants {
                 funcotate_extra_args = args.funcotate_extra_args,
                 runtime_params = runtime_collection.funcotate
         }
+
+        # TODO: Add CADD annotation
     }
 
     if (args.funcotator_output_format == "VCF") {
@@ -125,7 +127,7 @@ task Funcotate {
         Runtime runtime_params
     }
 
-    # TODO: Annotate phase
+    # TODO: Annotate haplotype phase
 
     # ==============
     # Process input args:

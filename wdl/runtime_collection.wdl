@@ -228,8 +228,8 @@ workflow DefineRuntimeCollection {
         Int time_variant_filtration = 5
 
         # gatk: LeftAlignAndTrimVariants
-        Int mem_left_align_and_trim_variants = 1024
-        Int time_left_align_and_trim_variants = 10
+        Int mem_left_align_and_trim_variants = 512
+        Int time_left_align_and_trim_variants = 60
 
         # gatk: FilterAlignmentArtifacts
         Int cpu_filter_alignment_artifacts = 1

@@ -63,6 +63,8 @@ workflow CallVariants {
         Array[File]? normal_bais = flatten(seq_normal_bais)
     }
 
+    # TODO: add Strelka2 and pipe via force-calling alleles into Mutect2
+
     scatter (interval_list in args.scattered_interval_list) {
     	call Mutect2 {
             input:
@@ -98,15 +100,13 @@ workflow CallVariants {
                 m2_extra_args = args.mutect2_extra_args,
                 runtime_params = runtime_collection.mutect2,
 		}
-
-        # TODO: add strelka
 	}
 
     call tasks.MergeVCFs {
     	input:
             vcfs = Mutect2.vcf,
             vcfs_idx = Mutect2.vcf_idx,
-            output_name = patient.name + ".unfiltered.merged",
+            output_name = patient.name,
             compress_output = args.compress_output,
             runtime_params = runtime_collection.merge_vcfs
     }
@@ -330,7 +330,7 @@ task MergeMutectStats {
         Runtime runtime_params
     }
 
-    String output_name = individual_id + ".merged.stats"
+    String output_name = individual_id + ".stats"
 
     command <<<
         set -e
