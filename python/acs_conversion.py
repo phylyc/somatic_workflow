@@ -133,11 +133,11 @@ def convert_model_segments_to_alleliccapseg(args):
         filter_rows |= alleliccapseg_seg_pd["n_probes"] < args.min_probes
         # mu.minor  sigma.minor  mu.major  sigma.major
         alleliccapseg_seg_pd.loc[filter_rows, 'n_hets'] = 0
-        alleliccapseg_seg_pd.loc[filter_rows, 'f'] = np.NaN
-        alleliccapseg_seg_pd.loc[filter_rows, 'mu.minor'] = np.NaN
-        alleliccapseg_seg_pd.loc[filter_rows, 'sigma.minor'] = np.NaN
-        alleliccapseg_seg_pd.loc[filter_rows, 'mu.major'] = np.NaN
-        alleliccapseg_seg_pd.loc[filter_rows, 'sigma.major'] = np.NaN
+        alleliccapseg_seg_pd.loc[filter_rows, 'f'] = np.nan
+        alleliccapseg_seg_pd.loc[filter_rows, 'mu.minor'] = np.nan
+        alleliccapseg_seg_pd.loc[filter_rows, 'sigma.minor'] = np.nan
+        alleliccapseg_seg_pd.loc[filter_rows, 'mu.major'] = np.nan
+        alleliccapseg_seg_pd.loc[filter_rows, 'sigma.major'] = np.nan
 
         return alleliccapseg_seg_pd, alleliccapseg_skew
 

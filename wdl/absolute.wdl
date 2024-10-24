@@ -139,7 +139,7 @@ else:
     cols_to_keep = [
         col
         for col in maf.columns
-        if maf[col].astype(str).map(len).max() < 1000 || maf[col].isna().all()
+        if maf[col].astype(str).map(len).max() < 1000 | maf[col].isna().all()
     ]
     print("Removing columns:", set(maf.columns) - set(cols_to_keep))
 
