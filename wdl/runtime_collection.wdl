@@ -45,9 +45,6 @@ struct RuntimeCollection {
     Runtime create_cnv_panel
     Runtime create_mutect2_panel
     Runtime select_af_only_from_vcf
-    Runtime whatshap
-    Runtime shapeit4
-    Runtime shapeit5
 }
 
 
@@ -62,11 +59,8 @@ workflow DefineRuntimeCollection {
         String tag_cga_pipline_docker = "us.gcr.io/tag-team-160914/neovax-tag-cga-pipeline:v1"
         String absolute_extract_docker = "danielrbroad/absolute_extract_and_1d_clustering_docker"
         String ubuntu_docker = "ubuntu"
-        String bcftools_docker = "staphb/bcftools"
-        String python_docker = "civisanalytics/datascience-python:latest"
-        String whatshap_docker = "hangsuunc/whatshap:v1"
-        String shapeit4_docker = "yussab/shapeit4:4.2.2"
-        String shapeit5_docker = "lindonkambule/shapeit5_2023-05-05_d6ce1e2"
+        String bcftools_docker = "staphb/bcftools:1.21"  # @sha256:176f4c7c10e57c8c3e2d26f0f105bd680e9ddff65c9e20dd4d3ebff228f17188
+        String python_docker = "civisanalytics/datascience-python:8.0.1"  # @sha256:3482b19792546214a6952b369472c9d4d50d60b3a38300127ce346b7bab5fd51
         File? gatk_override
         Int preemptible = 1
         Int max_retries = 1
@@ -277,16 +271,6 @@ workflow DefineRuntimeCollection {
 
         Int mem_select_af_only_from_vcf = 2024
         Int time_select_af_only_from_vcf = 1440
-
-        # Whatshap
-        Int cpu_whatshap = 1
-        Int mem_whatshap = 4096
-        Int time_whatshap = 60
-
-        # Shapeit
-        Int cpu_shapeit = 4
-        Int mem_shapeit = 4096
-        Int time_shapeit = 60
     }
 
     Int gatk_override_size = ceil(size(gatk_override, "GB"))
@@ -817,42 +801,6 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime whatshap = {
-        "docker": whatshap_docker,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu_whatshap,
-        "machine_mem": mem_whatshap + mem_machine_overhead,
-        "command_mem": mem_whatshap,
-        "runtime_minutes": time_startup + time_whatshap,
-        "disk": disk,
-        "boot_disk_size": boot_disk_size
-    }
-
-    Runtime shapeit4 = {
-        "docker": shapeit4_docker,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu_shapeit,
-        "machine_mem": mem_shapeit + mem_machine_overhead,
-        "command_mem": mem_shapeit,
-        "runtime_minutes": time_startup + time_shapeit,
-        "disk": disk,
-        "boot_disk_size": boot_disk_size
-    }
-
-    Runtime shapeit5 = {
-        "docker": shapeit5_docker,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu_shapeit,
-        "machine_mem": mem_shapeit + mem_machine_overhead,
-        "command_mem": mem_shapeit,
-        "runtime_minutes": time_startup + time_shapeit,
-        "disk": disk,
-        "boot_disk_size": boot_disk_size
-    }
-
     RuntimeCollection runtime_collection = {
         "get_tumor_sample_names": get_tumor_sample_names,
         "get_sample_name": get_sample_name,
@@ -899,10 +847,6 @@ workflow DefineRuntimeCollection {
 
         "collect_covered_regions": collect_covered_regions,
         "select_af_only_from_vcf": select_af_only_from_vcf,
-
-        "whatshap": whatshap,
-        "shapeit4": shapeit4,
-        "shapeit5": shapeit5
     }
 
     output {
