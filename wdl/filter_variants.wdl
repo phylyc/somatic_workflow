@@ -168,30 +168,34 @@ workflow FilterVariants {
                     runtime_params = runtime_collection.select_variants
             }
 
-            call FilterAlignmentArtifacts {
-                input:
-                    ref_fasta = args.files.ref_fasta,
-                    ref_fasta_index = args.files.ref_fasta_index,
-                    ref_dict = args.files.ref_dict,
-                    tumor_bams = tumor_bams,
-                    tumor_bais = tumor_bais,
-                    vcf = SelectPreRealignmentVariants.selected_vcf,
-                    vcf_idx = SelectPreRealignmentVariants.selected_vcf_idx,
-                    bwa_mem_index_image = args.files.realignment_bwa_mem_index_image,
-                    compress_output = args.compress_output,
-                    max_reasonable_fragment_length = args.filter_alignment_artifacts_max_reasonable_fragment_length,
-                    realignment_extra_args = args.realignment_extra_args,
-                    runtime_params = runtime_collection.filter_alignment_artifacts
+            if (SelectPreRealignmentVariants.num_selected_variants > 0) {
+                call FilterAlignmentArtifacts {
+                    input:
+                        ref_fasta = args.files.ref_fasta,
+                        ref_fasta_index = args.files.ref_fasta_index,
+                        ref_dict = args.files.ref_dict,
+                        tumor_bams = tumor_bams,
+                        tumor_bais = tumor_bais,
+                        vcf = SelectPreRealignmentVariants.selected_vcf,
+                        vcf_idx = SelectPreRealignmentVariants.selected_vcf_idx,
+                        bwa_mem_index_image = args.files.realignment_bwa_mem_index_image,
+                        compress_output = args.compress_output,
+                        max_reasonable_fragment_length = args.filter_alignment_artifacts_max_reasonable_fragment_length,
+                        realignment_extra_args = args.realignment_extra_args,
+                        runtime_params = runtime_collection.filter_alignment_artifacts
+                }
             }
         }
 
-        call tasks.MergeVCFs as MergeRealignmentFilteredVCFs {
-            input:
-                vcfs = FilterAlignmentArtifacts.filtered_vcf,
-                vcfs_idx = FilterAlignmentArtifacts.filtered_vcf_idx,
-                output_name = vcf_name + ".filtered.selected.realignmentfiltered",
-                compress_output = args.compress_output,
-                runtime_params = runtime_collection.merge_vcfs
+        if (length(select_all(FilterAlignmentArtifacts.filtered_vcf)) > 0) {
+            call tasks.MergeVCFs as MergeRealignmentFilteredVCFs {
+                input:
+                    vcfs = select_all(FilterAlignmentArtifacts.filtered_vcf),
+                    vcfs_idx = select_all(FilterAlignmentArtifacts.filtered_vcf_idx),
+                    output_name = vcf_name + ".filtered.selected.realignmentfiltered",
+                    compress_output = args.compress_output,
+                    runtime_params = runtime_collection.merge_vcfs
+            }
         }
 
         call tasks.SelectVariants as SelectPostRealignmentVariants {
@@ -199,8 +203,8 @@ workflow FilterVariants {
                 ref_fasta = args.files.ref_fasta,
                 ref_fasta_index = args.files.ref_fasta_index,
                 ref_dict = args.files.ref_dict,
-                vcf = MergeRealignmentFilteredVCFs.merged_vcf,
-                vcf_idx = MergeRealignmentFilteredVCFs.merged_vcf_idx,
+                vcf = select_first([MergeRealignmentFilteredVCFs.merged_vcf, variants_to_realign]),
+                vcf_idx = select_first([MergeRealignmentFilteredVCFs.merged_vcf_idx, variants_to_realign_idx]),
                 select_passing = true,
                 keep_germline = args.keep_germline,
                 compress_output = args.compress_output,
@@ -219,7 +223,7 @@ workflow FilterVariants {
                         SelectLowConfidenceVariants.selected_vcf_idx,
                         SelectPostRealignmentVariants.selected_vcf_idx
                     ]),
-                    output_name = vcf_name + ".filtered.selected.realignmentfiltered.selected.merged",
+                    output_name = vcf_name + ".filtered.selected.realignmentfiltered.selected",
                     compress_output = args.compress_output,
                     runtime_params = runtime_collection.merge_vcfs
             }
