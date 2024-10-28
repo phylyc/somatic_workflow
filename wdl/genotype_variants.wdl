@@ -18,6 +18,8 @@ workflow GenotypeVariants {
 
         Int min_read_depth = 10
         Float min_genotype_likelihood = 0.90
+        Int overdispersion = 50
+        Float ref_bias = 1.05
         String format = "GT"
         Boolean select_hets = false
         Boolean save_sample_genotype_likelihoods = false
@@ -62,6 +64,8 @@ workflow GenotypeVariants {
             segmentation_tables = segmentation_tables,
             min_read_depth = min_read_depth,
             min_genotype_likelihood = min_genotype_likelihood,
+            overdispersion = overdispersion,
+            ref_bias = ref_bias,
             format = format,
             select_hets = select_hets,
             save_sample_genotype_likelihoods = save_sample_genotype_likelihoods,
@@ -109,6 +113,8 @@ task GenotypeVariantsTask {
 
         Int min_read_depth = 10
         Float min_genotype_likelihood = 0.90
+        Int overdispersion = 50
+        Float ref_bias = 1.05
         String model = "betabinom"
         String format = "GT"
         Boolean select_hets = false
@@ -146,6 +152,8 @@ task GenotypeVariantsTask {
             ~{true="-C '" false="" defined(contamination_tables)}~{default="" sep="' -C '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
             --min_read_depth ~{min_read_depth} \
             --min_genotype_likelihood ~{min_genotype_likelihood} \
+            --overdispersion ~{overdispersion} \
+            --ref_bias ~{ref_bias} \
             --model ~{model} \
             --format ~{format} \
             --threads 1 \

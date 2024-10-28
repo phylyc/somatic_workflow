@@ -22,6 +22,11 @@ workflow GenotypeSNPArray {
         String genotype_variants_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
         Boolean genotype_variants_save_sample_genotype_likelihoods = false
 
+        Int genotype_variants_min_read_depth = 10
+        Float genotype_variants_min_genotype_likelihood = 0.90
+        Int genotype_variants_overdispersion = 50
+        Float genotype_variants_ref_bias = 1.05
+
         Boolean compress_output = true
 
         RuntimeCollection runtime_collection
@@ -78,6 +83,10 @@ workflow GenotypeSNPArray {
             common_germline_alleles = select_first([common_germline_alleles]),
             common_germline_alleles_idx = select_first([common_germline_alleles_idx]),
             compress_output = compress_output,
+            min_read_depth = genotype_variants_min_read_depth,
+            min_genotype_likelihood = genotype_variants_min_genotype_likelihood,
+            overdispersion = genotype_variants_overdispersion,
+            ref_bias = genotype_variants_ref_bias,
             select_hets = false,
             save_sample_genotype_likelihoods = genotype_variants_save_sample_genotype_likelihoods,
             verbose = true,

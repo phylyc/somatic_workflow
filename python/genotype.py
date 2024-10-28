@@ -454,6 +454,7 @@ class VCF(object):
     def get_contigs(self):
         return [c.split("ID=")[-1].split(",")[0] for c in self.ref_dict]
 
+
 class Genotyper(object):
     """
     Performs genotype likelihood calculations using specified statistical models.
