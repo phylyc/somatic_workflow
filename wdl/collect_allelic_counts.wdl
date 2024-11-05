@@ -254,41 +254,37 @@ task GetPileupSummaries {
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
-        if [ "~{defined(scattered_intervals)}" == "true" ] ; then
+        select_variants() {
+            local input_vcf="$1"
+            local interval_flag="$2"
+
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
                 SelectVariants \
-                -V '~{common_germline_alleles}' \
-                ~{"-L '" +  scattered_intervals + "'"} \
+                -V "$input_vcf" \
+                $interval_flag \
                 -O tmp.selected_loci.vcf
             mv tmp.selected_loci.vcf selected_loci.vcf
+            mv tmp.selected_loci.vcf.idx selected_loci.vcf.idx
             set +e
-            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
+            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l || echo 0)
             set -e
             echo ">> Selected $num_loci loci."
+        }
+
+        if [ "~{defined(scattered_intervals)}" == "true" ]; then
+            select_variants \
+                '~{common_germline_alleles}' \
+                "-L '~{scattered_intervals}'"
         fi
-        if [ "~{defined(interval_list)}" == "true" ] ; then
-            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-                SelectVariants \
-                -V '~{if defined(scattered_intervals) then "selected_loci.vcf" else common_germline_alleles}' \
-                ~{"-L '" +  interval_list + "'"} \
-                -O tmp.selected_loci.vcf
-            mv tmp.selected_loci.vcf selected_loci.vcf
-            set +e
-            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
-            set -e
-            echo ">> Selected $num_loci loci."
+        if [ "~{defined(interval_list)}" == "true" ]; then
+            select_variants \
+                '~{if defined(scattered_intervals) then "selected_loci.vcf" else common_germline_alleles}' \
+                "-L '~{interval_list}'"
         fi
-        if [ "~{defined(interval_blacklist)}" == "true" ] ; then
-            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-                SelectVariants \
-                -V '~{if defined(scattered_intervals) || defined(interval_list) then "selected_loci.vcf" else common_germline_alleles}' \
-                ~{"-XL '" +  interval_blacklist + "'"} \
-                -O tmp.selected_loci.vcf
-            mv tmp.selected_loci.vcf selected_loci.vcf
-            set +e
-            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
-            set -e
-            echo ">> Selected $num_loci loci."
+        if [ "~{defined(interval_blacklist)}" == "true" ]; then
+            select_variants \
+                '~{if defined(scattered_intervals) || defined(interval_list) then "selected_loci.vcf" else common_germline_alleles}' \
+                "-XL '~{interval_blacklist}'"
         fi
 
         if [ -f selected_loci.vcf ] ; then
