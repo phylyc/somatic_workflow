@@ -257,12 +257,17 @@ task GetPileupSummaries {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             SelectVariants \
             -V '~{common_germline_alleles}' \
-            ~{"--intervals '" +  interval_list + "'"} \
-            ~{"--intervals '" +  scattered_intervals + "'"} \
-            ~{"--exclude-intervals '" +  interval_blacklist + "'"} \
-            --interval-merging-rule OVERLAPPING_ONLY \
-            --interval-set-rule INTERSECTION \
+            ~{"-L '" +  scattered_intervals + "'"} \
+            ~{"-XL '" +  interval_blacklist + "'"} \
             -O selected_loci.vcf
+
+        if [ "~{defined(interval_list)}" == "true" ] ; then
+            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+                SelectVariants \
+                -V selected_loci.vcf \
+                ~{"-L '" +  interval_list + "'"} \
+                -O selected_loci.vcf
+        fi
 
         set +e  # grep returns 1 if no lines are found
         num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
