@@ -260,6 +260,10 @@ task GetPileupSummaries {
                 -V '~{common_germline_alleles}' \
                 ~{"-L '" +  scattered_intervals + "'"} \
                 -O selected_loci.vcf
+            set +e
+            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
+            set -e
+            echo ">> Selected $num_loci loci."
         fi
         if [ "~{defined(interval_list)}" == "true" ] ; then
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
@@ -267,6 +271,10 @@ task GetPileupSummaries {
                 -V '~{if defined(scattered_intervals) then "selected_loci.vcf" else common_germline_alleles}' \
                 ~{"-L '" +  interval_list + "'"} \
                 -O selected_loci.vcf
+            set +e
+            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
+            set -e
+            echo ">> Selected $num_loci loci."
         fi
         if [ "~{defined(interval_blacklist)}" == "true" ] ; then
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
@@ -274,6 +282,10 @@ task GetPileupSummaries {
                 -V '~{if defined(scattered_intervals) || defined(interval_list) then "selected_loci.vcf" else common_germline_alleles}' \
                 ~{"-XL '" +  interval_blacklist + "'"} \
                 -O selected_loci.vcf
+            set +e
+            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
+            set -e
+            echo ">> Selected $num_loci loci."
         fi
 
         if [ -f selected_loci.vcf ] ; then
