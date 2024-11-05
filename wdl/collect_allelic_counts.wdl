@@ -261,6 +261,7 @@ task GetPileupSummaries {
             ~{"--intervals '" +  scattered_intervals + "'"} \
             ~{"--exclude-intervals '" +  interval_blacklist + "'"} \
             --interval-merging-rule OVERLAPPING_ONLY \
+            --interval-set-rule INTERSECTION \
             -O selected_loci.vcf
 
         set +e  # grep returns 1 if no lines are found
