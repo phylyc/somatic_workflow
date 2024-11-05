@@ -255,17 +255,14 @@ task GetPileupSummaries {
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
         select_variants() {
-            local input_vcf="$1"
-            local interval_flag="$2"
-
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
                 SelectVariants \
-                -V "$input_vcf" \
-                $interval_flag \
+                "$@" \
                 -O tmp.selected_loci.vcf
             mv tmp.selected_loci.vcf selected_loci.vcf
             mv tmp.selected_loci.vcf.idx selected_loci.vcf.idx
-            set +e
+
+            set +e   # grep returns 1 if no lines are found
             num_loci=$(grep -v "^#" selected_loci.vcf | wc -l || echo 0)
             set -e
             echo ">> Selected $num_loci loci."
@@ -273,23 +270,23 @@ task GetPileupSummaries {
 
         if [ "~{defined(scattered_intervals)}" == "true" ]; then
             select_variants \
-                '~{common_germline_alleles}' \
-                "-L '~{scattered_intervals}'"
+                -V '~{common_germline_alleles}' \
+                -L '~{scattered_intervals}'
         fi
         if [ "~{defined(interval_list)}" == "true" ]; then
             select_variants \
-                '~{if defined(scattered_intervals) then "selected_loci.vcf" else common_germline_alleles}' \
-                "-L '~{interval_list}'"
+                -V '~{if defined(scattered_intervals) then "selected_loci.vcf" else common_germline_alleles}' \
+                -L '~{interval_list}'
         fi
         if [ "~{defined(interval_blacklist)}" == "true" ]; then
             select_variants \
-                '~{if defined(scattered_intervals) || defined(interval_list) then "selected_loci.vcf" else common_germline_alleles}' \
-                "-XL '~{interval_blacklist}'"
+                -V '~{if defined(scattered_intervals) || defined(interval_list) then "selected_loci.vcf" else common_germline_alleles}' \
+                -XL '~{interval_blacklist}'
         fi
 
         if [ -f selected_loci.vcf ] ; then
             set +e  # grep returns 1 if no lines are found
-            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
+            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l || echo 0)
             set -e
         else
             num_loci=1
@@ -337,6 +334,8 @@ task GetPileupSummaries {
 
     parameter_meta {
         interval_list: {localization_optional: true}
+        interval_blacklist: {localization_optional: true}
+        scattered_intervals: {localization_optional: true}
         input_bam: {localization_optional: true}
         input_bai: {localization_optional: true}
         common_germline_alleles: {localization_optional: true}
