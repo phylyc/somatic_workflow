@@ -254,24 +254,35 @@ task GetPileupSummaries {
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
-        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-            SelectVariants \
-            -V '~{common_germline_alleles}' \
-            ~{"-L '" +  scattered_intervals + "'"} \
-            ~{"-XL '" +  interval_blacklist + "'"} \
-            -O selected_loci.vcf
-
+        if [ "~{defined(scattered_intervals)}" == "true" ] ; then
+            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+                SelectVariants \
+                -V '~{common_germline_alleles}' \
+                ~{"-L '" +  scattered_intervals + "'"} \
+                -O selected_loci.vcf
+        fi
         if [ "~{defined(interval_list)}" == "true" ] ; then
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
                 SelectVariants \
-                -V selected_loci.vcf \
+                -V '~{if defined(scattered_intervals) then "selected_loci.vcf" else common_germline_alleles}' \
                 ~{"-L '" +  interval_list + "'"} \
                 -O selected_loci.vcf
         fi
+        if [ "~{defined(interval_blacklist)}" == "true" ] ; then
+            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+                SelectVariants \
+                -V '~{if defined(scattered_intervals) || defined(interval_list) then "selected_loci.vcf" else common_germline_alleles}' \
+                ~{"-XL '" +  interval_blacklist + "'"} \
+                -O selected_loci.vcf
+        fi
 
-        set +e  # grep returns 1 if no lines are found
-        num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
-        set -e
+        if [ -f selected_loci.vcf ] ; then
+            set +e  # grep returns 1 if no lines are found
+            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
+            set -e
+        else
+            num_loci=1
+        fi
 
         if [ "$num_loci" -eq 0 ] ; then
             # Create an empty pileup file if there are no common_germline_alleles in the intersection
@@ -282,8 +293,8 @@ task GetPileupSummaries {
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
                 GetPileupSummaries \
                 --input '~{input_bam}' \
-                --intervals selected_loci.vcf \
-                --variant selected_loci.vcf \
+                --intervals '~{if defined(scattered_intervals) || defined(interval_list)|| defined(interval_blacklist) then "selected_loci.vcf" else common_germline_alleles}' \
+                --variant '~{if defined(scattered_intervals) || defined(interval_list)|| defined(interval_blacklist) then "selected_loci.vcf" else common_germline_alleles}' \
                 -min-af '~{minimum_population_allele_frequency}' \
                 -max-af '~{maximum_population_allele_frequency}' \
                 --output '~{pileup_file}' \
