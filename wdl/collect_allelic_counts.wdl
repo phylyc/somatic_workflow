@@ -267,7 +267,7 @@ task GetPileupSummaries {
         num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
         set -e
 
-        if [ "$num_vars" -eq 0 ] ; then
+        if [ "$num_loci" -eq 0 ] ; then
             # Create an empty pileup file if there are no common_germline_alleles in the intersection
             # between the common_germline_alleles and the intervals.
             printf "#<METADATA>SAMPLE=~{sample_id}\n" > '~{pileup_file}'
