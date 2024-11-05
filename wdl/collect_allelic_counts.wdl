@@ -259,7 +259,8 @@ task GetPileupSummaries {
                 SelectVariants \
                 -V '~{common_germline_alleles}' \
                 ~{"-L '" +  scattered_intervals + "'"} \
-                -O selected_loci.vcf
+                -O tmp.selected_loci.vcf
+            mv tmp.selected_loci.vcf selected_loci.vcf
             set +e
             num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
             set -e
@@ -270,7 +271,8 @@ task GetPileupSummaries {
                 SelectVariants \
                 -V '~{if defined(scattered_intervals) then "selected_loci.vcf" else common_germline_alleles}' \
                 ~{"-L '" +  interval_list + "'"} \
-                -O selected_loci.vcf
+                -O tmp.selected_loci.vcf
+            mv tmp.selected_loci.vcf selected_loci.vcf
             set +e
             num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
             set -e
@@ -281,7 +283,8 @@ task GetPileupSummaries {
                 SelectVariants \
                 -V '~{if defined(scattered_intervals) || defined(interval_list) then "selected_loci.vcf" else common_germline_alleles}' \
                 ~{"-XL '" +  interval_blacklist + "'"} \
-                -O selected_loci.vcf
+                -O tmp.selected_loci.vcf
+            mv tmp.selected_loci.vcf selected_loci.vcf
             set +e
             num_loci=$(grep -v "^#" selected_loci.vcf | wc -l)
             set -e
