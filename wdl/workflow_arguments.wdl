@@ -85,6 +85,7 @@ struct WorkflowArguments {
     String funcotator_output_format
     String funcotator_variant_type
     String funcotator_transcript_selection_mode
+    Boolean funcotator_prefer_mane_transcripts
     Boolean funcotator_use_gnomad
     Array[String]? funcotator_data_sources_paths
     Array[String]? funcotator_annotation_defaults
@@ -199,11 +200,12 @@ workflow DefineWorkflowArguments {
             "lowMPOS",
             "lowROQ"
         ]
-        String germline_filter_whitelist = "clustered_events,haplotype,normal_artifact,panel_of_normals"
+        String germline_filter_whitelist = "normal_artifact,panel_of_normals"
         String funcotator_reference_version = "hg19"
         String funcotator_output_format = "MAF"
         String funcotator_variant_type = "somatic"  # alternative: germline
         String funcotator_transcript_selection_mode = "CANONICAL"  # GATK default: "CANONICAL"
+        Boolean funcotator_prefer_mane_transcripts = true
         Boolean funcotator_use_gnomad = true
         Array[String]? funcotator_data_sources_paths
         Array[String]? funcotator_annotation_defaults
@@ -326,6 +328,7 @@ workflow DefineWorkflowArguments {
         funcotator_output_format: funcotator_output_format,
         funcotator_variant_type: funcotator_variant_type,
         funcotator_transcript_selection_mode: funcotator_transcript_selection_mode,
+        funcotator_prefer_mane_transcripts: funcotator_prefer_mane_transcripts,
         funcotator_use_gnomad: funcotator_use_gnomad,
         funcotator_data_sources_paths: funcotator_data_sources_paths,
         funcotator_annotation_defaults: funcotator_annotation_defaults,

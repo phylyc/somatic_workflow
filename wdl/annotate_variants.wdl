@@ -56,6 +56,7 @@ workflow AnnotateVariants {
                 variant_type = args.funcotator_variant_type,
                 transcript_selection_mode = args.funcotator_transcript_selection_mode,
                 transcript_list = args.files.funcotator_transcript_list,
+                prefer_mane_transcripts = args.funcotator_prefer_mane_transcripts,
                 data_sources_tar_gz = args.files.funcotator_data_sources_tar_gz,
                 use_gnomad = args.funcotator_use_gnomad,
                 compress_output = args.compress_output,
@@ -114,6 +115,7 @@ task Funcotate {
         String output_format = "MAF"
         String variant_type = "somatic"  # alternative: germline
         String transcript_selection_mode = "CANONICAL"  # GATK default: "CANONICAL"
+        Boolean prefer_mane_transcripts = true
         File? transcript_list
         File? data_sources_tar_gz  # most recent version is downloaded if not chosen
         Boolean use_gnomad = false
@@ -203,6 +205,7 @@ task Funcotate {
             ~{"-L '" + interval_list + "'"} \
             ~{"--transcript-selection-mode " + transcript_selection_mode} \
             ~{"--transcript-list '" + transcript_list + "'"} \
+            ~{if prefer_mane_transcripts then "--prefer-mane-transcript true" else ""} \
             --annotation-default 'individual_id:~{individual_id}' \
             --annotation-default 'tumor_barcode:~{tumor_sample_name}' \
             --annotation-default 'normal_barcode:~{normal_sample_name}' \
