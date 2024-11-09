@@ -372,10 +372,17 @@ task LearnReadOrientationModel {
     # to estimate a prior probability that a site with a given context suffers from an
     # artifact. The two main artifacts of concern are OXOG (a result of sequencing technology)
     # and FFPE.
+    # CAUTION: The EM algorithm may not converge for some context, however, it will still
+    # output orientation bias priors, which are used in FilterMutectCalls to determine
+    # variant status. If the EM did not converge, the artifact-classification may
+    # lead to false positives and false negatives.
 
     input {
         String individual_id
         Array[File] f1r2_counts
+
+        Int max_depth = 200
+        Int max_num_em_iterations = 100  # default 20
 
         Runtime runtime_params
     }
@@ -388,7 +395,9 @@ task LearnReadOrientationModel {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             LearnReadOrientationModel \
             ~{sep="' " prefix("-I '", f1r2_counts)}' \
-            --output '~{output_name}'
+            --output '~{output_name}' \
+            --max-depth ~{max_depth} \
+            --num-em-iterations ~{max_num_em_iterations}
     >>>
 
     output {
