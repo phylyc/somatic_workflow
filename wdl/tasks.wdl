@@ -435,7 +435,7 @@ task SelectVariants {
                             }
                         }' \
                     >> '~{uncompressed_selected_vcf}'
-                num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
+                num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | grep -v "PASS" | wc -l)
                 echo ">> Selected $num_selected_vars germline out of $num_vars variants."
             fi
         fi
