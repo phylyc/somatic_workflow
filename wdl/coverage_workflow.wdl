@@ -182,9 +182,6 @@ workflow CoverageWorkflow {
         Array[File]? target_read_counts = read_counts
         Array[File]? denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios
         Array[File]? snp_array_pileups = HarmonizeSamples.merged_allelic_counts
-        Array[File?]? covered_regions_bed = CollectCoveredRegions.regions_bed
-        Array[File?]? covered_regions_bam = CollectCoveredRegions.regions_bam
-        Array[File?]? covered_regions_bai = CollectCoveredRegions.regions_bai
         Array[File?]? covered_regions_interval_list = CollectCoveredRegions.regions_interval_list
         Array[File]? contamination_tables = contaminations
         Array[File]? segmentation_tables = af_segmentations

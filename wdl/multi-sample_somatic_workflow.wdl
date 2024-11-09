@@ -117,9 +117,6 @@ workflow MultiSampleSomaticWorkflow {
     output {
         Array[File?]? target_read_counts = CoverageWorkflow.target_read_counts
         Array[File?]? denoised_copy_ratios = CoverageWorkflow.denoised_copy_ratios
-        Array[File?]? covered_regions_bed = CoverageWorkflow.covered_regions_bed
-        Array[File?]? covered_regions_bam = CoverageWorkflow.covered_regions_bam
-        Array[File?]? covered_regions_bai = CoverageWorkflow.covered_regions_bai
         Array[File?]? covered_regions_interval_list = CoverageWorkflow.covered_regions_interval_list
 
         File? genotyped_snparray_vcf = CNVWorkflow.genotyped_snparray_vcf
@@ -130,8 +127,8 @@ workflow MultiSampleSomaticWorkflow {
         File? sample_snp_correlation = CNVWorkflow.sample_snp_correlation
         Array[File]? sample_snparray_genotype_likelihoods = CNVWorkflow.sample_snparray_genotype_likelihoods
         Array[File]? contamination_tables = select_first([CNVWorkflow.contamination_tables, CoverageWorkflow.contamination_tables])
-        Array[File]? segmentation_tables = select_first([CNVWorkflow.segmentation_tables, CoverageWorkflow.contamination_tables])
-        Array[File]? snparray_pileups = select_first([CNVWorkflow.snparray_pileups, CoverageWorkflow.contamination_tables])
+        Array[File]? segmentation_tables = select_first([CNVWorkflow.segmentation_tables, CoverageWorkflow.segmentation_tables])
+        Array[File]? snparray_pileups = select_first([CNVWorkflow.snparray_pileups, CoverageWorkflow.snparray_pileups])
         Array[File]? snparray_allelic_counts = CNVWorkflow.snparray_allelic_counts
 
         File? unfiltered_vcf = SNVWorkflow.unfiltered_vcf
