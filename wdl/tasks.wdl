@@ -398,7 +398,7 @@ task SelectVariants {
         else
             if [ "~{select_passing}" == "true" ] ; then
                 echo ">> Selecting PASSing variants ... "
-                grep -v "^#" '~{select_variants_output_vcf}' | grep "\tPASS\t" >> '~{uncompressed_selected_vcf}'
+                grep -v "^#" '~{select_variants_output_vcf}' | grep "PASS" >> '~{uncompressed_selected_vcf}'
                 num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
                 echo ">> Selected $num_selected_vars PASSing out of $num_vars variants."
             fi

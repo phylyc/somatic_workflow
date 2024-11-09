@@ -175,6 +175,8 @@ task CalculateContaminationTask {
     String output_contamination = tumor_sample_id + ".contamination"
     String output_segments = tumor_sample_id + ".segments"
 
+    # TODO: handle zipped pileup input
+
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
