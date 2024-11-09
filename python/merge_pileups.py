@@ -129,7 +129,7 @@ def merge_pileups(args):
         merged_pileups = merged_pileup.loc[merged_pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1) >= args.min_read_depth]
         print(f"Number of loci after dropping sites with less than {args.min_read_depth} reads: {merged_pileup.shape[0]}") if args.verbose else None
         merged_headers[sample_name] = headers[sample_name][0] if len(headers[sample_name]) > 0 else None
-        merged_pileups[sample_name] = merged_pileup.astype(column_types)
+        merged_pileups = merged_pileup.astype(column_types)
     print() if args.verbose else None
 
     # write output files:
