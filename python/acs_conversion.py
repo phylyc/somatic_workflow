@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument("--af_parameters",  type=str,   required=True,  help="Path to the GATK ModelSegments modelFinal.af.param output file.")
     parser.add_argument("--output_dir",     type=str,   required=True,  help="Path to the output directory.")
     parser.add_argument("--min_hets",       type=int,   default=10,     help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
-    parser.add_argument("--min_probes",     type=int,   default=4,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
+    parser.add_argument("--min_probes",     type=int,   default=4,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
     parser.add_argument("--maf90_threshold",type=float, default=0.485,  help="Threshold of 90% quantile for setting minor allele fraction to 0.5.")
     parser.add_argument("--verbose",        default=False,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
@@ -76,8 +76,65 @@ def convert_model_segments_to_alleliccapseg(args):
 
     def simple_determine_allelic_fraction(model_segments_seg_pd):
         result = model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_50']
-        result[model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_90'] > args.maf90_threshold] = 0.5
+        result.loc[model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_90'] > args.maf90_threshold] = 0.5
         return result
+
+    # Main function to assign CNLOH (copy-neutral loss of heterozygosity) labels
+    def label_cnloh(data):
+        """Annotates CNLOH labels on data based on conditions defined in the LabelSegsCNLOH logic from AllelicCapSeg."""
+        n_seg = len(data)
+        labels = np.full(n_seg, 2)  # Start with label 2 (no CNLOH) for all segments
+
+        # Define helper functions for conditions
+        def pass_t(tau, sigma, ix1, ix2, tau_thresh=0.08):
+            """Checks if the difference in tau between two segments is below the threshold."""
+            return ((tau[ix1] - tau[ix2]) ** 2 / (sigma[ix1] ** 2 + sigma[ix2] ** 2)) < tau_thresh
+
+        def pass_f(f, ix1, ix2, f_thresh=0.01):
+            """Checks if the difference in allele frequency (f) between two segments is below the threshold."""
+            return abs(f[ix1] - f[ix2]) < f_thresh
+
+        ## Unused check since we don't have access to alt or ref counts or outlier probabilities anymore.
+        # def pass_pair(alt, ref, outlier_prob, ix):
+        #     """Checks for heterozygosity balance in the segment."""
+        #     cov = alt + ref
+        #     het_out = outlier_prob[ix]
+        #     out_ix = het_out > 0.5  # Consider SNPs with outlier probability > 0.5
+        #     return (np.any((alt[~out_ix] / cov[~out_ix]) > 0.5) and
+        #             np.any((alt[~out_ix] / cov[~out_ix]) < 0.5))
+
+        # Pass 1: Assign label 1 based on CNLOH conditions between adjacent segments
+        for i in range(n_seg - 1):
+            if data['Chromosome'][i] != data['Chromosome'][i + 1]:
+                continue
+            if pd.isna(data['f'][i]) or pd.isna(data['f'][i + 1]):
+                continue
+            if pass_t(data['tau'], data['sigma.tau'], i, i + 1) and not pass_f(data['f'], i, i + 1):
+                if data['f'][i] > data['f'][i + 1]:
+                    labels[i + 1] = 1
+                else:
+                    labels[i] = 1
+
+        # Pass 2: Assign label 0 based on stricter CNLOH conditions for triplets
+        for j in range(n_seg - 2):
+            if (data['Chromosome'][j] != data['Chromosome'][j + 1] or
+                data['Chromosome'][j + 1] != data['Chromosome'][j + 2]
+            ):
+                continue
+            if pd.isna(data['f'][j]) or pd.isna(data['f'][j + 1]) or pd.isna(data['f'][j + 2]):
+                continue
+            if (pass_t(data['tau'], data['sigma.tau'], j, j + 2) and
+                pass_t(data['tau'], data['sigma.tau'], j, j + 1) and
+                pass_t(data['tau'], data['sigma.tau'], j + 1, j + 2) and
+                not pass_f(data['f'], j, j + 1, 0.1) and
+                not pass_f(data['f'], j + 1, j + 2, 0.1) and
+                # pass_pair(data['alt'], data['ref'], data['outlier_prob'], j + 1) and
+                data['f'][j + 1] < data['f'][j] and
+                data['f'][j + 1] < data['f'][j + 2]
+            ):
+                labels[j + 1] = 0
+
+        return labels
 
     def convert(model_segments_seg_pd, model_segments_af_param_pd):
         alleliccapseg_seg_pd = pd.DataFrame(columns=alleliccapseg_seg_columns)
@@ -105,11 +162,9 @@ def convert_model_segments_to_alleliccapseg(args):
         alleliccapseg_seg_pd['mu.major'] = (1. - alleliccapseg_seg_pd['f']) * alleliccapseg_seg_pd['tau']
         alleliccapseg_seg_pd['sigma.major'] = sigma_mu
 
-        # For whatever reason, AllelicCapSeg attempts to call CNLOH.  Documentation is spotty, but it seems like it attempts
-        # to distinguish between three states ("0 is flanked on both sides, 1 is one side, 2 is no cn.loh").
-        # Let's just set everything to 2 for now.
-        # Hopefully, ABSOLUTE is robust to this ...
-        alleliccapseg_seg_pd['SegLabelCNLOH'] = 2
+        # AllelicCapSeg attempts to call CNLOH.  It attempts to distinguish between
+        # three states ("0 is flanked on both sides, 1 is one side, 2 is no cn.loh").
+        alleliccapseg_seg_pd['SegLabelCNLOH'] = label_cnloh(alleliccapseg_seg_pd)
 
         # One important caveat: for segments with less than 10 hets, AllelicCapSeg also tries to call whether a segment is "split" or not.
         # This script will attempt to call "split" on all segments.

@@ -226,13 +226,6 @@ task VcfToPileupVariants {
 }
 
 task GetPileupSummaries {
-    # If the common_germline_alleles for contamination and the intervals for this scatter don't
-    # intersect, GetPileupSummaries throws an error. However, there is nothing wrong
-    # with an empty intersection for our purposes; it simply doesn't contribute to the
-    # merged pileup summaries that we create downstream. We implement this by creating
-    # an empty pileup file that is overwritten by GetPileupSummaries and force an
-    # exit code of 0.
-
 	input {
         File? interval_list
         File? interval_blacklist
@@ -258,38 +251,70 @@ task GetPileupSummaries {
     String output_file = pileup_file + if compress_output then ".gz" else ""
 
     command <<<
-        set +e
+        set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
-        # Create an empty pileup file if there are no common_germline_alleles in the intersection
-        # between the common_germline_alleles and the intervals. Will be overwritten by GetPileupSummaries
-        printf "#<METADATA>SAMPLE=~{sample_id}\n" > '~{output_file}'
-        printf "contig\tposition\tref_count\talt_count\tother_alt_count\tallele_frequency\n" >> '~{output_file}'
+        select_variants() {
+            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+                SelectVariants \
+                "$@" \
+                -O tmp.selected_loci.vcf
+            mv tmp.selected_loci.vcf selected_loci.vcf
+            mv tmp.selected_loci.vcf.idx selected_loci.vcf.idx
 
-        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-            GetPileupSummaries \
-            --input '~{input_bam}' \
-            ~{"--intervals '" +  interval_list + "'"} \
-            ~{"--intervals '" +  scattered_intervals + "'"} \
-            ~{"--exclude-intervals '" +  interval_blacklist + "'"} \
-            --intervals '~{common_germline_alleles}' \
-            --interval-set-rule INTERSECTION \
-            --variant '~{common_germline_alleles}' \
-            -min-af '~{minimum_population_allele_frequency}' \
-            -max-af '~{maximum_population_allele_frequency}' \
-            --output '~{pileup_file}' \
-            ~{if is_paired_end then "--read-filter FirstOfPairReadFilter " else ""} \
-            ~{if is_paired_end then "--read-filter PairedReadFilter " else ""} \
-            --seconds-between-progress-updates 60 \
-            ~{getpileupsummaries_extra_args}
+            set +e   # grep returns 1 if no lines are found
+            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l || echo 0)
+            set -e
+            echo ">> Selected $num_loci loci."
+        }
+
+        if [ "~{defined(scattered_intervals)}" == "true" ]; then
+            select_variants \
+                -V '~{common_germline_alleles}' \
+                -L '~{scattered_intervals}'
+        fi
+        if [ "~{defined(interval_list)}" == "true" ]; then
+            select_variants \
+                -V '~{if defined(scattered_intervals) then "selected_loci.vcf" else common_germline_alleles}' \
+                -L '~{interval_list}'
+        fi
+        if [ "~{defined(interval_blacklist)}" == "true" ]; then
+            select_variants \
+                -V '~{if defined(scattered_intervals) || defined(interval_list) then "selected_loci.vcf" else common_germline_alleles}' \
+                -XL '~{interval_blacklist}'
+        fi
+
+        if [ -f selected_loci.vcf ] ; then
+            set +e  # grep returns 1 if no lines are found
+            num_loci=$(grep -v "^#" selected_loci.vcf | wc -l || echo 0)
+            set -e
+        else
+            num_loci=1
+        fi
+
+        if [ "$num_loci" -eq 0 ] ; then
+            # Create an empty pileup file if there are no common_germline_alleles in the intersection
+            # between the common_germline_alleles and the intervals.
+            printf "#<METADATA>SAMPLE=~{sample_id}\n" > '~{pileup_file}'
+            printf "contig\tposition\tref_count\talt_count\tother_alt_count\tallele_frequency\n" >> '~{pileup_file}'
+        else
+            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+                GetPileupSummaries \
+                --input '~{input_bam}' \
+                --intervals '~{if defined(scattered_intervals) || defined(interval_list)|| defined(interval_blacklist) then "selected_loci.vcf" else common_germline_alleles}' \
+                --variant '~{if defined(scattered_intervals) || defined(interval_list)|| defined(interval_blacklist) then "selected_loci.vcf" else common_germline_alleles}' \
+                -min-af '~{minimum_population_allele_frequency}' \
+                -max-af '~{maximum_population_allele_frequency}' \
+                --output '~{pileup_file}' \
+                ~{if is_paired_end then "--read-filter FirstOfPairReadFilter " else ""} \
+                ~{if is_paired_end then "--read-filter PairedReadFilter " else ""} \
+                --seconds-between-progress-updates 60 \
+                ~{getpileupsummaries_extra_args}
+        fi
 
         if [ "~{compress_output}" == "true" ] ; then
             bgzip -c '~{pileup_file}' > '~{output_file}'
         fi
-
-        # It only fails due to empty intersection between common_germline_alleles and intervals,
-        # which is ok since we prepared an empty pileup file.
-        exit 0
     >>>
 
     output {
@@ -310,6 +335,7 @@ task GetPileupSummaries {
     parameter_meta {
         interval_list: {localization_optional: true}
         interval_blacklist: {localization_optional: true}
+        scattered_intervals: {localization_optional: true}
         input_bam: {localization_optional: true}
         input_bai: {localization_optional: true}
         common_germline_alleles: {localization_optional: true}

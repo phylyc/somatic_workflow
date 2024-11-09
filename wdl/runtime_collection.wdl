@@ -56,7 +56,7 @@ workflow DefineRuntimeCollection {
         String gatk_docker = "broadinstitute/gatk:4.6.0.0"
         # Needs docker image with bedtools, samtools, and gatk
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
-        String tag_cga_pipline_docker = "us.gcr.io/tag-team-160914/neovax-tag-cga-pipeline:v1"
+        String tag_cga_pipline_docker = "gcr.io/broad-getzlab-workflows/absolute_wolf:v19"
         String absolute_extract_docker = "danielrbroad/absolute_extract_and_1d_clustering_docker"
         String ubuntu_docker = "ubuntu"
         String bcftools_docker = "staphb/bcftools:1.21"  # @sha256:176f4c7c10e57c8c3e2d26f0f105bd680e9ddff65c9e20dd4d3ebff228f17188
@@ -222,7 +222,7 @@ workflow DefineRuntimeCollection {
         Int time_variant_filtration = 5
 
         # gatk: LeftAlignAndTrimVariants
-        Int mem_left_align_and_trim_variants = 512
+        Int mem_left_align_and_trim_variants = 1024
         Int time_left_align_and_trim_variants = 60
 
         # gatk: FilterAlignmentArtifacts
