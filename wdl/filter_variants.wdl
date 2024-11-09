@@ -106,9 +106,9 @@ workflow FilterVariants {
     if (args.run_realignment_filter) {
         # Realigning reads for variants can be expensive if many variants have been
         # called. Especially for tumor-only calling, plenty of variant calls are
-        # still sequencing artifacts of sometimes obviously low quality that have
-        # been missed by FilterMutectCalls. In order to make the filter affordable,
-        # we divide the called variants into low and high confidence groups.
+        # sequencing artifacts or rare germline variants that have been missed by
+        # FilterMutectCalls. In order to make the filter affordable, we divide
+        # the called variants into groups of low and high somatic confidence.
         if (args.run_realignment_filter_only_on_high_confidence_variants) {
             call tasks.SelectVariants as SelectLowConfidenceVariants {
                 input:
