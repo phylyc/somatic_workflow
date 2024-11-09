@@ -309,6 +309,7 @@ task GetPileupSummaries {
 
     parameter_meta {
         interval_list: {localization_optional: true}
+        interval_blacklist: {localization_optional: true}
         input_bam: {localization_optional: true}
         input_bai: {localization_optional: true}
         common_germline_alleles: {localization_optional: true}

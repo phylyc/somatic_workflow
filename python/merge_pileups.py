@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument("-P", "--pileup",       type=str,   required=True,  action="append",    help="Path to the allelic pileup file (output of GATK's GetPileupSummaries; used for CalculateContamination).")
     parser.add_argument("-D", "--ref_dict",     type=str,                   help="Path to the reference dictionary to sort rows.")
     parser.add_argument("-O", "--output_dir",   type=str,   default=".",    help="Path to the output directory.")
+    parser.add_argument("--min_read_depth",     type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
     parser.add_argument("--compress_output",                default=False,  action="store_true", help="Compress output files.")
     parser.add_argument("--verbose",                        default=False,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
@@ -125,6 +126,8 @@ def merge_pileups(args):
         )
         merged_pileup = aggregate.reindex(sort_genomic_positions(index=aggregate.index, contig_order=contig_order)).reset_index()
         print(f"Number of loci in merged pileup for {sample_name}: {merged_pileup.shape[0]}") if args.verbose else None
+        merged_pileups = merged_pileup.loc[merged_pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1) >= args.min_read_depth]
+        print(f"Number of loci after dropping sites with less than {args.min_read_depth} reads: {merged_pileup.shape[0]}") if args.verbose else None
         merged_headers[sample_name] = headers[sample_name][0] if len(headers[sample_name]) > 0 else None
         merged_pileups[sample_name] = merged_pileup.astype(column_types)
     print() if args.verbose else None

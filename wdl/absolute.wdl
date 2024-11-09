@@ -48,6 +48,8 @@ workflow Absolute {
             runtime_params = runtime_collection.absolute
     }
 
+    # TODO: also run in tCR mode (for ULP data)
+
     output {
         File? plot = AbsoluteTask.plot
         File? rdata = AbsoluteTask.rdata

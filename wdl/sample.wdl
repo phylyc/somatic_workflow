@@ -10,6 +10,7 @@ struct Sample {
     Boolean is_tumor
 
     File? read_counts                       # GATK CollectReadCounts
+    File? covered_regions                   # bedtools genomecov | GATK BedToIntervalList
     File? denoised_copy_ratios              # GATK DenoiseReadCounts
     File? standardized_copy_ratios          # GATK DenoiseReadCounts
     File? snp_array_pileups                 # GATK GetPileupSummaries
@@ -37,6 +38,7 @@ workflow UpdateSample {
         Boolean? is_tumor
 
         File? read_counts
+        File? covered_regions
         File? denoised_copy_ratios
         File? standardized_copy_ratios
         File? snp_array_pileups
@@ -61,6 +63,7 @@ workflow UpdateSample {
         is_tumor: select_first([is_tumor, sample.is_tumor]),
         # cannot use select_first for optional fields:
         read_counts: if defined(read_counts) then read_counts else sample.read_counts,
+        covered_regions: if defined(covered_regions) then covered_regions else sample.covered_regions,
         denoised_copy_ratios: if defined(denoised_copy_ratios) then denoised_copy_ratios else sample.denoised_copy_ratios,
         standardized_copy_ratios: if defined(standardized_copy_ratios) then standardized_copy_ratios else sample.standardized_copy_ratios,
         snp_array_pileups: if defined(snp_array_pileups) then snp_array_pileups else sample.snp_array_pileups,

@@ -20,8 +20,10 @@ workflow CollectCoveredRegions {
         File ref_dict
 
         String sample_name
-        File bam
-        File bai
+        File? bam
+        File? bai
+        Array[File]? bams
+        Array[File]? bais
 
         # arguments
         Int min_read_depth_threshold = 1
@@ -56,10 +58,13 @@ workflow CollectCoveredRegions {
             time_collect_covered_regions = time_collect_covered_regions
     }
 
+    Array[File] input_bams = select_all(flatten(select_all([select_all([bam]), bams])))
+    Array[File] input_bais = select_all(flatten(select_all([select_all([bai]), bais])))
+
     call rt.UpdateRuntimeParameters as CollectCoverageRegionsRuntime {
         input:
             runtime_params = runtime_collection.collect_covered_regions,
-            disk = 10 + ceil(1.2 * size(bam, "GB"))
+            disk = 10 + ceil(1.2 * size(input_bams, "GB"))
     }
 
     call CollectCoveredRegionsTask {
@@ -69,8 +74,8 @@ workflow CollectCoveredRegions {
             ref_dict = ref_dict,
             interval_list = interval_list,
             sample_name = sample_name,
-            input_bam = bam,
-            input_bai = bai,
+            input_bams = input_bams,
+            input_bais = input_bais,
             min_read_depth_threshold = min_read_depth_threshold,
             is_paired_end = is_paired_end,
             output_format = output_format,
@@ -96,8 +101,8 @@ task CollectCoveredRegionsTask {
         String? print_reads_extra_args
 
         String? sample_name
-        File input_bam
-        File input_bai
+        Array[File] input_bams
+        Array[File] input_bais
 
         Int min_read_depth_threshold = 1
         Boolean is_paired_end = false
@@ -108,7 +113,7 @@ task CollectCoveredRegionsTask {
 
     Int max = if is_paired_end then ceil(min_read_depth_threshold / 2) else min_read_depth_threshold
 
-    String name = if defined(sample_name) then sample_name else basename(input_bam, ".bam")
+    String name = if defined(sample_name) then sample_name else basename(select_first(input_bams), ".bam")
 
     String filtered_bam = name + ".filtered.bam"
     String filtered_bai = name + ".filtered.bai"
@@ -131,7 +136,7 @@ task CollectCoveredRegionsTask {
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             PrintReads \
-            -I '~{input_bam}' \
+            ~{sep="' " prefix("-I '", input_bams)}' \
             -O '~{filtered_bam}' \
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-L '" + interval_list + "'"} \
@@ -158,9 +163,9 @@ task CollectCoveredRegionsTask {
             -max ~{max} \
             -bg \
             ~{if is_paired_end then "-pc" else ""} \
-        | awk '$4>=~{max}' \
-        | bedtools merge -c 4 -o min -d 1 -i stdin \
-        > '~{covered_regions_bed}'
+            | awk '$4>=~{max}' \
+            | bedtools merge -c 4 -o min -d 1 -i stdin \
+            > '~{covered_regions_bed}'
         set +x
 
         echo "$(date +'%H:%M:%S.%3N') clean up"
@@ -232,7 +237,7 @@ task CollectCoveredRegionsTask {
         # ref_fasta: {localization_optional: true}
         # ref_fasta_index: {localization_optional: true}
         # ref_dict: {localization_optional: true}
-        input_bam: {localization_optional: true}
-        input_bai: {localization_optional: true}
+        input_bams: {localization_optional: true}
+        input_bais: {localization_optional: true}
     }
 }

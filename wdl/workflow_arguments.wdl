@@ -62,6 +62,7 @@ struct WorkflowArguments {
     Float absolute_maf90_threshold
 
     # SNV WORKFLOW
+    Int min_read_depth
     Boolean mutect2_native_pair_hmm_use_double_precision
     Boolean mutect2_dont_use_soft_clipped_bases
     Boolean mutect2_use_linked_de_bruijn_graph
@@ -79,6 +80,7 @@ struct WorkflowArguments {
     Int filter_alignment_artifacts_max_reasonable_fragment_length
     Array[String] hard_filter_expressions
     Array[String] hard_filter_names
+    String germline_filter_whitelist
     String funcotator_reference_version
     String funcotator_output_format
     String funcotator_variant_type
@@ -197,6 +199,7 @@ workflow DefineWorkflowArguments {
             "lowMPOS",
             "lowROQ"
         ]
+        String germline_filter_whitelist = "clustered_events,haplotype,normal_artifact,panel_of_normals"
         String funcotator_reference_version = "hg19"
         String funcotator_output_format = "MAF"
         String funcotator_variant_type = "somatic"  # alternative: germline
@@ -318,6 +321,7 @@ workflow DefineWorkflowArguments {
         filter_alignment_artifacts_max_reasonable_fragment_length: filter_alignment_artifacts_max_reasonable_fragment_length,
         hard_filter_expressions: hard_filter_expressions,
         hard_filter_names: hard_filter_names,
+        germline_filter_whitelist: germline_filter_whitelist,
         funcotator_reference_version: funcotator_reference_version,
         funcotator_output_format: funcotator_output_format,
         funcotator_variant_type: funcotator_variant_type,

@@ -97,6 +97,7 @@ workflow FilterVariants {
             vcf_idx = LeftAlignAndTrimVariants.output_vcf_idx,
             select_passing = true,
             keep_germline = args.keep_germline,
+            germline_filter_whitelist = args.germline_filter_whitelist,
             compress_output = args.compress_output,
             select_variants_extra_args = args.select_variants_extra_args,
             runtime_params = runtime_collection.select_variants
@@ -107,10 +108,7 @@ workflow FilterVariants {
         # called. Especially for tumor-only calling, plenty of variant calls are
         # still sequencing artifacts of sometimes obviously low quality that have
         # been missed by FilterMutectCalls. In order to make the filter affordable,
-        # we divide the called variants into low and high confidence groups based
-        # on read depth and VAF. Variants that come from reads that only support the
-        # alternate allele are suspect. For those variants, the MBQ and MFRL are set
-        # to zero.
+        # we divide the called variants into low and high confidence groups.
         if (args.run_realignment_filter_only_on_high_confidence_variants) {
             call tasks.SelectVariants as SelectLowConfidenceVariants {
                 input:
@@ -207,6 +205,7 @@ workflow FilterVariants {
                 vcf_idx = select_first([MergeRealignmentFilteredVCFs.merged_vcf_idx, variants_to_realign_idx]),
                 select_passing = true,
                 keep_germline = args.keep_germline,
+                germline_filter_whitelist = args.germline_filter_whitelist,
                 compress_output = args.compress_output,
                 select_variants_extra_args = args.select_variants_extra_args,
                 runtime_params = runtime_collection.select_variants
@@ -251,6 +250,7 @@ workflow FilterVariants {
                 vcf_idx = selected_vcf_idx,
                 select_passing = false,
                 keep_germline = true,
+                germline_filter_whitelist = args.germline_filter_whitelist,
                 compress_output = args.compress_output,
                 select_variants_extra_args = args.select_variants_extra_args,
                 runtime_params = runtime_collection.select_variants
@@ -272,13 +272,13 @@ workflow FilterVariants {
     }
 
     output {
+        File filtering_stats = FilterMutectCalls.filtering_stats
         File filtered_vcf = LeftAlignAndTrimVariants.output_vcf
         File filtered_vcf_idx = LeftAlignAndTrimVariants.output_vcf_idx
         File somatic_vcf = SelectSomaticVariants.selected_vcf
         File somatic_vcf_idx = SelectSomaticVariants.selected_vcf_idx
         File? germline_vcf = SelectGermlineVariants.selected_vcf
         File? germline_vcf_idx = SelectGermlineVariants.selected_vcf_idx
-        File filtering_stats = FilterMutectCalls.filtering_stats
 
     }
 }

@@ -16,6 +16,7 @@ workflow HarmonizeSamples {
         Array[Array[File?]] allelic_counts
 
         Int harmonize_min_target_length = 100
+        Int pileups_min_read_depth = 1
         Boolean compress_output = false
 
         RuntimeCollection runtime_collection
@@ -83,6 +84,7 @@ workflow HarmonizeSamples {
                 ref_dict = ref_dict,
                 sample_names = seq_acr_sample_names,
                 allelic_counts = seq_allelic_counts,
+                min_read_depth = pileups_min_read_depth,
                 compress_output = compress_output,
                 runtime_params = runtime_collection.merge_allelic_counts
         }
@@ -161,6 +163,7 @@ task MergeAllelicCounts {
         File ref_dict
         Array[String]+ sample_names
         Array[File]+ allelic_counts
+        Int min_read_depth = 1
         Boolean compress_output = false
         Boolean verbose = true
 
@@ -177,6 +180,7 @@ task MergeAllelicCounts {
         python merge_pileups.py \
             --output_dir '~{output_dir}' \
             -D ~{ref_dict} \
+            --min_read_depth ~{min_read_depth} \
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("-P '", allelic_counts)}' \
             ~{if compress_output then "--compress_output" else ""} \
