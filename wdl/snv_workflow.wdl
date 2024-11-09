@@ -113,7 +113,6 @@ workflow SNVWorkflow {
                             script = args.merge_pileups_script,
                             sample_names = somatic_seq_sample_names,
                             allelic_counts = SomaticAllelicCounts.pileup_summaries,
-                            compress_output = args.compress_output,
                             runtime_params = runtime_collection.merge_allelic_counts,
                     }
                     # We select the first file since we only supplied one unique sample name, so all counts were merged.
