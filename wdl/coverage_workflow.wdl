@@ -93,6 +93,10 @@ workflow CoverageWorkflow {
         Array[File]? read_counts = select_all(flatten(CollectReadCounts.read_counts))
     }
 
+    if (args.run_collect_covered_regions) {
+        Array[File]? covered_regions = select_all(CollectCoveredRegions.regions_interval_list)
+    }
+
     # todo: FilterIntervals
 
     call hs.HarmonizeSamples {
@@ -111,7 +115,7 @@ workflow CoverageWorkflow {
     call p_update_s.UpdateSamples as ConsensusPatient {
         input:
             patient = patient,
-            covered_regions = select_all(CollectCoveredRegions.regions_interval_list),
+            covered_regions = covered_regions,
             denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios,
             snp_array_pileups = HarmonizeSamples.merged_allelic_counts,
     }
