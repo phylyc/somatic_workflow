@@ -344,9 +344,10 @@ task SelectVariants {
         File? ref_dict
         File vcf
         File vcf_idx
+        Boolean compress_output = false
         Boolean select_passing = false
         Boolean keep_germline = false
-        Boolean compress_output = false
+        String germline_filter_whitelist = "clustered_events,haplotype,normal_artifact,panel_of_normals"
         String? tumor_sample_name
         String? normal_sample_name
         String? select_variants_extra_args
@@ -383,6 +384,9 @@ task SelectVariants {
         set -uo pipefail
         # =======================================
         # We do the selection step using grep to also select germline variants.
+        # ASSUMPTION: multi-allelic variants are split into one variant per row.
+        # Otherwise passing variants that are accompanied by an artifactual other-allelic
+        # variant will not be selected.
 
         set +e  # grep returns 1 if no lines are found
         grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
@@ -394,14 +398,44 @@ task SelectVariants {
         else
             if [ "~{select_passing}" == "true" ] ; then
                 echo ">> Selecting PASSing variants ... "
-                grep -v "^#" '~{select_variants_output_vcf}' | grep "PASS" >> '~{uncompressed_selected_vcf}'
+                grep -v "^#" '~{select_variants_output_vcf}' | grep "\tPASS\t" >> '~{uncompressed_selected_vcf}'
                 num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
                 echo ">> Selected $num_selected_vars PASSing out of $num_vars variants."
             fi
             if [ "~{keep_germline}" == "true" ] ; then
                 echo ">> Selecting germline variants ... "
-                grep -v "^#" '~{select_variants_output_vcf}' | grep "\tgermline\t" >> '~{uncompressed_selected_vcf}'
-                num_selected_vars=$(grep "\tgermline\t" '~{uncompressed_selected_vcf}' | wc -l)
+                # FilterMutectCalls does not distinguish well between germline
+                # and artifacts; it's calibrated towards somatic vs non-somatic.
+                # Thus, many good germline calls may also have an artifact flag.
+                # Additional filtering of those may be necessary.
+                grep -v "^#" '~{select_variants_output_vcf}' \
+                    | awk -F'\t' -v whitelist="~{germline_filter_whitelist}" '
+                        BEGIN {
+                            n = split(whitelist, allowed_list, ",")
+                            for (i = 1; i <= n; i++) {
+                                allowed_tags[allowed_list[i]]
+                            }
+                        }
+                        {
+                            split($7, tags, ";")
+                            contains_germline = 0
+                            valid = 1
+                            for (i in tags) {
+                                if (tags[i] == "germline") {
+                                    contains_germline = 1
+                                } else if (tags[i] in allowed_tags) {
+                                    continue
+                                } else {
+                                    valid = 0
+                                    break
+                                }
+                            }
+                            if (contains_germline && valid) {
+                                print $0
+                            }
+                        }' \
+                    >> '~{uncompressed_selected_vcf}'
+                num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
                 echo ">> Selected $num_selected_vars germline out of $num_vars variants."
             fi
         fi

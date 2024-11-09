@@ -5,6 +5,7 @@ import "patient.define.wdl" as p_def
 import "workflow_arguments.wdl" as wfargs
 import "workflow_resources.wdl" as wfres
 import "runtime_collection.wdl" as rtc
+import "coverage_workflow.wdl" as cov
 import "cnv_workflow.wdl" as cnv
 import "snv_workflow.wdl" as snv
 import "clonal_analysis_workflow.wdl" as clone
@@ -85,7 +86,7 @@ workflow MultiSampleSomaticWorkflow {
             runtime_collection = runtime_collection,
     }
 
-    call cnv.CNVWorkflow {
+    call cov.CoverageWorkflow {
         input:
             args = args,
             patient = patient,
@@ -95,18 +96,32 @@ workflow MultiSampleSomaticWorkflow {
     call snv.SNVWorkflow {
         input:
             args = args,
-            patient = CNVWorkflow.updated_patient,
+            patient = CoverageWorkflow.updated_patient,
             runtime_collection = runtime_collection,
     }
 
-    call clone.ClonalAnalysisWorkflow {
+    call cnv.CNVWorkflow {
         input:
             args = args,
             patient = SNVWorkflow.updated_patient,
             runtime_collection = runtime_collection,
     }
 
+    call clone.ClonalAnalysisWorkflow {
+        input:
+            args = args,
+            patient = CNVWorkflow.updated_patient,
+            runtime_collection = runtime_collection,
+    }
+
     output {
+        Array[File?]? target_read_counts = CoverageWorkflow.target_read_counts
+        Array[File?]? denoised_copy_ratios = CoverageWorkflow.denoised_copy_ratios
+        Array[File?]? covered_regions_bed = CoverageWorkflow.covered_regions_bed
+        Array[File?]? covered_regions_bam = CoverageWorkflow.covered_regions_bam
+        Array[File?]? covered_regions_bai = CoverageWorkflow.covered_regions_bai
+        Array[File?]? covered_regions_interval_list = CoverageWorkflow.covered_regions_interval_list
+
         File? genotyped_snparray_vcf = CNVWorkflow.genotyped_snparray_vcf
         File? genotyped_snparray_vcf_idx = CNVWorkflow.genotyped_snparray_vcf_idx
         File? snparray_ref_counts = CNVWorkflow.snparray_ref_counts
@@ -114,18 +129,10 @@ workflow MultiSampleSomaticWorkflow {
         File? snparray_other_alt_counts = CNVWorkflow.snparray_other_alt_counts
         File? sample_snp_correlation = CNVWorkflow.sample_snp_correlation
         Array[File]? sample_snparray_genotype_likelihoods = CNVWorkflow.sample_snparray_genotype_likelihoods
-        Array[File]? snparray_pileups = CNVWorkflow.snparray_pileups
+        Array[File]? contamination_tables = select_first([CNVWorkflow.contamination_tables, CoverageWorkflow.contamination_tables])
+        Array[File]? segmentation_tables = select_first([CNVWorkflow.segmentation_tables, CoverageWorkflow.contamination_tables])
+        Array[File]? snparray_pileups = select_first([CNVWorkflow.snparray_pileups, CoverageWorkflow.contamination_tables])
         Array[File]? snparray_allelic_counts = CNVWorkflow.snparray_allelic_counts
-        Array[File]? contamination_tables = CNVWorkflow.contamination_tables
-        Array[File]? segmentation_tables = CNVWorkflow.segmentation_tables
-        Array[File?]? target_read_counts = CNVWorkflow.target_read_counts
-        Array[File?]? denoised_copy_ratios = CNVWorkflow.denoised_copy_ratios
-
-        File? modeled_segments = CNVWorkflow.modeled_segments
-        Array[File]? filtered_called_copy_ratio_segmentations = CNVWorkflow.filtered_called_copy_ratio_segmentations
-        Array[File]? cr_plots = CNVWorkflow.cr_plots
-        Array[File]? af_model_parameters = CNVWorkflow.af_model_parameters
-        Array[File]? cr_model_parameters = CNVWorkflow.cr_model_parameters
 
         File? unfiltered_vcf = SNVWorkflow.unfiltered_vcf
         File? unfiltered_vcf_idx = SNVWorkflow.unfiltered_vcf_idx
@@ -140,15 +147,16 @@ workflow MultiSampleSomaticWorkflow {
         File? germline_vcf = SNVWorkflow.germline_vcf
         File? germline_vcf_idx = SNVWorkflow.germline_vcf_idx
         File? filtering_stats = SNVWorkflow.filtering_stats
-        Array[File?]? called_somatic_allelic_counts = SNVWorkflow.called_somatic_allelic_counts
-        Array[File?]? called_germline_allelic_counts = SNVWorkflow.called_germline_allelic_counts
+        Array[File?]? somatic_allelic_counts = SNVWorkflow.somatic_allelic_counts
+        Array[File?]? germline_allelic_counts = SNVWorkflow.germline_allelic_counts
         Array[File]? annotated_variants = SNVWorkflow.annotated_variants
         Array[File?]? annotated_variants_idx = SNVWorkflow.annotated_variants_idx
 
-#        Array[File]? covered_regions_bed = SNVWorkflow.covered_regions_bed
-#        Array[File?]? covered_regions_bam = SNVWorkflow.covered_regions_bam
-#        Array[File?]? covered_regions_bai = SNVWorkflow.covered_regions_bai
-#        Array[File?]? covered_regions_interval_list = SNVWorkflow.covered_regions_interval_list
+        File? modeled_segments = CNVWorkflow.modeled_segments
+        Array[File]? filtered_called_copy_ratio_segmentations = CNVWorkflow.filtered_called_copy_ratio_segmentations
+        Array[File]? cr_plots = CNVWorkflow.cr_plots
+        Array[File]? af_model_parameters = CNVWorkflow.af_model_parameters
+        Array[File]? cr_model_parameters = CNVWorkflow.cr_model_parameters
 
         Array[File]? absolute_plots = ClonalAnalysisWorkflow.absolute_plots
         Array[File]? absolute_rdata = ClonalAnalysisWorkflow.absolute_rdata

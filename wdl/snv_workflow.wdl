@@ -40,8 +40,10 @@ workflow SNVWorkflow {
             }
 
             if (args.run_collect_called_variants_allelic_coverage) {
-                scatter (sample in patient.samples) {
-                    if (args.keep_germline) {
+                if (args.keep_germline) {
+                    # Collect allelic pilups for all putative germline sites that were
+                    # not yet collected via the coverage workflow, then merge them.
+                    scatter (sample in patient.samples) {
                         scatter (sequencing_run in sample.sequencing_runs) {
                             call cac.CollectAllelicCounts as GermlineAllelicCounts {
                                 input:
@@ -52,6 +54,8 @@ workflow SNVWorkflow {
                                     ref_dict = args.files.ref_dict,
                                     vcf = FilterVariants.germline_vcf,
                                     vcf_idx = FilterVariants.germline_vcf_idx,
+                                    interval_blacklist = args.files.common_germline_alleles,
+                                    # todo: is it fine not to pipe through the index?
                                     getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,
                                     sample_name = sequencing_run.name + ".germline",
                                     runtime_collection = runtime_collection,
@@ -59,19 +63,33 @@ workflow SNVWorkflow {
                             String germline_seq_sample_names = sample.name + ".germline"
                         }
 
+                        Array[String] mgac_sample_names = (
+                            if defined(sample.snp_array_pileups)
+                            then flatten([germline_seq_sample_names, [sample.name + ".germline"]])
+                            else germline_seq_sample_names
+                        )
                         call hs.MergeAllelicCounts as MergeGermlineAllelicCounts {
                             input:
                                 ref_dict = args.files.ref_dict,
                                 script = args.merge_pileups_script,
-                                sample_names = germline_seq_sample_names,
-                                allelic_counts = GermlineAllelicCounts.pileup_summaries,
+                                sample_names = mgac_sample_names,
+                                allelic_counts = select_all(flatten([GermlineAllelicCounts.pileup_summaries, [sample.snp_array_pileups]])),
+                                min_read_depth = args.min_snp_array_read_depth,
                                 compress_output = args.compress_output,
                                 runtime_params = runtime_collection.merge_allelic_counts,
                         }
                         # We select the first file since we only supplied one unique sample name, so all counts were merged.
-                        File? germline_allelic_counts = select_first(MergeGermlineAllelicCounts.merged_allelic_counts)
+                        File germline_allelic_counts_ = select_first(MergeGermlineAllelicCounts.merged_allelic_counts)
                     }
 
+                    call p_update_s.UpdateSamples as ExtendPileupsForSamples {
+                        input:
+                            patient = patient,
+                            snp_array_pileups = germline_allelic_counts_,
+                    }
+                }
+
+                scatter (sample in patient.samples) {
                     scatter (sequencing_run in sample.sequencing_runs) {
                         call cac.CollectAllelicCounts as SomaticAllelicCounts {
                             input:
@@ -99,7 +117,7 @@ workflow SNVWorkflow {
                             runtime_params = runtime_collection.merge_allelic_counts,
                     }
                     # We select the first file since we only supplied one unique sample name, so all counts were merged.
-                    File? somatic_allelic_counts = select_first(MergeSomaticAllelicCounts.merged_allelic_counts)
+                    File? somatic_allelic_counts_ = select_first(MergeSomaticAllelicCounts.merged_allelic_counts)
                 }
             }
         }
@@ -130,7 +148,7 @@ workflow SNVWorkflow {
 
             call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
                 input:
-                    patient = patient,
+                    patient = select_first([ExtendPileupsForSamples.updated_patient, patient]),
                     annotated_variants = AnnotateVariants.annotated_variants,
             }
         }
@@ -141,7 +159,7 @@ workflow SNVWorkflow {
     }
 
     output {
-        Patient updated_patient = select_first([AddAnnotatedVariantsToSamples.updated_patient, patient])
+        Patient updated_patient = select_first([AddAnnotatedVariantsToSamples.updated_patient, ExtendPileupsForSamples.updated_patient, patient])
 
         File? unfiltered_vcf = CallVariants.vcf
         File? unfiltered_vcf_idx = CallVariants.vcf_idx
@@ -158,16 +176,12 @@ workflow SNVWorkflow {
         File? germline_vcf_idx = FilterVariants.germline_vcf_idx
         File? filtering_stats = FilterVariants.filtering_stats
 
-        Array[File?]? called_germline_allelic_counts = germline_allelic_counts
-        Array[File?]? called_somatic_allelic_counts = somatic_allelic_counts
+        Array[File?]? germline_allelic_counts = germline_allelic_counts_
+        Array[File?]? somatic_allelic_counts = somatic_allelic_counts_
 
         Array[File]? annotated_variants = AnnotateVariants.annotated_variants
         Array[File?]? annotated_variants_idx = AnnotateVariants.annotated_variants_idx
 
-#        Array[File]? covered_regions_bed = TMB.covered_regions_bed
-#        Array[File?]? covered_regions_bam = TMB.covered_regions_bam
-#        Array[File?]? covered_regions_bai = TMB.covered_regions_bai
-#        Array[File?]? covered_regions_interval_list = TMB.covered_regions_interval_list
 #        Array[File?]? tmb = TMB.tmb
     }
 }

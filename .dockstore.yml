@@ -11,7 +11,7 @@ workflows:
   - name: CreateMutect2PanelOfNormals
     subclass: WDL
     publish: true
-    primaryDescriptorPath: /wdl/create_mutect2_pon.wdl
+    primaryDescriptorPath: /wdl/resources/create_mutect2_pon.wdl
     authors:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
@@ -19,7 +19,7 @@ workflows:
   - name: CreateReadCountPanelOfNormals
     subclass: WDL
     publish: true
-    primaryDescriptorPath: /wdl/create_read_count_pon.wdl
+    primaryDescriptorPath: /wdl/resources/create_read_count_pon.wdl
     authors:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
@@ -27,7 +27,7 @@ workflows:
   - name: CreateAFonlyVCF
     subclass: WDL
     publish: true
-    primaryDescriptorPath: /wdl/create_AF_only_germline_resource.wdl
+    primaryDescriptorPath: /wdl/resources/create_AF_only_germline_resource.wdl
     authors:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
@@ -35,7 +35,7 @@ workflows:
   - name: CreateAFonlyVCFfromFile
     subclass: WDL
     publish: true
-    primaryDescriptorPath: /wdl/create_AF_only_germline_resource_from_file.wdl
+    primaryDescriptorPath: /wdl/resources/create_AF_only_germline_resource_from_file.wdl
     authors:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
