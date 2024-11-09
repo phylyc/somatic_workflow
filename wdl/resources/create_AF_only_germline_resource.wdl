@@ -1,8 +1,8 @@
 version development
 
-import "runtime_collection.wdl" as rtc
-import "runtimes.wdl" as rt
-import "tasks.wdl"
+import "../runtime_collection.wdl" as rtc
+import "../runtimes.wdl" as rt
+import "../tasks.wdl"
 
 
 workflow CreateAFonlyVCF {

@@ -1,8 +1,8 @@
 version development
 
 import "create_AF_only_germline_resource.wdl" as singleAFonly
-import "runtime_collection.wdl" as rtc
-import "tasks.wdl"
+import "../runtime_collection.wdl" as rtc
+import "../tasks.wdl"
 
 
 workflow CreateAFonlyVCFfromFile {
