@@ -177,7 +177,7 @@ task PileupToAllelicCounts {
             if [ "~{is_compressed}" == "true" ] ; then
                 gzip -cd '~{pileup}' > '~{uncompressed_pileup}'
             else
-                cp '~{pileup}' '~{uncompressed_pileup}'
+                mv '~{pileup}' '~{uncompressed_pileup}'
             fi
 
             # HEADER
@@ -240,6 +240,8 @@ task ModelSegmentsTask {
     }
 
     String output_dir = "."
+
+    # todo: allow compressed input data
 
     command <<<
         set -e
