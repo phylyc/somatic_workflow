@@ -479,7 +479,7 @@ def join_vcfs(vcfs: list["VCF"], verbose=False):
         n_kept_vars = df.shape[0]
         if n_kept_vars < n_input_vars:
             print(f"    Dropping {n_input_vars - n_kept_vars} duplicate loci from multiple variant inputs. {n_kept_vars} loci remaining total.") if verbose else None
-        joint.df = df
+        joint.df = df.set_index(["contig", "position"])
         return joint
 
 
@@ -1033,6 +1033,7 @@ class GenotypeData(object):
         sorted_index = pd.MultiIndex.from_frame(temp_df[["contig", "position"]])
 
         self.joint_genotype_likelihood = self.joint_genotype_likelihood.loc[sorted_index]
+        self.vcf.df = self.vcf.df.loc[sorted_index]
         for pl in self.pileup_likelihoods:
             pl.df = pl.df.reindex(sorted_index)
 
