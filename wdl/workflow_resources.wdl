@@ -19,7 +19,7 @@ struct WorkflowResources {
     # VCF file of common sequencing artifacts to filter out.
     File? snv_panel_of_normals
     File? snv_panel_of_normals_idx
-    # VCF file of germline alleles to filter out.
+    # VCF file of germline alleles with population allele frequencies.
     File? germline_resource
     File? germline_resource_idx
     # VCF file of common germline alleles (population allele frequency > 5%) to collect
