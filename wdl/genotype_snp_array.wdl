@@ -16,8 +16,10 @@ workflow GenotypeSNPArray {
         Array[File] tumor_pileups
         Array[File]? normal_pileups
 
-        File? common_germline_alleles  # SNP array
+        File? common_germline_alleles  # SNP panel
         File? common_germline_alleles_idx
+        File? rare_germline_alleles  # From variant calling
+        File? rare_germline_alleles_idx
 
         String genotype_variants_script = "https://github.com/phylyc/genomics_workflows/raw/master/python/genotype.py"
         Boolean genotype_variants_save_sample_genotype_likelihoods = false
@@ -80,8 +82,10 @@ workflow GenotypeSNPArray {
             pileups = common_germline_allele_pileups,
             contamination_tables = contamination_tables,
             segmentation_tables = segmentation_tables,
-            common_germline_alleles = select_first([common_germline_alleles]),
-            common_germline_alleles_idx = select_first([common_germline_alleles_idx]),
+            common_germline_alleles = common_germline_alleles,
+            common_germline_alleles_idx = common_germline_alleles_idx,
+            rare_germline_alleles = rare_germline_alleles,
+            rare_germline_alleles_idx = rare_germline_alleles_idx,
             compress_output = compress_output,
             min_read_depth = genotype_variants_min_read_depth,
             min_genotype_likelihood = genotype_variants_min_genotype_likelihood,

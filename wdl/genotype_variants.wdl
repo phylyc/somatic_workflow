@@ -13,8 +13,10 @@ workflow GenotypeVariants {
         Array[File] pileups
         Array[File]? contamination_tables
         Array[File]? segmentation_tables
-        File? common_germline_alleles  # SNP panel used to get pileups (and estimate contamination)
+        File? common_germline_alleles  # SNP panel
         File? common_germline_alleles_idx
+        File? rare_germline_alleles
+        File? rare_germline_alleles_idx
 
         Int min_read_depth = 10
         Float min_genotype_likelihood = 0.90
@@ -58,6 +60,8 @@ workflow GenotypeVariants {
             individual_id = individual_id,
             common_germline_alleles = common_germline_alleles,
             common_germline_alleles_idx = common_germline_alleles_idx,
+            rare_germline_alleles = rare_germline_alleles,
+            rare_germline_alleles_idx = rare_germline_alleles_idx,
             sample_names = sample_names,
             pileups = pileups,
             contamination_tables = contamination_tables,
@@ -108,8 +112,10 @@ task GenotypeVariantsTask {
         Array[File] pileups
         Array[File]? contamination_tables
         Array[File]? segmentation_tables
-        File? common_germline_alleles  # SNP panel used to get pileups (and estimate contamination)
+        File? common_germline_alleles  # SNP panel
         File? common_germline_alleles_idx
+        File? rare_germline_alleles
+        File? rare_germline_alleles_idx
 
         Int min_read_depth = 10
         Float min_genotype_likelihood = 0.90
@@ -144,6 +150,7 @@ task GenotypeVariantsTask {
         wget -O genotype.py ~{script}
         python genotype.py \
             --output_dir '~{output_dir}' \
+            ~{"--variant '" + rare_germline_alleles + "'"} \
             ~{"--variant '" + common_germline_alleles + "'"} \
             --patient '~{individual_id}' \
             ~{sep="' " prefix("--sample '", sample_names)}' \

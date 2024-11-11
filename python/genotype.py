@@ -22,23 +22,34 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="Genotyper",
         description="""
-            This script calculates genotype likelihoods from allelic counts, taking into account potential sample contamination and segment-specific minor allele fraction. 
-            It uses allelic pileup data (GATK GetPileupSummaries), allelic segmentation data (GATK CalculateContamination), and contamination estimates (GATK CalculateContamination), 
-            to compute genotype likelihoods under specified models (binomial or beta-binomial). 
-            The variant genotype correlation between all samples is computed as a consistency check.
-            Outputs 1) a VCF with patient genotype information, 2) allelic count matrices for each allele, 3) sample correlation matrix, and (optionally) 4) sample pileups with genotype likelihood annotations.
+            Genotyper is a script that calculates genotype likelihoods from allelic counts, 
+            while accounting for potential sample contamination and segment-specific minor 
+            allele fractions. It leverages allelic pileup data (from GATK GetPileupSummaries), 
+            allelic segmentation data (from GATK CalculateContamination), and contamination 
+            estimates (from GATK CalculateContamination), to compute genotype likelihoods 
+            under either a binomial or beta-binomial model. The script computes variant 
+            genotype correlations across samples as a consistency check.
+
+            Outputs include:
+                1) A VCF with genotype information for each patient,
+                2) Allelic count matrices for each allele,
+                3) Sample correlation matrix, and
+                4) (Optionally) sample pileups annotated with genotype likelihoods.
+
+            Additional options allow filtering based on allele frequency, read depth, and 
+            error rate thresholds, as well as output formatting and parallelization.
         """,
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "genotype.py -O <output_dir> -V <variant> --patient <patient> --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-C <contamination> ...] [-S <segments> ...] [-M <model>] [-D <min_read_depth>] [-p <min_genotype_likelihood>] [-F <format>] [--select_hets] [--save_sample_genotype_likelihoods] [--compress_output] [--verbose]"
+    parser.usage = "genotype.py -O <output_dir> -V <variant> [-V <variant>] --patient <patient> --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-C <contamination> ...] [-S <segments> ...] [-M <model>] [-D <min_read_depth>] [--min_allele_frequency <freq>] [-p <min_genotype_likelihood>] [-s <overdispersion>] [-l <ref_bias>] [--min_error_rate <rate>] [--max_error_rate <rate>] [--outlier_prior <prior>] [-F <format>] [--threads <num>] [--select_hets] [--save_sample_genotype_likelihoods] [--compress_output] [--verbose]"
     parser.add_argument("-O", "--output_dir",                   type=str,   required=True,  help="Path to the output directory.")
     parser.add_argument("--patient",                            type=str,   required=True,  help="Name of the patient.")
     parser.add_argument("--sample",                             type=str,   required=True,  action="append",    help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file header.")
     parser.add_argument("-P", "--pileup",                       type=str,   required=True,  action="append",    help="Path to the allelic pileup file (output of GATK's GetPileupSummaries; used for CalculateContamination).")
     parser.add_argument("-C", "--contamination",                type=str,   default=None,   action="append",    help="Path to the contamination estimate file (output of GATK's CalculateContamination).")
     parser.add_argument("-S", "--segments",                     type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation file (output of GATK's CalculateContamination).")
-    parser.add_argument("-V", "--variant",                      type=str,   default=None,   help="A VCF file containing common germline variants and population allele frequencies. (Used to get pileup summaries.)")
+    parser.add_argument("-V", "--variant",                      type=str,   default=None,   action="append",    help="VCF file containing germline variants and population allele frequencies. (Used to get pileup summaries.)")
     parser.add_argument("-M", "--model",                        type=str,   default="betabinom", choices=["binom", "betabinom"], help="Genotype likelihood model.")
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
     parser.add_argument("--min_allele_frequency",               type=float, default=1e-2,   help="Minimum population allele frequency to consider a site.")
@@ -424,7 +435,7 @@ class VCF(object):
         self.df = self.df.drop_duplicates(subset=["CHROM", "POS"], keep=False)
         n_kept_vars = self.df.shape[0]
         if n_kept_vars < n_input_vars:
-            print(f"    Dropping {n_input_vars - n_kept_vars} non-SNV or multi-allelic loci from Variants. {n_kept_vars} loci remaining.") if verbose else None
+            print(f"    Dropping {n_input_vars - n_kept_vars} multi-allelic loci from Variants. {n_kept_vars} loci remaining.") if verbose else None
         self.df = self.df.set_index(["CHROM", "POS"])
         self.df.index.names = ["contig", "position"]  # align to PileupLikelihood index names
 
@@ -453,6 +464,23 @@ class VCF(object):
 
     def get_contigs(self):
         return [c.split("ID=")[-1].split(",")[0] for c in self.ref_dict]
+
+
+def join_vcfs(vcfs: list["VCF"], verbose=False):
+    if len(vcfs) == 0:
+        return None
+    elif len(vcfs) == 1:
+        return vcfs[0]
+    else:
+        joint = copy(vcfs[0])
+        df = pd.concat([vcf.df.reset_index() for vcf in vcfs])
+        n_input_vars = df.shape[0]
+        df.drop_duplicates(subset=["contig", "position"], keep="first")
+        n_kept_vars = df.shape[0]
+        if n_kept_vars < n_input_vars:
+            print(f"    Dropping {n_input_vars - n_kept_vars} duplicate loci from multiple variant inputs. {n_kept_vars} loci remaining total.") if verbose else None
+        joint.df = df
+        return joint
 
 
 class Genotyper(object):
@@ -736,21 +764,21 @@ class GenotypeData(object):
     Args:
         individual_id (str): Identifier for the individual.
         samples (list[str]): List of sample names.
-        variant (str): Path to the VCF file containing common germline variants and population allele frequencies.
+        variant (list[str]): Path to the VCF files containing germline variants and population allele frequencies.
         pileup (list[str]): List of paths to the allelic pileup input files (output of GATK's GetPileupSummaries; used for CalculateContamination).
         contamination (list[str], optional): List of paths to the contamination estimate input files (output of GATK's CalculateContamination).
         segments (list[str], optional): List of paths to the allelic copy ratio segmentation input files (output of GATK's CalculateContamination).
         min_read_depth (int, optional): Minimum read depth threshold for filtering data.
     """
 
-    def __init__(self, individual_id: str, samples: list[str], variant: str = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 10, min_allele_frequency: float = 0.01, verbose: bool = False):
+    def __init__(self, individual_id: str, samples: list[str], variant: list[str] = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 10, min_allele_frequency: float = 0.01, verbose: bool = False):
         self.verbose = verbose
         message("Loading data:") if verbose else None
         self.individual_id = individual_id
         self.samples = samples
 
         print("  Variants") if verbose else None
-        self.vcf = VCF(file_path=variant, verbose=verbose)
+        self.vcf = join_vcfs([VCF(file_path=v, verbose=verbose) for v in variant], verbose=verbose)
         print("  Pileups") if verbose else None
         self.pileups = (
             [Pileup()] * len(samples)
