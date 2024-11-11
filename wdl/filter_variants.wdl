@@ -250,6 +250,7 @@ workflow FilterVariants {
                 vcf_idx = selected_vcf_idx,
                 select_passing = false,
                 keep_germline = true,
+                suffix = ".germline",
                 germline_filter_whitelist = args.germline_filter_whitelist,
                 compress_output = args.compress_output,
                 select_variants_extra_args = args.select_variants_extra_args,
@@ -266,6 +267,7 @@ workflow FilterVariants {
             vcf_idx = selected_vcf_idx,
             select_passing = true,
             keep_germline = false,
+            suffix = ".somatic",
             compress_output = args.compress_output,
             select_variants_extra_args = args.select_variants_extra_args,
             runtime_params = runtime_collection.select_variants
@@ -277,9 +279,10 @@ workflow FilterVariants {
         File filtered_vcf_idx = LeftAlignAndTrimVariants.output_vcf_idx
         File somatic_vcf = SelectSomaticVariants.selected_vcf
         File somatic_vcf_idx = SelectSomaticVariants.selected_vcf_idx
+        Int num_somatic_variants = SelectSomaticVariants.num_selected_variants
         File? germline_vcf = SelectGermlineVariants.selected_vcf
         File? germline_vcf_idx = SelectGermlineVariants.selected_vcf_idx
-
+        Int? num_germline_variants = SelectGermlineVariants.num_selected_variants
     }
 }
 

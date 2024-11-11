@@ -338,16 +338,18 @@ task LeftAlignAndTrimVariants {
 
 task SelectVariants {
     input {
-        File? interval_list
         File? ref_fasta
         File? ref_fasta_index
         File? ref_dict
+        File? interval_list
+        File? interval_blacklist
         File vcf
         File vcf_idx
         Boolean compress_output = false
         Boolean select_passing = false
         Boolean keep_germline = false
         String germline_filter_whitelist = "clustered_events,haplotype,normal_artifact,panel_of_normals"
+        String suffix = ""
         String? tumor_sample_name
         String? normal_sample_name
         String? select_variants_extra_args
@@ -357,7 +359,7 @@ task SelectVariants {
 
     String uncompressed_input_vcf = basename(vcf, ".gz")
     String base_name = if defined(tumor_sample_name) then sub(select_first([tumor_sample_name, ""]), " ", "+") else basename(uncompressed_input_vcf, ".vcf")
-    String output_base_name = base_name + ".selected"
+    String output_base_name = base_name + ".selected" + suffix
     
     String select_variants_output_vcf = output_base_name + ".tmp.vcf"
     String select_variants_output_vcf_idx = select_variants_output_vcf + ".idx"
@@ -373,6 +375,7 @@ task SelectVariants {
             SelectVariants \
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-L '" + interval_list + "'"} \
+            ~{"-XL '" + interval_blacklist + "'"} \
             -V '~{vcf}' \
             --output '~{select_variants_output_vcf}' \
             --exclude-filtered false \
