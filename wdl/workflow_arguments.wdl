@@ -24,7 +24,6 @@ struct WorkflowArguments {
     Boolean run_variant_hard_filter
     Boolean run_realignment_filter
     Boolean run_realignment_filter_only_on_high_confidence_variants
-    Boolean run_collect_called_variants_allelic_coverage
     Boolean run_variant_annotation
     Boolean run_variant_annotation_scattered
     Boolean run_clonal_decomposition
@@ -124,7 +123,6 @@ workflow DefineWorkflowArguments {
         Boolean run_variant_hard_filter = true
         Boolean run_realignment_filter = true
         Boolean run_realignment_filter_only_on_high_confidence_variants = true
-        Boolean run_collect_called_variants_allelic_coverage = true
         Boolean run_variant_annotation = true
         Boolean run_variant_annotation_scattered = false
         Boolean run_clonal_decomposition = true
@@ -270,7 +268,6 @@ workflow DefineWorkflowArguments {
         run_variant_hard_filter: run_variant_hard_filter,
         run_realignment_filter: run_realignment_filter,
         run_realignment_filter_only_on_high_confidence_variants: run_realignment_filter_only_on_high_confidence_variants,
-        run_collect_called_variants_allelic_coverage: run_collect_called_variants_allelic_coverage,
         run_variant_annotation: run_variant_annotation,
         run_variant_annotation_scattered: run_variant_annotation_scattered,
         run_clonal_decomposition: run_clonal_decomposition,
