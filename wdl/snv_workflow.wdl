@@ -9,6 +9,7 @@ import "filter_variants.wdl" as fv
 import "collect_allelic_counts.wdl" as cac
 import "harmonize_samples.wdl" as hs
 import "annotate_variants.wdl" as av
+import "tasks.wdl"
 #import "calculate_tumor_mutation_burden.wdl" as tmb
 
 
@@ -39,10 +40,30 @@ workflow SNVWorkflow {
                     runtime_collection = runtime_collection,
             }
 
-            if (args.run_collect_called_variants_allelic_coverage) {
-                if (args.keep_germline) {
-                    # Collect allelic pilups for all putative germline sites that were
-                    # not yet collected via the coverage workflow, then merge them.
+            if (args.keep_germline && defined(FilterVariants.germline_vcf)) {
+                # Collect allelic pileups for all putative germline sites that were
+                # not yet collected via the coverage workflow, then merge them.
+                # This allows for more sensitive aCR segmentation.
+                call tasks.SelectVariants as SelectGermlineNotInResource {
+                    input:
+                        ref_fasta = args.files.ref_fasta,
+                        ref_fasta_index = args.files.ref_fasta_index,
+                        ref_dict = args.files.ref_dict,
+                        vcf = select_first([FilterVariants.germline_vcf]),
+                        vcf_idx = select_first([FilterVariants.germline_vcf_idx]),
+                        interval_blacklist = args.files.common_germline_alleles,
+                        compress_output = args.compress_output,
+                        runtime_params = runtime_collection.select_variants
+                }
+
+                if (SelectGermlineNotInResource.num_selected_variants > 0) {
+                    call cac.VcfToPileupVariants as GermlineVariantsNotInResource {
+                        input:
+                            vcf = SelectGermlineNotInResource.selected_vcf,
+                            vcf_idx = SelectGermlineNotInResource.selected_vcf_idx,
+                            runtime_params = runtime_collection.vcf_to_pileup_variants,
+                    }
+
                     scatter (sample in patient.samples) {
                         scatter (sequencing_run in sample.sequencing_runs) {
                             call cac.CollectAllelicCounts as GermlineAllelicCounts {
@@ -52,33 +73,36 @@ workflow SNVWorkflow {
                                     bai = sequencing_run.bai,
                                     is_paired_end = sequencing_run.is_paired_end,
                                     ref_dict = args.files.ref_dict,
-                                    vcf = FilterVariants.germline_vcf,
-                                    vcf_idx = FilterVariants.germline_vcf_idx,
-                                    interval_blacklist = args.files.common_germline_alleles,
-                                    # todo: is it fine not to pipe through the index?
+                                    variants = GermlineVariantsNotInResource.variants,
+                                    variants_idx = GermlineVariantsNotInResource.variants_idx,
                                     getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,
-                                    sample_name = sequencing_run.name + ".germline",
+                                    sample_name = sequencing_run.name,
                                     runtime_collection = runtime_collection,
                             }
-                            String germline_seq_sample_names = sample.name + ".germline"
+                            String seq_sample_names = sample.name
                         }
 
-                        Array[String] mgac_sample_names = (
+                        Array[String] mgac_task_sample_names = (
                             if defined(sample.snp_array_pileups)
-                            then flatten([germline_seq_sample_names, [sample.name + ".germline"]])
-                            else germline_seq_sample_names
+                            then flatten([seq_sample_names, [sample.name]])
+                            else seq_sample_names
+                        )
+                        Array[File] mgac_task_allelic_counts = (
+                            if defined(sample.snp_array_pileups)
+                            then flatten([GermlineAllelicCounts.pileup_summaries, [select_first([sample.snp_array_pileups])]])
+                            else GermlineAllelicCounts.pileup_summaries
                         )
                         call hs.MergeAllelicCounts as MergeGermlineAllelicCounts {
                             input:
                                 ref_dict = args.files.ref_dict,
                                 script = args.merge_pileups_script,
-                                sample_names = mgac_sample_names,
-                                allelic_counts = select_all(flatten([GermlineAllelicCounts.pileup_summaries, [sample.snp_array_pileups]])),
+                                sample_names = mgac_task_sample_names,
+                                allelic_counts = mgac_task_allelic_counts,
                                 min_read_depth = args.min_snp_array_read_depth,
                                 compress_output = args.compress_output,
                                 runtime_params = runtime_collection.merge_allelic_counts,
                         }
-                        # We select the first file since we only supplied one unique sample name, so all counts were merged.
+                        # We select the first file since we only supplied one unique sample name, so all counts were merged into the same file.
                         File germline_allelic_counts_ = select_first(MergeGermlineAllelicCounts.merged_allelic_counts)
                     }
 
@@ -87,8 +111,16 @@ workflow SNVWorkflow {
                             patient = patient,
                             snp_array_pileups = germline_allelic_counts_,
                     }
+                    call p.UpdatePatient as AddGermlineAlleles {
+                        input:
+                            patient = ExtendPileupsForSamples.updated_patient,
+                            rare_germline_alleles = GermlineVariantsNotInResource.variants,
+                            rare_germline_alleles_idx = GermlineVariantsNotInResource.variants_idx
+                    }
                 }
+            }
 
+            if (FilterVariants.num_somatic_variants > 0) {
                 scatter (sample in patient.samples) {
                     scatter (sequencing_run in sample.sequencing_runs) {
                         call cac.CollectAllelicCounts as SomaticAllelicCounts {
@@ -147,7 +179,7 @@ workflow SNVWorkflow {
 
             call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
                 input:
-                    patient = select_first([ExtendPileupsForSamples.updated_patient, patient]),
+                    patient = select_first([AddGermlineAlleles.updated_patient, patient]),
                     annotated_variants = AnnotateVariants.annotated_variants,
             }
         }
@@ -158,7 +190,7 @@ workflow SNVWorkflow {
     }
 
     output {
-        Patient updated_patient = select_first([AddAnnotatedVariantsToSamples.updated_patient, ExtendPileupsForSamples.updated_patient, patient])
+        Patient updated_patient = select_first([AddAnnotatedVariantsToSamples.updated_patient, AddGermlineAlleles.updated_patient, patient])
 
         File? unfiltered_vcf = CallVariants.vcf
         File? unfiltered_vcf_idx = CallVariants.vcf_idx

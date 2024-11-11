@@ -58,6 +58,8 @@ workflow CNVWorkflow {
                 normal_pileups = normal_pileups,
                 common_germline_alleles = args.files.common_germline_alleles,
                 common_germline_alleles_idx = args.files.common_germline_alleles_idx,
+                rare_germline_alleles = patient.rare_germline_alleles,
+                rare_germline_alleles_idx = patient.rare_germline_alleles_idx,
                 genotype_variants_min_read_depth = args.min_snp_array_read_depth,
                 genotype_variants_min_genotype_likelihood = args.genotype_variants_min_genotype_likelihood,
                 genotype_variants_overdispersion = args.genotype_variants_overdispersion,
