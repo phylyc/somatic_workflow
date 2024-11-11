@@ -30,14 +30,14 @@ workflow CollectAllelicCounts {
         File? interval_blacklist
         Array[File]? scattered_interval_list
 
-        File? common_germline_alleles
-        File? common_germline_alleles_idx
+        File? variants
+        File? variants_idx
         File? vcf
         File? vcf_idx
         String? getpileupsummaries_extra_args
 
-        Float minimum_population_allele_frequency = 0.01
-        Float maximum_population_allele_frequency = 0.2
+        Float minimum_population_allele_frequency = 0.0
+        Float maximum_population_allele_frequency = 1.0
         Int minimum_read_depth = 0
 
         Boolean compress_output = false
@@ -83,7 +83,7 @@ workflow CollectAllelicCounts {
             time_select_pileup_summaries = time_select_pileup_summaries,
     }
 
-    if (defined(vcf) && !defined(common_germline_alleles)) {
+    if (defined(vcf) && !defined(variants)) {
         call VcfToPileupVariants {
             input:
                 vcf = select_first([vcf]),
@@ -102,8 +102,8 @@ workflow CollectAllelicCounts {
                     interval_list = interval_list,
                     interval_blacklist = interval_blacklist,
                     scattered_intervals = scattered_intervals,
-                    common_germline_alleles = select_first([common_germline_alleles, VcfToPileupVariants.common_germline_alleles]),
-                    common_germline_alleles_idx = select_first([common_germline_alleles_idx, VcfToPileupVariants.common_germline_alleles_idx]),
+                    variants = select_first([variants, VcfToPileupVariants.variants]),
+                    variants_idx = select_first([variants_idx, VcfToPileupVariants.variants_idx]),
                     getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                     minimum_population_allele_frequency = minimum_population_allele_frequency,
                     maximum_population_allele_frequency = maximum_population_allele_frequency,
@@ -131,8 +131,8 @@ workflow CollectAllelicCounts {
                 interval_list = interval_list,
                 interval_blacklist = interval_blacklist,
                 sample_name = sample_name,
-                common_germline_alleles = select_first([common_germline_alleles, VcfToPileupVariants.common_germline_alleles]),
-                common_germline_alleles_idx = select_first([common_germline_alleles_idx, VcfToPileupVariants.common_germline_alleles_idx]),
+                variants = select_first([variants, VcfToPileupVariants.variants]),
+                variants_idx = select_first([variants_idx, VcfToPileupVariants.variants_idx]),
                 getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
                 maximum_population_allele_frequency = maximum_population_allele_frequency,
@@ -153,6 +153,8 @@ workflow CollectAllelicCounts {
     }
 
     output {
+        File? variants_from_vcf = VcfToPileupVariants.variants
+        File? variants_from_vcf_idx = VcfToPileupVariants.variants_idx
         File pileup_summaries = select_first([SelectPileups.selected_pileup_summaries, GatherPileupSummaries.merged_pileup_summaries, GetPileupSummaries.pileup_summaries])
     }
 }
@@ -165,7 +167,7 @@ task VcfToPileupVariants {
     input {
         File vcf
         File vcf_idx
-        Float AF = 0.1  # AF that GetPileupSummaries will consider is by default between (0.01, 0.2)
+        Float AF = 0.00000007
 
         Runtime runtime_params
     }
@@ -181,36 +183,53 @@ task VcfToPileupVariants {
     command <<<
         set -euxo pipefail
 
+        # Prepare the AF INFO field for the header
+        echo '##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">' > "header_file"
+
         # Filter the VCF file to retain only rows with genotypes
-        # Remove FORMAT field and retain only INFO/AF field
+        # Remove FORMAT field and retain only INFO/POPAF field
+        # Add header for AF field
         bcftools view -G '~{vcf}' \
-            | bcftools annotate -x FORMAT,^INFO/AF \
+            | bcftools annotate -x FORMAT,^INFO/POPAF \
+            | bcftools annotate -h "header_file" \
             > '~{tmp_vcf}'
 
         set +e  # grep returns 1 if no lines are found
-        # Separate header lines (lines starting with '#') into a separate file
         grep "^#" '~{tmp_vcf}' > '~{uncompressed_vcf}'
 
-        # Filter and modify non-header lines to include AF information
-        # Use AWK to set the 'AF' INFO field to the specified value
+        # Set AF INFO field based on POPAF or default task variable AF
         grep -v "^#" '~{tmp_vcf}' \
-            | awk 'BEGIN {OFS="\t"} {$8 = "AF=~{AF}"; print}' \
-            >> '~{uncompressed_vcf}'
+            | awk -v default_AF='~{AF}' '
+                BEGIN {OFS="\t"}
+                {
+                    # Check if POPAF is present in the INFO field
+                    if ($8 ~ /^POPAF=/) {
+                        # Extract POPAF value and calculate AF as 10^(-POPAF)
+                        popaf_value = substr($8, 7)  # Extract value after 'POPAF='
+                        AF_value = sprintf("%.6f", 10^(-popaf_value))
+                    } else {
+                        # Use default AF if POPAF is not found
+                        AF_value = default_AF
+                    }
+                    # Replace INFO field with AF=calculated_value
+                    $8 = "AF=" AF_value
+                    print
+                }' >> '~{uncompressed_vcf}'
         set -e
 
-        # Compress the modified VCF file (bgzip is not available)
+        # Compress the modified VCF file (bgzip is not available in docker)
         bcftools convert -O z -o '~{af_only_vcf}' '~{uncompressed_vcf}'
 
         # Index the compressed VCF file
         bcftools index -t -o '~{af_only_vcf_idx}' '~{af_only_vcf}'
 
         # Clean up temporary files
-        rm -f '~{tmp_vcf}' '~{uncompressed_vcf}'
+        rm -f '~{tmp_vcf}' '~{uncompressed_vcf}' 'header_file'
     >>>
 
     output {
-        File common_germline_alleles = af_only_vcf
-        File common_germline_alleles_idx = af_only_vcf_idx
+        File variants = af_only_vcf
+        File variants_idx = af_only_vcf_idx
     }
 
     runtime {
@@ -232,14 +251,14 @@ task GetPileupSummaries {
         File? scattered_intervals
         File input_bam
         File input_bai
-        File common_germline_alleles
-        File common_germline_alleles_idx
+        File variants
+        File variants_idx
         Boolean is_paired_end = false
         String? sample_name
         String? getpileupsummaries_extra_args
 
-        Float minimum_population_allele_frequency = 0.01
-        Float maximum_population_allele_frequency = 0.2
+        Float minimum_population_allele_frequency = 0.0
+        Float maximum_population_allele_frequency = 1.0
 
         Boolean compress_output
 
@@ -270,17 +289,17 @@ task GetPileupSummaries {
 
         if [ "~{defined(scattered_intervals)}" == "true" ]; then
             select_variants \
-                -V '~{common_germline_alleles}' \
+                -V '~{variants}' \
                 -L '~{scattered_intervals}'
         fi
         if [ "~{defined(interval_list)}" == "true" ]; then
             select_variants \
-                -V '~{if defined(scattered_intervals) then "selected_loci.vcf" else common_germline_alleles}' \
+                -V '~{if defined(scattered_intervals) then "selected_loci.vcf" else variants}' \
                 -L '~{interval_list}'
         fi
         if [ "~{defined(interval_blacklist)}" == "true" ]; then
             select_variants \
-                -V '~{if defined(scattered_intervals) || defined(interval_list) then "selected_loci.vcf" else common_germline_alleles}' \
+                -V '~{if defined(scattered_intervals) || defined(interval_list) then "selected_loci.vcf" else variants}' \
                 -XL '~{interval_blacklist}'
         fi
 
@@ -301,8 +320,8 @@ task GetPileupSummaries {
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
                 GetPileupSummaries \
                 --input '~{input_bam}' \
-                --intervals '~{if defined(scattered_intervals) || defined(interval_list)|| defined(interval_blacklist) then "selected_loci.vcf" else common_germline_alleles}' \
-                --variant '~{if defined(scattered_intervals) || defined(interval_list)|| defined(interval_blacklist) then "selected_loci.vcf" else common_germline_alleles}' \
+                --intervals '~{if defined(scattered_intervals) || defined(interval_list)|| defined(interval_blacklist) then "selected_loci.vcf" else variants}' \
+                --variant '~{if defined(scattered_intervals) || defined(interval_list)|| defined(interval_blacklist) then "selected_loci.vcf" else variants}' \
                 -min-af '~{minimum_population_allele_frequency}' \
                 -max-af '~{maximum_population_allele_frequency}' \
                 --output '~{pileup_file}' \
@@ -338,8 +357,8 @@ task GetPileupSummaries {
         scattered_intervals: {localization_optional: true}
         input_bam: {localization_optional: true}
         input_bai: {localization_optional: true}
-        common_germline_alleles: {localization_optional: true}
-        common_germline_alleles_idx: {localization_optional: true}
+        variants: {localization_optional: true}
+        variants_idx: {localization_optional: true}
     }
 }
 

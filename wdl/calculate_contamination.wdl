@@ -109,8 +109,8 @@ workflow CalculateContamination {
                 bai = select_first(select_all([tumor_bai])),
                 ref_dict = select_first(select_all([ref_dict])),
                 sample_name = select_first([tumor_sample_name, "tumor"]),
-                common_germline_alleles = common_germline_alleles,
-                common_germline_alleles_idx = common_germline_alleles_idx,
+                variants = common_germline_alleles,
+                variants_idx = common_germline_alleles_idx,
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
@@ -131,8 +131,8 @@ workflow CalculateContamination {
                 bai = select_first(select_all([normal_bai])),
                 ref_dict = select_first(select_all([ref_dict])),
                 sample_name = select_first([normal_sample_name, "normal"]),
-                common_germline_alleles = common_germline_alleles,
-                common_germline_alleles_idx = common_germline_alleles_idx,
+                variants = common_germline_alleles,
+                variants_idx = common_germline_alleles_idx,
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
@@ -171,19 +171,38 @@ task CalculateContaminationTask {
         Runtime runtime_params
     }
 
-    String tumor_sample_id = basename(tumor_pileups, ".pileup")
+    String uncompressed_tumor_pileups = basename(tumor_pileups, ".gz")
+    Boolean is_compressed = uncompressed_tumor_pileups != basename(tumor_pileups)
+
+    File non_optional_normal_pileups = select_first([normal_pileups, "/root/normal_pileups.pileup"])
+    String normal_pileups_name = if defined(normal_pileups) then basename(non_optional_normal_pileups) else ""
+    String uncompressed_normal_pileups = if defined(normal_pileups) then basename(non_optional_normal_pileups, ".gz") else ""
+    Boolean is_compressed_normal = if defined(normal_pileups) then uncompressed_normal_pileups != normal_pileups_name else false
+
+    String tumor_sample_id = basename(uncompressed_tumor_pileups, ".pileup")
     String output_contamination = tumor_sample_id + ".contamination"
     String output_segments = tumor_sample_id + ".segments"
 
-    # TODO: handle zipped pileup input
-
     command <<<
         set -e
+
+        if [ "~{is_compressed}" == "true" ] ; then
+            bgzip -cd '~{tumor_pileups}' > '~{uncompressed_tumor_pileups}'
+        else
+            mv '~{tumor_pileups}' '~{uncompressed_tumor_pileups}'
+        fi
+
+        if [ "~{is_compressed_normal}" == "true" ] ; then
+            bgzip -cd '~{normal_pileups}' > '~{uncompressed_normal_pileups}'
+        else
+            ~{"mv '" + normal_pileups + "' '" + uncompressed_normal_pileups + "'"}
+        fi
+
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CalculateContamination \
-            --input '~{tumor_pileups}' \
-            ~{"--matched-normal '" + normal_pileups + "'"} \
+            --input '~{uncompressed_tumor_pileups}' \
+            ~{if defined(normal_pileups) then "--matched-normal '" + uncompressed_normal_pileups + "'" else ""} \
             --output '~{output_contamination}' \
             --tumor-segmentation '~{output_segments}'
     >>>
