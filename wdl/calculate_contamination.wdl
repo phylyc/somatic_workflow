@@ -174,7 +174,7 @@ task CalculateContaminationTask {
     String uncompressed_tumor_pileups = basename(tumor_pileups, ".gz")
     Boolean is_compressed = uncompressed_tumor_pileups != basename(tumor_pileups)
 
-    File non_optional_normal_pileups = select_first([normal_pileups, "/root/normal_pileups.pileup"])
+    String non_optional_normal_pileups = select_first([normal_pileups, "/root/normal_pileups.pileup"])
     String normal_pileups_name = if defined(normal_pileups) then basename(non_optional_normal_pileups) else ""
     String uncompressed_normal_pileups = if defined(normal_pileups) then basename(non_optional_normal_pileups, ".gz") else ""
     Boolean is_compressed_normal = if defined(normal_pileups) then uncompressed_normal_pileups != normal_pileups_name else false
