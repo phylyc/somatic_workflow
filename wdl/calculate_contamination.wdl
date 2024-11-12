@@ -196,6 +196,7 @@ task CalculateContaminationTask {
             bgzip -cd '~{normal_pileups}' > '~{uncompressed_normal_pileups}'
         else
             ~{"mv '" + normal_pileups + "' '" + uncompressed_normal_pileups + "'"}
+            :
         fi
 
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
