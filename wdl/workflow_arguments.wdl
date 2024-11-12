@@ -17,7 +17,6 @@ struct WorkflowArguments {
     Boolean run_collect_target_coverage
     Boolean run_collect_allelic_coverage
     Boolean run_contamination_model
-    Boolean run_model_segments
     Boolean run_orientation_bias_mixture_model
     Boolean run_variant_calling
     Boolean run_variant_filter
@@ -26,6 +25,7 @@ struct WorkflowArguments {
     Boolean run_realignment_filter_only_on_high_confidence_variants
     Boolean run_variant_annotation
     Boolean run_variant_annotation_scattered
+    Boolean run_model_segments
     Boolean run_clonal_decomposition
 
     Boolean keep_germline
@@ -225,28 +225,33 @@ workflow DefineWorkflowArguments {
         RuntimeCollection runtime_collection
     }
 
-    call tasks.PreprocessIntervals {
-        input:
-            interval_list = resources.interval_list,
-            interval_blacklist = resources.interval_blacklist,
-            interval_lists = resources.interval_lists,
-            ref_fasta = resources.ref_fasta,
-            ref_fasta_index = resources.ref_fasta_index,
-            ref_dict = resources.ref_dict,
-            bin_length = preprocess_intervals_bin_length,
-            padding = preprocess_intervals_padding,
-            runtime_params = runtime_collection.preprocess_intervals,
+    if (!defined(resources.preprocessed_intervals)) {
+        call tasks.PreprocessIntervals {
+            input:
+                interval_list = resources.interval_list,
+                interval_blacklist = resources.interval_blacklist,
+                interval_lists = resources.interval_lists,
+                ref_fasta = resources.ref_fasta,
+                ref_fasta_index = resources.ref_fasta_index,
+                ref_dict = resources.ref_dict,
+                bin_length = preprocess_intervals_bin_length,
+                padding = preprocess_intervals_padding,
+                runtime_params = runtime_collection.preprocess_intervals,
+        }
+
     }
 
-    call tasks.SplitIntervals {
-    	input:
-            interval_list = PreprocessIntervals.preprocessed_interval_list,
-            ref_fasta = resources.ref_fasta,
-            ref_fasta_index = resources.ref_fasta_index,
-            ref_dict = resources.ref_dict,
-            scatter_count = scatter_count,
-            split_intervals_extra_args = split_intervals_extra_args,
-            runtime_params = runtime_collection.split_intervals,
+    if (!defined(resources.scattered_intervals)) {
+        call tasks.SplitIntervals {
+            input:
+                interval_list = select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
+                ref_fasta = resources.ref_fasta,
+                ref_fasta_index = resources.ref_fasta_index,
+                ref_dict = resources.ref_dict,
+                scatter_count = scatter_count,
+                split_intervals_extra_args = split_intervals_extra_args,
+                runtime_params = runtime_collection.split_intervals,
+        }
     }
 
     WorkflowArguments args = object {
@@ -254,8 +259,8 @@ workflow DefineWorkflowArguments {
 
         scatter_count: scatter_count,
 
-        preprocessed_interval_list: PreprocessIntervals.preprocessed_interval_list,
-        scattered_interval_list: SplitIntervals.interval_files,
+        preprocessed_interval_list: select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
+        scattered_interval_list: select_first([resources.scattered_intervals, SplitIntervals.interval_files]),
 
         run_collect_covered_regions: run_collect_covered_regions,
         run_collect_target_coverage: run_collect_target_coverage,
