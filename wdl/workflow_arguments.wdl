@@ -127,7 +127,7 @@ workflow DefineWorkflowArguments {
         Boolean run_variant_annotation_scattered = false
         Boolean run_clonal_decomposition = true
 
-        Boolean keep_germline = false
+        Boolean keep_germline = true
         Boolean compress_output = true
         Boolean make_bamout = false
 
@@ -168,7 +168,7 @@ workflow DefineWorkflowArguments {
         Boolean mutect2_use_linked_de_bruijn_graph = true
         Boolean mutect2_recover_all_dangling_branches = true
         Boolean mutect2_pileup_detection = true
-        Boolean mutect2_genotype_germline_sites = false
+        Boolean mutect2_genotype_germline_sites = true
         # The stride is the window in which the AVERAGE depth is required to meet
         # the max_reads_per_alignment_start. Usually a good idea to have a value of 20-50.
         Int mutect2_downsampling_stride = 1  # default: 1
