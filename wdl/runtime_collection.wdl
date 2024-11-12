@@ -134,7 +134,7 @@ workflow DefineRuntimeCollection {
         Int time_select_pileup_summaries = 5
 
         # PileupToAllelicCounts
-        Int mem_pileup_to_allelic_counts = 512
+        Int mem_pileup_to_allelic_counts = 2048
         Int time_pileup_to_allelic_counts = 5
 
         # HarmonizeCopyRatios
@@ -431,7 +431,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime pileup_to_allelic_counts = {
-        "docker": ubuntu_docker,
+        "docker": python_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
