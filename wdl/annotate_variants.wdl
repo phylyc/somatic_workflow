@@ -205,7 +205,7 @@ task Funcotate {
             ~{"-L '" + interval_list + "'"} \
             ~{"--transcript-selection-mode " + transcript_selection_mode} \
             ~{"--transcript-list '" + transcript_list + "'"} \
-            ~{if prefer_mane_transcripts then "--prefer-mane-transcript true" else ""} \
+            ~{if prefer_mane_transcripts then "--prefer-mane-transcripts true" else ""} \
             --annotation-default 'individual_id:~{individual_id}' \
             --annotation-default 'tumor_barcode:~{tumor_sample_name}' \
             --annotation-default 'normal_barcode:~{normal_sample_name}' \
