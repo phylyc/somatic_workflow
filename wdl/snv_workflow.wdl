@@ -84,13 +84,13 @@ workflow SNVWorkflow {
                         }
 
                         Array[String] mgac_task_sample_names = (
-                            if defined(sample.snp_array_pileups)
+                            if defined(sample.snppanel_pileups)
                             then flatten([seq_sample_names, [sample.name]])
                             else seq_sample_names
                         )
                         Array[File] mgac_task_allelic_counts = (
-                            if defined(sample.snp_array_pileups)
-                            then flatten([GermlineAllelicCounts.pileup_summaries, [select_first([sample.snp_array_pileups])]])
+                            if defined(sample.snppanel_pileups)
+                            then flatten([GermlineAllelicCounts.pileup_summaries, [select_first([sample.snppanel_pileups])]])
                             else GermlineAllelicCounts.pileup_summaries
                         )
                         call hs.MergeAllelicCounts as MergeGermlineAllelicCounts {
@@ -99,7 +99,7 @@ workflow SNVWorkflow {
                                 script = args.merge_pileups_script,
                                 sample_names = mgac_task_sample_names,
                                 allelic_counts = mgac_task_allelic_counts,
-                                min_read_depth = args.min_snp_array_read_depth,
+                                min_read_depth = args.min_snppanel_read_depth,
                                 compress_output = args.compress_output,
                                 runtime_params = runtime_collection.merge_allelic_counts,
                         }
@@ -110,7 +110,7 @@ workflow SNVWorkflow {
                     call p_update_s.UpdateSamples as ExtendPileupsForSamples {
                         input:
                             patient = patient,
-                            snp_array_pileups = germline_allelic_counts_,
+                            snppanel_pileups = germline_allelic_counts_,
                     }
                     call p.UpdatePatient as AddGermlineAlleles {
                         input:

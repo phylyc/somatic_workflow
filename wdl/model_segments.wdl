@@ -18,11 +18,14 @@ workflow ModelSegments {
     # more information. We first need to convert the pileup to allelic count format.
 
     scatter (sample in patient.samples) {
-        if (defined(sample.snp_array_pileups)) {
+        if (defined(sample.snppanel_pileups)) {
             call PileupToAllelicCounts {
                 input:
                     ref_dict = args.files.ref_dict,
-                    pileup = sample.snp_array_pileups,
+                    pileup = sample.snppanel_pileups,
+                    gvcf = patient.gvcf,
+                    gvcf_idx = patient.gvcf_idx,
+                    select_hets = true,
                     bam_name = sample.bam_name,
                     runtime_params = runtime_collection.pileup_to_allelic_counts
             }
@@ -37,7 +40,7 @@ workflow ModelSegments {
         call p_update_s.UpdateSamples as AddAllelicCountsToSamples {
             input:
                 patient = patient,
-                snp_array_allelic_counts = sample_allelic_counts,
+                snppanel_allelic_counts = sample_allelic_counts,
                 genotype_error_probabilities = sample_error_probabilities
         }
     }
@@ -47,7 +50,7 @@ workflow ModelSegments {
 
     scatter (sample in pat.samples) {
         File? denoised_copy_ratios = sample.denoised_copy_ratios
-        File? allelic_counts = sample.snp_array_allelic_counts
+        File? allelic_counts = sample.snppanel_allelic_counts
     }
     if (length(select_all(denoised_copy_ratios)) > 0) {
         Array[File] dcr = select_all(denoised_copy_ratios)
@@ -57,7 +60,7 @@ workflow ModelSegments {
     }
     if (defined(pat.matched_normal_sample)) {
         Sample matched_normal_sample = select_first([pat.matched_normal_sample])
-        File? normal_allelic_counts = matched_normal_sample.snp_array_allelic_counts
+        File? normal_allelic_counts = matched_normal_sample.snppanel_allelic_counts
     }
 
     # Now we can finally do the segmentation. First, we determine the patient-specific
@@ -79,8 +82,8 @@ workflow ModelSegments {
         if (defined(sample.denoised_copy_ratios))  {
             Array[File] dcr_list = select_all([sample.denoised_copy_ratios])
         }
-        if (defined(sample.snp_array_allelic_counts)) {
-            Array[File] ac_list = select_all([sample.snp_array_allelic_counts])
+        if (defined(sample.snppanel_allelic_counts)) {
+            Array[File] ac_list = select_all([sample.snppanel_allelic_counts])
         }
         if (defined(sample.genotype_error_probabilities)) {
             Float error_probability = select_first([sample.genotype_error_probabilities])
@@ -91,7 +94,7 @@ workflow ModelSegments {
                 denoised_copy_ratios = dcr_list,
                 allelic_counts = ac_list,
                 normal_allelic_counts = normal_allelic_counts,
-                genotying_base_error_rate = error_probability,
+                genotyping_base_error_rate = error_probability,
                 prefix = sample.name,
                 window_sizes = args.model_segments_window_sizes,
                 runtime_params = runtime_collection.model_segments
@@ -136,7 +139,7 @@ workflow ModelSegments {
     output {
         Patient updated_patient = AddSegmentationResultsToSamples.updated_patient
 
-        Array[File] snp_array_allelic_counts = sample_allelic_counts
+        Array[File] snppanel_allelic_counts = sample_allelic_counts
 
         File? modeled_segments = MultiSampleModelSegments.multi_sample_segments
         Array[File] hets = select_all(SingleSampleInferCR.hets)
@@ -157,6 +160,10 @@ task PileupToAllelicCounts {
         File ref_dict
         String bam_name
         File? pileup
+        File? gvcf
+        File? gvcf_idx
+        Boolean select_hets = false
+
         Runtime runtime_params
     }
 
@@ -233,7 +240,8 @@ task ModelSegmentsTask {
         File? normal_allelic_counts
         String prefix
 
-        Float genotying_base_error_rate = 0.05
+        Float genotyping_base_error_rate = 0.05
+        Float genotypung_homozygous_log_ratio_threshold = -10.0
         Array[Int] window_sizes = [8, 16, 32, 64, 128, 256]
 
         Runtime runtime_params
@@ -253,7 +261,8 @@ task ModelSegmentsTask {
             ~{true="--allelic-counts '" false="" defined(allelic_counts)}~{default="" sep="' --allelic-counts '" allelic_counts}~{true="'" false="" defined(allelic_counts)} \
             ~{"--normal-allelic-counts '" + normal_allelic_counts + "'"} \
             ~{"--output-prefix '" + prefix + "'"} \
-            --genotyping-base-error-rate ~{genotying_base_error_rate} \
+            --genotyping-base-error-rate ~{genotyping_base_error_rate} \
+            --genotyping-homozygous-log-ratio-threshold ~{genotypung_homozygous_log_ratio_threshold} \
             ~{sep=" " prefix("--window-size ", window_sizes)} \
             --output ~{output_dir}
     >>>

@@ -13,8 +13,8 @@ struct Sample {
     File? covered_regions                   # bedtools genomecov | GATK BedToIntervalList
     File? denoised_copy_ratios              # GATK DenoiseReadCounts
     File? standardized_copy_ratios          # GATK DenoiseReadCounts
-    File? snp_array_pileups                 # GATK GetPileupSummaries
-    File? snp_array_allelic_counts          # PileupToAllelicCounts / GATK CollectAllelicCounts
+    File? snppanel_pileups                 # GATK GetPileupSummaries
+    File? snppanel_allelic_counts          # PileupToAllelicCounts / GATK CollectAllelicCounts
     Float? genotype_error_probabilities     # PileupToAllelicCounts
     File? somatic_allelic_counts            # GATK GetPileupSummaries
     File? germline_allelic_counts           # GATK GetPileupSummaries
@@ -41,8 +41,8 @@ workflow UpdateSample {
         File? covered_regions
         File? denoised_copy_ratios
         File? standardized_copy_ratios
-        File? snp_array_pileups
-        File? snp_array_allelic_counts
+        File? snppanel_pileups
+        File? snppanel_allelic_counts
         Float? genotype_error_probabilities
         File? somatic_allelic_counts
         File? germline_allelic_counts
@@ -66,8 +66,8 @@ workflow UpdateSample {
         covered_regions: if defined(covered_regions) then covered_regions else sample.covered_regions,
         denoised_copy_ratios: if defined(denoised_copy_ratios) then denoised_copy_ratios else sample.denoised_copy_ratios,
         standardized_copy_ratios: if defined(standardized_copy_ratios) then standardized_copy_ratios else sample.standardized_copy_ratios,
-        snp_array_pileups: if defined(snp_array_pileups) then snp_array_pileups else sample.snp_array_pileups,
-        snp_array_allelic_counts: if defined(snp_array_allelic_counts) then snp_array_allelic_counts else sample.snp_array_allelic_counts,
+        snppanel_pileups: if defined(snppanel_pileups) then snppanel_pileups else sample.snppanel_pileups,
+        snppanel_allelic_counts: if defined(snppanel_allelic_counts) then snppanel_allelic_counts else sample.snppanel_allelic_counts,
         genotype_error_probabilities: if defined(genotype_error_probabilities) then genotype_error_probabilities else sample.genotype_error_probabilities,
         somatic_allelic_counts: if defined(somatic_allelic_counts) then somatic_allelic_counts else sample.somatic_allelic_counts,
         germline_allelic_counts: if defined(germline_allelic_counts) then germline_allelic_counts else sample.germline_allelic_counts,

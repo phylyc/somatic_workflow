@@ -38,7 +38,7 @@ workflow Absolute {
             runtime_params = runtime_collection.process_maf_for_absolute
     }
 
-    call AbsoluteTask {
+    call AbsoluteTask as AbsoluteACRTask {
         input:
             sample_name = sample_name,
             seg_file = ModelSegmentsToACSConversion.acs_converted_seg,
@@ -51,8 +51,8 @@ workflow Absolute {
     # TODO: also run in tCR mode (for ULP data)
 
     output {
-        File? plot = AbsoluteTask.plot
-        File? rdata = AbsoluteTask.rdata
+        File? acr_plot = AbsoluteACRTask.plot
+        File? acr_rdata = AbsoluteACRTask.rdata
     }
 }
 
@@ -190,7 +190,6 @@ task AbsoluteTask {
         num_segments=$(( $(wc -l < '~{seg_file}') - 1 ))
 
         if [ $num_segments -gt 0 ] ; then
-            # sidenote: no packages GenomicRanges, gplots, and more. :/
             Rscript /xchip/tcga/Tools/absolute/releases/v1.5/run/ABSOLUTE_cli_start.R \
                 --seg_dat_fn '~{seg_file}' \
                 --maf_fn '~{snv_maf}' \

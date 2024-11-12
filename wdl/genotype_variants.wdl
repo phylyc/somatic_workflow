@@ -133,11 +133,11 @@ task GenotypeVariantsTask {
 
     String output_dir = "."
 
-    String output_ref_counts = output_dir + "/" + individual_id + ".hets.ref_count.tsv" + (if compress_output then ".gz" else "")
-    String output_alt_counts = output_dir + "/" + individual_id + ".hets.alt_count.tsv" + (if compress_output then ".gz" else "")
-    String output_other_alt_counts = output_dir + "/" + individual_id + ".hets.other_alt_count.tsv" + (if compress_output then ".gz" else "")
+    String output_ref_counts = output_dir + "/" + individual_id + ".germline.ref_count.tsv" + (if compress_output then ".gz" else "")
+    String output_alt_counts = output_dir + "/" + individual_id + ".germline.alt_count.tsv" + (if compress_output then ".gz" else "")
+    String output_other_alt_counts = output_dir + "/" + individual_id + ".germline.other_alt_count.tsv" + (if compress_output then ".gz" else "")
     String output_sample_correlation = output_dir + "/" + individual_id + ".sample_correlation.tsv" + (if compress_output then ".gz" else "")
-    String output_vcf = output_dir + "/" + individual_id + ".hets.vcf" + (if compress_output then ".gz" else "")
+    String output_vcf = output_dir + "/" + individual_id + ".germline.vcf" + (if compress_output then ".gz" else "")
     String output_vcf_idx = output_vcf + (if compress_output then ".tbi" else ".idx")
 
     # Once "suffix" is implemented, we can use this over glob:

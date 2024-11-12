@@ -37,9 +37,9 @@ struct WorkflowArguments {
     Int preprocess_intervals_bin_length
     Int preprocess_intervals_padding
     Int collect_read_counts_max_soft_clipped_bases
-    Float min_snp_array_pop_af
-    Float max_snp_array_pop_af
-    Int min_snp_array_read_depth
+    Float min_snppanel_pop_af
+    Float max_snppanel_pop_af
+    Int min_snppanel_read_depth
     Float genotype_variants_min_genotype_likelihood
     Int genotype_variants_overdispersion
     Float genotype_variants_ref_bias
@@ -137,9 +137,9 @@ workflow DefineWorkflowArguments {
 
         # CNV WORKFLOW
         Int collect_read_counts_max_soft_clipped_bases = 0
-        Float min_snp_array_pop_af = 0.01
-        Float max_snp_array_pop_af = 1.0  # default: 0.2
-        Int min_snp_array_read_depth = 10
+        Float min_snppanel_pop_af = 0.01
+        Float max_snppanel_pop_af = 1.0  # default: 0.2
+        Int min_snppanel_read_depth = 10
         Float genotype_variants_min_genotype_likelihood = 0.9
         Int genotype_variants_overdispersion = 50
         Float genotype_variants_ref_bias = 1.05
@@ -284,9 +284,9 @@ workflow DefineWorkflowArguments {
         preprocess_intervals_bin_length: preprocess_intervals_bin_length,
         preprocess_intervals_padding: preprocess_intervals_padding,
         collect_read_counts_max_soft_clipped_bases: collect_read_counts_max_soft_clipped_bases,
-        min_snp_array_pop_af: min_snp_array_pop_af,
-        max_snp_array_pop_af: max_snp_array_pop_af,
-        min_snp_array_read_depth: min_snp_array_read_depth,
+        min_snppanel_pop_af: min_snppanel_pop_af,
+        max_snppanel_pop_af: max_snppanel_pop_af,
+        min_snppanel_read_depth: min_snppanel_read_depth,
         genotype_variants_min_genotype_likelihood: genotype_variants_min_genotype_likelihood,
         genotype_variants_overdispersion: genotype_variants_overdispersion,
         genotype_variants_ref_bias: genotype_variants_ref_bias,

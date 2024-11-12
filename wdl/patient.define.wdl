@@ -10,6 +10,7 @@ import "runtime_collection.wdl" as rtc
 workflow DefinePatient {
     input {
         String individual_id
+        String? sex
 
         Array[File]+ bams
         Array[File]+ bais
@@ -166,6 +167,7 @@ workflow DefinePatient {
 
     Patient pat = object {
         name: individual_id,
+        sex: sex,
         samples: flatten([tumor_samples, normal_samples]),
         tumor_samples: tumor_samples,
         normal_samples: normal_samples,

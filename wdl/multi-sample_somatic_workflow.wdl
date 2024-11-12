@@ -19,6 +19,7 @@ workflow MultiSampleSomaticWorkflow {
 
         # This string is used to label the outputs of the workflow.
         String individual_id
+        String? sex
         # If defined, all arrays must have the same length. Each entry corresponds to a
         # sequencing run, and the same index in each array corresponds to the same run.
         # Several sequencing runs from the same physical sample are allowed and will be
@@ -71,6 +72,7 @@ workflow MultiSampleSomaticWorkflow {
     call p_def.DefinePatient as GetPatient {
         input:
             individual_id = individual_id,
+            sex = sex,
 
             sample_names = sample_names,
             bams = bams,
@@ -119,18 +121,6 @@ workflow MultiSampleSomaticWorkflow {
         Array[File?]? denoised_copy_ratios = CoverageWorkflow.denoised_copy_ratios
         Array[File?]? covered_regions_interval_list = CoverageWorkflow.covered_regions_interval_list
 
-        File? genotyped_snparray_vcf = CNVWorkflow.genotyped_snparray_vcf
-        File? genotyped_snparray_vcf_idx = CNVWorkflow.genotyped_snparray_vcf_idx
-        File? snparray_ref_counts = CNVWorkflow.snparray_ref_counts
-        File? snparray_alt_counts = CNVWorkflow.snparray_alt_counts
-        File? snparray_other_alt_counts = CNVWorkflow.snparray_other_alt_counts
-        File? sample_snp_correlation = CNVWorkflow.sample_snp_correlation
-        Array[File]? sample_snparray_genotype_likelihoods = CNVWorkflow.sample_snparray_genotype_likelihoods
-        Array[File]? contamination_tables = select_first([CNVWorkflow.contamination_tables, CoverageWorkflow.contamination_tables])
-        Array[File]? segmentation_tables = select_first([CNVWorkflow.segmentation_tables, CoverageWorkflow.segmentation_tables])
-        Array[File]? snparray_pileups = select_first([CNVWorkflow.snparray_pileups, CoverageWorkflow.snparray_pileups])
-        Array[File]? snparray_allelic_counts = CNVWorkflow.snparray_allelic_counts
-
         File? unfiltered_vcf = SNVWorkflow.unfiltered_vcf
         File? unfiltered_vcf_idx = SNVWorkflow.unfiltered_vcf_idx
         File? mutect_stats = SNVWorkflow.mutect_stats
@@ -141,21 +131,30 @@ workflow MultiSampleSomaticWorkflow {
         File? filtered_vcf_idx = SNVWorkflow.filtered_vcf_idx
         File? somatic_vcf = SNVWorkflow.somatic_vcf
         File? somatic_vcf_idx = SNVWorkflow.somatic_vcf_idx
-        File? germline_vcf = SNVWorkflow.germline_vcf
-        File? germline_vcf_idx = SNVWorkflow.germline_vcf_idx
         File? filtering_stats = SNVWorkflow.filtering_stats
-        Array[File?]? somatic_allelic_counts = SNVWorkflow.somatic_allelic_counts
-        Array[File?]? germline_allelic_counts = SNVWorkflow.germline_allelic_counts
         Array[File]? annotated_variants = SNVWorkflow.annotated_variants
         Array[File?]? annotated_variants_idx = SNVWorkflow.annotated_variants_idx
+        Array[File?]? somatic_allelic_counts = SNVWorkflow.somatic_allelic_counts
+
+        File? germline_vcf = CNVWorkflow.snppanel_genotyped_vcf
+        File? germline_vcf_idx = CNVWorkflow.snppanel_genotyped_vcf_idx
+        File? germline_ref_counts = CNVWorkflow.snppanel_ref_counts
+        File? germline_alt_counts = CNVWorkflow.snppanel_alt_counts
+        File? germline_other_alt_counts = CNVWorkflow.snppanel_other_alt_counts
+        File? germline_sample_correlation = CNVWorkflow.snppanel_sample_correlation
+        Array[File]? germline_sample_genotype_likelihoods = CNVWorkflow.snppanel_sample_genotype_likelihoods
+        Array[File]? contamination_tables = select_first([CNVWorkflow.contamination_tables, CoverageWorkflow.contamination_tables])
+        Array[File]? segmentation_tables = select_first([CNVWorkflow.segmentation_tables, CoverageWorkflow.segmentation_tables])
+        Array[File]? germline_pileups = select_first([CNVWorkflow.snppanel_pileups, CoverageWorkflow.snppanel_pileups])
+        Array[File]? germline_allelic_counts = CNVWorkflow.snppanel_allelic_counts
 
         File? modeled_segments = CNVWorkflow.modeled_segments
-        Array[File]? filtered_called_copy_ratio_segmentations = CNVWorkflow.filtered_called_copy_ratio_segmentations
+        Array[File]? cr_segmentations = CNVWorkflow.filtered_called_copy_ratio_segmentations
         Array[File]? cr_plots = CNVWorkflow.cr_plots
         Array[File]? af_model_parameters = CNVWorkflow.af_model_parameters
         Array[File]? cr_model_parameters = CNVWorkflow.cr_model_parameters
 
-        Array[File]? absolute_plots = ClonalAnalysisWorkflow.absolute_plots
-        Array[File]? absolute_rdata = ClonalAnalysisWorkflow.absolute_rdata
+        Array[File]? absolute_acr_plots = ClonalAnalysisWorkflow.absolute_acr_plots
+        Array[File]? absolute_acr_rdata = ClonalAnalysisWorkflow.absolute_acr_rdata
     }
 }

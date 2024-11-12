@@ -5,7 +5,7 @@ import "calculate_contamination.wdl" as cc
 import "genotype_variants.wdl" as gv
 
 
-workflow GenotypeSNPArray {
+workflow GenotypeSNPPanel {
     input {
         Array[File]? scattered_interval_list
 
@@ -74,7 +74,7 @@ workflow GenotypeSNPArray {
         select_first([CalculateNormalContamination.segmentation, []])
     ])
 
-    call gv.GenotypeVariants as GenotypeSNPArrayVariants {
+    call gv.GenotypeVariants as GenotypeSNPPanelVariants {
         input:
             script = genotype_variants_script,
             individual_id = individual_id,
@@ -102,12 +102,12 @@ workflow GenotypeSNPArray {
         Array[File] contaminations = contamination_tables
         Array[File] segmentations = segmentation_tables
 
-        File genotyped_vcf = GenotypeSNPArrayVariants.vcf
-        File genotyped_vcf_idx = GenotypeSNPArrayVariants.vcf_idx
-        File ref_counts = GenotypeSNPArrayVariants.ref_counts
-        File alt_counts = GenotypeSNPArrayVariants.alt_counts
-        File other_alt_counts = GenotypeSNPArrayVariants.other_alt_counts
-        File sample_correlation = GenotypeSNPArrayVariants.sample_correlation
-        Array[File]? sample_genotype_likelihoods = GenotypeSNPArrayVariants.sample_genotype_likelihoods
+        File genotyped_vcf = GenotypeSNPPanelVariants.vcf
+        File genotyped_vcf_idx = GenotypeSNPPanelVariants.vcf_idx
+        File ref_counts = GenotypeSNPPanelVariants.ref_counts
+        File alt_counts = GenotypeSNPPanelVariants.alt_counts
+        File other_alt_counts = GenotypeSNPPanelVariants.other_alt_counts
+        File sample_correlation = GenotypeSNPPanelVariants.sample_correlation
+        Array[File]? sample_genotype_likelihoods = GenotypeSNPPanelVariants.sample_genotype_likelihoods
     }
 }

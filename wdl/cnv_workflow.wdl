@@ -8,7 +8,7 @@ import "runtime_collection.wdl" as rtc
 import "collect_read_counts.wdl" as crc
 import "collect_allelic_counts.wdl" as cac
 import "harmonize_samples.wdl" as hs
-import "genotype_snp_array.wdl" as gsa
+import "genotype_snp_panel.wdl" as gsp
 import "model_segments.wdl" as ms
 import "filter_segments.wdl" as fs
 
@@ -24,9 +24,9 @@ workflow CNVWorkflow {
     # set of loci for all samples. GetPileupSummaries does not guarantee this,
     # however, GenotypeSNPArray enforces this. Hence, if we want to run the
     # copy-ratio segmentation workflow, then we also need to run the contamination
-    # workflow. Estimating the contamination is helpful for genotyping; however,
-    # the contamination model is not used for ModelSegments.
-    # FEATURE REQUEST: Option to supply ModelSegments with genotyped data.
+    # workflow. Estimating the contamination is helpful for genotyping. Only HETs
+    # are supplied to ModelSegements, with high genotypung_homozygous_log_ratio_threshold
+    # to ensure that all loci are taken as HETs.
 
     # Prepare input for the contamination model / SNP array genotying
 
@@ -34,12 +34,12 @@ workflow CNVWorkflow {
         String sample_names = sample.name
     }
     scatter (tumor_sample in patient.tumor_samples) {
-        File? t_pileups = tumor_sample.snp_array_pileups
+        File? t_pileups = tumor_sample.snppanel_pileups
     }
     Array[File] tumor_pileups = select_all(t_pileups)
     if (patient.has_normal) {
         scatter (normal_sample in patient.normal_samples) {
-            File? n_pileups = normal_sample.snp_array_pileups
+            File? n_pileups = normal_sample.snppanel_pileups
         }
         Array[File] normal_pileups = select_all(n_pileups)
     }
@@ -47,7 +47,7 @@ workflow CNVWorkflow {
     # Run the contamination model
 
     if (length(tumor_pileups) > 0) {
-        call gsa.GenotypeSNPArray {
+        call gsp.GenotypeSNPPanel {
             input:
                 genotype_variants_script = args.genotype_variants_script,
                 scattered_interval_list = args.scattered_interval_list,
@@ -60,7 +60,7 @@ workflow CNVWorkflow {
                 common_germline_alleles_idx = args.files.common_germline_alleles_idx,
                 rare_germline_alleles = patient.rare_germline_alleles,
                 rare_germline_alleles_idx = patient.rare_germline_alleles_idx,
-                genotype_variants_min_read_depth = args.min_snp_array_read_depth,
+                genotype_variants_min_read_depth = args.min_snppanel_read_depth,
                 genotype_variants_min_genotype_likelihood = args.genotype_variants_min_genotype_likelihood,
                 genotype_variants_overdispersion = args.genotype_variants_overdispersion,
                 genotype_variants_ref_bias = args.genotype_variants_ref_bias,
@@ -72,16 +72,23 @@ workflow CNVWorkflow {
         call p_update_s.UpdateSamples as AddPileupsAndContaminationToSamples {
             input:
                 patient = patient,
-                snp_array_pileups = GenotypeSNPArray.sample_genotype_likelihoods,  # Careful: This is not technically in a pileup format!
-                contaminations = GenotypeSNPArray.contaminations,
-                af_segmentations = GenotypeSNPArray.segmentations,
+                snppanel_pileups = GenotypeSNPPanel.sample_genotype_likelihoods,  # Careful: This is not technically in a pileup format!
+                contaminations = GenotypeSNPPanel.contaminations,
+                af_segmentations = GenotypeSNPPanel.segmentations,
+        }
+
+        call p.UpdatePatient as AddGVCFtoPatient {
+            input:
+                patient = AddPileupsAndContaminationToSamples.updated_patient,
+                gvcf = GenotypeSNPPanel.genotyped_vcf,
+                gvcf_idx = GenotypeSNPPanel.genotyped_vcf_idx,
         }
     }
 
     if (args.run_model_segments) {
         call ms.ModelSegments {
             input:
-                patient = select_first([AddPileupsAndContaminationToSamples.updated_patient, patient]),
+                patient = select_first([AddGVCFtoPatient.updated_patient, patient]),
                 args = args,
                 runtime_collection = runtime_collection,
         }
@@ -97,20 +104,20 @@ workflow CNVWorkflow {
     # todo: FuncotateSegments
 
     output {
-        Patient updated_patient = select_first([FilterSegments.updated_patient, AddPileupsAndContaminationToSamples.updated_patient, patient])
+        Patient updated_patient = select_first([FilterSegments.updated_patient, AddGVCFtoPatient.updated_patient, patient])
 
-        File? genotyped_snparray_vcf = GenotypeSNPArray.genotyped_vcf
-        File? genotyped_snparray_vcf_idx = GenotypeSNPArray.genotyped_vcf_idx
-        File? snparray_ref_counts = GenotypeSNPArray.ref_counts
-        File? snparray_alt_counts = GenotypeSNPArray.alt_counts
-        File? snparray_other_alt_counts = GenotypeSNPArray.other_alt_counts
-        File? sample_snp_correlation = GenotypeSNPArray.sample_correlation
-        Array[File]? sample_snparray_genotype_likelihoods = GenotypeSNPArray.sample_genotype_likelihoods
-        Array[File]? snparray_pileups = GenotypeSNPArray.pileups
-        Array[File]? contamination_tables = GenotypeSNPArray.contaminations
-        Array[File]? segmentation_tables = GenotypeSNPArray.segmentations
+        File? snppanel_genotyped_vcf = GenotypeSNPPanel.genotyped_vcf
+        File? snppanel_genotyped_vcf_idx = GenotypeSNPPanel.genotyped_vcf_idx
+        File? snppanel_ref_counts = GenotypeSNPPanel.ref_counts
+        File? snppanel_alt_counts = GenotypeSNPPanel.alt_counts
+        File? snppanel_other_alt_counts = GenotypeSNPPanel.other_alt_counts
+        File? snppanel_sample_correlation = GenotypeSNPPanel.sample_correlation
+        Array[File]? snppanel_sample_genotype_likelihoods = GenotypeSNPPanel.sample_genotype_likelihoods
+        Array[File]? snppanel_pileups = GenotypeSNPPanel.pileups
+        Array[File]? contamination_tables = GenotypeSNPPanel.contaminations
+        Array[File]? segmentation_tables = GenotypeSNPPanel.segmentations
 
-        Array[File]? snparray_allelic_counts = ModelSegments.snp_array_allelic_counts
+        Array[File]? snppanel_allelic_counts = ModelSegments.snppanel_allelic_counts
 
         File? modeled_segments = ModelSegments.modeled_segments
         Array[File]? filtered_called_copy_ratio_segmentations = FilterSegments.filtered_called_copy_ratio_segmentations

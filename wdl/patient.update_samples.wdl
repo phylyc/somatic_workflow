@@ -11,8 +11,8 @@ workflow UpdateSamples {
         Array[File]? covered_regions
         Array[File]? denoised_copy_ratios
         Array[File]? standardized_copy_ratios
-        Array[File]? snp_array_pileups
-        Array[File]? snp_array_allelic_counts
+        Array[File]? snppanel_pileups
+        Array[File]? snppanel_allelic_counts
         Array[Float]? genotype_error_probabilities
         Array[File]? somatic_allelic_counts
         Array[File]? germline_allelic_counts
@@ -72,27 +72,27 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_4 = select_first([UpdateStandardizedCopyRatio.updated_sample, samples_3])
 
-    if (defined(snp_array_pileups)) {
-        scatter (pair in zip(samples_4, select_first([snp_array_pileups, []]))) {
-            call s.UpdateSample as UpdateSnpArrayPileup {
+    if (defined(snppanel_pileups)) {
+        scatter (pair in zip(samples_4, select_first([snppanel_pileups, []]))) {
+            call s.UpdateSample as UpdateSnpPanelPileup {
                 input:
                     sample = pair.left,
-                    snp_array_pileups = pair.right,
+                    snppanel_pileups = pair.right,
             }
         }
     }
-    Array[Sample] samples_5 = select_first([UpdateSnpArrayPileup.updated_sample, samples_4])
+    Array[Sample] samples_5 = select_first([UpdateSnpPanelPileup.updated_sample, samples_4])
 
-    if (defined(snp_array_allelic_counts)) {
-        scatter (pair in zip(samples_5, select_first([snp_array_allelic_counts, []]))) {
-            call s.UpdateSample as UpdateSnpArrayAllelicCounts {
+    if (defined(snppanel_allelic_counts)) {
+        scatter (pair in zip(samples_5, select_first([snppanel_allelic_counts, []]))) {
+            call s.UpdateSample as UpdateSnpPanelAllelicCounts {
                 input:
                     sample = pair.left,
-                    snp_array_allelic_counts = pair.right,
+                    snppanel_allelic_counts = pair.right,
             }
         }
     }
-    Array[Sample] samples_6 = select_first([UpdateSnpArrayAllelicCounts.updated_sample, samples_5])
+    Array[Sample] samples_6 = select_first([UpdateSnpPanelAllelicCounts.updated_sample, samples_5])
 
     if (defined(genotype_error_probabilities)) {
         scatter (pair in zip(samples_6, select_first([genotype_error_probabilities, []]))) {

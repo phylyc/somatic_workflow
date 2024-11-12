@@ -1077,7 +1077,7 @@ class GenotypeData(object):
                 [pl.df[count].to_frame(pl.assigned_sample_name).fillna(0) for pl in self.pileup_likelihoods],
                 axis=1
             ).fillna(0).astype(int)
-            file = f"{output_dir}/{self.individual_id}.hets.{count}.tsv" + (".gz" if args.compress_output else "")
+            file = f"{output_dir}/{self.individual_id}.germline.{count}.tsv" + (".gz" if args.compress_output else "")
             table.to_csv(file, sep="\t", index=False)
             print(f"  {file}") if args.verbose else None
 
@@ -1090,7 +1090,7 @@ class GenotypeData(object):
             vcf_format (str, optional): The format for the VCF FORMAT output.
             args (argparse.Namespace, optional): Arguments namespace containing additional information for VCF header.
         """
-        file = f"{output_dir}/{self.individual_id}.hets.vcf" + (".gz" if args.compress_output else "")
+        file = f"{output_dir}/{self.individual_id}.germline.vcf" + (".gz" if args.compress_output else "")
 
         df = self.joint_genotype_likelihood
 

@@ -46,15 +46,15 @@ workflow CoverageWorkflow {
                         bam = sequencing_run.bam,
                         bai = sequencing_run.bai,
                         is_paired_end = sequencing_run.is_paired_end,
-                        sample_name = sample.name + ".snp_array",
+                        sample_name = sample.name + ".snppanel",
                         interval_list = sequencing_run.target_intervals,
                         scattered_interval_list = args.scattered_interval_list,
                         variants = args.files.common_germline_alleles,
                         variants_idx = args.files.common_germline_alleles_idx,
                         getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,
-                        minimum_population_allele_frequency = args.min_snp_array_pop_af,
-                        maximum_population_allele_frequency = args.max_snp_array_pop_af,
-                        minimum_read_depth = args.min_snp_array_read_depth,
+                        minimum_population_allele_frequency = args.min_snppanel_pop_af,
+                        maximum_population_allele_frequency = args.max_snppanel_pop_af,
+                        minimum_read_depth = args.min_snppanel_read_depth,
                         runtime_collection = runtime_collection,
                 }
             }
@@ -117,7 +117,7 @@ workflow CoverageWorkflow {
             patient = patient,
             covered_regions = covered_regions,
             denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios,
-            snp_array_pileups = HarmonizeSamples.merged_allelic_counts,
+            snppanel_pileups = HarmonizeSamples.merged_allelic_counts,
     }
 
     if (args.run_contamination_model) {
@@ -125,12 +125,12 @@ workflow CoverageWorkflow {
             String sample_names = sample.name
         }
         scatter (tumor_sample in ConsensusPatient.updated_patient.tumor_samples) {
-            File? t_pileups = tumor_sample.snp_array_pileups
+            File? t_pileups = tumor_sample.snppanel_pileups
         }
         Array[File] tumor_pileups = select_all(t_pileups)
         if (patient.has_normal) {
             scatter (normal_sample in ConsensusPatient.updated_patient.normal_samples) {
-                File? n_pileups = normal_sample.snp_array_pileups
+                File? n_pileups = normal_sample.snppanel_pileups
             }
             Array[File] normal_pileups = select_all(n_pileups)
         }
@@ -181,7 +181,7 @@ workflow CoverageWorkflow {
 
         Array[File]? target_read_counts = read_counts
         Array[File]? denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios
-        Array[File]? snparray_pileups = HarmonizeSamples.merged_allelic_counts
+        Array[File]? snppanel_pileups = HarmonizeSamples.merged_allelic_counts
         Array[File?]? covered_regions_interval_list = CollectCoveredRegions.regions_interval_list
         Array[File]? contamination_tables = contaminations
         Array[File]? segmentation_tables = af_segmentations
