@@ -343,6 +343,7 @@ task SelectVariants {
         File? ref_dict
         File? interval_list
         File? interval_blacklist
+        File? interval_blacklist_idx
         File vcf
         File vcf_idx
         Boolean compress_output = false
@@ -510,6 +511,8 @@ task SelectVariants {
 
     parameter_meta {
         interval_list: {localization_optional: true}
+        interval_blacklist: {localization_optional: true}
+        interval_blacklist_idx: {localization_optional: true}
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
         # ref_dict: {localization_optional: true}  # needs to be localized for SortVcf

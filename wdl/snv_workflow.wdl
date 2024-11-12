@@ -52,6 +52,7 @@ workflow SNVWorkflow {
                         vcf = select_first([FilterVariants.germline_vcf]),
                         vcf_idx = select_first([FilterVariants.germline_vcf_idx]),
                         interval_blacklist = args.files.common_germline_alleles,
+                        interval_blacklist_idx = args.files.common_germline_alleles_idx,
                         compress_output = args.compress_output,
                         runtime_params = runtime_collection.select_variants
                 }
