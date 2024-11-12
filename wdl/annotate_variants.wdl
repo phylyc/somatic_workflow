@@ -39,43 +39,52 @@ workflow AnnotateVariants {
                 runtime_params = runtime_collection.select_variants
         }
 
-        call Funcotate {
-            input:
-                ref_fasta = args.files.ref_fasta,
-                ref_fasta_index = args.files.ref_fasta_index,
-                ref_dict = args.files.ref_dict,
-                interval_list = intervals,
-                vcf = SelectSampleVariants.selected_vcf,
-                vcf_idx = SelectSampleVariants.selected_vcf_idx,
-                individual_id = individual_id,
-                tumor_sample_name = tumor_sample_name,
-                normal_sample_name = normal_sample_name,
-                output_base_name = tumor_sample_name + ".annotated",
-                reference_version = args.funcotator_reference_version,
-                output_format = args.funcotator_output_format,
-                variant_type = args.funcotator_variant_type,
-                transcript_selection_mode = args.funcotator_transcript_selection_mode,
-                transcript_list = args.files.funcotator_transcript_list,
-                prefer_mane_transcripts = args.funcotator_prefer_mane_transcripts,
-                data_sources_tar_gz = args.files.funcotator_data_sources_tar_gz,
-                use_gnomad = args.funcotator_use_gnomad,
-                compress_output = args.compress_output,
-                data_sources_paths = args.funcotator_data_sources_paths,
-                annotation_defaults = args.funcotator_annotation_defaults,
-                annotation_overrides = args.funcotator_annotation_overrides,
-                exclude_fields = args.funcotator_exclude_fields,
-                funcotate_extra_args = args.funcotate_extra_args,
-                runtime_params = runtime_collection.funcotate
+        if (SelectSampleVariants.num_selected_variants > 0) {
+            call Funcotate {
+                input:
+                    ref_fasta = args.files.ref_fasta,
+                    ref_fasta_index = args.files.ref_fasta_index,
+                    ref_dict = args.files.ref_dict,
+                    interval_list = intervals,
+                    vcf = SelectSampleVariants.selected_vcf,
+                    vcf_idx = SelectSampleVariants.selected_vcf_idx,
+                    individual_id = individual_id,
+                    tumor_sample_name = tumor_sample_name,
+                    normal_sample_name = normal_sample_name,
+                    output_base_name = tumor_sample_name + ".annotated",
+                    reference_version = args.funcotator_reference_version,
+                    output_format = args.funcotator_output_format,
+                    variant_type = args.funcotator_variant_type,
+                    transcript_selection_mode = args.funcotator_transcript_selection_mode,
+                    transcript_list = args.files.funcotator_transcript_list,
+                    data_sources_tar_gz = args.files.funcotator_data_sources_tar_gz,
+                    use_gnomad = args.funcotator_use_gnomad,
+                    compress_output = args.compress_output,
+                    data_sources_paths = args.funcotator_data_sources_paths,
+                    annotation_defaults = args.funcotator_annotation_defaults,
+                    annotation_overrides = args.funcotator_annotation_overrides,
+                    exclude_fields = args.funcotator_exclude_fields,
+                    funcotate_extra_args = args.funcotate_extra_args,
+                    runtime_params = runtime_collection.funcotate
+            }
         }
-
+        if (SelectSampleVariants.num_selected_variants <= 0) {
+            call CreateEmptyAnnotation {
+                input:
+                    output_base_name = tumor_sample_name + ".annotated",
+                    output_format = args.funcotator_output_format,
+                    compress_output = args.compress_output,
+                    runtime_params = runtime_collection.create_empty_annotation
+            }
+        }
         # TODO: Add CADD annotation
     }
 
     if (args.funcotator_output_format == "VCF") {
         call tasks.MergeVCFs {
             input:
-                vcfs = Funcotate.annotations,
-                vcfs_idx = select_all(Funcotate.annotations_idx),
+                vcfs = select_all(select_first([Funcotate.annotations, CreateEmptyAnnotation.empty_annotation])),
+                vcfs_idx = select_all(select_first([Funcotate.annotations_idx, CreateEmptyAnnotation.empty_annotation_idx])),
                 output_name = tumor_sample_name + ".annotated",
                 compress_output = args.compress_output,
                 runtime_params = runtime_collection.merge_vcfs
@@ -84,7 +93,7 @@ workflow AnnotateVariants {
     if (args.funcotator_output_format == "MAF") {
         call tasks.MergeMAFs {
             input:
-                mafs = Funcotate.annotations,
+                mafs = select_all(select_first([Funcotate.annotations, CreateEmptyAnnotation.empty_annotation])),
                 output_name = tumor_sample_name + ".annotated",
                 compress_output = args.compress_output,
                 runtime_params = runtime_collection.merge_mafs
@@ -246,5 +255,57 @@ task Funcotate {
         vcf: {localization_optional: true}
         vcf_idx: {localization_optional: true}
         # transcript_selection_file: {localization_optional: true}
+    }
+}
+
+task CreateEmptyAnnotation {
+    input {
+        String output_base_name
+        String output_format  # "VCF" or "MAF"
+        Boolean compress_output
+
+        Runtime runtime_params
+    }
+
+    command <<<
+        if [ "~{output_format}" == "VCF" ]; then
+            # Create an empty VCF with a header
+            echo "##fileformat=VCFv4.2" > ~{output_base_name}.vcf
+            echo -e "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO" >> ~{output_base_name}.vcf
+
+            # Create an empty index file for VCF based on compress_output
+            if [ "~{compress_output}" == "true" ]; then
+                touch ~{output_base_name}.vcf.gz.tbi
+            else
+                touch ~{output_base_name}.vcf.idx
+            fi
+
+        elif [ "~{output_format}" == "MAF" ]; then
+            # Create an empty MAF with basic headers
+            echo "#version 2.4" > ~{output_base_name}.maf
+            echo -e "Hugo_Symbol\tEntrez_Gene_Id\tCenter\tNCBI_Build\tChromosome\tStart_Position\tEnd_Position\tStrand\t"\
+            "Variant_Classification\tVariant_Type\tReference_Allele\tTumor_Seq_Allele1\tTumor_Seq_Allele2\tdbSNP_RS\t"\
+            "dbSNP_Val_Status\tTumor_Sample_Barcode\tMatched_Norm_Sample_Barcode\tMatch_Norm_Seq_Allele1\t"\
+            "Match_Norm_Seq_Allele2\tTumor_Validation_Allele1\tTumor_Validation_Allele2\t"\
+            "Match_Norm_Validation_Allele1\tMatch_Norm_Validation_Allele2\tVerification_Status\tValidation_Status\t"\
+            "Mutation_Status\tSequencing_Phase\tSequence_Source\tValidation_Method\tScore\tBAM_File\tSequencer\t"\
+            "Tumor_Sample_UUID\tMatched_Norm_Sample_UUID" >> ~{output_base_name}.maf
+        fi
+    >>>
+
+    output {
+        File empty_annotation = if output_format == "VCF" then output_base_name + ".vcf" else output_base_name + ".maf"
+        File? empty_annotation_idx = if output_format == "VCF" && compress_output then output_base_name + ".vcf.gz.tbi" else output_base_name + ".vcf.idx"
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
     }
 }

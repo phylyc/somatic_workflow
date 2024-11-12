@@ -42,6 +42,7 @@ struct RuntimeCollection {
     Runtime filter_alignment_artifacts
     Runtime select_variants
     Runtime funcotate
+    Runtime create_empty_annotation
     Runtime create_cnv_panel
     Runtime create_mutect2_panel
     Runtime select_af_only_from_vcf
@@ -238,6 +239,11 @@ workflow DefineRuntimeCollection {
         # gatk: Funcotator
         Int mem_funcotate = 6144
         Int time_funcotate = 1440  # 24 h
+
+        # CreateEmptyAnnotations
+        Int mem_create_empty_annotations = 128
+        Int time_create_empty_annotations = 1
+
 
         #######################################################################
         ### Clonal Analysis workflow
@@ -763,6 +769,18 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime create_empty_annotation = {
+        "docker": ubuntu_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        'cpu': cpu,
+        "machine_mem": mem_create_empty_annotations + mem_machine_overhead,
+        "command_mem": mem_create_empty_annotations,
+        "runtime_minutes": time_startup + time_create_empty_annotations,
+        "disk": disk_sizeGB,
+        "boot_disk_size": boot_disk_size
+    }
+
     Runtime create_cnv_panel = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
@@ -842,6 +860,7 @@ workflow DefineRuntimeCollection {
         "filter_alignment_artifacts": filter_alignment_artifacts,
         "select_variants": select_variants,
         "funcotate": funcotate,
+        "create_empty_annotation": create_empty_annotation,
         "create_cnv_panel": create_cnv_panel,
         "create_mutect2_panel": create_mutect2_panel,
 
