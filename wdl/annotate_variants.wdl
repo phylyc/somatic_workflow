@@ -71,6 +71,7 @@ workflow AnnotateVariants {
         if (SelectSampleVariants.num_selected_variants <= 0) {
             call CreateEmptyAnnotation {
                 input:
+                    selected_vcf = SelectSampleVariants.selected_vcf,
                     output_base_name = tumor_sample_name + ".annotated",
                     output_format = args.funcotator_output_format,
                     compress_output = args.compress_output,
@@ -260,6 +261,7 @@ task Funcotate {
 
 task CreateEmptyAnnotation {
     input {
+        File selected_vcf
         String output_base_name
         String output_format  # "VCF" or "MAF"
         Boolean compress_output
@@ -269,9 +271,8 @@ task CreateEmptyAnnotation {
 
     command <<<
         if [ "~{output_format}" == "VCF" ]; then
-            # Create an empty VCF with a header
-            echo "##fileformat=VCFv4.2" > ~{output_base_name}.vcf
-            echo -e "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO" >> ~{output_base_name}.vcf
+            # Copy all headers from selected_vcf to create an empty VCF
+            grep "^#" ~{selected_vcf} > ~{output_base_name}.vcf
 
             # Create an empty index file for VCF based on compress_output
             if [ "~{compress_output}" == "true" ]; then
@@ -281,15 +282,18 @@ task CreateEmptyAnnotation {
             fi
 
         elif [ "~{output_format}" == "MAF" ]; then
-            # Create an empty MAF with basic headers
-            echo "#version 2.4" > ~{output_base_name}.maf
+            # Copy header lines except VCF schema to create an empty MAF
+            grep "^##" ~{selected_vcf} > ~{output_base_name}.maf
+
+            # Add MAF schema to the empty MAF
             echo -e "Hugo_Symbol\tEntrez_Gene_Id\tCenter\tNCBI_Build\tChromosome\tStart_Position\tEnd_Position\tStrand\t"\
             "Variant_Classification\tVariant_Type\tReference_Allele\tTumor_Seq_Allele1\tTumor_Seq_Allele2\tdbSNP_RS\t"\
             "dbSNP_Val_Status\tTumor_Sample_Barcode\tMatched_Norm_Sample_Barcode\tMatch_Norm_Seq_Allele1\t"\
             "Match_Norm_Seq_Allele2\tTumor_Validation_Allele1\tTumor_Validation_Allele2\t"\
             "Match_Norm_Validation_Allele1\tMatch_Norm_Validation_Allele2\tVerification_Status\tValidation_Status\t"\
             "Mutation_Status\tSequencing_Phase\tSequence_Source\tValidation_Method\tScore\tBAM_File\tSequencer\t"\
-            "Tumor_Sample_UUID\tMatched_Norm_Sample_UUID" >> ~{output_base_name}.maf
+            "Tumor_Sample_UUID\tMatched_Norm_Sample_UUID\tHGVSc\tHGVSp\tHGVSp_Short\tTranscript_ID\tExon_Number\t"\
+            "t_depth\tt_ref_count\tt_alt_count\tn_depth\tn_ref_count\tn_alt_count\tProtein_Change\tUniProt_AApos" >> ~{output_base_name}.maf
         fi
     >>>
 
