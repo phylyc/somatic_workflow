@@ -269,10 +269,21 @@ task CreateEmptyAnnotation {
         Runtime runtime_params
     }
 
+    # Determine if vcf is gzipped
+    String uncompressed_vcf = basename(selected_vcf, ".gz")
+    Boolean is_compressed = (uncompressed_vcf != basename(selected_vcf))
+
     command <<<
+        # Uncompress the selected_vcf if it is gzipped
+        if [[ "~{is_compressed}" == "true" ]]; then
+            gunzip -c ~{selected_vcf} > ~{uncompressed_vcf}
+        else
+            mv ~{selected_vcf} ~{uncompressed_vcf}
+        fi
+
         if [ "~{output_format}" == "VCF" ]; then
             # Copy all headers from selected_vcf to create an empty VCF
-            grep "^#" ~{selected_vcf} > ~{output_base_name}.vcf
+            grep "^#" ~{uncompressed_vcf} > ~{output_base_name}.vcf
 
             # Create an empty index file for VCF based on compress_output
             if [ "~{compress_output}" == "true" ]; then
@@ -283,7 +294,7 @@ task CreateEmptyAnnotation {
 
         elif [ "~{output_format}" == "MAF" ]; then
             # Copy header lines except VCF schema to create an empty MAF
-            grep "^##" ~{selected_vcf} > ~{output_base_name}.maf
+            grep "^##" ~{uncompressed_vcf} > ~{output_base_name}.maf
 
             # Add MAF schema to the empty MAF
             echo -e "Hugo_Symbol\tEntrez_Gene_Id\tCenter\tNCBI_Build\tChromosome\tStart_Position\tEnd_Position\tStrand\t"\
