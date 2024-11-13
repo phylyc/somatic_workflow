@@ -65,6 +65,8 @@ workflow ModelSegments {
 
     # Now we can finally do the segmentation. First, we determine the patient-specific
     # segmentation, then we infer the sample-specific copy ratios and call amps/dels.
+    # We set genotypung_homozygous_log_ratio_threshold = 10 since PileupToAllelicCounts
+    # selects only hets, so the log odds ratio of hom/het should be very permissive.
 
     if (length(pat.samples) > 1) {
         call ModelSegmentsTask as MultiSampleModelSegments {
@@ -74,6 +76,7 @@ workflow ModelSegments {
                 normal_allelic_counts = normal_allelic_counts,
                 prefix = patient.name + ".segmentation",
                 window_sizes = args.model_segments_window_sizes,
+                genotyping_homozygous_log_ratio_threshold = 10,
                 runtime_params = runtime_collection.model_segments
         }
     }
@@ -97,6 +100,7 @@ workflow ModelSegments {
                 genotyping_base_error_rate = error_probability,
                 prefix = sample.name,
                 window_sizes = args.model_segments_window_sizes,
+                genotyping_homozygous_log_ratio_threshold = 10,
                 runtime_params = runtime_collection.model_segments
         }
 
@@ -168,10 +172,7 @@ task PileupToAllelicCounts {
     }
 
     String non_optional_pileup = select_first([pileup, "none"])
-    String uncompressed_pileup = basename(non_optional_pileup, ".gz")
-    Boolean is_compressed = uncompressed_pileup != basename(non_optional_pileup)
-
-    String sample_name = basename(basename(uncompressed_pileup, ".pileup"), ".likelihoods")
+    String sample_name = basename(basename(basename(non_optional_pileup, ".gz"), ".pileup"), ".likelihoods")
     String output_file = sample_name + ".allelic_counts.tsv"
 
     command <<<
@@ -181,37 +182,35 @@ task PileupToAllelicCounts {
         printf "0.05" > error_probability.txt
 
         if [ "~{defined(pileup)}" == "true" ] ; then
-            if [ "~{is_compressed}" == "true" ] ; then
-                gzip -cd '~{pileup}' > '~{uncompressed_pileup}'
-            else
-                mv '~{pileup}' '~{uncompressed_pileup}'
-            fi
-
             # HEADER
             cat '~{ref_dict}' > '~{output_file}'
             printf "@RG\tID:GATKCopyNumber\tSM:~{bam_name}\n" >> '~{output_file}'
             printf "CONTIG\tPOSITION\tREF_COUNT\tALT_COUNT\tREF_NUCLEOTIDE\tALT_NUCLEOTIDE\n" >> '~{output_file}'
-            # CONTENT
-            # The ref and alt allele information is not available in the pileup file, so we set both to "N"
-            tail -n +3 '~{uncompressed_pileup}' | awk -v OFS='\t' '{print $1, $2, $3, $4, "N", "N"}' >> '~{output_file}'
 
-            # Calculate the error probability:
-            # The error probability is calculated as a ratio of total 'other_alt_count'
-            # and total counts, clipped within reasonable bounds.
-            ref_counts=$(awk '{sum+=$3} END {print sum}' '~{uncompressed_pileup}')
-            alt_counts=$(awk '{sum+=$4} END {print sum}' '~{uncompressed_pileup}')
-            other_alt_counts=$(awk '{sum+=$5} END {print sum}' '~{uncompressed_pileup}')
-            total_counts=$((ref_counts + alt_counts + other_alt_counts))
-            error_probability=$( \
-                awk -v other=$other_alt_counts -v total=$total_counts \
-                'BEGIN {
-                    ratio = (total > 0) ? other / total : 0.05;
-                    ratio = (ratio < 0.0001) ? 0.0001 : ratio;
-                    ratio = (ratio > 0.1) ? 0.1 : ratio;
-                    print ratio;
-                }' \
-            )
-            printf "$error_probability" > error_probability.txt
+            python <<EOF
+import numpy as np
+import pandas as pd
+
+vcf_columns = ["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "genotype"]
+
+pileup = pd.read_csv('~{pileup}', sep='\t', comment='#')
+gvcf = pd.read_csv('~{gvcf}', sep='\t', comment='#', header=None, low_memory=False, names=vcf_columns).astype({"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str})
+
+if pileup.empty:
+    print("No pileups found.")
+else:
+    # They should have the same number of rows and be sorted in the same order,
+    # but just to be sure, we merge instead of concat.
+    df = pd.merge(gvcf, pileup, how='left', on=['contig', 'position'])
+    if ~{if select_hets then "True" else "False"}:
+        df = df.loc[df['genotype'] == '0/1']
+    df[["contig", "position", "ref_count", "alt_count", "ref", "alt"]].to_csv('~{output_file}', sep='\t', index=False, header=False, mode='a')
+
+    other_alt_counts = pileup["other_alt_count"].sum()
+    total_counts = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1).sum()
+    error_probability = np.clip(1.5 * other_alt_counts / min(1, total_counts), a_min=0.001, a_max=0.05)
+    np.savetxt("error_probability.txt", error_probability)
+EOF
         fi
     >>>
 
@@ -241,7 +240,7 @@ task ModelSegmentsTask {
         String prefix
 
         Float genotyping_base_error_rate = 0.05
-        Float genotypung_homozygous_log_ratio_threshold = -10.0
+        Float genotyping_homozygous_log_ratio_threshold = -10.0
         Array[Int] window_sizes = [8, 16, 32, 64, 128, 256]
 
         Runtime runtime_params
@@ -262,7 +261,7 @@ task ModelSegmentsTask {
             ~{"--normal-allelic-counts '" + normal_allelic_counts + "'"} \
             ~{"--output-prefix '" + prefix + "'"} \
             --genotyping-base-error-rate ~{genotyping_base_error_rate} \
-            --genotyping-homozygous-log-ratio-threshold ~{genotypung_homozygous_log_ratio_threshold} \
+            --genotyping-homozygous-log-ratio-threshold ~{genotyping_homozygous_log_ratio_threshold} \
             ~{sep=" " prefix("--window-size ", window_sizes)} \
             --output ~{output_dir}
     >>>
