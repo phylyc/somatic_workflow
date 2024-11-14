@@ -209,7 +209,7 @@ else:
     other_alt_counts = pileup["other_alt_count"].sum()
     total_counts = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1).sum()
     error_probability = np.clip(1.5 * other_alt_counts / min(1, total_counts), a_min=0.001, a_max=0.05)
-    np.savetxt("error_probability.txt", error_probability)
+    np.savetxt("error_probability.txt", [error_probability])
 EOF
         fi
     >>>
