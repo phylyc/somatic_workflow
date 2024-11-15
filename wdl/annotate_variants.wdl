@@ -21,6 +21,7 @@ workflow AnnotateVariants {
         RuntimeCollection runtime_collection
     }
 
+    # Todo: scatter depending on how many variants are to be annotated
     Array[File] scattered_interval_list = if args.run_variant_annotation_scattered then args.scattered_interval_list else [args.preprocessed_interval_list]
 
     scatter (intervals in scattered_interval_list) {
@@ -79,13 +80,16 @@ workflow AnnotateVariants {
             }
         }
         # TODO: Add CADD annotation
+
+        File this_annotation = select_first([Funcotate.annotations, CreateEmptyAnnotation.empty_annotation])
+        File this_annotation_idx = select_first([Funcotate.annotations_idx, CreateEmptyAnnotation.empty_annotation_idx])
     }
 
     if (args.funcotator_output_format == "VCF") {
         call tasks.MergeVCFs {
             input:
-                vcfs = select_all(select_first([Funcotate.annotations, CreateEmptyAnnotation.empty_annotation])),
-                vcfs_idx = select_all(select_first([Funcotate.annotations_idx, CreateEmptyAnnotation.empty_annotation_idx])),
+                vcfs = this_annotation,
+                vcfs_idx = this_annotation_idx,
                 output_name = tumor_sample_name + ".annotated",
                 compress_output = args.compress_output,
                 runtime_params = runtime_collection.merge_vcfs
@@ -94,7 +98,7 @@ workflow AnnotateVariants {
     if (args.funcotator_output_format == "MAF") {
         call tasks.MergeMAFs {
             input:
-                mafs = select_all(select_first([Funcotate.annotations, CreateEmptyAnnotation.empty_annotation])),
+                mafs = this_annotation,
                 output_name = tumor_sample_name + ".annotated",
                 compress_output = args.compress_output,
                 runtime_params = runtime_collection.merge_mafs
