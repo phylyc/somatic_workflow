@@ -203,6 +203,8 @@ task Funcotate {
             fi
         fi
 
+        touch ~{output_file_index}
+
         echo ""
         # using a custom list of transcripts gives this INFO message:
         printf "Suppressing the following INFO messages: 'Adding transcript ID to transcript set:'\n" >&2
@@ -238,7 +240,7 @@ task Funcotate {
 
     output {
         File annotations = output_file
-        File? annotations_idx = output_file_index
+        File annotations_idx = output_file_index
     }
 
     runtime {
@@ -277,6 +279,9 @@ task CreateEmptyAnnotation {
     String uncompressed_vcf = basename(selected_vcf, ".gz")
     Boolean is_compressed = (uncompressed_vcf != basename(selected_vcf))
 
+    String output_file = if output_format == "VCF" then output_base_name + ".vcf" else output_base_name + ".maf"
+    String output_file_idx = if output_format == "VCF" && compress_output then output_base_name + ".vcf.gz.tbi" else output_base_name + ".vcf.idx"
+
     command <<<
         # Uncompress the selected_vcf if it is gzipped
         if [[ "~{is_compressed}" == "true" ]]; then
@@ -288,13 +293,6 @@ task CreateEmptyAnnotation {
         if [ "~{output_format}" == "VCF" ]; then
             # Copy all headers from selected_vcf to create an empty VCF
             grep "^#" ~{uncompressed_vcf} > ~{output_base_name}.vcf
-
-            # Create an empty index file for VCF based on compress_output
-            if [ "~{compress_output}" == "true" ]; then
-                touch ~{output_base_name}.vcf.gz.tbi
-            else
-                touch ~{output_base_name}.vcf.idx
-            fi
 
         elif [ "~{output_format}" == "MAF" ]; then
             # Copy header lines except VCF schema to create an empty MAF
@@ -310,11 +308,14 @@ task CreateEmptyAnnotation {
             "Tumor_Sample_UUID\tMatched_Norm_Sample_UUID\tHGVSc\tHGVSp\tHGVSp_Short\tTranscript_ID\tExon_Number\t"\
             "t_depth\tt_ref_count\tt_alt_count\tn_depth\tn_ref_count\tn_alt_count\tProtein_Change\tUniProt_AApos" >> ~{output_base_name}.maf
         fi
+
+        # Create an empty index file for VCF based on compress_output
+        touch ~{output_file_idx}
     >>>
 
     output {
-        File empty_annotation = if output_format == "VCF" then output_base_name + ".vcf" else output_base_name + ".maf"
-        File? empty_annotation_idx = if output_format == "VCF" && compress_output then output_base_name + ".vcf.gz.tbi" else output_base_name + ".vcf.idx"
+        File empty_annotation = output_file
+        File empty_annotation_idx = output_file_idx
     }
 
     runtime {
