@@ -193,7 +193,7 @@ import pandas as pd
 
 vcf_columns = ["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "genotype"]
 
-pileup = pd.read_csv('~{pileup}', sep='\t', comment='#')
+pileup = pd.read_csv('~{pileup}', sep='\t', comment='#').astype({"contig": str, "position": int, "ref_count": int, "alt_count": int, "other_alt_count": int, "allele_frequency": float})
 gvcf = pd.read_csv('~{gvcf}', sep='\t', comment='#', header=None, low_memory=False, names=vcf_columns).astype({"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str})
 
 if pileup.empty:
