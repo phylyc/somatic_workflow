@@ -532,7 +532,7 @@ class Genotyper(object):
         """
         other_alt_counts = pileup["other_alt_count"].sum()
         total_counts = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1).sum()
-        return np.clip(1.5 * other_alt_counts / min(1, total_counts), a_min=self.min_error_rate, a_max=self.max_error_rate)
+        return np.clip(1.5 * other_alt_counts / max(1, total_counts), a_min=self.min_error_rate, a_max=self.max_error_rate)
 
     def select_confident_calls(self, likelihoods: pd.DataFrame, genotypes: list[str] = None) -> pd.DataFrame:
         """
