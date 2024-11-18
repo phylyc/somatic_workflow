@@ -143,6 +143,10 @@ workflow FilterVariants {
             SelectHighConfidenceVariants.selected_vcf_idx,
             SelectPassingVariants.selected_vcf_idx
         ])
+        Int num_variants_to_realign = select_first([
+            SelectHighConfidenceVariants.num_selected_variants,
+            SelectPassingVariants.num_selected_variants
+        ])
         scatter (tumor_sample in patient.tumor_samples) {
             scatter (seq_run in tumor_sample.sequencing_runs) {
                 File seq_tumor_bams = seq_run.bam
@@ -153,7 +157,18 @@ workflow FilterVariants {
         Array[File] tumor_bais = flatten(seq_tumor_bais)
 
         # Due to its long runtime, we scatter the realignment task over intervals.
-        scatter (interval_list in args.scattered_interval_list) {
+        Int scatter_count = ceil((num_variants_to_realign + 1) / args.variants_per_scatter)
+        call tasks.SplitIntervals {
+            input:
+                interval_list = args.preprocessed_interval_list,
+                ref_fasta = args.files.ref_fasta,
+                ref_fasta_index = args.files.ref_fasta_index,
+                ref_dict = args.files.ref_dict,
+                scatter_count = scatter_count,
+                split_intervals_extra_args = args.split_intervals_extra_args,
+                runtime_params = runtime_collection.split_intervals,
+        }
+        scatter (interval_list in SplitIntervals.interval_files) {
             call tasks.SelectVariants as SelectPreRealignmentVariants {
                 input:
                     interval_list = interval_list,
@@ -222,7 +237,7 @@ workflow FilterVariants {
                         SelectLowConfidenceVariants.selected_vcf_idx,
                         SelectPostRealignmentVariants.selected_vcf_idx
                     ]),
-                    output_name = vcf_name + ".filtered.selected.realignmentfiltered.selected",
+                    output_name = vcf_name + ".filtered.selected.realignmentfiltered",
                     compress_output = args.compress_output,
                     runtime_params = runtime_collection.merge_vcfs
             }

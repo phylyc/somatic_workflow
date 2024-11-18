@@ -10,6 +10,7 @@ workflow AnnotateVariants {
     input {
         File vcf
         File vcf_idx
+        Int num_variants
 
         String? individual_id
         String tumor_bam_name
@@ -21,10 +22,22 @@ workflow AnnotateVariants {
         RuntimeCollection runtime_collection
     }
 
-    # Todo: scatter depending on how many variants are to be annotated
-    Array[File] scattered_interval_list = if args.run_variant_annotation_scattered then args.scattered_interval_list else [args.preprocessed_interval_list]
+    if (args.run_variant_annotation_scattered) {
+        # Due to its long runtime, we scatter the realignment task over intervals.
+        Int scatter_count = ceil((num_variants + 1) / args.variants_per_scatter)
+        call tasks.SplitIntervals {
+            input:
+                interval_list = args.preprocessed_interval_list,
+                ref_fasta = args.files.ref_fasta,
+                ref_fasta_index = args.files.ref_fasta_index,
+                ref_dict = args.files.ref_dict,
+                scatter_count = scatter_count,
+                split_intervals_extra_args = args.split_intervals_extra_args,
+                runtime_params = runtime_collection.split_intervals,
+        }
+    }
 
-    scatter (intervals in scattered_interval_list) {
+    scatter (intervals in select_first([SplitIntervals.interval_files, args.preprocessed_interval_list])) {
         call tasks.SelectVariants as SelectSampleVariants {
             input:
                 ref_fasta = args.files.ref_fasta,

@@ -9,6 +9,8 @@ struct WorkflowArguments {
     WorkflowResources files
 
     Int scatter_count
+    Int total_mean_read_depth
+    Int variants_per_scatter
 
     File preprocessed_interval_list
     Array[File] scattered_interval_list
@@ -110,6 +112,9 @@ workflow DefineWorkflowArguments {
         WorkflowResources resources
 
         Int scatter_count = 10
+        Int total_mean_read_depth = 250
+        Int total_mean_read_depth_per_scatter = 250
+        Int variants_per_scatter = 50
 
         # workflow options
         Boolean run_collect_covered_regions = false
@@ -242,13 +247,14 @@ workflow DefineWorkflowArguments {
     }
 
     if (!defined(resources.scattered_intervals)) {
+        Int good_scatter_count = ceil(scatter_count * (total_mean_read_depth + 1) / (total_mean_read_depth_per_scatter + 1))
         call tasks.SplitIntervals {
             input:
                 interval_list = select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
                 ref_fasta = resources.ref_fasta,
                 ref_fasta_index = resources.ref_fasta_index,
                 ref_dict = resources.ref_dict,
-                scatter_count = scatter_count,
+                scatter_count = good_scatter_count,
                 split_intervals_extra_args = split_intervals_extra_args,
                 runtime_params = runtime_collection.split_intervals,
         }
@@ -257,7 +263,9 @@ workflow DefineWorkflowArguments {
     WorkflowArguments args = object {
         files: resources,
 
-        scatter_count: scatter_count,
+        scatter_count: length(select_first([resources.scattered_intervals, SplitIntervals.interval_files])),
+        total_mean_read_depth: total_mean_read_depth,
+        variants_per_scatter: variants_per_scatter,
 
         preprocessed_interval_list: select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
         scattered_interval_list: select_first([resources.scattered_intervals, SplitIntervals.interval_files]),

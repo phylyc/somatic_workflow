@@ -152,36 +152,37 @@ workflow SNVWorkflow {
                     File? somatic_allelic_counts_ = select_first(MergeSomaticAllelicCounts.merged_allelic_counts)
                 }
             }
-        }
 
-        if (args.run_variant_annotation) {
-            # The sample scatter needs to be outside of the call to AnnotateVariants
-            # since cromwell shits the bed for piping optional inputs into a nested scatter.
-            scatter (sample in patient.samples) {
-                if (sample.is_tumor && defined(patient.matched_normal_sample)) {
-                    Sample matched_normal_sample = select_first([patient.matched_normal_sample])
-                    String? matched_normal_sample_name = matched_normal_sample.name
-                    String? matched_normal_bam_name = matched_normal_sample.bam_name
+            if (args.run_variant_annotation) {
+                # The sample scatter needs to be outside of the call to AnnotateVariants
+                # since cromwell shits the bed for piping optional inputs into a nested scatter.
+                scatter (sample in patient.samples) {
+                    if (sample.is_tumor && defined(patient.matched_normal_sample)) {
+                        Sample matched_normal_sample = select_first([patient.matched_normal_sample])
+                        String? matched_normal_sample_name = matched_normal_sample.name
+                        String? matched_normal_bam_name = matched_normal_sample.bam_name
+                    }
+
+                    call av.AnnotateVariants {
+                        input:
+                            vcf = FilterVariants.somatic_vcf,
+                            vcf_idx = FilterVariants.somatic_vcf_idx,
+                            num_variants = FilterVariants.num_somatic_variants,
+                            individual_id = patient.name,
+                            tumor_sample_name = sample.name,
+                            tumor_bam_name = sample.bam_name,
+                            normal_sample_name = matched_normal_sample_name,
+                            normal_bam_name = matched_normal_bam_name,
+                            args = args,
+                            runtime_collection = runtime_collection,
+                    }
                 }
 
-                call av.AnnotateVariants {
+                call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
                     input:
-                        vcf = select_first([FilterVariants.somatic_vcf, CallVariants.vcf]),
-                        vcf_idx = select_first([FilterVariants.somatic_vcf_idx, CallVariants.vcf_idx]),
-                        individual_id = patient.name,
-                        tumor_sample_name = sample.name,
-                        tumor_bam_name = sample.bam_name,
-                        normal_sample_name = matched_normal_sample_name,
-                        normal_bam_name = matched_normal_bam_name,
-                        args = args,
-                        runtime_collection = runtime_collection,
+                        patient = select_first([AddGermlineAlleles.updated_patient, patient]),
+                        annotated_variants = AnnotateVariants.annotated_variants,
                 }
-            }
-
-            call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
-                input:
-                    patient = select_first([AddGermlineAlleles.updated_patient, patient]),
-                    annotated_variants = AnnotateVariants.annotated_variants,
             }
         }
 
