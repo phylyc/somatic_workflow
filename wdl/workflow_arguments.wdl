@@ -112,8 +112,8 @@ workflow DefineWorkflowArguments {
         WorkflowResources resources
 
         Int scatter_count = 10
-        Int total_mean_read_depth = 250
-        Int total_mean_read_depth_per_scatter = 250
+        Int total_mean_read_depth = 500
+        Int total_mean_read_depth_per_scatter = 500
         Int variants_per_scatter = 50
 
         # workflow options
