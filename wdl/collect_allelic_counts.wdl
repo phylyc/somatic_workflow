@@ -320,6 +320,7 @@ task GetPileupSummaries {
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
                 GetPileupSummaries \
                 --input '~{input_bam}' \
+                --read-index '~{input_bai}' \
                 --intervals '~{if defined(scattered_intervals) || defined(interval_list)|| defined(interval_blacklist) then "selected_loci.vcf" else variants}' \
                 --variant '~{if defined(scattered_intervals) || defined(interval_list)|| defined(interval_blacklist) then "selected_loci.vcf" else variants}' \
                 -min-af '~{minimum_population_allele_frequency}' \

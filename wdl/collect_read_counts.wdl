@@ -114,6 +114,7 @@ task CollectReadCountsTask {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CollectReadCounts \
             -I '~{bam}' \
+            --read-index '~{bai}' \
             -L '~{interval_list}' \
             -R '~{ref_fasta}' \
             -O '~{tsv_output}' \

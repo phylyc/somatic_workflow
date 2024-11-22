@@ -270,7 +270,9 @@ task Mutect2 {
             Mutect2 \
             --reference '~{ref_fasta}' \
             ~{sep="' " prefix("-I '", tumor_bams)}' \
+            ~{sep="' " prefix("--read-index '", tumor_bais)}' \
             ~{if normal_is_present then "-I '" else ""}~{default="" sep="' -I '" normal_bams}~{if normal_is_present then "'" else ""} \
+            ~{if normal_is_present then "--read-index '" else ""}~{default="" sep="' --read-index '" normal_bais}~{if normal_is_present then "'" else ""} \
             ~{if normal_is_present then "-normal '" else ""}~{default="" sep="' -normal '" normal_sample_names}~{if normal_is_present then "'" else ""} \
             --output '~{output_vcf}' \
             ~{"--intervals '" + interval_list + "'"} \

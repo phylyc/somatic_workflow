@@ -426,6 +426,7 @@ task FilterAlignmentArtifacts {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             FilterAlignmentArtifacts \
             ~{sep="' " prefix("-I '", tumor_bams)}' \
+            ~{sep="' " prefix("--read-index '", tumor_bais)}' \
             --variant '~{vcf}' \
             --reference '~{ref_fasta}' \
             --bwa-mem-index-image '~{bwa_mem_index_image}' \

@@ -19,6 +19,7 @@ task GetSampleName {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             GetSampleName \
             -I '~{bam}' \
+            --read-index '~{bai}' \
             -O bam_name.txt
     >>>
 
