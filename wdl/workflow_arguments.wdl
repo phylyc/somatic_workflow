@@ -9,7 +9,6 @@ struct WorkflowArguments {
     WorkflowResources files
 
     Int scatter_count
-    Int total_mean_read_depth
     Int variants_per_scatter
 
     File preprocessed_interval_list
@@ -264,7 +263,6 @@ workflow DefineWorkflowArguments {
         files: resources,
 
         scatter_count: length(select_first([resources.scattered_intervals, SplitIntervals.interval_files])),
-        total_mean_read_depth: total_mean_read_depth,
         variants_per_scatter: variants_per_scatter,
 
         preprocessed_interval_list: select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
