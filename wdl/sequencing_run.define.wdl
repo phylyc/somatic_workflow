@@ -25,6 +25,7 @@ workflow DefineSequencingRun {
         call tasks.GetSampleName {
             input:
                 bam = bam,
+                bai = bai,
                 runtime_params = runtime_collection.get_sample_name,
         }
     }
