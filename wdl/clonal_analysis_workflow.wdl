@@ -25,7 +25,7 @@ workflow ClonalAnalysisWorkflow {
                         copy_ratio_segmentation = select_first([sample.called_copy_ratio_segmentation]),
                         af_model_parameters = select_first([sample.af_model_parameters]),
                         annotated_variants = select_first([sample.annotated_variants]),
-#                        sex = patient.sex,
+                        sex = patient.sex,
                         min_hets = args.absolute_min_hets,
                         min_probes = args.absolute_min_probes,
                         maf90_threshold = args.absolute_maf90_threshold,
@@ -35,6 +35,8 @@ workflow ClonalAnalysisWorkflow {
         }
         Array[File] acr_plots = select_all(Absolute.acr_plot)
         Array[File] acr_rdata = select_all(Absolute.acr_rdata)
+#        Array[File] tcr_plots = select_all(Absolute.tcr_plot)
+#        Array[File] tcr_rdata = select_all(Absolute.tcr_rdata)
     }
 
     # phylogicNDT
@@ -42,5 +44,7 @@ workflow ClonalAnalysisWorkflow {
     output {
         Array[File]? absolute_acr_plots = acr_plots
         Array[File]? absolute_acr_rdata = acr_rdata
+#        Array[File]? absolute_tcr_plots = tcr_plots
+#        Array[File]? absolute_tcr_rdata = tcr_rdata
     }
 }

@@ -57,8 +57,7 @@ workflow DefineRuntimeCollection {
         String gatk_docker = "broadinstitute/gatk:4.6.1.0"
         # Needs docker image with bedtools, samtools, and gatk
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
-        String tag_cga_pipline_docker = "gcr.io/broad-getzlab-workflows/absolute_wolf:v19"
-        String absolute_extract_docker = "danielrbroad/absolute_extract_and_1d_clustering_docker"
+        String absolute_docker = "phylyc/absolute:1.6"
         String ubuntu_docker = "ubuntu"
         String bcftools_docker = "staphb/bcftools:1.21"  # @sha256:176f4c7c10e57c8c3e2d26f0f105bd680e9ddff65c9e20dd4d3ebff228f17188
         String python_docker = "civisanalytics/datascience-python:8.0.1"  # @sha256:3482b19792546214a6952b369472c9d4d50d60b3a38300127ce346b7bab5fd51
@@ -587,7 +586,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime absolute = {
-        "docker": tag_cga_pipline_docker,
+        "docker": absolute_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
@@ -599,7 +598,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime absolute_extract = {
-        "docker": absolute_extract_docker,
+        "docker": absolute_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,

@@ -156,5 +156,7 @@ workflow MultiSampleSomaticWorkflow {
 
         Array[File]? absolute_acr_plots = ClonalAnalysisWorkflow.absolute_acr_plots
         Array[File]? absolute_acr_rdata = ClonalAnalysisWorkflow.absolute_acr_rdata
+#        Array[File]? absolute_tcr_plots = ClonalAnalysisWorkflow.absolute_tcr_plots
+#        Array[File]? absolute_tcr_rdata = ClonalAnalysisWorkflow.absolute_tcr_rdata
     }
 }
