@@ -8,6 +8,7 @@ import "runtimes.wdl" as rt
 task GetSampleName {
     input {
         File bam
+        File bai
 
         Runtime runtime_params
     }
@@ -38,6 +39,7 @@ task GetSampleName {
 
     parameter_meta {
         bam: {localization_optional: true}
+        bai: {localization_optional: true}
     }
 }
 
