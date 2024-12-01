@@ -192,7 +192,8 @@ workflow DefineWorkflowArguments {
             "MMQ.0 < 20", "MMQ.1 < 20",
             "MFRL.0 < 18", "MFRL.1 < 18",
             "MPOS.0 < 6",
-            "ROQ < 10"
+            "ROQ < 10",
+            "POPAF < 3.0"
         ]
         Array[String] hard_filter_names = [
             "lowDP",
@@ -200,7 +201,8 @@ workflow DefineWorkflowArguments {
             "lowMMQ.0", "lowMMQ.1",
             "lowMFRL.0", "lowMFRL.1",
             "lowMPOS",
-            "lowROQ"
+            "lowROQ",
+            "germline"
         ]
         String germline_filter_whitelist = "normal_artifact,panel_of_normals"
         String funcotator_reference_version = "hg19"
