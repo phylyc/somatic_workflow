@@ -15,6 +15,7 @@ workflow GenotypeSNPPanel {
         Array[String] sample_names
         Array[File] tumor_pileups
         Array[File]? normal_pileups
+        Array[String]? normal_sample_names
 
         File? common_germline_alleles  # SNP panel
         File? common_germline_alleles_idx
@@ -79,6 +80,7 @@ workflow GenotypeSNPPanel {
             script = genotype_variants_script,
             individual_id = individual_id,
             sample_names = sample_names,
+            normal_sample_names = normal_sample_names,
             pileups = common_germline_allele_pileups,
             contamination_tables = contamination_tables,
             segmentation_tables = segmentation_tables,

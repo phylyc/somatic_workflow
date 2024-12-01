@@ -50,6 +50,8 @@ def parse_args():
     parser.add_argument("-C", "--contamination",                type=str,   default=None,   action="append",    help="Path to the contamination estimate file (output of GATK's CalculateContamination).")
     parser.add_argument("-S", "--segments",                     type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation file (output of GATK's CalculateContamination).")
     parser.add_argument("-V", "--variant",                      type=str,   default=None,   action="append",    help="VCF file containing germline variants and population allele frequencies. (Used to get pileup summaries.)")
+    parser.add_argument("--normal_sample",                      type=str,   default=None,   action="append",    help="Assigned name of the normal sample.")
+    parser.add_argument("--normal_to_tumor_weight",             type=float, default=4.0,    help="Relative weight of normal samples to tumor samples when determining patient genotype.")
     parser.add_argument("-M", "--model",                        type=str,   default="betabinom", choices=["binom", "betabinom"], help="Genotype likelihood model.")
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
     parser.add_argument("--min_allele_frequency",               type=float, default=1e-2,   help="Minimum population allele frequency to consider a site.")
@@ -97,7 +99,7 @@ def main():
     data.pileup_likelihoods = data.get_pileup_likelihoods_parallel(genotyper=genotyper, max_processes=args.threads)
     data.validate_pileup_likelihood_allele_frequencies()
     data.sample_correlation = data.validate_sample_correlation(genotyper=genotyper)
-    data.joint_genotype_likelihood = genotyper.get_joint_genotype_likelihood(pileup_likelihoods=data.pileup_likelihoods)
+    data.joint_genotype_likelihood = genotyper.get_joint_genotype_likelihood(pileup_likelihoods=data.pileup_likelihoods, normal_samples=args.normal_sample, normal_to_tumor_weight=args.normal_to_tumor_weight)
     data.sort_genomic_positions()
     data.write_output(output_dir=args.output_dir, vcf_format=args.format, args=args)
 
@@ -684,7 +686,7 @@ class Genotyper(object):
 
         return likelihoods
 
-    def get_joint_genotype_likelihood(self, pileup_likelihoods: list[PileupLikelihood]) -> pd.DataFrame:
+    def get_joint_genotype_likelihood(self, pileup_likelihoods: list[PileupLikelihood], normal_samples: list[str] = None, normal_to_tumor_weight: float = 4.0) -> pd.DataFrame:
         """
         Calculates joint genotype likelihoods across multiple samples from the
         same individual.
@@ -695,6 +697,8 @@ class Genotyper(object):
 
         Args:
             pileup_likelihoods (list[PileupLikelihood]): List of PileupLikelihood objects from different samples.
+            normal_samples (list[str]): List of normal sample names
+            normal_to_tumor_weight (float): relative weight of normal samples to tumor samples in determining genotype
 
         Returns:
             pd.DataFrame: DataFrame with joint genotype likelihoods for each genomic position.
@@ -702,8 +706,16 @@ class Genotyper(object):
         # Calculate the joint genotype likelihoods.
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
+
+            if normal_samples is not None:
+                weights = [normal_to_tumor_weight if pl.assigned_sample_name in normal_samples else 1 for pl in pileup_likelihoods]
+                def nansum(ndarray):
+                    return np.ma.average(np.ma.MaskedArray(ndarray, mask=np.isnan(ndarray)), weights=weights)
+            else:
+                nansum = np.nansum
+
             joint_log_likelihood = {
-                gt: pd.concat([np.log(pl.df[gt]) for pl in pileup_likelihoods], axis=1).apply(np.nansum, axis=1)
+                gt: pd.concat([np.log(pl.df[gt]) for pl in pileup_likelihoods], axis=1).apply(nansum, axis=1)
                 for gt in self.genotypes
             }
         # Normalize likelihoods

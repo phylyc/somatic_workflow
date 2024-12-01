@@ -10,6 +10,7 @@ workflow GenotypeVariants {
 
         String individual_id
         Array[String] sample_names
+        Array[String]? normal_sample_names
         Array[File] pileups
         Array[File]? contamination_tables
         Array[File]? segmentation_tables
@@ -63,6 +64,7 @@ workflow GenotypeVariants {
             rare_germline_alleles = rare_germline_alleles,
             rare_germline_alleles_idx = rare_germline_alleles_idx,
             sample_names = sample_names,
+            normal_sample_names = normal_sample_names,
             pileups = pileups,
             contamination_tables = contamination_tables,
             segmentation_tables = segmentation_tables,
@@ -112,12 +114,14 @@ task GenotypeVariantsTask {
         Array[File] pileups
         Array[File]? contamination_tables
         Array[File]? segmentation_tables
+        Array[String]? normal_sample_names
         File? common_germline_alleles  # SNP panel
         File? common_germline_alleles_idx
         File? rare_germline_alleles
         File? rare_germline_alleles_idx
 
         Int min_read_depth = 10
+        Float normal_to_tumor_weight = 4.0
         Float min_genotype_likelihood = 0.90
         Int overdispersion = 50
         Float ref_bias = 1.05
@@ -157,6 +161,8 @@ task GenotypeVariantsTask {
             ~{sep="' " prefix("-P '", pileups)}' \
             ~{true="-S '" false="" defined(segmentation_tables)}~{default="" sep="' -S '" segmentation_tables}~{true="'" false="" defined(segmentation_tables)} \
             ~{true="-C '" false="" defined(contamination_tables)}~{default="" sep="' -C '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
+            ~{true="-normal_sample '" false="" defined(normal_sample_names)}~{default="" sep="' --normal_sample '" normal_sample_names}~{true="'" false="" defined(normal_sample_names)} \
+            --normal_to_tumor_weight ~{normal_to_tumor_weight} \
             --min_read_depth ~{min_read_depth} \
             --min_genotype_likelihood ~{min_genotype_likelihood} \
             --overdispersion ~{overdispersion} \

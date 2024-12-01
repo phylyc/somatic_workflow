@@ -3,6 +3,7 @@
 individual_id=$1
 samples_string=$2
 names_string=$3
+normal_sample=$4
 
 # Convert delimited strings into arrays
 IFS=',' read -r -a names <<< "$names_string"
@@ -28,6 +29,10 @@ for sample in "${samples[@]}" ; do
   segments_args="$segments_args--segments $segments_dir/$sample.segments "
   contamination_args="$contamination_args--contamination $contamination_dir/$sample.contamination "
 done
+normal_sample_arg=""
+if [ ! "$normal_sample" == "" ]; then
+  normal_sample_arg="--normal_sample $normal_sample"
+fi
 
 python -u genotype.py \
   --output_dir $output_dir \
@@ -37,6 +42,7 @@ python -u genotype.py \
   $pileup_args \
   $segments_args \
   $contamination_args \
+  $normal_sample_arg \
   --min_read_depth 10 \
   --min_genotype_likelihood 0.95 \
   --model "betabinom" \

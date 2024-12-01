@@ -149,7 +149,7 @@ workflow MultiSampleSomaticWorkflow {
         Array[File]? germline_allelic_counts = CNVWorkflow.snppanel_allelic_counts
 
         File? modeled_segments = CNVWorkflow.modeled_segments
-        Array[File]? cr_segmentations = CNVWorkflow.filtered_called_copy_ratio_segmentations
+        Array[File]? cr_segmentations = CNVWorkflow.cr_segmentations
         Array[File]? cr_plots = CNVWorkflow.cr_plots
         Array[File]? af_model_parameters = CNVWorkflow.af_model_parameters
         Array[File]? cr_model_parameters = CNVWorkflow.cr_model_parameters
