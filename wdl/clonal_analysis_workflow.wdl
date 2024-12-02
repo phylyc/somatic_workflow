@@ -24,7 +24,7 @@ workflow ClonalAnalysisWorkflow {
                         sample_name = sample.name,
                         copy_ratio_segmentation = select_first([sample.called_copy_ratio_segmentation]),
                         af_model_parameters = select_first([sample.af_model_parameters]),
-                        annotated_variants = select_first([sample.annotated_variants]),
+                        annotated_variants = sample.annotated_variants,
                         sex = patient.sex,
                         min_hets = args.absolute_min_hets,
                         min_probes = args.absolute_min_probes,

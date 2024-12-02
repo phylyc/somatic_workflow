@@ -25,7 +25,7 @@ workflow CNVWorkflow {
     # however, GenotypeSNPArray enforces this. Hence, if we want to run the
     # copy-ratio segmentation workflow, then we also need to run the contamination
     # workflow. Estimating the contamination is helpful for genotyping. Only HETs
-    # are supplied to ModelSegements, with high genotypung_homozygous_log_ratio_threshold
+    # are supplied to ModelSegements, with high genotyping_homozygous_log_ratio_threshold
     # to ensure that all loci are taken as HETs.
 
     # Prepare input for the contamination model / SNP array genotying

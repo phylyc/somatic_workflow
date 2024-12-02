@@ -8,7 +8,7 @@ workflow Absolute {
         String sample_name
         File copy_ratio_segmentation
         File af_model_parameters
-        File annotated_variants
+        File? annotated_variants
         String? sex
 
         String acs_conversion_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
@@ -32,11 +32,13 @@ workflow Absolute {
             runtime_params = runtime_collection.model_segments_to_acs_conversion
     }
 
-    call ProcessMAFforAbsolute {
-        input:
-            sample_name = sample_name,
-            maf = annotated_variants,
-            runtime_params = runtime_collection.process_maf_for_absolute
+    if (defined(annotated_variants)) {
+        call ProcessMAFforAbsolute {
+            input:
+                sample_name = sample_name,
+                maf = select_first([annotated_variants]),
+                runtime_params = runtime_collection.process_maf_for_absolute
+        }
     }
 
     call AbsoluteTask as AbsoluteACRTask {
@@ -201,8 +203,10 @@ task AbsoluteTask {
         String sample_name
         File seg_file
         Float skew
-        File snv_maf
-        File indel_maf
+        File? snv_maf
+        File? indel_maf
+        Float? purity
+        Float? ploidy
         String? sex
         String? platform
         String copy_ratio_type = "allelic"
@@ -229,8 +233,10 @@ task AbsoluteTask {
                 --results_dir ~{output_dir} \
                 --sample "~{sample_name}" \
                 --seg_dat_fn "~{seg_file}" \
-                --maf "~{snv_maf}" \
-                --indel_maf "~{indel_maf}" \
+                ~{"--maf " + snv_maf}" \
+                ~{"--indel_maf " + indel_maf}" \
+                ~{"--alpha " + purity} \
+                ~{"--tau " + ploidy} \
                 ~{"--gender  " + sex} \
                 ~{"--platform " + platform} \
                 --ssnv_skew ~{skew} \
