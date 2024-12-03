@@ -25,7 +25,6 @@ workflow ModelSegments {
                     pileup = sample.snppanel_pileups,
                     gvcf = patient.gvcf,
                     gvcf_idx = patient.gvcf_idx,
-                    min_read_depth = args.min_snppanel_read_depth,
                     select_hets = true,
                     bam_name = sample.bam_name,
                     runtime_params = runtime_collection.pileup_to_allelic_counts
@@ -167,7 +166,7 @@ task PileupToAllelicCounts {
         File? pileup
         File? gvcf
         File? gvcf_idx
-        Int min_read_depth = 10
+        Int min_read_depth = 0
         Boolean select_hets = false
 
         Runtime runtime_params
