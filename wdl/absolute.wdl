@@ -233,8 +233,8 @@ task AbsoluteTask {
                 --results_dir ~{output_dir} \
                 --sample "~{sample_name}" \
                 --seg_dat_fn "~{seg_file}" \
-                ~{"--maf " + snv_maf}" \
-                ~{"--indel_maf " + indel_maf}" \
+                ~{"--maf '" + snv_maf + "'"} \
+                ~{"--indel_maf '" + indel_maf + "'"} \
                 ~{"--alpha " + purity} \
                 ~{"--tau " + ploidy} \
                 ~{"--gender  " + sex} \
