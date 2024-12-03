@@ -161,7 +161,7 @@ task GenotypeVariantsTask {
             ~{sep="' " prefix("-P '", pileups)}' \
             ~{true="-S '" false="" defined(segmentation_tables)}~{default="" sep="' -S '" segmentation_tables}~{true="'" false="" defined(segmentation_tables)} \
             ~{true="-C '" false="" defined(contamination_tables)}~{default="" sep="' -C '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
-            ~{true="-normal_sample '" false="" defined(normal_sample_names)}~{default="" sep="' --normal_sample '" normal_sample_names}~{true="'" false="" defined(normal_sample_names)} \
+            ~{true="--normal_sample '" false="" defined(normal_sample_names)}~{default="" sep="' --normal_sample '" normal_sample_names}~{true="'" false="" defined(normal_sample_names)} \
             --normal_to_tumor_weight ~{normal_to_tumor_weight} \
             --min_read_depth ~{min_read_depth} \
             --min_genotype_likelihood ~{min_genotype_likelihood} \
