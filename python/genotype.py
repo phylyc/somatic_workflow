@@ -707,15 +707,19 @@ class Genotyper(object):
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-            if normal_samples is not None:
-                weights = [normal_to_tumor_weight if pl.assigned_sample_name in normal_samples else 1 for pl in pileup_likelihoods]
-                def nansum(ndarray):
-                    return np.ma.average(np.ma.MaskedArray(ndarray, mask=np.isnan(ndarray)), weights=weights)
-            else:
-                nansum = np.nansum
+            weights = (
+                np.array([normal_to_tumor_weight if pl.assigned_sample_name in normal_samples else 1 for pl in pileup_likelihoods])
+                if normal_samples is not None
+                else np.ones(len(pileup_likelihoods))
+            )
+
+            def nansum(ndarray):
+                # testing for NaN throws errors for some reason, so testing for 1 (log(p) must be < 0)
+                mask = ndarray != 1
+                return np.average(ndarray[mask], weights=weights[mask])
 
             joint_log_likelihood = {
-                gt: pd.concat([np.log(pl.df[gt]) for pl in pileup_likelihoods], axis=1).apply(nansum, axis=1)
+                gt: pd.concat([np.log(pl.df[gt]) for pl in pileup_likelihoods], axis=1).fillna(1).apply(nansum, axis=1)
                 for gt in self.genotypes
             }
         # Normalize likelihoods
@@ -1016,7 +1020,8 @@ class GenotypeData(object):
             print(f"p-values of Kendall-tau correlation of variant genotypes between samples:")
             print(pval.round(3).to_string())
             print()
-        if sample_correlation.lt(correlation_threshold).any().any():
+
+        if sample_correlation[pval < 0.05].lt(correlation_threshold).any().any():
             warning_message = (
                 f"\n\n"
                 f"\tGenotypes between samples are not well correlated (< {correlation_threshold})!\n"
