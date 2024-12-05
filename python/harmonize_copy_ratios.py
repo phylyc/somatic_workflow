@@ -20,7 +20,7 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "harmonize_copy_ratios.py -I <copy_ratio> [-I <copy_ratio> ...] [-S <sample> ...] [-O <output_dir>] [--suffix <suffix>] [--threads <threads>] [--compress_output] [--verbose]"
+    parser.usage = "harmonize_copy_ratios.py -I <copy_ratio> [-I <copy_ratio> ...] [-S <sample> ...] [-P <patient>] [-O <output_dir>] [-D <ref_dict>] [--normal_sample <name>] [--suffix <suffix>] [--threads <threads>] [--compress_output] [--verbose]"
     parser.add_argument("-I", "--copy_ratio",       type=str,   required=True,      action="append",        help="Path to the (denoised) copy ratio file (e.g. output of GATK's DenoiseReadCounts).")
     parser.add_argument("-S", "--sample",           type=str,                       action="append",        help="Assigned name of the sample paired to the input file. Does not have to coincide with the sample name in the file header.")
     parser.add_argument("-P", "--patient",          type=str,   default="Patient",                          help="Assigned name of the patient.")
@@ -224,8 +224,14 @@ class Harmonizer(object):
         os.makedirs(self.output_dir, exist_ok=True)
 
         def get_header(name):
+            # propagate the metadata from copy ratios as they contain bam names which may differ from assigned sample names
+            metadata = (
+                "\n".join([line for line in self.headers[name][0].split("\n") if not line.startswith("@HD") and not line.startswith("@SQ")])
+                if len(self.headers[name]) > 0
+                else ""
+            )
             return (
-                self.ref_dict + f"@RG\tID:GATKCopyNumber\tSM:{name}\n"
+                self.ref_dict + metadata
                 if self.ref_dict is not None
                 else (self.headers[name][0] if name in self.headers and len(self.headers[name]) > 0 else None)
             )

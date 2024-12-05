@@ -42,7 +42,7 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "genotype.py -O <output_dir> -V <variant> [-V <variant>] --patient <patient> --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-C <contamination> ...] [-S <segments> ...] [-M <model>] [-D <min_read_depth>] [--min_allele_frequency <freq>] [-p <min_genotype_likelihood>] [-s <overdispersion>] [-l <ref_bias>] [--min_error_rate <rate>] [--max_error_rate <rate>] [--outlier_prior <prior>] [-F <format>] [--threads <num>] [--select_hets] [--save_sample_genotype_likelihoods] [--compress_output] [--verbose]"
+    parser.usage = "genotype.py -O <output_dir> --patient <patient> --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-C <contamination> ...] [-S <segments> ...] [-V <variant> ...] [--normal_sample <name>] [--normal_to_tumor_weight <weight>] [-M <model>] [-D <min_read_depth>] [--min_allele_frequency <freq>] [-p <min_genotype_likelihood>] [-s <overdispersion>] [-l <ref_bias>] [--min_error_rate <rate>] [--max_error_rate <rate>] [--outlier_prior <prior>] [-F <format>] [--threads <num>] [--select_hets] [--save_sample_genotype_likelihoods] [--compress_output] [--verbose]"
     parser.add_argument("-O", "--output_dir",                   type=str,   required=True,  help="Path to the output directory.")
     parser.add_argument("--patient",                            type=str,   required=True,  help="Name of the patient.")
     parser.add_argument("--sample",                             type=str,   required=True,  action="append",    help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file header.")
