@@ -48,6 +48,7 @@ workflow HarmonizeSamples {
         call HarmonizeCopyRatios {
             input:
                 script = harmonize_copy_ratios_script,
+                ref_dict = ref_dict,
                 sample_names = seq_dcr_sample_names,
                 denoised_copy_ratios = seq_denoised_copy_ratios,
                 min_target_length = harmonize_min_target_length,
@@ -113,6 +114,7 @@ task HarmonizeCopyRatios {
     input {
         String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
 
+        File ref_dict
         Array[String]+ sample_names
         Array[File]+ denoised_copy_ratios
         Int min_target_length = 100
@@ -131,6 +133,7 @@ task HarmonizeCopyRatios {
         wget -O harmonize_copy_ratios.py ~{script}
         python harmonize_copy_ratios.py \
             --output_dir '~{output_dir}' \
+            --ref_dict '~{ref_dict}' \
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("--copy_ratio '", denoised_copy_ratios)}' \
             --suffix ~{suffix} \

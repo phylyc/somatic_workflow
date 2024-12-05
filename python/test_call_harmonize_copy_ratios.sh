@@ -24,6 +24,7 @@ for sample in "${samples[@]}" ; do
 done
 
 python -u harmonize_copy_ratios.py \
+  --ref_dict "$cr_dir/Homo_sapiens_assembly19.dict" \
   --output_dir $output_dir \
   $sample_args \
   $cr_args \

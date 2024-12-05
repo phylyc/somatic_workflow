@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument("-S", "--sample",           type=str,                       action="append",        help="Assigned name of the sample paired to the input file. Does not have to coincide with the sample name in the file header.")
     parser.add_argument("-P", "--patient",          type=str,   default="Patient",                          help="Assigned name of the patient.")
     parser.add_argument("-O", "--output_dir",       type=str,   default=".",                                help="Path to the output directory.")
+    parser.add_argument("-D", "--ref_dict",         type=str,                                               help="Path to the reference dictionary. This will be used as header instead of the copy_ratio input headers.")
     parser.add_argument("--normal_sample",          type=str,                                               help="Assigned name of the normal sample.")
     parser.add_argument("--suffix",                 type=str,   default=".harmonized.CR.tsv",               help="Suffix to append to each sample name to create the output file name.")
     parser.add_argument("--threads",                type=int,   default=1,                                  help="Number of threads to use for parallelization over chromosomes.")
@@ -88,6 +89,7 @@ class Harmonizer(object):
             end_col=args.end_col,
             sample_col=args.sample_col,
             comment_char=args.comment_char,
+            ref_dict_file=args.ref_dict,
             agg_col=args.agg_col,
             agg_func=args.agg_func,
             filter_germline_calls=args.filter_germline_calls,
@@ -112,6 +114,7 @@ class Harmonizer(object):
         end_col: str = "END",
         sample_col: str = "SAMPLE",
         comment_char: str = "@",
+        ref_dict_file: str = None,
         agg_col: Union[tuple[str], list[str]] = None,
         agg_func: Union[tuple[str], list[str]] = None,
         filter_germline_calls: bool = False,
@@ -119,6 +122,8 @@ class Harmonizer(object):
     ):
         self.copy_ratio_files = copy_ratio_files
         self.headers = defaultdict(list)
+        self.ref_dict_file = ref_dict_file
+        self.ref_dict = None
         self.contigs = []
         self.copy_ratios = []
         self.harmonized_copy_ratios = None
@@ -164,12 +169,20 @@ class Harmonizer(object):
             for sample_name, cr_file_path in zip(self.sample_names, self.copy_ratio_files):
                 header, df = load_file(file_path=cr_file_path, sample_name=sample_name)
                 self.headers[sample_name].append(header)
+        if self.ref_dict_file is not None:
+            self.ref_dict = self.get_header(self.ref_dict_file)
         print() if self.verbose else None
 
         self.contigs = self.get_contigs()
 
     def get_contigs(self):
         contigs = []
+        if self.ref_dict is not None:
+            contigs = [
+                h.split("\t")[1].removeprefix("SN:")
+                for h in self.ref_dict.split("\n")
+                if h.startswith(f"{self.comment_char}SQ")
+            ]
         for _, header in self.headers.items():
             contigs = [
                 h.split("\t")[1].removeprefix("SN:")
@@ -186,12 +199,16 @@ class Harmonizer(object):
             )
         return contigs
 
-    def get_header_and_df(self, file_path: str):
+    def get_header(self, file_path: str):
         open_func = gzip.open if file_path.endswith(".gz") else open
+        with open_func(file_path, "rt") as file:
+            # save all lines starting with comment_char as header
+            header = "".join([line for line in file if line.startswith(self.comment_char)])
+        return header
+
+    def get_header_and_df(self, file_path: str):
         try:
-            with open_func(file_path, "rt") as file:
-                # save all lines starting with comment_char as header
-                header = "".join([line for line in file if line.startswith(self.comment_char)])
+            header = self.get_header(file_path)
             # TODO: support hdf5
             df = pd.read_csv(file_path, sep="\t", comment=self.comment_char, header=0, names=self.column_names, low_memory=False)
             if self.column_types:
@@ -205,12 +222,15 @@ class Harmonizer(object):
 
     def write_output_files(self):
         os.makedirs(self.output_dir, exist_ok=True)
-        if self.sample_names is None:
-            header = (
-                self.headers[self.patient][0]
-                if self.patient in self.headers and len(self.headers[self.patient]) > 0
-                else None
+
+        def get_header(name):
+            return (
+                self.ref_dict + f"@RG\tID:GATKCopyNumber\tSM:{name}\n"
+                if self.ref_dict is not None
+                else (self.headers[name][0] if name in self.headers and len(self.headers[name]) > 0 else None)
             )
+
+        if self.sample_names is None:
             if self.harmonized_copy_ratios.empty:
                 df = self.harmonized_copy_ratios
             else:
@@ -221,20 +241,19 @@ class Harmonizer(object):
                 sort_by = [self.sample_col, self.contig_col, self.start_col, self.end_col]
                 df = df.reindex(self.sort_genomic_positions(index=df.index, by=sort_by)).reset_index()
             self.write_header_and_df(
-                header=header,
+                header=get_header(self.patient),
                 df=df,
                 file_path=f"{self.output_dir}/{self.patient}{self.suffix}" + (".gz" if self.compress_output else ""),
             )
         else:
             for sample_name in np.unique(self.sample_names):
-                header = self.headers[sample_name][0] if len(self.headers[sample_name]) > 0 else None
                 df = (
                     self.harmonized_copy_ratios[sample_name].reset_index()
                     if not self.harmonized_copy_ratios.empty
                     else pd.DataFrame(columns=self.column_names)
                 )
                 self.write_header_and_df(
-                    header=header,
+                    header=get_header(sample_name),
                     df=df,
                     file_path=f"{self.output_dir}/{sample_name}{self.suffix}" + (".gz" if self.compress_output else ""),
                 )
