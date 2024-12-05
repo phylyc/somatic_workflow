@@ -77,6 +77,7 @@ workflow ModelSegments {
                 prefix = patient.name + ".segmentation",
                 window_sizes = args.model_segments_window_sizes,
                 genotyping_homozygous_log_ratio_threshold = 10,
+                minimum_total_allele_count_normal = 0,  # all supplied loci are hets
                 runtime_params = runtime_collection.model_segments
         }
     }
@@ -101,6 +102,7 @@ workflow ModelSegments {
                 prefix = sample.name,
                 window_sizes = args.model_segments_window_sizes,
                 genotyping_homozygous_log_ratio_threshold = 10,
+                minimum_total_allele_count_normal = 0,  # all supplied loci are hets
                 runtime_params = runtime_collection.model_segments
         }
 
@@ -242,6 +244,7 @@ task ModelSegmentsTask {
 
         Float genotyping_base_error_rate = 0.05
         Float genotyping_homozygous_log_ratio_threshold = -10.0
+        Int minimum_total_allele_count_normal = 30
         Array[Int] window_sizes = [8, 16, 32, 64, 128, 256]
 
         Runtime runtime_params
@@ -263,6 +266,7 @@ task ModelSegmentsTask {
             ~{"--output-prefix '" + prefix + "'"} \
             --genotyping-base-error-rate ~{genotyping_base_error_rate} \
             --genotyping-homozygous-log-ratio-threshold ~{genotyping_homozygous_log_ratio_threshold} \
+            --minimum-total-allele-count-normal ~{minimum_total_allele_count_normal} \
             ~{sep=" " prefix("--window-size ", window_sizes)} \
             --output ~{output_dir}
     >>>
