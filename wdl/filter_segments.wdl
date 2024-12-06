@@ -159,7 +159,7 @@ task RecountMarkers {
         Runtime runtime_params
     }
 
-    File output_seg = basename(cr_seg)
+    String output_seg = basename(cr_seg)
 
     command <<<
         grep "^@" '~{cr_seg}' > '~{output_seg}'
