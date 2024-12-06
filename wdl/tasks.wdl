@@ -641,50 +641,41 @@ task MergeMAFs {
     }
 }
 
-task MergeBams {
+task PrintReads {
     input {
-        File ref_fasta
-        File ref_fasta_index
-        File ref_dict
-        Array[File]+ bams
-        Array[File]+ bais
-        String merged_bam_name
+        File? ref_fasta
+        File? ref_fasta_index
+        File? ref_dict
+
+        String patient_name
+        Array[File] bams
+        Array[File] bais
+        File? interval_list
+        File? vcf
+        File? vcf_idx
 
         Runtime runtime_params
     }
 
-    Int disk_spaceGB = 4 * ceil(size(bams, "GB")) + runtime_params.disk
-    String output_bam_name = merged_bam_name + ".bam"
-    String output_bai_name = merged_bam_name + ".bai"
+    String output_file = patient_name + ".somatic.bam"
+    String output_index = patient_name + ".somatic.bai"
 
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-            GatherBamFiles \
+            PrintReads \
             ~{sep="' " prefix("-I '", bams)}' \
-            -O unsorted.out.bam \
-            -R '~{ref_fasta}'
-
-        # We must sort because adjacent scatters may have overlapping (padded) assembly
-        # regions, hence overlapping bamouts
-
-        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-            SortSam \
-            -I unsorted.out.bam \
-            -O '~{output_bam_name}' \
-            --SORT_ORDER coordinate \
-            --VALIDATION_STRINGENCY LENIENT
-
-        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-            BuildBamIndex \
-            -I '~{output_bam_name}' \
-            --VALIDATION_STRINGENCY LENIENT
+            ~{sep="' " prefix("--read_index '", bais)}' \
+            -O '~{output_file}' \
+            ~{"-R '" + ref_fasta + "'"} \
+            ~{"-L '" + interval_list + "'"} \
+            ~{"-L '" + vcf + "'"}
     >>>
 
     output {
-        File merged_bam = output_bam_name
-        File merged_bai = output_bai_name
+        File output_bam = output_file
+        File output_bai = output_index
     }
 
     runtime {
@@ -692,7 +683,7 @@ task MergeBams {
         bootDiskSizeGb: runtime_params.boot_disk_size
         memory: runtime_params.machine_mem + " MB"
         runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + disk_spaceGB + " HDD"
+        disks: "local-disk " + runtime_params.disk + " HDD"
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
@@ -702,6 +693,8 @@ task MergeBams {
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
         ref_dict: {localization_optional: true}
-        # bams: {localization_optional: true}  # samtools requires localization
+        interval_list: {localization_optional: true}
+        vcf: {localization_optional: true}
+        vcf_idx: {localization_optional: true}
     }
 }

@@ -60,6 +60,8 @@ workflow MultiSampleSomaticWorkflow {
             scatter_count = scatter_count,
     }
 
+    # todo: allocate enough disk space for Mutect2 to store output bams
+
     call wfres.DefineWorkflowResources as Files
 
     call wfargs.DefineWorkflowArguments as Parameters {
@@ -124,8 +126,8 @@ workflow MultiSampleSomaticWorkflow {
         File? unfiltered_vcf = SNVWorkflow.unfiltered_vcf
         File? unfiltered_vcf_idx = SNVWorkflow.unfiltered_vcf_idx
         File? mutect_stats = SNVWorkflow.mutect_stats
-        File? locally_realigned_bam = SNVWorkflow.locally_realigned_bam
-        File? locally_realigned_bai = SNVWorkflow.locally_realigned_bai
+        File? somatic_calls_bam = SNVWorkflow.somatic_calls_bam
+        File? somatic_calls_bai = SNVWorkflow.somatic_calls_bai
         File? orientation_bias = SNVWorkflow.orientation_bias
         File? filtered_vcf = SNVWorkflow.filtered_vcf
         File? filtered_vcf_idx = SNVWorkflow.filtered_vcf_idx

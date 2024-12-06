@@ -40,6 +40,22 @@ workflow SNVWorkflow {
                     runtime_collection = runtime_collection,
             }
 
+            # subset CallVariants.bam to reads covering the FilteredVariants.somatic_vcf only
+            if (length(CallVariants.bams) > 0) {
+                call tasks.PrintReads as SomaticBam {
+                    input:
+                        ref_fasta = args.files.ref_fasta,
+                        ref_fasta_index = args.files.ref_fasta_index,
+                        ref_dict = args.files.ref_dict,
+                        patient_name = patient.name,
+                        bams = select_all(CallVariants.bams),
+                        bais = select_all(CallVariants.bais),
+                        vcf = FilterVariants.somatic_vcf,
+                        vcf_idx = FilterVariants.somatic_vcf_idx,
+                        runtime_params = runtime_collection.print_reads
+                }
+            }
+
             if (args.keep_germline && defined(FilterVariants.germline_vcf)) {
                 # Collect allelic pileups for all putative germline sites that were
                 # not yet collected via the coverage workflow, then merge them.
@@ -197,8 +213,8 @@ workflow SNVWorkflow {
         File? unfiltered_vcf = CallVariants.vcf
         File? unfiltered_vcf_idx = CallVariants.vcf_idx
         File? mutect_stats = CallVariants.mutect_stats
-        File? locally_realigned_bam = CallVariants.bam
-        File? locally_realigned_bai = CallVariants.bai
+        File? somatic_calls_bam = SomaticBam.output_bam
+        File? somatic_calls_bai = SomaticBam.output_bai
 
         File? orientation_bias = CallVariants.orientation_bias
         File? filtered_vcf = FilterVariants.filtered_vcf

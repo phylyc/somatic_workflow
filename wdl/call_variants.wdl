@@ -111,19 +111,6 @@ workflow CallVariants {
             runtime_params = runtime_collection.merge_vcfs
     }
 
-    if (args.make_bamout) {
-        call tasks.MergeBams {
-            input:
-                ref_fasta = args.files.ref_fasta,
-                ref_fasta_index = args.files.ref_fasta_index,
-                ref_dict = args.files.ref_dict,
-                bams = select_all(Mutect2.bam),
-                bais = select_all(Mutect2.bai),
-                merged_bam_name = patient.name + ".Mutect2.out",
-                runtime_params = runtime_collection.merge_bams
-        }
-    }
-
     call MergeMutectStats {
         input:
             stats = Mutect2.vcf_stats,
@@ -144,8 +131,8 @@ workflow CallVariants {
         File vcf = MergeVCFs.merged_vcf
         File vcf_idx = MergeVCFs.merged_vcf_idx
         File mutect_stats = MergeMutectStats.merged_stats
-        File? bam = MergeBams.merged_bam
-        File? bai = MergeBams.merged_bai
+        Array[File?] bams = select_all(Mutect2.bam)
+        Array[File?] bais = select_all(Mutect2.bai)
         File? orientation_bias = LearnReadOrientationModel.orientation_bias
     }
 }
@@ -199,23 +186,6 @@ task Mutect2 {
         Boolean make_bamout = false
 
         Runtime runtime_params
-    }
-
-    parameter_meta {
-        interval_list: {localization_optional: true}
-        ref_fasta: {localization_optional: true}
-        ref_fasta_index: {localization_optional: true}
-        ref_dict: {localization_optional: true}
-        tumor_bams: {localization_optional: true}
-        tumor_bais: {localization_optional: true}
-        normal_bams: {localization_optional: true}
-        normal_bais: {localization_optional: true}
-        force_call_alleles: {localization_optional: true}
-        force_call_alleles_idx: {localization_optional: true}
-        panel_of_normals: {localization_optional: true}
-        panel_of_normals_idx: {localization_optional: true}
-        germline_resource: {localization_optional: true}
-        germline_resource_idx: {localization_optional: true}
     }
 
     Boolean normal_is_present = defined(normal_bams) && (length(select_first([normal_bams])) > 0)
@@ -321,6 +291,23 @@ task Mutect2 {
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        interval_list: {localization_optional: true}
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
+        tumor_bams: {localization_optional: true}
+        tumor_bais: {localization_optional: true}
+        normal_bams: {localization_optional: true}
+        normal_bais: {localization_optional: true}
+        force_call_alleles: {localization_optional: true}
+        force_call_alleles_idx: {localization_optional: true}
+        panel_of_normals: {localization_optional: true}
+        panel_of_normals_idx: {localization_optional: true}
+        germline_resource: {localization_optional: true}
+        germline_resource_idx: {localization_optional: true}
     }
 }
 
