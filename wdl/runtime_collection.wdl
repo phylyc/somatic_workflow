@@ -26,6 +26,7 @@ struct RuntimeCollection {
     Runtime merge_calls_with_modeled_segments
     Runtime plot_modeled_segments
     Runtime filter_germline_cnvs
+    Runtime recount_markers
     Runtime model_segments_to_acs_conversion
     Runtime process_maf_for_absolute
     Runtime absolute
@@ -35,7 +36,7 @@ struct RuntimeCollection {
     Runtime merge_vcfs
     Runtime merge_mafs
     Runtime merge_mutect_stats
-    Runtime merge_bams
+    Runtime print_reads
     Runtime filter_mutect_calls
     Runtime variant_filtration
     Runtime left_align_and_trim_variants
@@ -177,6 +178,10 @@ workflow DefineRuntimeCollection {
         Int mem_filter_germline_cnvs = 2048
         Int time_filter_germline_cnvs = 10
 
+        # custom recount marker script
+        Int mem_recount_markers = 2048
+        Int time_recount_markers = 10
+
         #######################################################################
         ### SNV workflow
         #######################################################################
@@ -190,7 +195,7 @@ workflow DefineRuntimeCollection {
         Int time_mutect2_total = 10000  # 6 d / scatter_count
         Int preemptible_mutect2 = 1
         Int max_retries_mutect2 = 2
-        Int disk_mutect2 = 0
+        Int disk_mutect2 = 0  # needs to be empirically adjusted to usecase if make_bamout = true
 
         # gatk: MergeVCFs
         Int mem_merge_vcfs = 2048
@@ -204,9 +209,9 @@ workflow DefineRuntimeCollection {
         Int mem_merge_mutect_stats = 512 # 64
         Int time_merge_mutect_stats = 1
 
-        # gatk: MergeBams
-        Int mem_merge_bams = 8192  # wants at least 6G
-        Int time_merge_bams = 60
+        # gatk: PrintReads
+        Int mem_print_reads = 8192
+        Int time_print_reads = 60
 
         # gatk: LearnReadOrientationModel
         Int mem_learn_read_orientation_model_base = 8192
@@ -561,6 +566,18 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime recount_markers = {
+        "docker": python_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_recount_markers + mem_machine_overhead,
+        "command_mem": mem_recount_markers,
+        "runtime_minutes": time_startup + time_recount_markers,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Runtime model_segments_to_acs_conversion = {
         "docker": python_docker,
         "preemptible": preemptible,
@@ -675,15 +692,15 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime merge_bams = {
+    Runtime print_reads = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_merge_bams + mem_machine_overhead,
-        "command_mem": mem_merge_bams,
-        "runtime_minutes": time_startup + time_merge_bams,
+        "machine_mem": mem_print_reads + mem_machine_overhead,
+        "command_mem": mem_print_reads,
+        "runtime_minutes": time_startup + time_print_reads,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -841,6 +858,7 @@ workflow DefineRuntimeCollection {
         "merge_calls_with_modeled_segments": merge_calls_with_modeled_segments,
         "plot_modeled_segments": plot_modeled_segments,
         "filter_germline_cnvs": filter_germline_cnvs,
+        "recount_markers": recount_markers,
 
         "model_segments_to_acs_conversion": model_segments_to_acs_conversion,
         "process_maf_for_absolute": process_maf_for_absolute,
@@ -852,7 +870,7 @@ workflow DefineRuntimeCollection {
         "merge_vcfs": merge_vcfs,
         "merge_mafs": merge_mafs,
         "merge_mutect_stats": merge_mutect_stats,
-        "merge_bams": merge_bams,
+        "print_reads": print_reads,
         "filter_mutect_calls": filter_mutect_calls,
         "variant_filtration": variant_filtration,
         "left_align_and_trim_variants": left_align_and_trim_variants,

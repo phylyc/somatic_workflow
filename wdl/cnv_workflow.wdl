@@ -96,20 +96,18 @@ workflow CNVWorkflow {
                 runtime_collection = runtime_collection,
         }
 
-        # todo: fix germline filter
-#        call fs.FilterSegments {
-#            input:
-#                patient = ModelSegments.updated_patient,
-#                args = args,
-#                runtime_collection = runtime_collection,
-#        }
+        call fs.FilterSegments {
+            input:
+                patient = ModelSegments.updated_patient,
+                args = args,
+                runtime_collection = runtime_collection,
+        }
     }
 
     # todo: FuncotateSegments
 
     output {
-        Patient updated_patient = select_first([ModelSegments.updated_patient, AddGVCFtoPatient.updated_patient, patient])
-#        Patient updated_patient = select_first([FilterSegments.updated_patient, ModelSegments.updated_patient, AddGVCFtoPatient.updated_patient, patient])
+        Patient updated_patient = select_first([FilterSegments.updated_patient, ModelSegments.updated_patient, AddGVCFtoPatient.updated_patient, patient])
 
         File? snppanel_genotyped_vcf = GenotypeSNPPanel.genotyped_vcf
         File? snppanel_genotyped_vcf_idx = GenotypeSNPPanel.genotyped_vcf_idx
@@ -125,8 +123,7 @@ workflow CNVWorkflow {
         Array[File]? snppanel_allelic_counts = ModelSegments.snppanel_allelic_counts
 
         File? modeled_segments = ModelSegments.modeled_segments
-        Array[File]? cr_segmentations = ModelSegments.called_copy_ratio_segmentations
-#        Array[File]? cr_segmentations = FilterSegments.filtered_called_copy_ratio_segmentations
+        Array[File]? cr_segmentations = FilterSegments.filtered_called_copy_ratio_segmentations
         Array[File]? cr_plots = ModelSegments.cr_plots
         Array[File]? af_model_parameters = ModelSegments.af_model_final_parameters
         Array[File]? cr_model_parameters = ModelSegments.cr_model_final_parameters

@@ -42,20 +42,26 @@ workflow FilterSegments {
                     File this_cr = fccr
                 }
             }
-            Array[File] this_sample_cr = select_all(this_cr)
+
+            call RecountMarkers {
+                input:
+                    cr_seg = select_first(select_all(this_cr)),
+                    markers = sample.denoised_copy_ratios,
+                    hets = sample.snppanel_allelic_counts,
+                    runtime_params = runtime_collection.recount_markers
+            }
         }
-        Array[File] sorted_filtered_copy_ratios = flatten(this_sample_cr)
 
         call p_update_s.UpdateSamples as UpdateSegmentations {
             input:
                 patient = patient,
-                called_copy_ratio_segmentations = sorted_filtered_copy_ratios
+                called_copy_ratio_segmentations = RecountMarkers.updated_cr_seg
         }
     }
 
     output {
         Patient updated_patient = select_first([UpdateSegmentations.updated_patient, patient])
-        Array[File]? filtered_called_copy_ratio_segmentations = sorted_filtered_copy_ratios
+        Array[File]? filtered_called_copy_ratio_segmentations = RecountMarkers.updated_cr_seg
     }
 }
 
@@ -130,6 +136,78 @@ task FilterGermlineCNVs {
 
     output {
         Array[File] filtered_called_copy_ratio = glob(output_dir + "/*" + suffix)
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+}
+
+task RecountMarkers {
+    input {
+        File cr_seg
+        File? markers
+        File? hets
+
+        Runtime runtime_params
+    }
+
+    File output_seg = basename(cr_seg)
+
+    command <<<
+        grep "^@" '~{cr_seg}' > '~{output_seg}'
+
+        python <<EOF
+import pandas as pd
+
+segs = pd.read_csv('~{cr_seg}', sep='\t', comment='@', low_memory=False).astype({"CONTIG": str, "START": int, "END": int})
+markers = (
+    pd.read_csv('~{markers}', sep='\t', comment='@', low_memory=False).astype({"CONTIG": str, "START": int, "END": int})
+    if "~{defined(markers)}" == "true"
+    else None
+)
+hets = (
+    pd.read_csv('~{hets}', sep='\t', comment='@', low_memory=False).astype({"CONTIG": str, "POSITION": int})
+    if "~{defined(hets)}" == "true"
+    else None
+)
+
+if not segs.empty:
+    s = []
+    for contig, group in segs.groupby("CONTIG"):
+        if markers is not None:
+            contig_markers = markers.loc[markers["CONTIG"] == contig]
+            group["NUM_POINTS_COPY_RATIO"] = group.apply(
+                lambda row: (
+                    (row["START"] <= contig_markers["START"])
+                    & (contig_markers["START"] <= row["END"])
+                ).sum(),
+                axis=1,
+            )
+        if hets is not None:
+            contig_hets = hets.loc[hets["CONTIG"] == contig]
+            group["NUM_POINTS_ALLELE_FRACTION"] = group.apply(
+                lambda row: (
+                    (row["START"] <= contig_hets["POSITION"])
+                    & (contig_hets["POSITION"] <= row["END"])
+                ).sum(),
+                axis=1,
+            )
+        s.append(group)
+    segs = pd.concat(s)
+    segs.to_csv('~{output_seg}', sep='\t', index=False, mode='a')
+EOF
+    >>>
+
+    output {
+        File updated_cr_seg = output_seg
     }
 
     runtime {
