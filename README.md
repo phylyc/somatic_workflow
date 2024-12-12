@@ -1,6 +1,6 @@
 # Somatic Workflow for Variant Discovery with GATK4
 
-This repository contains a WDL (Workflow Description Language) workflow for performing multi-sample somatic variant calling using GATK4. The workflow covers preprocessing, copy number variation (CNV) calling, single nucleotide variant (SNV) calling, and clonal analysis. It is available on [Dockstore](https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/MultiSampleSomaticWorkflow:master) to import into e.g. a [Terra](https://app.terra.bio/) workspace. Alternatively, clone this repository and run the workflow locally using [Cromwell](https://cromwell.readthedocs.io/en/stable/):
+This repository contains a WDL (Workflow Description Language) workflow for performing multi-sample somatic variant calling using GATK4. The workflow covers preprocessing, single nucleotide variant (SNV) calling, copy number variation (CNV) calling, and clonal analysis. It is available on [Dockstore](https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/MultiSampleSomaticWorkflow:master) to import into e.g. a [Terra](https://app.terra.bio/) workspace. Alternatively, clone this repository and run the workflow locally using [Cromwell](https://cromwell.readthedocs.io/en/stable/):
 ```bash
 java -jar cromwell.jar run mult-sample_somatic_workflow.wdl --inputs mult-sample_somatic_workflow.inputs.json
 ```
@@ -13,28 +13,32 @@ The workflow is organized into the following main tasks:
 - **1.1 Define Patients**: Define a patient as a set of samples, and each sample as a set of sequencing runs. Sequencing runs are grouped by sample name.
 - **1.2 Preprocess and Split Calling Intervals**: Prepare the intervals for scatter-gather tasks for variant calling, realignment, and annotation.
 
-### 2. CNV Calling
-Tasks involved in the detection and analysis of copy number variations:
+### 2. Coverage Aggregation
 - **2.1 Read Count Collection**: Collect read counts in target intervals and perform denoising of total copy ratios per target interval.
 - **2.2 Allelic Count Collection**: Collect allelic counts at common germline sites (SNP panel).
 - **2.3 Harmonization of Target Intervals**: Ensure consistency of target intervals across samples, removing intervals not present in all samples; merge data from multiple sequencing runs per sample.
-- **2.4 Genotyping and Contamination Estimation**: Genotype allelic count data at common germline sites, harmonize allelic loci across samples, and estimate out-of-patient contamination in each sample.
-- **2.5 Multi-sample Segmentation**: Segment denoised copy ratios and allelic counts across multiple samples.
-- **2.6 Per-sample Copy Ratio Inference**: Infer copy ratios for each sample.
-- **2.7 Per-sample Event Calling**: Call amplifications and deletions for each sample. 
-- **2.8 Per-sample Germline Filtering**: Filter segments called as amp/del in the matched normal sample from the tumor segmentations.
-- **2.9 Per-sample Segmentation Plotting**: Plot the segmented denoised copy ratios and allelic copy ratios for each sample.
+- **2.4 Contamination Estimation**: Estimate out-of-patient contamination in each sample.
 
 ### 3. SNV Calling
 Tasks involved in the detection and analysis of short nucleotide variations:
 - **3.1 Mutect2 Multi-sample Calling**: Use Mutect2 for multi-sample mutation calling.
 - **3.2 Filter Mutect2 Calls**: Apply filters for germline variants, read orientation bias, and contamination (from CNV workflow), among others.
-- **3.3 Hard Filtering**: Apply hard filters based on base quality, mappability, fragment length, read depth, read orientation quality, and position on the read.
+- **3.3 Hard Filtering**: Apply hard filters based on base quality, mappability, fragment length, read depth, read orientation quality, position on the read, and population allele frequency.
 - **3.4 Realignment Filter**: Filter based on realignment success (to hg38 or whichever reference is given by `realignment_bwa_mem_index_image`).
 - **3.5 Annotate SNVs**: Annotate short nucleotide variants with functional information.
 
-### 4. Clonal Analysis
-- **4.1 ABSOLUTE**: Perform per-sample clonal analysis of the identified variants.
+### 4. CNV Calling
+Tasks involved in the detection and analysis of copy number variations:
+- **4.1 Contamination Estimation**: Estimate out-of-patient contamination in each sample (again).
+- **4.2 Genotyping**: Genotype allelic count data at common and rare germline sites, harmonize allelic loci across samples.
+- **4.3 Multi-sample Segmentation**: Segment denoised copy ratios and allelic counts across multiple samples.
+- **4.4 Per-sample Copy Ratio Inference**: Infer copy ratios for each sample.
+- **4.5 Per-sample Event Calling**: Call amplifications and deletions for each sample. 
+- **4.6 Per-sample Germline Filtering**: Filter segments called as amp/del in the matched normal sample from the tumor segmentations.
+- **4.7 Per-sample Segmentation Plotting**: Plot the segmented denoised copy ratios and allelic copy ratios for each sample.
+
+### 5. Clonal Analysis
+- **5.1 ABSOLUTE**: Perform per-sample clonal analysis of the identified variants.
 
 Please remember to always review the intermediate results to ensure that the final results are as expected. Inappropriate filtering or parameter settings can lead to misleading output.
 
@@ -117,74 +121,68 @@ File? funcotator_data_sources_tar_gz
 
 ## Expected Outputs
 ```wdl
+# Read counts in supplied target intervals for each sequencing run (!)
+Array[File?]? target_read_counts = CoverageWorkflow.target_read_counts
+# Harmonized denoised copy ratios for each sample
+Array[File?]? denoised_copy_ratios = CoverageWorkflow.denoised_copy_ratios
+Array[File?]? covered_regions_interval_list = CoverageWorkflow.covered_regions_interval_list
+
+# Mutect2 output of called variants
+File? unfiltered_vcf
+File? unfiltered_vcf_idx
+File? mutect_stats
+# locally realigned multi-sample bam containing read covering the somatic calls
+File? somatic_calls_bam
+File? somatic_calls_bai
+# Learned read orientation bias for filtering FFPE or OxOG artifacts
+File? orientation_bias
+# unfiltered_vcf with filter classification into artifact vs somatic (vs germline)
+File? filtered_vcf
+File? filtered_vcf_idx
+File? filtering_stats
+# somatic variants only
+File? somatic_vcf
+File? somatic_vcf_idx
+# MAF with functional annotations from Funcotator 
+Array[File]? annotated_variants
+Array[File?]? annotated_variants_idx
+# allelic pileups at loci of somatic calls
+Array[File?]? somatic_allelic_counts
+
 # VCF file with genotype information for sites of the SNP panel (common germline alleles)
-File? genotyped_snparray_vcf
-File? genotyped_snparray_vcf_idx
+File? germline_vcf
+File? germline_vcf_idx
 # Count matrices of allelic counts at sites of the SNP panel (can be used for AllelicCapSeg)
-File? snparray_ref_counts
-File? snparray_alt_counts
-File? snparray_other_alt_counts
+File? germline_ref_counts
+File? germline_alt_counts
+File? germline_other_alt_counts
 # Sample cross-correlation table of variant genotypes. Low correlation indicates
-# high contamination or sample swaps.
-File? sample_snp_correlation
+File? germline_sample_correlation
 # Pileup tables at sites of the SNP panel with genotype likelihoods
-Array[File]? sample_snparray_genotype_likelihoods
-# Pileup tables at sites of the SNP panel
-Array[File]? snparray_pileups
-# Allelic count format of pileup tables at sites of the SNP panel
-Array[File]? snparray_allelic_counts
+Array[File]? germline_sample_genotype_likelihoods
 # Contamination estimates for each sample
 Array[File]? contamination_tables
 # Coarse allelic copy ratio segmentations for each sample
 Array[File]? segmentation_tables
-# Read counts in supplied target intervals for each sequencing run (!)
-Array[File?]? target_read_counts
-# Harmonized denoised copy ratios for each sample
-Array[File?]? denoised_copy_ratios
+# Pileup tables at sites of the SNP panel
+Array[File]? germline_pileups
+# Allelic count format of pileup tables at sites of the SNP panel
+Array[File]? germline_allelic_counts
 
 # Multi-sample segmentation intervals
 File? modeled_segments
-# Denoised copy ratio and allelic copy ratio segmentations per sample
-Array[File]? cr_segments
-# -0+ called segments
-Array[File]? called_cr_segments
+# Denoised copy ratio and allelic copy ratio segmentations per sample (called + germline-filtered)
+Array[File]? cr_segmentations
 # Denoised copy ratio and allelic copy ratio segmentation model plots
 Array[File]? cr_plots
 # Model parameters from GATK's ModelSegments 
 Array[File]? af_model_parameters
 Array[File]? cr_model_parameters
 
-# Mutect2 output of called variants
-File? unfiltered_vcf
-File? unfiltered_vcf_idx
-File? mutect_stats
-File? locally_realigned_bam
-File? locally_realigned_bai
-# Learned read orientation bias for filtering FFPE or OxOG artifacts
-File? orientation_bias
-# filtered output of called variants (+realignment & hard filters)
-File? filtered_vcf
-File? filtered_vcf_idx
-# Filtered somatic variants
-File? somatic_vcf
-File? somatic_vcf_idx
-# Filtered germline variants (if keep_germline=true)
-File? germline_vcf
-File? germline_vcf_idx
-File? filtering_stats
-# Pileup tables of allelic counts at called somatic sites
-Array[File?]? called_somatic_allelic_counts
-# Pileup tables of allelic counts at called germline sites
-Array[File?]? called_germline_allelic_counts
-# Functionally annotated variants (Funcotator) in MAF or VCF format per sample
-Array[File]? annotated_variants
-# Its index if in VCF format.
-Array[File?]? annotated_variants_idx
-
 # ABSOLUTE output files per sample. Since ABSOLUTE provides many solutions, further 
 # review of this output is necessary.
-Array[File]? absolute_plots
-Array[File]? absolute_rdata
+Array[File]? absolute_acr_plots
+Array[File]? absolute_acr_rdata
 ```
 
 ## Important Notes :
@@ -197,5 +195,5 @@ Array[File]? absolute_rdata
 - Access necessary reference and resources bundles via the [GATK Resource Bundle](https://gatk.broadinstitute.org/hc/en-us/articles/360036212652).
 
 ## Software version requirements :
-- **GATK**: Version 4.6.0.0. 
+- **GATK**: Version 4.6.1.0. 
 - **Cromwell**: Tested successfully on version 86.
