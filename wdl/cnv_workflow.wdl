@@ -96,12 +96,16 @@ workflow CNVWorkflow {
                 runtime_collection = runtime_collection,
         }
 
-        call fs.FilterSegments {
-            input:
-                patient = ModelSegments.updated_patient,
-                args = args,
-                runtime_collection = runtime_collection,
+        if (args.run_filter_segments) {
+            call fs.FilterSegments {
+                input:
+                    patient = ModelSegments.updated_patient,
+                    args = args,
+                    runtime_collection = runtime_collection,
+            }
         }
+
+        Array[File] segmentations = select_first([FilterSegments.filtered_called_copy_ratio_segmentations, ModelSegments.called_copy_ratio_segmentations])
     }
 
     # todo: FuncotateSegments
@@ -123,7 +127,7 @@ workflow CNVWorkflow {
         Array[File]? snppanel_allelic_counts = ModelSegments.snppanel_allelic_counts
 
         File? modeled_segments = ModelSegments.modeled_segments
-        Array[File]? cr_segmentations = FilterSegments.filtered_called_copy_ratio_segmentations
+        Array[File]? cr_segmentations = segmentations
         Array[File]? cr_plots = ModelSegments.cr_plots
         Array[File]? af_model_parameters = ModelSegments.af_model_final_parameters
         Array[File]? cr_model_parameters = ModelSegments.cr_model_final_parameters
