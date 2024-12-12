@@ -75,7 +75,7 @@ def convert_model_segments_to_alleliccapseg(args):
     ]
 
     def simple_determine_allelic_fraction(model_segments_seg_pd):
-        result = model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_50']
+        result = model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_50'].copy()
         result.loc[model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_90'] > args.maf90_threshold] = 0.5
         return result
 
