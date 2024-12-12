@@ -16,7 +16,7 @@ workflow ClonalAnalysisWorkflow {
     }
 
     if (args.run_clonal_decomposition) {
-        scatter (sample in patient.tumor_samples) {
+        scatter (sample in patient.samples) {
             if (defined(sample.called_copy_ratio_segmentation) && defined(sample.af_model_parameters)) {
                 call abs.Absolute {
                     input:
