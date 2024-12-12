@@ -73,11 +73,9 @@ workflow ModelSegments {
             input:
                 denoised_copy_ratios = dcr,
                 allelic_counts = ac,
-                normal_allelic_counts = normal_allelic_counts,
                 prefix = patient.name + ".segmentation",
                 window_sizes = args.model_segments_window_sizes,
                 genotyping_homozygous_log_ratio_threshold = 10,
-                minimum_total_allele_count_normal = 0,  # all supplied loci are hets
                 runtime_params = runtime_collection.model_segments
         }
     }
@@ -97,12 +95,12 @@ workflow ModelSegments {
                 segments = MultiSampleModelSegments.multi_sample_segments,
                 denoised_copy_ratios = dcr_list,
                 allelic_counts = ac_list,
-                normal_allelic_counts = normal_allelic_counts,
-                genotyping_base_error_rate = error_probability,
                 prefix = sample.name,
                 window_sizes = args.model_segments_window_sizes,
+                minimum_total_allele_count_case = args.min_snppanel_read_depth,
                 genotyping_homozygous_log_ratio_threshold = 10,
-                minimum_total_allele_count_normal = 0,  # all supplied loci are hets
+                genotyping_base_error_rate = error_probability,
+                smoothing_credible_interval_threshold = args.model_segments_smoothing_credible_interval_threshold,
                 runtime_params = runtime_collection.model_segments
         }
 
@@ -244,8 +242,12 @@ task ModelSegmentsTask {
 
         Float genotyping_base_error_rate = 0.05
         Float genotyping_homozygous_log_ratio_threshold = -10.0
+        Int minimum_total_allele_count_case = 0
         Int minimum_total_allele_count_normal = 30
         Array[Int] window_sizes = [8, 16, 32, 64, 128, 256]
+        Int number_of_burnin_samples = 100
+        Int number_of_mcmc_samples = 200
+        Float smoothing_credible_interval_threshold = 2.0
 
         Runtime runtime_params
     }
@@ -266,8 +268,15 @@ task ModelSegmentsTask {
             ~{"--output-prefix '" + prefix + "'"} \
             --genotyping-base-error-rate ~{genotyping_base_error_rate} \
             --genotyping-homozygous-log-ratio-threshold ~{genotyping_homozygous_log_ratio_threshold} \
+            --minimum-total-allele-count-case ~{minimum_total_allele_count_case} \
             --minimum-total-allele-count-normal ~{minimum_total_allele_count_normal} \
             ~{sep=" " prefix("--window-size ", window_sizes)} \
+            --number-of-samples-allele-fraction ~{number_of_mcmc_samples} \
+            --number-of-samples-copy-ratio ~{number_of_mcmc_samples} \
+            --number-of-burn-in-samples-allele-fraction ~{number_of_burnin_samples} \
+            --number-of-burn-in-samples-copy-ratio ~{number_of_burnin_samples} \
+            --smoothing-credible-interval-threshold-allele-fraction ~{smoothing_credible_interval_threshold} \
+            --smoothing-credible-interval-threshold-copy-ratio ~{smoothing_credible_interval_threshold} \
             --output ~{output_dir}
     >>>
 

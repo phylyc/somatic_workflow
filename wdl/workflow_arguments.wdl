@@ -27,6 +27,7 @@ struct WorkflowArguments {
     Boolean run_variant_annotation
     Boolean run_variant_annotation_scattered
     Boolean run_model_segments
+    Boolean run_filter_segments
     Boolean run_clonal_decomposition
 
     Boolean keep_germline
@@ -46,6 +47,7 @@ struct WorkflowArguments {
     Float genotype_variants_ref_bias
     Int harmonize_min_target_length
     Array[Int] model_segments_window_sizes
+    Float model_segments_smoothing_credible_interval_threshold
     Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound
     Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound
     Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold
@@ -121,6 +123,7 @@ workflow DefineWorkflowArguments {
         Boolean run_collect_allelic_coverage = true
         Boolean run_contamination_model = true
         Boolean run_model_segments = true
+        Boolean run_filter_segments = false
         Boolean run_orientation_bias_mixture_model = true
         Boolean run_variant_calling = true
         Boolean run_variant_filter = true
@@ -144,11 +147,12 @@ workflow DefineWorkflowArguments {
         Float min_snppanel_pop_af = 0.01
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
-        Float genotype_variants_min_genotype_likelihood = 0.9
+        Float genotype_variants_min_genotype_likelihood = 0.999
         Int genotype_variants_overdispersion = 50
         Float genotype_variants_ref_bias = 1.05
         Int harmonize_min_target_length = 100
-        Array[Int] model_segments_window_sizes = [8, 16, 32, 64, 128, 256, 512]
+        Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
+        Float model_segments_smoothing_credible_interval_threshold = 2.0
         Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
         Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold = 2.0
@@ -275,6 +279,7 @@ workflow DefineWorkflowArguments {
         run_collect_allelic_coverage: run_collect_allelic_coverage,
         run_contamination_model: run_contamination_model,
         run_model_segments: run_model_segments,
+        run_filter_segments: run_filter_segments,
         run_orientation_bias_mixture_model: run_orientation_bias_mixture_model,
         run_variant_calling: run_variant_calling,
         run_variant_filter: run_variant_filter,
@@ -300,6 +305,7 @@ workflow DefineWorkflowArguments {
         genotype_variants_ref_bias: genotype_variants_ref_bias,
         harmonize_min_target_length: harmonize_min_target_length,
         model_segments_window_sizes: model_segments_window_sizes,
+        model_segments_smoothing_credible_interval_threshold: model_segments_smoothing_credible_interval_threshold,
         call_copy_ratios_neutral_segment_copy_ratio_lower_bound: call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
         call_copy_ratios_neutral_segment_copy_ratio_upper_bound: call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
         call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold: call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold,
