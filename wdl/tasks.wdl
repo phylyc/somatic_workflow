@@ -666,7 +666,7 @@ task PrintReads {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             PrintReads \
             ~{sep="' " prefix("-I '", bams)}' \
-            ~{sep="' " prefix("--read_index '", bais)}' \
+            ~{sep="' " prefix("--read-index '", bais)}' \
             -O '~{output_file}' \
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-L '" + interval_list + "'"} \
