@@ -187,7 +187,7 @@ def convert_model_segments_to_alleliccapseg(args):
         good_rows = alleliccapseg_seg_pd['n_hets'] >= args.min_hets
         good_rows &= alleliccapseg_seg_pd["n_probes"] >= args.min_probes
         n = alleliccapseg_seg_pd.shape[0] - np.sum(good_rows)
-        pct_drop = n / alleliccapseg_seg_pd.shape[0]
+        pct_drop = n / alleliccapseg_seg_pd.shape[0] / 100
         print(f"Dropping {n} (-{pct_drop:.3f}%) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
         alleliccapseg_seg_pd = alleliccapseg_seg_pd.loc[good_rows]
 
