@@ -37,7 +37,7 @@ workflow AnnotateVariants {
         }
     }
 
-    scatter (intervals in select_first([SplitIntervals.interval_files, args.preprocessed_interval_list])) {
+    scatter (intervals in select_first([SplitIntervals.interval_files, [args.preprocessed_interval_list]])) {
         call tasks.SelectVariants as SelectSampleVariants {
             input:
                 ref_fasta = args.files.ref_fasta,

@@ -352,7 +352,7 @@ task SelectVariants {
         Boolean compress_output = false
         Boolean select_passing = false
         Boolean keep_germline = false
-        String germline_filter_whitelist = "clustered_events,haplotype,normal_artifact,panel_of_normals"
+        String germline_filter_whitelist = "normal_artifact,panel_of_normals"
         String suffix = ""
         String? tumor_sample_name
         String? normal_sample_name
@@ -694,6 +694,8 @@ task PrintReads {
         ref_fasta_index: {localization_optional: true}
         ref_dict: {localization_optional: true}
         interval_list: {localization_optional: true}
+        bams: {localization_optional: true}
+        bais: {localization_optional: true}
         vcf: {localization_optional: true}
         vcf_idx: {localization_optional: true}
     }

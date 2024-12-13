@@ -43,6 +43,7 @@ struct WorkflowArguments {
     Float max_snppanel_pop_af
     Int min_snppanel_read_depth
     Float genotype_variants_min_genotype_likelihood
+    Float genotype_variants_outlier_prior
     Int genotype_variants_overdispersion
     Float genotype_variants_ref_bias
     Int harmonize_min_target_length
@@ -123,7 +124,7 @@ workflow DefineWorkflowArguments {
         Boolean run_collect_allelic_coverage = true
         Boolean run_contamination_model = true
         Boolean run_model_segments = true
-        Boolean run_filter_segments = false
+        Boolean run_filter_segments = true
         Boolean run_orientation_bias_mixture_model = true
         Boolean run_variant_calling = true
         Boolean run_variant_filter = true
@@ -136,7 +137,7 @@ workflow DefineWorkflowArguments {
 
         Boolean keep_germline = true
         Boolean compress_output = true
-        Boolean make_bamout = false
+        Boolean make_bamout = true
 
         # arguments
         Int preprocess_intervals_bin_length = 0
@@ -147,7 +148,8 @@ workflow DefineWorkflowArguments {
         Float min_snppanel_pop_af = 0.01
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
-        Float genotype_variants_min_genotype_likelihood = 0.999
+        Float genotype_variants_min_genotype_likelihood = 0.9999
+        Float genotype_variants_outlier_prior = 0.0003
         Int genotype_variants_overdispersion = 50
         Float genotype_variants_ref_bias = 1.05
         Int harmonize_min_target_length = 100
@@ -301,6 +303,7 @@ workflow DefineWorkflowArguments {
         max_snppanel_pop_af: max_snppanel_pop_af,
         min_snppanel_read_depth: min_snppanel_read_depth,
         genotype_variants_min_genotype_likelihood: genotype_variants_min_genotype_likelihood,
+        genotype_variants_outlier_prior: genotype_variants_outlier_prior,
         genotype_variants_overdispersion: genotype_variants_overdispersion,
         genotype_variants_ref_bias: genotype_variants_ref_bias,
         harmonize_min_target_length: harmonize_min_target_length,

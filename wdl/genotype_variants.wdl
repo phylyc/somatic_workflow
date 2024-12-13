@@ -20,7 +20,8 @@ workflow GenotypeVariants {
         File? rare_germline_alleles_idx
 
         Int min_read_depth = 10
-        Float min_genotype_likelihood = 0.90
+        Float min_genotype_likelihood = 0.9999
+        Float outlier_prior = 0.0001
         Int overdispersion = 50
         Float ref_bias = 1.05
         String format = "GT"
@@ -70,6 +71,7 @@ workflow GenotypeVariants {
             segmentation_tables = segmentation_tables,
             min_read_depth = min_read_depth,
             min_genotype_likelihood = min_genotype_likelihood,
+            outlier_prior = outlier_prior,
             overdispersion = overdispersion,
             ref_bias = ref_bias,
             format = format,
@@ -122,7 +124,8 @@ task GenotypeVariantsTask {
 
         Int min_read_depth = 10
         Float normal_to_tumor_weight = 4.0
-        Float min_genotype_likelihood = 0.90
+        Float min_genotype_likelihood = 0.9999
+        Float outlier_prior = 0.0001
         Int overdispersion = 50
         Float ref_bias = 1.05
         String model = "betabinom"
@@ -165,6 +168,7 @@ task GenotypeVariantsTask {
             --normal_to_tumor_weight ~{normal_to_tumor_weight} \
             --min_read_depth ~{min_read_depth} \
             --min_genotype_likelihood ~{min_genotype_likelihood} \
+            --outlier_prior ~{outlier_prior} \
             --overdispersion ~{overdispersion} \
             --ref_bias ~{ref_bias} \
             --model ~{model} \

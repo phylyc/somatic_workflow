@@ -131,7 +131,7 @@ Array[File?]? covered_regions_interval_list = CoverageWorkflow.covered_regions_i
 File? unfiltered_vcf
 File? unfiltered_vcf_idx
 File? mutect_stats
-# locally realigned multi-sample bam containing read covering the somatic calls
+# locally realigned multi-sample bam containing only reads covering the somatic calls
 File? somatic_calls_bam
 File? somatic_calls_bai
 # Learned read orientation bias for filtering FFPE or OxOG artifacts
