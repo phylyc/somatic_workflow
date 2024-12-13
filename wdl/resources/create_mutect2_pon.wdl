@@ -55,13 +55,14 @@ workflow CreateMutect2PanelOfNormals {
             run_collect_allelic_coverage = false,
             run_contamination_model = false,
             run_model_segments = false,
+            run_filter_segments = false,
 
             run_orientation_bias_mixture_model = false,
             run_variant_calling = true,
             run_variant_filter = false,
+            run_variant_hard_filter = false,
             run_realignment_filter = false,
             run_realignment_filter_only_on_high_confidence_variants = false,
-            run_collect_called_variants_allelic_coverage = false,
             run_variant_annotation = false,
             run_clonal_decomposition = false,
 
