@@ -46,7 +46,7 @@ task AbsoluteExtractTask {
         Int called_solution
         String analyst_id
         String copy_ratio_type = "allelic"
-        String? sample_name = basename(rdata, "." + copy_ratio_type + ".ABSOLUTE.RData")
+        String sample_name = basename(rdata, "." + copy_ratio_type + ".ABSOLUTE.RData")
 
         Runtime runtime_params
     }
