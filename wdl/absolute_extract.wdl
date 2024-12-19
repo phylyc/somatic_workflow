@@ -69,6 +69,8 @@ task AbsoluteExtractTask {
             cut -f5 "~{output_table}" | tail -n 1 > ploidy
         else
             echo "Called solution needs to be a positive integer but is: ~{called_solution}"
+            printf "-1" > purity
+            printf "-1" > ploidy
         fi
     >>>
 
