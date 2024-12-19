@@ -54,8 +54,8 @@ task AbsoluteExtractTask {
     String output_dir = "."
     String o1 = output_dir + "/reviewed/"
     String o2 = sample_name + "." + analyst_id + ".ABSOLUTE.table.txt"
-    String o3 = o1 + o2
-    String output_table = output_dir + "/reviewed/" + sample_name + "." + analyst_id + ".ABSOLUTE.table.txt"
+    String output_table = o1 + o2
+#    String output_table = output_dir + "/reviewed/" + sample_name + "." + analyst_id + ".ABSOLUTE.table.txt"
 
     command <<<
         set -euxo pipefail
