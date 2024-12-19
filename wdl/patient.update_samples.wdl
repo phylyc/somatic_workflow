@@ -252,6 +252,7 @@ workflow UpdateSamples {
 
     Patient pat = object {
         name: patient.name,
+        sex: patient.sex,
         samples: flatten([tumor_samples, non_optional_normal_samples]),
         tumor_samples: tumor_samples,
         normal_samples: non_optional_normal_samples,
