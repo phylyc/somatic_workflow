@@ -27,13 +27,13 @@ workflow AbsoluteExtract {
 
     output {
         File? absolute_maf = AbsoluteExtractTask.abs_maf
-        File absolute_segtab = AbsoluteExtractTask.segtab
-        File absolute_called_rdata = AbsoluteExtractTask.called_rdata
-        File absolute_table = AbsoluteExtractTask.table
-        File absolute_gene_corrected_cn = AbsoluteExtractTask.gene_corrected_cn
-        File absolute_rescaled_total_cn = AbsoluteExtractTask.rescaled_total_cn
-        String absolute_purity = AbsoluteExtractTask.purity
-        String absolute_ploidy = AbsoluteExtractTask.ploidy
+        File? absolute_segtab = AbsoluteExtractTask.segtab
+        File? absolute_called_rdata = AbsoluteExtractTask.called_rdata
+        File? absolute_table = AbsoluteExtractTask.table
+        File? absolute_gene_corrected_cn = AbsoluteExtractTask.gene_corrected_cn
+        File? absolute_rescaled_total_cn = AbsoluteExtractTask.rescaled_total_cn
+        String? absolute_purity = AbsoluteExtractTask.purity
+        String? absolute_ploidy = AbsoluteExtractTask.ploidy
     }
 }
 
