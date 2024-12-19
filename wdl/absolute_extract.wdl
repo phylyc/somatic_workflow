@@ -5,11 +5,11 @@ import "runtime_collection.wdl" as rtc
 
 workflow AbsoluteExtract {
     input {
-        String? sample_name
         File rdata
         Int called_solution
         String analyst_id
-        String copy_ratio_type
+        String? copy_ratio_type
+        String? sample_name
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -18,24 +18,24 @@ workflow AbsoluteExtract {
 
     call AbsoluteExtractTask {
         input:
-            sample_name = sample_name,
             rdata = rdata,
             called_solution = called_solution,
             analyst_id = analyst_id,
             copy_ratio_type = copy_ratio_type,
+            sample_name = sample_name,
             runtime_params = runtime_collection.absolute_extract
 
     }
 
     output {
-        File? abs_maf = AbsoluteExtractTask.abs_maf
-        File segtab = AbsoluteExtractTask.segtab
-        File called_rdata = AbsoluteExtractTask.called_rdata
-        File table = AbsoluteExtractTask.table
-        File gene_corrected_cn = AbsoluteExtractTask.gene_corrected_cn
-        File rescaled_total_cn = AbsoluteExtractTask.rescaled_total_cn
-        String purity = AbsoluteExtractTask.purity
-        String ploidy = AbsoluteExtractTask.ploidy
+        File? absolute_maf = AbsoluteExtractTask.abs_maf
+        File absolute_segtab = AbsoluteExtractTask.segtab
+        File absolute_called_rdata = AbsoluteExtractTask.called_rdata
+        File absolute_table = AbsoluteExtractTask.table
+        File absolute_gene_corrected_cn = AbsoluteExtractTask.gene_corrected_cn
+        File absolute_rescaled_total_cn = AbsoluteExtractTask.rescaled_total_cn
+        String absolute_purity = AbsoluteExtractTask.purity
+        String absolute_ploidy = AbsoluteExtractTask.ploidy
     }
 }
 
@@ -57,17 +57,21 @@ task AbsoluteExtractTask {
     command <<<
         set -euxo pipefail
 
-        Rscript /library/scripts/extract_solution.R \
-            --solution_num ~{called_solution} \
-            --results_dir ~{output_dir} \
-            --analyst_id ~{analyst_id} \
-            --pkg_dir "/" \
-            --sample ~{sample_name} \
-            --rdata ~{rdata} \
-            --copy_num_type ~{copy_ratio_type}
+        if [[ "~{called_solution}" =~ ^[0-9]+$ ]] && (( ~{called_solution} > 0 )); then
+            Rscript /library/scripts/extract_solution.R \
+                --solution_num ~{called_solution} \
+                --results_dir ~{output_dir} \
+                --analyst_id ~{analyst_id} \
+                --pkg_dir "/" \
+                --sample ~{sample_name} \
+                --rdata ~{rdata} \
+                --copy_num_type ~{copy_ratio_type}
 
-        cut -f4 "~{output_table}" | tail -n 1 > purity
-        cut -f5 "~{output_table}" | tail -n 1 > ploidy
+            cut -f4 "~{output_table}" | tail -n 1 > purity
+            cut -f5 "~{output_table}" | tail -n 1 > ploidy
+        else
+            echo "Called solution needs to be a positive integer but is: ~{called_solution}"
+        fi
     >>>
 
     output {
