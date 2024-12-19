@@ -5,10 +5,11 @@ import "runtime_collection.wdl" as rtc
 
 workflow AbsoluteExtract {
     input {
-        String sample_name
+        String? sample_name
         File rdata
         Int called_solution
         String analyst_id
+        String copy_ratio_type
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -21,15 +22,18 @@ workflow AbsoluteExtract {
             rdata = rdata,
             called_solution = called_solution,
             analyst_id = analyst_id,
+            copy_ratio_type = copy_ratio_type,
             runtime_params = runtime_collection.absolute_extract
 
     }
 
     output {
-        File absolute_annotated_maf_capture = AbsoluteExtractTask.absolute_annotated_maf_capture
-        File absolute_seg_file = AbsoluteExtractTask.absolute_seg_file
-        File absolute_segdat_file = AbsoluteExtractTask.absolute_segdat_file
-        File absolute_table = AbsoluteExtractTask.absolute_table
+        File? abs_maf = AbsoluteExtractTask.abs_maf
+        File segtab = AbsoluteExtractTask.segtab
+        File called_rdata = AbsoluteExtractTask.called_rdata
+        File table = AbsoluteExtractTask.table
+        File gene_corrected_cn = AbsoluteExtractTask.gene_corrected_cn
+        File rescaled_total_cn = AbsoluteExtractTask.rescaled_total_cn
         String purity = AbsoluteExtractTask.purity
         String ploidy = AbsoluteExtractTask.ploidy
     }
@@ -38,39 +42,41 @@ workflow AbsoluteExtract {
 
 task AbsoluteExtractTask {
     input {
-        String sample_name
         File rdata
         Int called_solution
         String analyst_id
+        String copy_ratio_type = "allelic"
+        String? sample_name = basename(rdata, "." + copy_ratio_type + ".ABSOLUTE.RData")
 
         Runtime runtime_params
     }
 
+    String output_dir = "."
+    String output_table = output_dir + "/reviewed/" + sample_name + "." + analyst_id + ".ABSOLUTE.table.txt"
+
     command <<<
         set -euxo pipefail
 
-        Rscript /usr/local/bin/ABSOLUTE_extract_cli_start.R \
+        Rscript /library/scripts/extract_solution.R \
             --solution_num ~{called_solution} \
-            --analyst_id "~{analyst_id}" \
-            --rdata_modes_fn "~{rdata}" \
-            --sample_name "~{sample_name}" \
-            --results_dir . \
-            --abs_lib_dir /xchip/tcga/Tools/absolute/releases/v1.5/
+            --results_dir ~{output_dir} \
+            --analyst_id ~{analyst_id} \
+            --pkg_dir "/" \
+            --sample ~{sample_name} \
+            --rdata ~{rdata} \
+            --copy_num_type ~{copy_ratio_type}
 
-        cp "reviewed/SEG_MAF/~{sample_name}_ABS_MAF.txt" .
-        cp "reviewed/SEG_MAF/~{sample_name}.segtab.txt" .
-        cp "reviewed/samples/~{sample_name}.ABSOLUTE.~{analyst_id}.called.RData" .
-        cp "reviewed/~{sample_name}.~{analyst_id}.ABSOLUTE.table.txt" .
-
-        cut -f4 "~{sample_name}.~{analyst_id}.ABSOLUTE.table.txt" | tail -n 1 > purity
-        cut -f5 "~{sample_name}.~{analyst_id}.ABSOLUTE.table.txt" | tail -n 1 > ploidy
+        cut -f4 "~{output_table}" | tail -n 1 > purity
+        cut -f5 "~{output_table}" | tail -n 1 > ploidy
     >>>
 
     output {
-        File absolute_annotated_maf_capture = sample_name + "_ABS_MAF.txt"
-        File absolute_seg_file = sample_name + ".segtab.txt"
-        File absolute_segdat_file = sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
-        File absolute_table = sample_name + "." + analyst_id + ".ABSOLUTE.table.txt"
+        File? abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + "_ABS_MAF.txt"
+        File segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab.txt"
+        File called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
+        File table = output_table
+        File gene_corrected_cn = output_dir + "/reviewed/" + sample_name + "_gene_corrected_CN.txt"
+        File rescaled_total_cn = output_dir + "/reviewed/" + sample_name + "_rescaled_total_cn.IGV.seg.txt"
         String purity = read_string("purity")
         String ploidy = read_string("ploidy")
     }
