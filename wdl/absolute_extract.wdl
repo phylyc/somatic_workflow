@@ -74,13 +74,13 @@ task AbsoluteExtractTask {
 
     output {
         File? abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + "_ABS_MAF.txt"
-        File segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab.txt"
-        File called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
-        File table = output_table
-        File gene_corrected_cn = output_dir + "/reviewed/" + sample_name + "_gene_corrected_CN.txt"
-        File rescaled_total_cn = output_dir + "/reviewed/" + sample_name + "_rescaled_total_cn.IGV.seg.txt"
-        String purity = read_string("purity")
-        String ploidy = read_string("ploidy")
+        File? segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab.txt"
+        File? called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
+        File? table = output_table
+        File? gene_corrected_cn = output_dir + "/reviewed/" + sample_name + "_gene_corrected_CN.txt"
+        File? rescaled_total_cn = output_dir + "/reviewed/" + sample_name + "_rescaled_total_cn.IGV.seg.txt"
+        String? purity = read_string("purity")
+        String? ploidy = read_string("ploidy")
     }
 
     runtime {

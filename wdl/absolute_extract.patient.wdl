@@ -22,19 +22,19 @@ workflow AbsoluteExtractPatient {
                 rdata = pair.left,
                 called_solution = pair.right,
                 analyst_id = analyst_id,
+#                copy_ratio_type = copy_ratio_type,
                 runtime_collection = runtime_collection
-
         }
     }
 
     output {
         Array[File?] absolute_maf = AbsoluteExtract.absolute_maf
-        Array[File] absolute_segtab = AbsoluteExtract.absolute_segtab
-        Array[File] absolute_called_rdata = AbsoluteExtract.absolute_called_rdata
-        Array[File] absolute_table = AbsoluteExtract.absolute_table
-        Array[File] absolute_gene_corrected_cn = AbsoluteExtract.absolute_gene_corrected_cn
-        Array[File] absolute_rescaled_total_cn = AbsoluteExtract.absolute_rescaled_total_cn
-        Array[String] absolute_purity = AbsoluteExtract.absolute_purity
-        Array[String] absolute_ploidy = AbsoluteExtract.absolute_ploidy
+        Array[File?] absolute_segtab = AbsoluteExtract.absolute_segtab
+        Array[File?] absolute_called_rdata = AbsoluteExtract.absolute_called_rdata
+        Array[File?] absolute_table = AbsoluteExtract.absolute_table
+        Array[File?] absolute_gene_corrected_cn = AbsoluteExtract.absolute_gene_corrected_cn
+        Array[File?] absolute_rescaled_total_cn = AbsoluteExtract.absolute_rescaled_total_cn
+        Array[String?] absolute_purity = AbsoluteExtract.absolute_purity
+        Array[String?] absolute_ploidy = AbsoluteExtract.absolute_ploidy
     }
 }
