@@ -10,7 +10,6 @@ workflow AbsoluteExtractPatient {
         Array[Int] called_solutions
         String analyst_id
         Array[String]? copy_ratio_types
-        Array[String]? sample_names
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }

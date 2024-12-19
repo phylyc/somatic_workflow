@@ -9,7 +9,6 @@ workflow AbsoluteExtract {
         Int called_solution
         String analyst_id
         String? copy_ratio_type
-        String? sample_name
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -21,8 +20,7 @@ workflow AbsoluteExtract {
             rdata = rdata,
             called_solution = called_solution,
             analyst_id = analyst_id,
-            copy_ratio_type = copy_ratio_type,
-            sample_name = sample_name,
+#            copy_ratio_type = copy_ratio_type,
             runtime_params = runtime_collection.absolute_extract
 
     }
@@ -46,16 +44,13 @@ task AbsoluteExtractTask {
         Int called_solution
         String analyst_id
         String copy_ratio_type = "allelic"
-        String sample_name = basename(rdata, "." + copy_ratio_type + ".ABSOLUTE.RData")
 
         Runtime runtime_params
     }
 
+    String sample_name = basename(rdata, "." + copy_ratio_type + ".ABSOLUTE.RData")
     String output_dir = "."
-    String o1 = output_dir + "/reviewed/"
-    String o2 = sample_name + "." + analyst_id + ".ABSOLUTE.table.txt"
-    String output_table = o1 + o2
-#    String output_table = output_dir + "/reviewed/" + sample_name + "." + analyst_id + ".ABSOLUTE.table.txt"
+    String output_table = output_dir + "/reviewed/" + sample_name + "." + analyst_id + ".ABSOLUTE.table.txt"
 
     command <<<
         set -euxo pipefail
