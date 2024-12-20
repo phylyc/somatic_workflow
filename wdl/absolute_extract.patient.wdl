@@ -17,7 +17,7 @@ workflow AbsoluteExtractPatient {
     call rtc.DefineRuntimeCollection as RuntimeParameters
 
     scatter (pair in zip(rdata, called_solutions)) {
-        if (pair.left > 0) {
+        if (pair.right > 0) {
             call ae.AbsoluteExtract {
                 input:
                     rdata = pair.left,
