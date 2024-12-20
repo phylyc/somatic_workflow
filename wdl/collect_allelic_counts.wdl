@@ -312,8 +312,8 @@ task GetPileupSummaries {
         fi
 
         if [ "$num_loci" -eq 0 ] ; then
-            # Create an empty pileup file if there are no common_germline_alleles in the intersection
-            # between the common_germline_alleles and the intervals.
+            # Create an empty pileup file if there are no variants in the intersection
+            # between the variants and the intervals.
             printf "#<METADATA>SAMPLE=~{sample_id}\n" > '~{pileup_file}'
             printf "contig\tposition\tref_count\talt_count\tother_alt_count\tallele_frequency\n" >> '~{pileup_file}'
         else
