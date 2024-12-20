@@ -45,9 +45,9 @@ workflow DefineWorkflowResources {
         Array[File]? interval_lists
         File? preprocessed_intervals
         Array[File]? scattered_intervals
-        File ref_fasta
-        File ref_fasta_index
-        File ref_dict
+        File? ref_fasta
+        File? ref_fasta_index
+        File? ref_dict
         File? force_call_alleles
         File? force_call_alleles_idx
         File? snv_panel_of_normals
@@ -67,9 +67,9 @@ workflow DefineWorkflowResources {
         interval_lists: interval_lists,
         preprocessed_intervals: preprocessed_intervals,
         scattered_intervals: scattered_intervals,
-        ref_fasta: ref_fasta,
-        ref_fasta_index: ref_fasta_index,
-        ref_dict: ref_dict,
+        ref_fasta: select_first([ref_fasta]),
+        ref_fasta_index: select_first([ref_fasta_index]),
+        ref_dict: select_first([ref_dict]),
         force_call_alleles: force_call_alleles,
         force_call_alleles_idx: force_call_alleles_idx,
         snv_panel_of_normals: snv_panel_of_normals,
