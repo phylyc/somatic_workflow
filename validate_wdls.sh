@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# conda activate wdl
-
 validate_wdl () {
   local wdl=$1
   echo "> miniwdl check:"
@@ -16,4 +14,7 @@ for wdl in wdl/*.wdl; do
   validate_wdl $wdl
 done
 
-# conda deactivate
+for wdl in wdl/resources/*.wdl; do
+  echo $wdl
+  validate_wdl $wdl
+done
