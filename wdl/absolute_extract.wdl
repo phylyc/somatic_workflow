@@ -20,20 +20,20 @@ workflow AbsoluteExtract {
             rdata = rdata,
             called_solution = called_solution,
             analyst_id = analyst_id,
-#            copy_ratio_type = copy_ratio_type,
+            copy_ratio_type = copy_ratio_type,
             runtime_params = runtime_collection.absolute_extract
 
     }
 
     output {
-        File? absolute_maf = AbsoluteExtractTask.abs_maf
-        File? absolute_segtab = AbsoluteExtractTask.segtab
-        File? absolute_called_rdata = AbsoluteExtractTask.called_rdata
-        File? absolute_table = AbsoluteExtractTask.table
-        File? absolute_gene_corrected_cn = AbsoluteExtractTask.gene_corrected_cn
-        File? absolute_rescaled_total_cn = AbsoluteExtractTask.rescaled_total_cn
-        String? absolute_purity = AbsoluteExtractTask.purity
-        String? absolute_ploidy = AbsoluteExtractTask.ploidy
+        File absolute_maf = AbsoluteExtractTask.abs_maf
+        File absolute_segtab = AbsoluteExtractTask.segtab
+        File absolute_called_rdata = AbsoluteExtractTask.called_rdata
+        File absolute_table = AbsoluteExtractTask.table
+        File absolute_gene_corrected_cn = AbsoluteExtractTask.gene_corrected_cn
+        File absolute_rescaled_total_cn = AbsoluteExtractTask.rescaled_total_cn
+        String absolute_purity = AbsoluteExtractTask.purity
+        String absolute_ploidy = AbsoluteExtractTask.ploidy
     }
 }
 
@@ -55,34 +55,28 @@ task AbsoluteExtractTask {
     command <<<
         set -euxo pipefail
 
-        if [[ "~{called_solution}" =~ ^[0-9]+$ ]] && (( ~{called_solution} > 0 )); then
-            Rscript /library/scripts/extract_solution.R \
-                --solution_num ~{called_solution} \
-                --results_dir ~{output_dir} \
-                --analyst_id ~{analyst_id} \
-                --pkg_dir "/" \
-                --sample ~{sample_name} \
-                --rdata ~{rdata} \
-                --copy_num_type ~{copy_ratio_type}
+        Rscript /library/scripts/extract_solution.R \
+            --solution_num ~{called_solution} \
+            --results_dir ~{output_dir} \
+            --analyst_id ~{analyst_id} \
+            --pkg_dir "/" \
+            --sample ~{sample_name} \
+            --rdata ~{rdata} \
+            --copy_num_type ~{copy_ratio_type}
 
-            cut -f4 "~{output_table}" | tail -n 1 > purity
-            cut -f5 "~{output_table}" | tail -n 1 > ploidy
-        else
-            echo "Called solution needs to be a positive integer but is: ~{called_solution}"
-            echo "-" > purity
-            echo "-" > ploidy
-        fi
+        cut -f4 "~{output_table}" | tail -n 1 > purity
+        cut -f5 "~{output_table}" | tail -n 1 > ploidy
     >>>
 
     output {
-        File? abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + "_ABS_MAF.txt"
-        File? segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab.txt"
-        File? called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
-        File? table = output_table
-        File? gene_corrected_cn = output_dir + "/reviewed/" + sample_name + "_gene_corrected_CN.txt"
-        File? rescaled_total_cn = output_dir + "/reviewed/" + sample_name + "_rescaled_total_cn.IGV.seg.txt"
-        String? purity = read_string("purity")
-        String? ploidy = read_string("ploidy")
+        File abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + "_ABS_MAF.txt"
+        File segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab.txt"
+        File called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
+        File table = output_table
+        File gene_corrected_cn = output_dir + "/reviewed/" + sample_name + "_gene_corrected_CN.txt"
+        File rescaled_total_cn = output_dir + "/reviewed/" + sample_name + "_rescaled_total_cn.IGV.seg.txt"
+        String purity = read_string("purity")
+        String ploidy = read_string("ploidy")
     }
 
     runtime {

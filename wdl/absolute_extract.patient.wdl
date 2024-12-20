@@ -17,24 +17,26 @@ workflow AbsoluteExtractPatient {
     call rtc.DefineRuntimeCollection as RuntimeParameters
 
     scatter (pair in zip(rdata, called_solutions)) {
-        call ae.AbsoluteExtract {
-            input:
-                rdata = pair.left,
-                called_solution = pair.right,
-                analyst_id = analyst_id,
-#                copy_ratio_type = copy_ratio_type,
-                runtime_collection = runtime_collection
+        if (pair.left > 0) {
+            call ae.AbsoluteExtract {
+                input:
+                    rdata = pair.left,
+                    called_solution = pair.right,
+                    analyst_id = analyst_id,
+    #                copy_ratio_type = copy_ratio_type,
+                    runtime_collection = runtime_collection
+            }
         }
     }
 
     output {
-        Array[File?] absolute_maf = AbsoluteExtract.absolute_maf
-        Array[File?] absolute_segtab = AbsoluteExtract.absolute_segtab
-        Array[File?] absolute_called_rdata = AbsoluteExtract.absolute_called_rdata
-        Array[File?] absolute_table = AbsoluteExtract.absolute_table
-        Array[File?] absolute_gene_corrected_cn = AbsoluteExtract.absolute_gene_corrected_cn
-        Array[File?] absolute_rescaled_total_cn = AbsoluteExtract.absolute_rescaled_total_cn
-        Array[String?] absolute_purity = AbsoluteExtract.absolute_purity
-        Array[String?] absolute_ploidy = AbsoluteExtract.absolute_ploidy
+        Array[File] absolute_maf = select_all(AbsoluteExtract.absolute_maf)
+        Array[File] absolute_segtab = select_all(AbsoluteExtract.absolute_segtab)
+        Array[File] absolute_called_rdata = select_all(AbsoluteExtract.absolute_called_rdata)
+        Array[File] absolute_table = select_all(AbsoluteExtract.absolute_table)
+        Array[File] absolute_gene_corrected_cn = select_all(AbsoluteExtract.absolute_gene_corrected_cn)
+        Array[File] absolute_rescaled_total_cn = select_all(AbsoluteExtract.absolute_rescaled_total_cn)
+        Array[String] absolute_purity = select_all(AbsoluteExtract.absolute_purity)
+        Array[String] absolute_ploidy = select_all(AbsoluteExtract.absolute_ploidy)
     }
 }
