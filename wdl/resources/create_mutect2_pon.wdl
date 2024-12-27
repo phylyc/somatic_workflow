@@ -83,6 +83,7 @@ workflow CreateMutect2PanelOfNormals {
         call tasks.GetSampleName {
             input:
                 bam = normal.left,
+                bai = normal.right,
                 runtime_params = runtime_collection.get_sample_name,
         }
 
