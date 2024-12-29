@@ -57,10 +57,9 @@ workflow MultiSampleSomaticWorkflow {
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
             num_bams = length(bams),
+            bam_size = ceil(size(bams, "GB") + size(bais, "GB")),
             scatter_count = scatter_count,
     }
-
-    # todo: allocate enough disk space for Mutect2 to store output bams
 
     call wfres.DefineWorkflowResources as Files
 

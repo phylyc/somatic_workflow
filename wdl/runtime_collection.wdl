@@ -53,6 +53,7 @@ struct RuntimeCollection {
 workflow DefineRuntimeCollection {
     input {
         Int num_bams = 1
+        Int bam_size = 0
 
         Int scatter_count = 10
         String gatk_docker = "broadinstitute/gatk:4.6.1.0"
@@ -212,6 +213,7 @@ workflow DefineRuntimeCollection {
         # gatk: PrintReads
         Int mem_print_reads = 8192
         Int time_print_reads = 60
+        Int disk_print_reads = bam_size
 
         # gatk: LearnReadOrientationModel
         Int mem_learn_read_orientation_model_base = 8192
@@ -701,7 +703,7 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_print_reads + mem_machine_overhead,
         "command_mem": mem_print_reads,
         "runtime_minutes": time_startup + time_print_reads,
-        "disk": disk,
+        "disk": disk + disk_print_reads,
         "boot_disk_size": boot_disk_size
     }
 
