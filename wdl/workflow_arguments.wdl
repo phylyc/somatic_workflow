@@ -199,7 +199,7 @@ workflow DefineWorkflowArguments {
             "MFRL.0 < 18", "MFRL.1 < 18",
             "MPOS.0 < 6",
             "ROQ < 10",
-            "POPAF < 3.0"
+            "POPAF.0 < 3.0"
         ]
         Array[String] hard_filter_names = [
             "lowDP",
@@ -250,7 +250,6 @@ workflow DefineWorkflowArguments {
                 padding = preprocess_intervals_padding,
                 runtime_params = runtime_collection.preprocess_intervals,
         }
-
     }
 
     if (!defined(resources.scattered_intervals)) {
