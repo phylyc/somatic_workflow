@@ -240,8 +240,12 @@ task VariantFiltration {
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+
+        echo ""
         # Some variants don't have certain INFO fields, so we suppress the warning messages.
-        printf "Suppressing the following warning message: 'WARN  JexlEngine - '\n" >&2
+        echo "Suppressing the following warning message: 'WARN  JexlEngine - '"
+        echo ""
+
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             VariantFiltration \
             ~{"-R '" + ref_fasta + "'"} \

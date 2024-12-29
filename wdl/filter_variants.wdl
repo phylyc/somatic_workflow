@@ -57,33 +57,33 @@ workflow FilterVariants {
             runtime_params = runtime_collection.filter_mutect_calls
     }
 
+    call tasks.LeftAlignAndTrimVariants {
+        input:
+            ref_fasta = args.files.ref_fasta,
+            ref_fasta_index = args.files.ref_fasta_index,
+            ref_dict = args.files.ref_dict,
+            vcf = FilterMutectCalls.filtered_vcf,
+            vcf_idx = FilterMutectCalls.filtered_vcf_idx,
+            split_multi_allelics = true,  # necessary for current SelectVariants implementation
+            compress_output = args.compress_output,
+            left_align_and_trim_variants_extra_args = args.left_align_and_trim_variants_extra_args,
+            runtime_params = runtime_collection.left_align_and_trim_variants
+    }
+
     if (args.run_variant_hard_filter) {
         call tasks.VariantFiltration as HardFilterVariants {
             input:
                 ref_fasta = args.files.ref_fasta,
                 ref_fasta_index = args.files.ref_fasta_index,
                 ref_dict = args.files.ref_dict,
-                vcf = FilterMutectCalls.filtered_vcf,
-                vcf_idx = FilterMutectCalls.filtered_vcf_idx,
+                vcf = LeftAlignAndTrimVariants.output_vcf,
+                vcf_idx = LeftAlignAndTrimVariants.output_vcf_idx,
                 compress_output = args.compress_output,
                 filter_expressions = args.hard_filter_expressions,
                 filter_names = args.hard_filter_names,
                 variant_filtration_extra_args = args.variant_filtration_extra_args,
                 runtime_params = runtime_collection.variant_filtration
         }
-    }
-
-    call tasks.LeftAlignAndTrimVariants {
-        input:
-            ref_fasta = args.files.ref_fasta,
-            ref_fasta_index = args.files.ref_fasta_index,
-            ref_dict = args.files.ref_dict,
-            vcf = select_first([HardFilterVariants.filtered_vcf, FilterMutectCalls.filtered_vcf]),
-            vcf_idx = select_first([HardFilterVariants.filtered_vcf_idx, FilterMutectCalls.filtered_vcf_idx]),
-            split_multi_allelics = true,  # necessary for current SelectVariants implementation
-            compress_output = args.compress_output,
-            left_align_and_trim_variants_extra_args = args.left_align_and_trim_variants_extra_args,
-            runtime_params = runtime_collection.left_align_and_trim_variants
     }
 
     # TODO: add DeTiN
@@ -93,8 +93,8 @@ workflow FilterVariants {
             ref_fasta = args.files.ref_fasta,
             ref_fasta_index = args.files.ref_fasta_index,
             ref_dict = args.files.ref_dict,
-            vcf = LeftAlignAndTrimVariants.output_vcf,
-            vcf_idx = LeftAlignAndTrimVariants.output_vcf_idx,
+            vcf = select_first([HardFilterVariants.filtered_vcf, LeftAlignAndTrimVariants.output_vcf]),
+            vcf_idx = select_first([HardFilterVariants.filtered_vcf_idx, LeftAlignAndTrimVariants.output_vcf_idx]),
             select_passing = true,
             keep_germline = args.keep_germline,
             germline_filter_whitelist = args.germline_filter_whitelist,
