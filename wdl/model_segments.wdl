@@ -203,8 +203,9 @@ else:
     df = pd.merge(pileup, gvcf, how='left', on=['contig', 'position'])
     df = df.loc[df[['ref_count', 'alt_count']].sum(axis=1) >= ~{min_read_depth}]
     if ~{if select_hets then "True" else "False"}:
-        print("Selecting HETs")
-        df = df.loc[df['genotype'] == '0/1']
+        het_mask = df['genotype'] == '0/1'
+        print(f"Selecting {het_mask.sum()} HETs")
+        df = df.loc[het_mask]
     df[["contig", "position", "ref_count", "alt_count", "ref", "alt"]].to_csv('~{output_file}', sep='\t', index=False, header=False, mode='a')
 
     other_alt_counts = pileup["other_alt_count"].sum()
