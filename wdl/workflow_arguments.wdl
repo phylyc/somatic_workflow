@@ -153,7 +153,7 @@ workflow DefineWorkflowArguments {
         Int genotype_variants_overdispersion = 50
         Float genotype_variants_ref_bias = 1.05
         Int harmonize_min_target_length = 100
-        Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
+        Array[Int] model_segments_window_sizes = [8, 16, 32, 64, 128, 256, 512, 1024]
         Float model_segments_smoothing_credible_interval_threshold = 2.0
         Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
