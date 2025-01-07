@@ -196,7 +196,7 @@ workflow DefineRuntimeCollection {
         Int time_mutect2_total = 10000  # 6 d / scatter_count
         Int preemptible_mutect2 = 1
         Int max_retries_mutect2 = 2
-        Int disk_mutect2 = 0  # needs to be empirically adjusted to usecase if make_bamout = true
+        Int disk_mutect2_total = bam_size
 
         # gatk: MergeVCFs
         Int mem_merge_vcfs = 2048
@@ -211,7 +211,7 @@ workflow DefineRuntimeCollection {
         Int time_merge_mutect_stats = 1
 
         # gatk: PrintReads
-        Int mem_print_reads = 8192
+        Int mem_print_reads = 32768
         Int time_print_reads = 60
         Int disk_print_reads = bam_size
 
@@ -638,7 +638,7 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_mutect2 + mem_mutect2_overhead,
         "command_mem": mem_mutect2,
         "runtime_minutes": time_startup + ceil(time_mutect2_total / scatter_count),
-        "disk": disk + disk_mutect2,
+        "disk": disk + ceil(disk_mutect2_total / scatter_count),
         "boot_disk_size": boot_disk_size
     }
 
