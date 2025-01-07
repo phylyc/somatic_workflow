@@ -12,16 +12,20 @@ workflow CreateMutect2PanelOfNormals {
     input {
         String pon_name
 
-        File target_interval_list
+        File ref_fasta
+        File ref_fasta_index
+        File ref_dict
+
+        File germline_resource
+        File germline_resource_idx
+
+        File interval_list
         Int scatter_count = 10
 
         Array[File]? normal_bams
         Array[File]? normal_bais
         File? normal_bams_file
         File? normal_bais_file
-
-        File? germline_resource
-        File? germline_resource_idx
 
         String mutect2_extra_args = ""
 
@@ -40,9 +44,12 @@ workflow CreateMutect2PanelOfNormals {
 
     call wfres.DefineWorkflowResources as Files {
         input:
-            interval_list = target_interval_list,
+            ref_fasta = ref_fasta,
+            ref_fasta_index = ref_fasta_index,
+            ref_dict = ref_dict,
             germline_resource = germline_resource,
             germline_resource_idx = germline_resource_idx,
+            interval_list = interval_list
     }
 
     call wfargs.DefineWorkflowArguments as Parameters {
@@ -92,7 +99,7 @@ workflow CreateMutect2PanelOfNormals {
                 individual_id = GetSampleName.sample_name,
                 bams = [normal.left],
                 bais = [normal.right],
-                target_intervals = [target_interval_list],
+                target_intervals = [args.preprocessed_interval_list],
                 scatter_count = scatter_count,
                 args = args,
                 resources = resources,
@@ -140,6 +147,9 @@ workflow CreateMutect2PanelOfNormals {
 
     call tasks.MergeVCFs {
         input:
+            ref_fasta = args.files.ref_fasta,
+            ref_fasta_index = args.files.ref_fasta_index,
+            ref_dict = args.files.ref_dict,
             vcfs = CreateMutect2Panel.output_vcf,
             vcfs_idx = CreateMutect2Panel.output_vcf_index,
             output_name = pon_name,
