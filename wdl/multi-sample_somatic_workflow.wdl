@@ -49,26 +49,35 @@ workflow MultiSampleSomaticWorkflow {
 
         Int scatter_count = 10
 
-        WorkflowArguments args = Parameters.arguments
-        WorkflowResources resources = Files.resources
-        RuntimeCollection runtime_collection = RuntimeParameters.rtc
+        WorkflowArguments? args
+        WorkflowResources? resources
+        RuntimeCollection? runtime_collection
     }
 
-    call rtc.DefineRuntimeCollection as RuntimeParameters {
-        input:
-            num_bams = length(bams),
-            bam_size = ceil(size(bams, "GB") + size(bais, "GB")),
-            scatter_count = scatter_count,
+    if (!defined(runtime_collection)) {
+        call rtc.DefineRuntimeCollection as RuntimeParameters {
+            input:
+                num_bams = length(bams),
+                bam_size = ceil(size(bams, "GB") + size(bais, "GB")),
+                scatter_count = scatter_count,
+        }
     }
+    RuntimCollection this_runtime_collection = select_first([runtime_collection, RuntimeParameters.rtc])
 
-    call wfres.DefineWorkflowResources as Files
-
-    call wfargs.DefineWorkflowArguments as Parameters {
-        input:
-            scatter_count = scatter_count,
-            resources = resources,
-            runtime_collection = runtime_collection,
+    if (!defined(resources)) {
+        call wfres.DefineWorkflowResources as Files
     }
+    WorkflowResources this_resources = select_first([resources, Files.resources])
+
+    if (!defined(args)) {
+        call wfargs.DefineWorkflowArguments as Parameters {
+            input:
+                scatter_count = scatter_count,
+                resources = this_resources,
+                runtime_collection = this_runtime_collection,
+        }
+    }
+    WorkflowArguments this_args = select_first([args, Parameters.arguments])
 
     call p_def.DefinePatient as GetPatient {
         input:
@@ -86,35 +95,35 @@ workflow MultiSampleSomaticWorkflow {
             use_for_aCR = use_sample_for_aCR,
             normal_sample_names = normal_sample_names,
 
-            runtime_collection = runtime_collection,
+            runtime_collection = this_runtime_collection,
     }
 
     call cov.CoverageWorkflow {
         input:
-            args = args,
+            args = this_args,
             patient = patient,
-            runtime_collection = runtime_collection,
+            runtime_collection = this_runtime_collection,
     }
 
     call snv.SNVWorkflow {
         input:
-            args = args,
+            args = this_args,
             patient = CoverageWorkflow.updated_patient,
-            runtime_collection = runtime_collection,
+            runtime_collection = this_runtime_collection,
     }
 
     call cnv.CNVWorkflow {
         input:
-            args = args,
+            args = this_args,
             patient = SNVWorkflow.updated_patient,
-            runtime_collection = runtime_collection,
+            runtime_collection = this_runtime_collection,
     }
 
     call clone.ClonalAnalysisWorkflow {
         input:
-            args = args,
+            args = this_args,
             patient = CNVWorkflow.updated_patient,
-            runtime_collection = runtime_collection,
+            runtime_collection = this_runtime_collection,
     }
 
     output {
