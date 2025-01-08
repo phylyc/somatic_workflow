@@ -62,7 +62,7 @@ workflow MultiSampleSomaticWorkflow {
                 scatter_count = scatter_count,
         }
     }
-    RuntimCollection this_runtime_collection = select_first([runtime_collection, RuntimeParameters.rtc])
+    RuntimeCollection this_runtime_collection = select_first([runtime_collection, RuntimeParameters.rtc])
 
     if (!defined(resources)) {
         call wfres.DefineWorkflowResources as Files
