@@ -539,6 +539,7 @@ task MergeVCFs {
         Array[File] vcfs_idx
         String output_name
         Boolean compress_output = false
+        Boolean drop_duplicate_sites = false
 
         Runtime runtime_params
     }
@@ -556,7 +557,21 @@ task MergeVCFs {
             ~{sep="' " prefix("-I '", vcfs)}' \
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-D '" + ref_dict + "'"} \
-            -O '~{output_vcf}'
+            -O 'tmp.~{output_vcf}'
+
+        if [ "~{drop_duplicate_sites}" == "true" ]; then
+            bcftools norm \
+                -d exact \
+                -o '~{output_vcf}' \
+                'tmp.~{output_vcf}'
+
+            bcftools index -t \
+                -o '~{output_vcf_idx}' \
+                '~{output_vcf}'
+        else
+            mv 'tmp.~{output_vcf}' '~{output_vcf}'
+            mv 'tmp.~{output_vcf_idx}' '~{output_vcf_idx}'
+        fi
     >>>
 
     output {

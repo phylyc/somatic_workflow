@@ -281,6 +281,7 @@ workflow DefineRuntimeCollection {
         Int time_create_mutect2_panel = 1200  # 20 h
         Int disk_create_mutect2_panel = 10
 
+        # CreateAFonlyGermlineResource
         Int mem_select_af_only_from_vcf = 2024
         Int time_select_af_only_from_vcf = 1440
     }
@@ -826,7 +827,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime select_af_only_from_vcf = {
-        "docker": bcftools_docker,
+        "docker": gatk_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
