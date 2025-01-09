@@ -126,6 +126,16 @@ workflow MultiSampleSomaticWorkflow {
             runtime_collection = this_runtime_collection,
     }
 
+    if (defined(CoverageWorkflow.contamination_tables) || defined(CNVWorkflow.contamination_tables)) {
+        Array[File] out_contamination_tables = select_first([CNVWorkflow.contamination_tables, CoverageWorkflow.contamination_tables])
+    }
+    if (defined(CoverageWorkflow.segmentation_tables) || defined(CNVWorkflow.segmentation_tables)) {
+        Array[File] out_segmentation_tables = select_first([CNVWorkflow.segmentation_tables, CoverageWorkflow.segmentation_tables])
+    }
+    if (defined(CoverageWorkflow.germline_pileups) || defined(CNVWorkflow.germline_pileups)) {
+        Array[File] out_germline_pileups = select_first([CNVWorkflow.germline_pileups, CoverageWorkflow.germline_pileups])
+    }
+
     output {
         Array[File?]? target_read_counts = CoverageWorkflow.target_read_counts
         Array[File?]? denoised_copy_ratios = CoverageWorkflow.denoised_copy_ratios
@@ -153,9 +163,9 @@ workflow MultiSampleSomaticWorkflow {
         File? germline_other_alt_counts = CNVWorkflow.snppanel_other_alt_counts
         File? germline_sample_correlation = CNVWorkflow.snppanel_sample_correlation
         Array[File]? germline_sample_genotype_likelihoods = CNVWorkflow.snppanel_sample_genotype_likelihoods
-        Array[File]? contamination_tables = select_first([CNVWorkflow.contamination_tables, CoverageWorkflow.contamination_tables])
-        Array[File]? segmentation_tables = select_first([CNVWorkflow.segmentation_tables, CoverageWorkflow.segmentation_tables])
-        Array[File]? germline_pileups = select_first([CNVWorkflow.snppanel_pileups, CoverageWorkflow.snppanel_pileups])
+        Array[File]? contamination_tables = out_contamination_tables
+        Array[File]? segmentation_tables = out_segmentation_tables
+        Array[File]? germline_pileups = out_germline_pileups
         Array[File]? germline_allelic_counts = CNVWorkflow.snppanel_allelic_counts
 
         File? modeled_segments = CNVWorkflow.modeled_segments
