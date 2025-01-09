@@ -127,13 +127,13 @@ workflow MultiSampleSomaticWorkflow {
     }
 
     if (defined(CoverageWorkflow.contamination_tables) || defined(CNVWorkflow.contamination_tables)) {
-        Array[File] out_contamination_tables = select_first([CNVWorkflow.contamination_tables, CoverageWorkflow.contamination_tables])
+        Array[File]? out_contamination_tables = select_first([CNVWorkflow.contamination_tables, CoverageWorkflow.contamination_tables])
     }
     if (defined(CoverageWorkflow.segmentation_tables) || defined(CNVWorkflow.segmentation_tables)) {
-        Array[File] out_segmentation_tables = select_first([CNVWorkflow.segmentation_tables, CoverageWorkflow.segmentation_tables])
+        Array[File]? out_segmentation_tables = select_first([CNVWorkflow.segmentation_tables, CoverageWorkflow.segmentation_tables])
     }
-    if (defined(CoverageWorkflow.germline_pileups) || defined(CNVWorkflow.germline_pileups)) {
-        Array[File] out_germline_pileups = select_first([CNVWorkflow.germline_pileups, CoverageWorkflow.germline_pileups])
+    if (defined(CoverageWorkflow.snppanel_pileups) || defined(CNVWorkflow.snppanel_pileups)) {
+        Array[File]? out_germline_pileups = select_first([CNVWorkflow.snppanel_pileups, CoverageWorkflow.snppanel_pileups])
     }
 
     output {
