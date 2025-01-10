@@ -148,9 +148,9 @@ workflow DefineWorkflowArguments {
         Float min_snppanel_pop_af = 0.01
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
-        Float genotype_variants_min_genotype_likelihood = 0.9999
-        Float genotype_variants_outlier_prior = 0.0003
-        Int genotype_variants_overdispersion = 50
+        Float genotype_variants_min_genotype_likelihood = 0.99
+        Float genotype_variants_outlier_prior = 0.0002
+        Int genotype_variants_overdispersion = 30
         Float genotype_variants_ref_bias = 1.05
         Int harmonize_min_target_length = 100
         Array[Int] model_segments_window_sizes = [8, 16, 32, 64, 128, 256, 512, 1024]
