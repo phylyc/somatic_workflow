@@ -124,7 +124,7 @@ workflow DefineWorkflowArguments {
         Boolean run_collect_allelic_coverage = true
         Boolean run_contamination_model = true
         Boolean run_model_segments = true
-        Boolean run_filter_segments = true
+        Boolean run_filter_segments = false
         Boolean run_orientation_bias_mixture_model = true
         Boolean run_variant_calling = true
         Boolean run_variant_filter = true
@@ -148,9 +148,9 @@ workflow DefineWorkflowArguments {
         Float min_snppanel_pop_af = 0.01
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
-        Float genotype_variants_min_genotype_likelihood = 0.99
-        Float genotype_variants_outlier_prior = 0.0002
-        Int genotype_variants_overdispersion = 30
+        Float genotype_variants_min_genotype_likelihood = 0.999
+        Float genotype_variants_outlier_prior = 0.0001
+        Int genotype_variants_overdispersion = 50
         Float genotype_variants_ref_bias = 1.05
         Int harmonize_min_target_length = 100
         Array[Int] model_segments_window_sizes = [8, 16, 32, 64, 128, 256, 512, 1024]
@@ -166,8 +166,8 @@ workflow DefineWorkflowArguments {
         String merge_pileups_script =           "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
         String acs_conversion_script =          "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
 
-        Int absolute_min_hets = 10
-        Int absolute_min_probes = 4
+        Int absolute_min_hets = 6
+        Int absolute_min_probes = 3
         Float absolute_maf90_threshold = 0.485
 
         # SNV WORKFLOW
