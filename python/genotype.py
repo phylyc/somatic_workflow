@@ -51,10 +51,10 @@ def parse_args():
     parser.add_argument("-S", "--segments",                     type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation file (output of GATK's CalculateContamination).")
     parser.add_argument("-V", "--variant",                      type=str,   default=None,   action="append",    help="VCF file containing germline variants and population allele frequencies. (Used to get pileup summaries.)")
     parser.add_argument("--normal_sample",                      type=str,   default=None,   action="append",    help="Assigned name of the normal sample.")
-    parser.add_argument("--normal_to_tumor_weight",             type=float, default=4.0,    help="Relative weight of normal samples to tumor samples when determining patient genotype.")
+    parser.add_argument("--normal_to_tumor_weight",             type=float, default=2.0,    help="Relative weight of normal samples to tumor samples when determining patient genotype.")
     parser.add_argument("-M", "--model",                        type=str,   default="betabinom", choices=["binom", "betabinom"], help="Genotype likelihood model.")
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
-    parser.add_argument("--min_allele_frequency",               type=float, default=1e-2,   help="Minimum population allele frequency to consider a site.")
+    parser.add_argument("--min_allele_frequency",               type=float, default=0,   help="Minimum population allele frequency to consider a site.")
     parser.add_argument("-p", "--min_genotype_likelihood",      type=float, default=0.9999, help="Probability threshold for calling and retaining genotypes.")
     parser.add_argument("-s", "--overdispersion",               type=float, default=50,     help="")
     parser.add_argument("-l", "--ref_bias",                     type=float, default=1.05,   help="")
@@ -91,6 +91,7 @@ def main():
         pileup=args.pileup,
         contamination=args.contamination,
         segments=args.segments,
+        min_allele_frequency=args.min_allele_frequency,
         min_read_depth=args.min_read_depth,
         verbose=args.verbose
     )
@@ -787,7 +788,7 @@ class GenotypeData(object):
         min_read_depth (int, optional): Minimum read depth threshold for filtering data.
     """
 
-    def __init__(self, individual_id: str, samples: list[str], variant: list[str] = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 10, min_allele_frequency: float = 0.01, verbose: bool = False):
+    def __init__(self, individual_id: str, samples: list[str], variant: list[str] = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 10, min_allele_frequency: float = 0, verbose: bool = False):
         self.verbose = verbose
         message("Loading data:") if verbose else None
         self.individual_id = individual_id

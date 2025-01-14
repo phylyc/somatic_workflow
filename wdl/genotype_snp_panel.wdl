@@ -26,7 +26,7 @@ workflow GenotypeSNPPanel {
         Boolean genotype_variants_save_sample_genotype_likelihoods = false
 
         Int genotype_variants_min_read_depth = 10
-        Float genotype_variants_min_genotype_likelihood = 0.9999
+        Float genotype_variants_min_genotype_likelihood = 0.999
         Float genotype_variants_outlier_prior = 0.0001
         Int genotype_variants_overdispersion = 50
         Float genotype_variants_ref_bias = 1.05

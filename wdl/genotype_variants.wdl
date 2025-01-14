@@ -19,8 +19,9 @@ workflow GenotypeVariants {
         File? rare_germline_alleles
         File? rare_germline_alleles_idx
 
+        Float min_allele_frequency = 0.0
         Int min_read_depth = 10
-        Float min_genotype_likelihood = 0.9999
+        Float min_genotype_likelihood = 0.999
         Float outlier_prior = 0.0001
         Int overdispersion = 50
         Float ref_bias = 1.05
@@ -69,6 +70,7 @@ workflow GenotypeVariants {
             pileups = pileups,
             contamination_tables = contamination_tables,
             segmentation_tables = segmentation_tables,
+            min_allele_frequency = min_allele_frequency,
             min_read_depth = min_read_depth,
             min_genotype_likelihood = min_genotype_likelihood,
             outlier_prior = outlier_prior,
@@ -122,9 +124,10 @@ task GenotypeVariantsTask {
         File? rare_germline_alleles
         File? rare_germline_alleles_idx
 
+        Float min_allele_frequency = 0.0
         Int min_read_depth = 10
-        Float normal_to_tumor_weight = 4.0
-        Float min_genotype_likelihood = 0.9999
+        Float normal_to_tumor_weight = 2.0
+        Float min_genotype_likelihood = 0.999
         Float outlier_prior = 0.0001
         Int overdispersion = 50
         Float ref_bias = 1.05
@@ -166,6 +169,7 @@ task GenotypeVariantsTask {
             ~{true="-C '" false="" defined(contamination_tables)}~{default="" sep="' -C '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
             ~{true="--normal_sample '" false="" defined(normal_sample_names)}~{default="" sep="' --normal_sample '" normal_sample_names}~{true="'" false="" defined(normal_sample_names)} \
             --normal_to_tumor_weight ~{normal_to_tumor_weight} \
+            --min_allele_frequency ~{min_allele_frequency} \
             --min_read_depth ~{min_read_depth} \
             --min_genotype_likelihood ~{min_genotype_likelihood} \
             --outlier_prior ~{outlier_prior} \
