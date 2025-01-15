@@ -166,8 +166,8 @@ workflow DefineWorkflowArguments {
         String merge_pileups_script =           "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
         String acs_conversion_script =          "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
 
-        Int absolute_min_hets = 6
-        Int absolute_min_probes = 3
+        Int absolute_min_hets = 0
+        Int absolute_min_probes = 0
         Float absolute_maf90_threshold = 0.485
 
         # SNV WORKFLOW
