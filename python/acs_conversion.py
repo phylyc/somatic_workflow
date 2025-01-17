@@ -17,8 +17,8 @@ def parse_args():
     parser.add_argument("--seg",            type=str,   required=True,  help="Path to the GATK ModelSegments modelFinal.seg output file.")
     parser.add_argument("--af_parameters",  type=str,   required=True,  help="Path to the GATK ModelSegments modelFinal.af.param output file.")
     parser.add_argument("--output_dir",     type=str,   required=True,  help="Path to the output directory.")
-    parser.add_argument("--min_hets",       type=int,   default=10,     help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
-    parser.add_argument("--min_probes",     type=int,   default=4,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
+    parser.add_argument("--min_hets",       type=int,   default=0,     help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
+    parser.add_argument("--min_probes",     type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
     parser.add_argument("--maf90_threshold",type=float, default=0.485,  help="Threshold of 90% quantile for setting minor allele fraction to 0.5.")
     parser.add_argument("--verbose",        default=False,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
@@ -184,7 +184,7 @@ def convert_model_segments_to_alleliccapseg(args):
         alleliccapseg_skew = 2. / (1. + model_segments_reference_bias)
 
         # If a row has less than X (set by user) hets or number of target intervals (probes), remove:
-        good_rows = alleliccapseg_seg_pd['n_hets'] >= args.min_hets
+        good_rows = alleliccapseg_seg_pd["n_hets"] >= args.min_hets
         good_rows &= alleliccapseg_seg_pd["n_probes"] >= args.min_probes
         n = alleliccapseg_seg_pd.shape[0] - np.sum(good_rows)
         pct_drop = n / alleliccapseg_seg_pd.shape[0] * 100
@@ -194,9 +194,6 @@ def convert_model_segments_to_alleliccapseg(args):
         return alleliccapseg_seg_pd, alleliccapseg_skew
 
     alleliccapseg_seg_pd, alleliccapseg_skew = convert(model_segments_seg_pd, model_segments_af_param_pd)
-
-    # ABSOLUTE doesn't like NaN segments
-    alleliccapseg_seg_pd.dropna(inplace=True)
 
     alleliccapseg_seg_pd.to_csv(output_filename, sep='\t', index=False, na_rep='NaN')
     np.savetxt(output_skew_filename, alleliccapseg_skew)
