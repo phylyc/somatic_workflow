@@ -56,6 +56,14 @@ workflows:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
 
+  - name: CalculateContamination
+    subclass: WDL
+    publish: true
+    primaryDescriptorPath: /wdl/calculate_contamination.wdl
+    authors:
+      - orcid: 0000-0001-9584-9135
+      - name: Philipp Hähnel
+
   - name: CollectReadCounts
     subclass: WDL
     publish: true
