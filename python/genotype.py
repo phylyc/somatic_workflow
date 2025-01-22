@@ -788,7 +788,7 @@ class GenotypeData(object):
         min_read_depth (int, optional): Minimum read depth threshold for filtering data.
     """
 
-    def __init__(self, individual_id: str, samples: list[str], variant: list[str] = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 10, min_allele_frequency: float = 0, verbose: bool = False):
+    def __init__(self, individual_id: str, samples: list[str], variant: list[str] = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 0, min_allele_frequency: float = 0, verbose: bool = False):
         self.verbose = verbose
         message("Loading data:") if verbose else None
         self.individual_id = individual_id
@@ -997,6 +997,7 @@ class GenotypeData(object):
         if len(sample_pairs) == 0:
             corr = pd.DataFrame([[1]], columns=sample_names, index=sample_names)
             pval = pd.DataFrame([[0]], columns=sample_names, index=sample_names)
+            nloc = pd.DataFrame([[0]], columns=sample_names, index=sample_names)
         else:
             corr = pd.Series(
                 {sample_pair: corr for sample_pair, corr in zip(sample_pairs, correlations)}
@@ -1004,19 +1005,27 @@ class GenotypeData(object):
             pval = pd.Series(
                 {sample_pair: pval for sample_pair, pval in zip(sample_pairs, pvalues)}
             ).unstack().reindex(index=sample_names, columns=sample_names)
+            nloc = pd.Series(
+                {sample_pair: nloc for sample_pair, nloc in zip(sample_pairs, num_loci)}
+            ).unstack().reindex(index=sample_names, columns=sample_names)
 
         sample_correlation = corr.where(~corr.isna(), corr.T)
         pval = pval.where(~pval.isna(), pval.T)
+        nloc = nloc.where(~nloc.isna(), nloc.T)
         np.fill_diagonal(sample_correlation.values, 1)
         np.fill_diagonal(pval.values, 0)
+        np.fill_diagonal(nloc.values, 0)
         sample_correlation = sample_correlation.fillna(0)
         pval = pval.fillna(1)
+        nloc = nloc.fillna(0)
 
         if self.verbose:
-            if len(num_loci):
-                message(f"Concordance of samples is evaluated at", f"between {np.min(num_loci)} and {np.max(num_loci)}" if len(num_loci) > 1 else f"{num_loci[0]}", "variant loci.")
+            message("Evaluating genotype concordance ...")
             print("Kendall-tau correlation of variant genotypes between samples:")
             print(sample_correlation.round(3).to_string())
+            print()
+            print("Number of variant loci for evaluating concordance of samples:")
+            print(nloc.to_string())
             print()
             print(f"p-values of Kendall-tau correlation of variant genotypes between samples:")
             print(pval.round(3).to_string())
