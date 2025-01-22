@@ -41,9 +41,11 @@ workflow CalculateContamination {
         String? getpileupsummaries_extra_args
 
         # parameters for GetPileupSummaries to select loci of common_germline_alleles for contamination
-        Float minimum_population_allele_frequency = 0.01
-        Float maximum_population_allele_frequency = 0.2
+        Float minimum_population_allele_frequency = 0.0
+        Float maximum_population_allele_frequency = 1.0
         Int minimum_read_depth = 10
+
+        Boolean compress_output = false
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
@@ -116,6 +118,7 @@ workflow CalculateContamination {
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
                 maximum_population_allele_frequency = maximum_population_allele_frequency,
                 minimum_read_depth = minimum_read_depth,
+                compress_output = compress_output,
                 getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                 runtime_collection = runtime_collection,
         }
@@ -138,6 +141,7 @@ workflow CalculateContamination {
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
                 maximum_population_allele_frequency = maximum_population_allele_frequency,
                 minimum_read_depth = minimum_read_depth,
+                compress_output = compress_output,
                 getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                 runtime_collection = runtime_collection,
         }
@@ -168,6 +172,8 @@ task CalculateContaminationTask {
         File tumor_pileups
         File? normal_pileups
 
+        Boolean compress_output = false
+
         Runtime runtime_params
     }
 
@@ -181,7 +187,8 @@ task CalculateContaminationTask {
 
     String tumor_sample_id = basename(uncompressed_tumor_pileups, ".pileup")
     String output_contamination = tumor_sample_id + ".contamination"
-    String output_segments = tumor_sample_id + ".segments"
+    String uncompressed_output_segments = tumor_sample_id + ".segments"
+    String output_segments = uncompressed_output_segments + (if compress_output then ".gz" else "")
 
     command <<<
         set -e
@@ -205,7 +212,12 @@ task CalculateContaminationTask {
             --input '~{uncompressed_tumor_pileups}' \
             ~{if defined(normal_pileups) then "--matched-normal '" + uncompressed_normal_pileups + "'" else ""} \
             --output '~{output_contamination}' \
-            --tumor-segmentation '~{output_segments}'
+            --tumor-segmentation '~{uncompressed_output_segments}'
+
+        if [ "~{compress_output}" == "true" ] ; then
+            # contamination table is smaller uncompressed
+            bgzip -c '~{uncompressed_output_segments}' > '~{output_segments}'
+        fi
     >>>
 
     output {
