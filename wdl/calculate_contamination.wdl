@@ -156,6 +156,7 @@ workflow CalculateContamination {
         input:
             tumor_pileups = non_optional_tumor_pileups,
             normal_pileups = optional_normal_pileup_summaries,
+            compress_output = compress_output,
             runtime_params = runtime_collection.calculate_contamination,
     }
 
