@@ -136,6 +136,7 @@ class Pileup(object):
         self.file_path = file_path
         self.columns = ["contig", "position", "ref_count", "alt_count", "other_alt_count", "allele_frequency"]
         self.column_types = [str, int, int, int, int, float]
+        can_read_file = True
         try:
             self.df = (
                 pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.columns, low_memory=False)
@@ -143,6 +144,7 @@ class Pileup(object):
                 else pd.DataFrame(columns=self.columns)
             )
         except Exception as e:
+            can_read_file = False
             warnings.warn(f"Exception reading pileup file {file_path}: {e}")
             warnings.warn(f"Setting pileup to empty DataFrame.")
             self.df = pd.DataFrame(columns=self.columns)
@@ -150,7 +152,7 @@ class Pileup(object):
         self.df = self.df.loc[self.df[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1) >= min_read_depth]
         self.df = self.df.loc[self.df["allele_frequency"] >= min_allele_frequency]
         self.bam_sample_name = None
-        if file_path is not None:
+        if file_path is not None and can_read_file:
             open_func = gzip.open if file_path.endswith(".gz") else open
             with open_func(file_path, "rt") as pileup_file:
                 pileup_header = pileup_file.readline().strip()
@@ -250,6 +252,7 @@ class Segments(object):
         self.file_path = file_path
         self.columns = ["contig", "start", "end", "minor_allele_fraction"]
         default_df = pd.DataFrame(columns=self.columns)
+        can_read_file = True
         try:
             self.df = (
                 pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.columns, low_memory=False)
@@ -257,11 +260,12 @@ class Segments(object):
                 else default_df
             )
         except Exception as e:
+            can_read_file = False
             warnings.warn(f"Exception reading segments file {file_path}: {e}")
             warnings.warn(f"Setting segments to empty DataFrame.")
             self.df = default_df
         self.bam_sample_name = None
-        if file_path is not None:
+        if file_path is not None and can_read_file:
             open_func = gzip.open if file_path.endswith(".gz") else open
             with open_func(file_path, "rt") as segments_file:
                 segments_header = segments_file.readline().strip()
@@ -687,7 +691,7 @@ class Genotyper(object):
 
         return likelihoods
 
-    def get_joint_genotype_likelihood(self, pileup_likelihoods: list[PileupLikelihood], normal_samples: list[str] = None, normal_to_tumor_weight: float = 4.0) -> pd.DataFrame:
+    def get_joint_genotype_likelihood(self, pileup_likelihoods: list[PileupLikelihood], normal_samples: list[str] = None, normal_to_tumor_weight: float = 1.0) -> pd.DataFrame:
         """
         Calculates joint genotype likelihoods across multiple samples from the
         same individual.
