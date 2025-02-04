@@ -646,16 +646,21 @@ class Genotyper(object):
         alt = pileup["alt_count"]
         f = pileup["allele_frequency"]  # population allele frequency from SNP panel
 
-        f_aa = contamination * f + (1 - contamination) * error / 3
-        f_ab = contamination * f + (1 - contamination) * minor_af
-        f_ba = contamination * f + (1 - contamination) * (1 - minor_af)
-        f_bb = contamination * f + (1 - contamination) * (1 - error)
+        def bias(_f):
+            return _f / (_f + (1 - _f) * self.ref_bias)
+
+        f_aa = bias(contamination * f + (1 - contamination) * error / 3)
+        f_ab = bias(contamination * f + (1 - contamination) * minor_af)
+        f_ba = bias(contamination * f + (1 - contamination) * (1 - minor_af))
+        f_bb = bias(contamination * f + (1 - contamination) * (1 - error))
+
+        # include probability from seq error assuming error rate for alt>ref == ref>alt
+        f_ab = f_ab * (1 - error) + (1 - f_ab) * error
+        f_ba = f_ba * (1 - error) + (1 - f_ba) * error
+
         s = self.overdispersion
         logo = np.log(self.outlier_prior)
         log1o = np.log1p(-self.outlier_prior)
-
-        def bias(_f):
-            return _f / (_f + (1 - _f) * self.ref_bias)
 
         # Prior probabilities of genotypes:
         with warnings.catch_warnings():
@@ -664,19 +669,18 @@ class Genotyper(object):
             logf = np.log(f)
 
         if self.model == "binom":
-            aa = 2 * log1f + st.binom(n, bias(f_aa)).logpmf(alt)
-            ab = log1f + logf + st.binom(n, bias(f_ab)).logpmf(alt)
-            ba = log1f + logf + st.binom(n, bias(f_ba)).logpmf(alt)
-            bb = 2 * logf + st.binom(n, bias(f_bb)).logpmf(alt)
+            aa = 2 * log1f + st.binom(n, f_aa).logpmf(alt)
+            ab = log1f + logf + st.binom(n, f_ab).logpmf(alt)
+            ba = log1f + logf + st.binom(n, f_ba).logpmf(alt)
+            bb = 2 * logf + st.binom(n, f_bb).logpmf(alt)
             # outlier = logo + 2 * log1f + st.binom(n, 0.5).logpmf(alt)  # max entropy
             outlier = -np.inf
         elif self.model == "betabinom":
-            aa = log1o + 2 * log1f + st.binom(n, bias(f_aa)).logpmf(alt)
-            ab = log1o + log1f + logf + st.betabinom(n, bias(f_ab) * s, (1 - bias(f_ab)) * s).logpmf(alt)
-            ba = log1o + log1f + logf + st.betabinom(n, bias(f_ba) * s, (1 - bias(f_ba)) * s).logpmf(alt)
-            bb = log1o + 2 * logf + st.binom(n, bias(f_bb)).logpmf(alt)
+            aa = log1o + 2 * log1f + st.binom(n, f_aa).logpmf(alt)
+            ab = log1o + log1f + logf + st.betabinom(n, f_ab * s, (1 - f_ab) * s).logpmf(alt)
+            ba = log1o + log1f + logf + st.betabinom(n, f_ba * s, (1 - f_ba) * s).logpmf(alt)
+            bb = log1o + 2 * logf + st.binom(n, f_bb).logpmf(alt)
             outlier = logo + 2 * log1f + st.betabinom(n, 1, 1).logpmf(alt)  # max entropy
-            # outlier = -np.inf
         else:
             raise ValueError(f"model is {self.model} but has to be one of binom, betabinom.")
 
@@ -944,7 +948,7 @@ class GenotypeData(object):
         and warns if the correlation is below a specified threshold.
 
         Median correlation of samples between unrelated patients: 0.15 (from data)
-        Median correlation of samples between related patients: 0.575
+        Median correlation of samples between 1st-degree related patients: 0.575
           0.15 = 0.575 - 0.425, so two unrelated individuals share 57.5% of their variant SNPs
           children inherit 50% of their SNPs from each parent, so two related individuals share 78.75% of their variant SNPs
           Kendall tau correlation 0.575 = 0.7875 - (1 - 0.7875)
@@ -969,11 +973,14 @@ class GenotypeData(object):
                 sample_gt_list.append(pd.DataFrame(index=confident_calls.index, columns=[pl.assigned_sample_name]))
 
         pd.set_option("future.no_silent_downcasting", True)
-        sample_genotypes = pd.concat(
-            sample_gt_list,
-            join="outer",
-            axis=1
-        ).fillna("./.").replace("./.", np.nan).replace("0/0", 0).replace("0/1", 1).replace("1/1", 2)
+        sample_genotypes = (
+            pd.concat(sample_gt_list, join="outer", axis=1)
+            .fillna("./.")
+            .replace("./.", np.nan)
+            .replace("0/0", 0)
+            .replace("0/1", 1)
+            .replace("1/1", 2)
+        )
 
         if sample_genotypes.empty:
             return pd.DataFrame(columns=[pl.assigned_sample_name for pl in self.pileup_likelihoods])
@@ -1021,7 +1028,7 @@ class GenotypeData(object):
         np.fill_diagonal(nloc.values, 0)
         sample_correlation = sample_correlation.fillna(0)
         pval = pval.fillna(1)
-        nloc = nloc.fillna(0)
+        nloc = nloc.fillna(0).astype(int)
 
         if self.verbose:
             message("Evaluating genotype concordance ...")
