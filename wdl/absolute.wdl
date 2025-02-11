@@ -157,20 +157,9 @@ if maf.empty:
     print("No variants found in the input MAF file.")
 else:
     cols_to_keep = [
-        c for c in [
-            "Hugo_Symbol",
-            "Chromosome",
-            "Start_Position",
-            "End_Position",
-            "Variant_Classification",
-            "Variant_Type",
-            "t_ref_count",
-            "t_alt_count",
-            "dbSNP_Val_Status",
-            "SIF_sample_name",
-            "Protein_Change",
-            "UniProt_AApos",
-        ] if c in maf.columns
+        col
+        for col in maf.columns
+        if maf[col].astype(str).map(len).max() < 1000 | maf[col].isna().all()
     ]
     print("Removing columns:", sorted(set(maf.columns) - set(cols_to_keep)))
     print("Keeping columns:", cols_to_keep)
