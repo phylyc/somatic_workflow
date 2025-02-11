@@ -28,10 +28,10 @@ workflow AbsoluteExtract {
     output {
         File absolute_maf = AbsoluteExtractTask.abs_maf
         File absolute_segtab = AbsoluteExtractTask.segtab
+        File absolute_segtab_igv = AbsoluteExtractTask.segtab_igv
         File absolute_called_rdata = AbsoluteExtractTask.called_rdata
         File absolute_table = AbsoluteExtractTask.table
         File absolute_gene_corrected_cn = AbsoluteExtractTask.gene_corrected_cn
-        File absolute_rescaled_total_cn = AbsoluteExtractTask.rescaled_total_cn
         String absolute_purity = AbsoluteExtractTask.purity
         String absolute_ploidy = AbsoluteExtractTask.ploidy
     }
@@ -69,12 +69,12 @@ task AbsoluteExtractTask {
     >>>
 
     output {
-        File abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + "_ABS_MAF.txt"
+        File abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".ABS_MAF.txt"
         File segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab.txt"
+        File segtab_igv = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".IGV.seg.txt"
         File called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
         File table = output_table
-        File gene_corrected_cn = output_dir + "/reviewed/" + sample_name + "_gene_corrected_CN.txt"
-        File rescaled_total_cn = output_dir + "/reviewed/" + sample_name + "_rescaled_total_cn.IGV.seg.txt"
+        File gene_corrected_cn = output_dir + "/reviewed/" + sample_name + ".gene_corrected_CN.txt"
         String purity = read_string("purity")
         String ploidy = read_string("ploidy")
     }
