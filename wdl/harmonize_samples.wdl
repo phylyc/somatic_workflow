@@ -139,6 +139,10 @@ task HarmonizeCopyRatios {
             --suffix ~{suffix} \
             --threads $n_threads \
             --min_target_length ~{min_target_length} \
+            --column_names CONTIG START END LOG2_COPY_RATIO \
+            --column_types str int int float \
+            --agg_col LOG2_COPY_RATIO \
+            --agg_func strongest_signal \
             ~{if compress_output then "--compress_output" else ""} \
             ~{if verbose then "--verbose" else ""}
     >>>

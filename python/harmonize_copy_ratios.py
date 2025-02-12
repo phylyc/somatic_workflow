@@ -30,6 +30,9 @@ def parse_args():
     parser.add_argument("--suffix",                 type=str,   default=".harmonized.CR.tsv",               help="Suffix to append to each sample name to create the output file name.")
     parser.add_argument("--threads",                type=int,   default=1,                                  help="Number of threads to use for parallelization over chromosomes.")
     parser.add_argument("--min_target_length",      type=int,   default=100,                                help="Minimum length of a harmonized target to be included in output.")
+    parser.add_argument("--merge_abutting_distance", type=int,  default=1,                                  help="Maximum distance of abutting intervals to merge.")
+    parser.add_argument("--merge_abutting_tolerance", type=float,   default=1e-3,                           help="Maximum copy ratio difference between abutting intervals to merge.")
+    parser.add_argument("--interval_set_rule",      type=str,   default="INTERSECTION",                     help="Output the INTERSECTION / UNION of all harmonized intervals across all samples.")
     parser.add_argument("--compress_output",                    default=False,      action="store_true",    help="Compress output files.")
     parser.add_argument("--column_names",           type=str,               nargs="*",                      help="Column names for input files")
     parser.add_argument("--column_types",           type=str,               nargs="*",                      help="Column types for input files. Must be the same number of arguments as for --column_names.")
@@ -39,17 +42,11 @@ def parse_args():
     parser.add_argument("--copy_ratio_col",         type=str,   default="LOG2_COPY_RATIO",                  help="Name of the column containing the log2 copy ratio.")
     parser.add_argument("--sample_col",             type=str,   default="SAMPLE",                           help="Name of the column containing the sample name.")
     parser.add_argument("--comment_char",           type=str,   default="@",                                help="Character that starts a comment line in the input files.")
-    parser.add_argument("--agg_col",                type=str,   default=None,       action="append",        help="Name of additional column to aggregate over.")
-    parser.add_argument("--agg_func",               type=str,   default=None,       action="append",        help="Function to aggregate over additional column. Needs to be listed in same order as --agg_col.")
+    parser.add_argument("--agg_col",                type=str,   default=None,       action="append",        help="Name of column to aggregate over. Can be listed more than once.")
+    parser.add_argument("--agg_func",               type=str,   default=None,       action="append",        help="Function to aggregate over column. Needs to be listed in same order as --agg_col.")
     parser.add_argument("--filter_germline_calls",              default=False,      action="store_true",    help="If --normal_sample is given, filter all CALL segments with + or - assignment.")
     parser.add_argument("--verbose",                            default=False,      action="store_true",    help="Print information to stdout during execution.")
     args = parser.parse_args()
-
-    # Set defaults for GATK's DenoiseReadCounts output
-    args.column_names = ["CONTIG", "START", "END", "LOG2_COPY_RATIO"] if args.column_names is None else args.column_names
-    args.column_types = ["str", "int", "int", "float"] if args.column_types is None else args.column_types
-    args.agg_col = ["LOG2_COPY_RATIO"] if args.agg_col is None else args.agg_col
-    args.agg_func = ["strongest_signal"] if args.agg_func is None else args.agg_func
     return args
 
 
@@ -92,6 +89,9 @@ class Harmonizer(object):
             ref_dict_file=args.ref_dict,
             agg_col=args.agg_col,
             agg_func=args.agg_func,
+            interval_set_rule=args.interval_set_rule,
+            merge_abutting_distance=args.merge_abutting_distance,
+            merge_abutting_tolerance=args.merge_abutting_tolerance,
             filter_germline_calls=args.filter_germline_calls,
             verbose=args.verbose,
         )
@@ -117,6 +117,9 @@ class Harmonizer(object):
         ref_dict_file: str = None,
         agg_col: Union[tuple[str], list[str]] = None,
         agg_func: Union[tuple[str], list[str]] = None,
+        interval_set_rule: str = "INTERSECTION",
+        merge_abutting_distance: int = 1,
+        merge_abutting_tolerance: float = 1e-3,
         filter_germline_calls: bool = False,
         verbose: bool = False,
     ):
@@ -144,6 +147,9 @@ class Harmonizer(object):
         self.comment_char = comment_char
         self.agg_col = agg_col if agg_col is not None else []
         self.agg_func = agg_func if agg_func is not None else []
+        self.interval_set_rule = interval_set_rule
+        self.merge_abutting_distance = merge_abutting_distance
+        self.merge_abutting_tolerance = merge_abutting_tolerance
         self.filter_germline_calls = filter_germline_calls
         self.verbose = verbose
 
@@ -327,7 +333,7 @@ class Harmonizer(object):
         temp_df = temp_df.astype({c: t for c, t in self.column_types.items() if c in temp_df.columns})
         return pd.MultiIndex.from_frame(temp_df[index.names])
 
-    def merge_abutting_intervals(self, intervals: pd.DataFrame, dist: int = 1, tol: float = 1e-3):
+    def merge_abutting_intervals(self, intervals: pd.DataFrame):
         new_intervals = []
         previous_interval = None
         for i, interval in intervals.iterrows():
@@ -337,13 +343,15 @@ class Harmonizer(object):
                 continue
 
             # interval.name == (contig, start, end)
-            if interval.name[0] == previous_interval.name[0] and abs(interval.name[1] - previous_interval.name[2]) <= dist:
+            if interval.name[0] == previous_interval.name[0] and abs(interval.name[1] - previous_interval.name[2]) <= self.merge_abutting_distance:
                 equal = previous_interval.shape[0] > 0
                 for _pi, _i in zip(previous_interval, interval):
                     try:
-                        equal &= abs(_pi - _i) < tol
+                        # if interval is just a number
+                        equal &= abs(_pi - _i) < self.merge_abutting_tolerance
                     except:
                         try:
+                            # if interval is a vector of numbers
                             equal &= _pi == _i
                         except:
                             pass
@@ -450,12 +458,16 @@ class Harmonizer(object):
         print(f"  Number of loci after harmonization: {n_harmonized} (+{pct_increase:.3f}%)") if self.verbose else None
 
         # Drop intervals that are not present in all samples:
-        consensus_intervals = aggregate.dropna()
-        n_consensus = consensus_intervals.shape[0]
-        pct_drop = 100 * (1 - n_consensus / n_harmonized)
-        print(f"  Number of loci after dropping loci not present in all samples: {n_consensus} (-{pct_drop:.3f}%)") if self.verbose else None
-        if n_consensus == 0:
-            return consensus_intervals
+        if self.interval_set_rule == "INTERSECTION":
+            consensus_intervals = aggregate.dropna()
+            n_consensus = consensus_intervals.shape[0]
+            pct_drop = 100 * (1 - n_consensus / n_harmonized)
+            print(f"  Number of loci after dropping loci not present in all samples: {n_consensus} (-{pct_drop:.3f}%)") if self.verbose else None
+            if n_consensus == 0:
+                return consensus_intervals
+        else:
+            consensus_intervals = aggregate
+            n_consensus = n_harmonized
 
         # Drop intervals that are called as amp or del in the matched normal sample:
         if self.filter_germline_calls and self.normal_sample is not None and "CALL" in self.column_names:
@@ -474,7 +486,7 @@ class Harmonizer(object):
         merged_consensus_intervals = self.merge_abutting_intervals(somatic_intervals)
         n_merged = merged_consensus_intervals.shape[0]
         pct_drop = 100 * (1 - n_merged / n_somatic)
-        print(f"  Number of loci after merging abutting intervals with the same copy ratio: {n_merged} (-{pct_drop:.3f}%)") if self.verbose else None
+        print(f"  Number of loci after merging abutting intervals (dist <= {self.merge_abutting_distance}) with the same copy ratio (tol < {self.merge_abutting_tolerance}): {n_merged} (-{pct_drop:.3f}%)") if self.verbose else None
 
         # Drop intervals that are too short:
         selected_merged_consensus_intervals = self.select_intervals(merged_consensus_intervals, min_length=self.min_target_length)
