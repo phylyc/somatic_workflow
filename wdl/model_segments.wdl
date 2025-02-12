@@ -14,6 +14,8 @@ workflow ModelSegments {
         RuntimeCollection runtime_collection
     }
 
+    # todo: add option to downsample HETs to e.g. 1 / 1kb
+
     # The allelic counts were collected via GetPileupSummaries, which contains
     # more information. We first need to convert the pileup to allelic count format.
 
@@ -21,10 +23,13 @@ workflow ModelSegments {
         if (defined(sample.snppanel_pileups)) {
             call PileupToAllelicCounts {
                 input:
+                    script = args.pileup_to_allelic_counts_script,
                     ref_dict = args.files.ref_dict,
                     pileup = sample.snppanel_pileups,
                     gvcf = patient.gvcf,
                     gvcf_idx = patient.gvcf_idx,
+                    intervals = sample.denoised_copy_ratios,
+                    het_to_interval_mapping_max_distance = args.het_to_interval_mapping_max_distance,
                     select_hets = true,
                     bam_name = sample.bam_name,
                     runtime_params = runtime_collection.pileup_to_allelic_counts
@@ -161,12 +166,16 @@ workflow ModelSegments {
 
 task PileupToAllelicCounts {
     input {
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
+
         File ref_dict
         String bam_name
         File? pileup
         File? gvcf
         File? gvcf_idx
+        File? intervals
         Int min_read_depth = 0
+        Int het_to_interval_mapping_max_distance = 250
         Boolean select_hets = false
 
         Runtime runtime_params
@@ -175,12 +184,13 @@ task PileupToAllelicCounts {
     String non_optional_pileup = select_first([pileup, "none"])
     String sample_name = basename(basename(basename(non_optional_pileup, ".gz"), ".pileup"), ".likelihoods")
     String output_file = sample_name + ".allelic_counts.tsv"
+    String error_output_file = sample_name + ".error_probability.txt"
 
     command <<<
         set -euxo pipefail
 
         # Set default value
-        printf "0.05" > error_probability.txt
+        printf "0.05" > '~{error_output_file}'
 
         if [ "~{defined(pileup)}" == "true" ] ; then
             # HEADER
@@ -188,37 +198,21 @@ task PileupToAllelicCounts {
             printf "@RG\tID:GATKCopyNumber\tSM:~{bam_name}\n" >> '~{output_file}'
             printf "CONTIG\tPOSITION\tREF_COUNT\tALT_COUNT\tREF_NUCLEOTIDE\tALT_NUCLEOTIDE\n" >> '~{output_file}'
 
-            python <<EOF
-import numpy as np
-import pandas as pd
-
-vcf_columns = ["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "genotype"]
-
-pileup = pd.read_csv('~{pileup}', sep='\t', comment='#', low_memory=False).astype({"contig": str, "position": int, "ref_count": int, "alt_count": int, "other_alt_count": int, "allele_frequency": float})
-gvcf = pd.read_csv('~{gvcf}', sep='\t', comment='#', header=None, low_memory=False, names=vcf_columns).astype({"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str})
-
-if pileup.empty:
-    print("No pileups found.")
-else:
-    df = pd.merge(pileup, gvcf, how='left', on=['contig', 'position'])
-    df = df.loc[df[['ref_count', 'alt_count']].sum(axis=1) >= ~{min_read_depth}]
-    if ~{if select_hets then "True" else "False"}:
-        het_mask = df['genotype'] == '0/1'
-        print(f"Selecting {het_mask.sum()} HETs")
-        df = df.loc[het_mask]
-    df[["contig", "position", "ref_count", "alt_count", "ref", "alt"]].to_csv('~{output_file}', sep='\t', index=False, header=False, mode='a')
-
-    other_alt_counts = pileup["other_alt_count"].sum()
-    total_counts = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1).sum()
-    error_probability = np.clip(1.5 * other_alt_counts / max(1, total_counts), a_min=0.001, a_max=0.05)
-    np.savetxt("error_probability.txt", [error_probability])
-EOF
-        fi
+            wget -O pileup_to_allelic_counts.py ~{script}
+            python pileup_to_allelic_counts.py
+                --pileup '~{pileup}' \
+                --gvcf '~{gvcf}' \
+                ~{"--intervals '" + intervals + "'"} \
+                --min_read_depth ~{min_read_depth} \
+                --het_to_interval_mapping_max_distance ~{het_to_interval_mapping_max_distance} \
+                --output '~{output_file}' \
+                --error_output '~{error_output_file}' \
+                ~{if select_hets then "--select_hets" else ""}
     >>>
 
     output {
         File? allelic_counts = output_file
-        Float error_probability = read_float("error_probability.txt")
+        Float error_probability = read_float(error_output_file)
     }
 
     runtime {

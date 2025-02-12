@@ -47,6 +47,7 @@ struct WorkflowArguments {
     Int genotype_variants_overdispersion
     Float genotype_variants_ref_bias
     Int harmonize_min_target_length
+    Int het_to_interval_mapping_max_distance
     Array[Int] model_segments_window_sizes
     Float model_segments_smoothing_credible_interval_threshold
     Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound
@@ -58,6 +59,7 @@ struct WorkflowArguments {
     String genotype_variants_script
     String harmonize_copy_ratios_script
     String merge_pileups_script
+    String pileup_to_allelic_counts_script
     String acs_conversion_script
 
     Int absolute_min_hets
@@ -149,10 +151,11 @@ workflow DefineWorkflowArguments {
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
         Float genotype_variants_min_genotype_likelihood = 0.999
-        Float genotype_variants_outlier_prior = 0.0001
+        Float genotype_variants_outlier_prior = 0.0002
         Int genotype_variants_overdispersion = 50
         Float genotype_variants_ref_bias = 1.05
         Int harmonize_min_target_length = 100
+        Int het_to_interval_mapping_max_distance = 250
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
         Float model_segments_smoothing_credible_interval_threshold = 2.0
         Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
@@ -161,10 +164,11 @@ workflow DefineWorkflowArguments {
         Float call_copy_ratios_z_score_threshold = 2.0
         Int filter_germline_cnvs_min_segment_length = 100
 
-        String genotype_variants_script =       "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
-        String harmonize_copy_ratios_script =   "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
-        String merge_pileups_script =           "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
-        String acs_conversion_script =          "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
+        String genotype_variants_script =        "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
+        String harmonize_copy_ratios_script =    "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
+        String merge_pileups_script =            "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
+        String pileup_to_allelic_counts_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
+        String acs_conversion_script =           "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
 
         Int absolute_min_hets = 0
         Int absolute_min_probes = 0
@@ -306,6 +310,7 @@ workflow DefineWorkflowArguments {
         genotype_variants_overdispersion: genotype_variants_overdispersion,
         genotype_variants_ref_bias: genotype_variants_ref_bias,
         harmonize_min_target_length: harmonize_min_target_length,
+        het_to_interval_mapping_max_distance: het_to_interval_mapping_max_distance,
         model_segments_window_sizes: model_segments_window_sizes,
         model_segments_smoothing_credible_interval_threshold: model_segments_smoothing_credible_interval_threshold,
         call_copy_ratios_neutral_segment_copy_ratio_lower_bound: call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
@@ -317,6 +322,7 @@ workflow DefineWorkflowArguments {
         genotype_variants_script: genotype_variants_script,
         harmonize_copy_ratios_script: harmonize_copy_ratios_script,
         merge_pileups_script: merge_pileups_script,
+        pileup_to_allelic_counts_script: pileup_to_allelic_counts_script,
         acs_conversion_script: acs_conversion_script,
 
         absolute_min_hets: absolute_min_hets,
