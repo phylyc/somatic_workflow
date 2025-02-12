@@ -39,7 +39,7 @@ def convert_pileup_to_allelic_counts(args):
     ).astype({"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str})
     intervals = pd.read_csv(
         f"{args.intervals}", sep="\t", comment="@", low_memory=False
-    ).astype({"CONTIG": str, "START": int, "END": int}) if args.denoised_cr is not None else None
+    ).astype({"CONTIG": str, "START": int, "END": int}) if args.intervals is not None else None
 
     if pileup.empty:
         print("No pileups found.")
