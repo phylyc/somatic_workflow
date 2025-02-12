@@ -75,7 +75,7 @@ def convert_pileup_to_allelic_counts(args):
 
             # Get smallest distance and drop pileups too far away.
             _df["distance"] = _df[["distance_pre", "distance_post"]].min(axis=1)
-            _df = _df.loc[_df["distance"] <= args.het_to_dcr_interval_mapping_max_distance]
+            _df = _df.loc[_df["distance"] <= args.het_to_interval_mapping_max_distance]
 
             # Select the closest interval
             use_post = _df["distance_post"] < _df["distance_pre"]
