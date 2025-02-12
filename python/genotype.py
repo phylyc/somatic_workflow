@@ -659,8 +659,11 @@ class Genotyper(object):
         f_ba = f_ba * (1 - error) + (1 - f_ba) * error
 
         s = self.overdispersion
-        logo = np.log(self.outlier_prior)
-        log1o = np.log1p(-self.outlier_prior)
+        # Give sites with zero read depth high outlier (no information) prior
+        outlier_prior = self.outlier_prior * np.ones_like(n)
+        outlier_prior[n == 0] = 1 - self.outlier_prior
+        logo = np.log(outlier_prior)
+        log1o = np.log1p(-outlier_prior)
 
         # Prior probabilities of genotypes:
         with warnings.catch_warnings():
