@@ -174,11 +174,9 @@ def convert_model_segments_to_alleliccapseg(args):
         # ABSOLUTE may actually be rather sensitive to this.  Again, let's ignore for now, and we can later port this
         # statistical test if necessary.
 
-        # Finally, I believe that ABSOLUTE requires the value of the "skew" parameter from the AllelicCapSeg
-        # allele-fraction model.  This parameter is supposed to allow the model to account for reference bias,
-        # but the model likelihood that AllelicCapSeg uses is not valid over the entire range of the skew parameter.
-        # We corrected this during the development of AllelicCNV and retain the same corrected model in ModelSegments.
-        # We will try to transform the relevant parameter in the corrected model back to a "skew",
+        # Finally, ABSOLUTE requires the value of the "skew" parameter from the AllelicCapSeg
+        # allele-fraction model.  This parameter allows the model to account for reference bias.
+        # We try to transform the relevant parameter in the corrected model back to a "skew",
         # but this operation is ill-defined.  Luckily, for WGS, the reference bias is typically negligible.
         model_segments_reference_bias = model_segments_af_param_pd[model_segments_af_param_pd['PARAMETER_NAME'] == 'MEAN_BIAS']['POSTERIOR_50']
         alleliccapseg_skew = 2. / (1. + model_segments_reference_bias)
@@ -188,7 +186,7 @@ def convert_model_segments_to_alleliccapseg(args):
         good_rows &= alleliccapseg_seg_pd["n_probes"] >= args.min_probes
         n = alleliccapseg_seg_pd.shape[0] - np.sum(good_rows)
         pct_drop = n / alleliccapseg_seg_pd.shape[0] * 100
-        print(f"Dropping {n} (-{pct_drop:.3f}%) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
+        print(f"Dropping {n}/{alleliccapseg_seg_pd.shape[0]} (-{pct_drop:.3f}%) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
         alleliccapseg_seg_pd = alleliccapseg_seg_pd.loc[good_rows]
 
         return alleliccapseg_seg_pd, alleliccapseg_skew
