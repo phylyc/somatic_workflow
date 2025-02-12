@@ -125,7 +125,7 @@ workflow CreateMutect2PanelOfNormals {
     call rt.UpdateRuntimeParameters as CreateMutect2PanelRuntime {
         input:
             runtime_params = runtime_collection.create_mutect2_panel,
-            disk = runtime_collection.create_mutect2_panel.disk + 3 * ceil(size(MultiSampleSomaticWorkflow.unfiltered_vcf, "GB")) + ceil(length(MultiSampleSomaticWorkflow.unfiltered_vcf) / 10)
+            disk = runtime_collection.create_mutect2_panel.disk + 10 * ceil(size(MultiSampleSomaticWorkflow.unfiltered_vcf, "GB")) + ceil(length(MultiSampleSomaticWorkflow.unfiltered_vcf) / 10)
     }
 
     scatter (scattered_intervals in SplitIntervals.interval_files) {
