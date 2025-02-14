@@ -14,12 +14,12 @@ def parse_args():
     parser.usage = "pileup_to_allelic_counts.py --pileup <pileup> --gvcf <gvcf> --output <output> [--select_hets]"
     parser.add_argument("--pileup",         type=str,   required=True,  help="Path to a GATK GetPileupSummaries output-like file.")
     parser.add_argument("--gvcf",           type=str,   required=True,  help="Path to a genotyped germline vcf that contains ref and alt allele information for each pileup locus and contains the GT field.")
-    parser.add_argument("--intervals",    type=str,   default=None,   help="Path to the (denoised total copy ratio) intervals to aggregate pileups into one allelic count. Required columns: CONTIG, START, END")
+    parser.add_argument("--intervals",      type=str,   default=None,   help="Path to the (denoised total copy ratio) intervals to aggregate pileups into one allelic count. Required columns: CONTIG, START, END")
     parser.add_argument("--het_to_interval_mapping_max_distance", type=int, default=0, help="If a pileup location does not map to an interval provided in the intervals, it will be mapped to the closest interval, which is at most this many base pairs away.")
     parser.add_argument("--min_read_depth", type=int,   default=0, help="Minimum read depth.")
     parser.add_argument("--output",         type=str,   required=True,  help="Path to the output file.")
     parser.add_argument("--error_output",   type=str,                   help="Path to the error rate output file.")
-    parser.add_argument("--select_hets",    default=False,  action="store_true", help="Keep only heterozygous sites.")
+    parser.add_argument("--select_hets",    default=False, action="store_true", help="Keep only heterozygous sites.")
     return parser.parse_args()
 
 
@@ -50,7 +50,7 @@ def convert_pileup_to_allelic_counts(args):
 
     if args.select_hets:
         het_mask = df["genotype"] == "0/1"
-        print(f"Selecting {het_mask.sum()}/{het_mask.shape[0]} HETs")
+        print(f"Selecting {het_mask.sum()} / {het_mask.shape[0]} HETs")
         df = df.loc[het_mask]
 
     if intervals is not None:
@@ -96,6 +96,8 @@ def convert_pileup_to_allelic_counts(args):
             dfs.append(_df)
 
         df = pd.concat(dfs).astype({"contig": str, "position": int, "ref_count": int, "alt_count": int})
+
+        print(f"Remaining HETs after aggregating and mapping to intervals: {df.shape[0]}")
 
     df[["contig", "position", "ref_count", "alt_count", "ref", "alt"]].to_csv(f"{args.output}", sep="\t", index=False, header=False, mode="a")
 
