@@ -160,13 +160,13 @@ def map_to_cn(args):
 
     seg = seg.reindex(sort_genomic_positions(index=seg.index))
 
-    seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"] + 1e-4) - np.log2(args.ploidy)
-    if args.sex in ["XY", "Male"]:
-        seg.loc[seg["Chromosome"].isin(["X", "Y"]), "Segment_Mean"] += 1
-
     seg.loc[new_segs].reset_index()[["Chromosome", "Start.bp", "End.bp"]].to_csv(f"{args.outdir}/{args.sample}.rescued_intervals.txt", sep="\t", index=False)
 
     seg = seg.reset_index()
+
+    seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"] + 1e-4) - np.log2(args.ploidy)
+    if args.sex in ["XY", "Male"]:
+        seg.loc[seg["Chromosome"].isin(["X", "Y"]), "Segment_Mean"] += 1
 
     seg[abs_seg_cols].to_csv(f"{args.outdir}/{args.sample}.segtab.completed.txt", sep="\t", index=False)
     seg[["sample", "Chromosome", "Start.bp", "End.bp", "Segment_Mean", "rescaled_total_cn"]].to_csv(f"{args.outdir}/{args.sample}.IGV.seg.completed.txt", sep="\t", index=False)
