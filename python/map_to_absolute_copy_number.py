@@ -1,7 +1,6 @@
 import argparse
 import numpy as np
 import pandas as pd
-import os
 import scipy.stats as st
 
 
@@ -57,14 +56,23 @@ def map_to_cn(args):
     }
     vcf_columns = ["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "genotype"]
 
-    abs_seg = pd.read_csv(
-        f"{args.absolute_seg}", sep="\t", comment="#", low_memory=False
-    ).astype(abs_dtypes)
+    abs_seg = pd.read_csv(f"{args.absolute_seg}", sep="\t", comment="#", low_memory=False)
+    for col, dtype in abs_dtypes.items():
+        try:
+            abs_seg = abs_seg.astype({col: dtype})
+        except:
+            continue
     abs_seg_cols = abs_seg.columns
     abs_seg = abs_seg.set_index(["Chromosome", "Start.bp", "End.bp"])
-    cr_seg = pd.read_csv(
-        f"{args.cr_seg}", sep="\t", comment="@", low_memory=False
-    ).astype(acs_dtypes).set_index(["Chromosome", "Start.bp", "End.bp"])
+
+    cr_seg = pd.read_csv(f"{args.cr_seg}", sep="\t", comment="@", low_memory=False)
+    for col, dtype in acs_dtypes.items():
+        try:
+            cr_seg = cr_seg.astype({col: dtype})
+        except:
+            continue
+    cr_seg = cr_seg.set_index(["Chromosome", "Start.bp", "End.bp"])
+
     gvcf = pd.read_csv(
         f"{args.gvcf}", sep="\t", comment="#", header=None, low_memory=False, names=vcf_columns
     ).astype({"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str})
@@ -122,7 +130,7 @@ def map_to_cn(args):
     c_corr = seg[["corrected_CN", "corrected_total_cn"]].corr().loc["corrected_CN", "corrected_total_cn"]
     print(f"Correlation between corrected total copy number and ABSOLUTE output: {c_corr}")
 
-    new_segs = seg["corrected_total_cn"].isna()
+    new_segs = seg[["corrected_total_cn", "rescaled_total_cn"]].isna().any(axis=1)
     seg.loc[new_segs, "sample"] = args.sample
     seg.loc[new_segs, "total_copy_ratio"] = seg.loc[new_segs, "tau"] / 2
     seg.loc[new_segs, "copy.ratio"] = seg.loc[new_segs, "tau"] / 2
