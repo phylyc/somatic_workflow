@@ -389,7 +389,6 @@ task SelectVariants {
             --exclude-filtered false \
             ~{"--sample-name '" + tumor_sample_name + "'"} \
             ~{"--sample-name '" + normal_sample_name + "'"} \
-            ~{"-select 'vc.getGenotype(\"" + tumor_sample_name + "\").getAD().0 < vc.getGenotype(\"" + tumor_sample_name + "\").getDP()'"} \
             ~{select_variants_extra_args}
 
         set -uo pipefail
