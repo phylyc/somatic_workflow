@@ -80,6 +80,14 @@ workflows:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
 
+  - name: AnnotateVariants
+    subclass: WDL
+    publish: true
+    primaryDescriptorPath: /wdl/annotate_variants.wdl
+    authors:
+      - orcid: 0000-0001-9584-9135
+      - name: Philipp Hähnel
+
   - name: Absolute
     subclass: WDL
     publish: true

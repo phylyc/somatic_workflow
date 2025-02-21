@@ -4,10 +4,16 @@ import "workflow_arguments.wdl" as wfargs
 import "runtime_collection.wdl" as rtc
 import "runtimes.wdl" as rt
 import "tasks.wdl"
+import "workflow_arguments.wdl" as wfargs
+import "workflow_resources.wdl" as wfres
 
 
 workflow AnnotateVariants {
     input {
+        File? ref_fasta
+        File? ref_fasta_index
+        File? ref_dict
+
         File vcf
         File vcf_idx
         Int num_variants
@@ -18,8 +24,24 @@ workflow AnnotateVariants {
         String? normal_bam_name
         String? normal_sample_name
 
-        WorkflowArguments args
-        RuntimeCollection runtime_collection
+        WorkflowArguments args = Parameters.arguments
+        RuntimeCollection runtime_collection = RuntimeParameters.rtc
+    }
+
+    # Define for standalone workflow
+    call rtc.DefineRuntimeCollection as RuntimeParameters
+
+    call wfres.DefineWorkflowResources as Files {
+        input:
+            ref_fasta = ref_fasta,
+            ref_fasta_index = ref_fasta_index,
+            ref_dict = ref_dict,
+    }
+
+    call wfargs.DefineWorkflowArguments as Parameters {
+        input:
+            resources = Files.resources,
+            runtime_collection = runtime_collection,
     }
 
     if (args.run_variant_annotation_scattered) {
