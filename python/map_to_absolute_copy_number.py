@@ -164,7 +164,7 @@ def map_to_cn(args):
 
     seg = seg.reset_index()
 
-    seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"] + 1e-4) - np.log2(args.ploidy)
+    seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(args.ploidy)
     if args.sex in ["XY", "Male"]:
         seg.loc[seg["Chromosome"].isin(["X", "Y"]), "Segment_Mean"] += 1
 
