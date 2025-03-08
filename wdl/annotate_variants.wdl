@@ -16,7 +16,7 @@ workflow AnnotateVariants {
 
         File vcf
         File vcf_idx
-        Int num_variants
+        Int? num_variants = 40
 
         String? individual_id
         String tumor_bam_name
@@ -24,63 +24,66 @@ workflow AnnotateVariants {
         String? normal_bam_name
         String? normal_sample_name
 
-        WorkflowArguments args = Parameters.arguments
+        WorkflowArguments? args
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
 
     # Define for standalone workflow
     call rtc.DefineRuntimeCollection as RuntimeParameters
 
-    call wfres.DefineWorkflowResources as Files {
-        input:
-            ref_fasta = ref_fasta,
-            ref_fasta_index = ref_fasta_index,
-            ref_dict = ref_dict,
-    }
+    if (!defined(args)) {
+        call wfres.DefineWorkflowResources as Files {
+            input:
+                ref_fasta = ref_fasta,
+                ref_fasta_index = ref_fasta_index,
+                ref_dict = ref_dict,
+        }
 
-    call wfargs.DefineWorkflowArguments as Parameters {
-        input:
-            resources = Files.resources,
-            runtime_collection = runtime_collection,
+        call wfargs.DefineWorkflowArguments as Parameters {
+            input:
+                resources = Files.resources,
+                runtime_collection = runtime_collection,
+        }
     }
+    WorkflowArguments this_args = select_first([args, Parameters.arguments])
 
-    if (args.run_variant_annotation_scattered) {
+    if (this_args.run_variant_annotation_scattered) {
         # Due to its long runtime, we scatter the realignment task over intervals.
-        Int scatter_count = ceil((num_variants + 1) / args.variants_per_scatter)
+        Int scatter_count = ceil((num_variants + 1) / this_args.variants_per_scatter)
         call tasks.SplitIntervals {
             input:
-                interval_list = args.preprocessed_interval_list,
-                ref_fasta = args.files.ref_fasta,
-                ref_fasta_index = args.files.ref_fasta_index,
-                ref_dict = args.files.ref_dict,
+                interval_list = this_args.preprocessed_interval_list,
+                ref_fasta = this_args.files.ref_fasta,
+                ref_fasta_index = this_args.files.ref_fasta_index,
+                ref_dict = this_args.files.ref_dict,
                 scatter_count = scatter_count,
-                split_intervals_extra_args = args.split_intervals_extra_args,
+                split_intervals_extra_args = this_args.split_intervals_extra_args,
                 runtime_params = runtime_collection.split_intervals,
         }
     }
 
-    scatter (intervals in select_first([SplitIntervals.interval_files, [args.preprocessed_interval_list]])) {
+    scatter (intervals in select_first([SplitIntervals.interval_files, [this_args.preprocessed_interval_list]])) {
         call tasks.SelectVariants as SelectSampleVariants {
             input:
-                ref_fasta = args.files.ref_fasta,
-                ref_fasta_index = args.files.ref_fasta_index,
-                ref_dict = args.files.ref_dict,
+                ref_fasta = this_args.files.ref_fasta,
+                ref_fasta_index = this_args.files.ref_fasta_index,
+                ref_dict = this_args.files.ref_dict,
                 interval_list = intervals,
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 tumor_sample_name = tumor_bam_name,
                 normal_sample_name = normal_bam_name,
-                compress_output = args.compress_output,
-                select_variants_extra_args = args.select_variants_extra_args,
+                compress_output = this_args.compress_output,
+                select_variants_extra_args = this_args.select_variants_extra_args,
                 runtime_params = runtime_collection.select_variants
         }
 
         if (SelectSampleVariants.num_selected_variants > 0) {
             call Funcotate {
                 input:
-                    ref_fasta = args.files.ref_fasta,
-                    ref_fasta_index = args.files.ref_fasta_index,
-                    ref_dict = args.files.ref_dict,
+                    ref_fasta = this_args.files.ref_fasta,
+                    ref_fasta_index = this_args.files.ref_fasta_index,
+                    ref_dict = this_args.files.ref_dict,
                     interval_list = intervals,
                     vcf = SelectSampleVariants.selected_vcf,
                     vcf_idx = SelectSampleVariants.selected_vcf_idx,
@@ -88,19 +91,19 @@ workflow AnnotateVariants {
                     tumor_sample_name = tumor_sample_name,
                     normal_sample_name = normal_sample_name,
                     output_base_name = tumor_sample_name + ".annotated",
-                    reference_version = args.funcotator_reference_version,
-                    output_format = args.funcotator_output_format,
-                    variant_type = args.funcotator_variant_type,
-                    transcript_selection_mode = args.funcotator_transcript_selection_mode,
-                    transcript_list = args.files.funcotator_transcript_list,
-                    data_sources_tar_gz = args.files.funcotator_data_sources_tar_gz,
-                    use_gnomad = args.funcotator_use_gnomad,
-                    compress_output = args.compress_output,
-                    data_sources_paths = args.funcotator_data_sources_paths,
-                    annotation_defaults = args.funcotator_annotation_defaults,
-                    annotation_overrides = args.funcotator_annotation_overrides,
-                    exclude_fields = args.funcotator_exclude_fields,
-                    funcotate_extra_args = args.funcotate_extra_args,
+                    reference_version = this_args.funcotator_reference_version,
+                    output_format = this_args.funcotator_output_format,
+                    variant_type = this_args.funcotator_variant_type,
+                    transcript_selection_mode = this_args.funcotator_transcript_selection_mode,
+                    transcript_list = this_args.files.funcotator_transcript_list,
+                    data_sources_tar_gz = this_args.files.funcotator_data_sources_tar_gz,
+                    use_gnomad = this_args.funcotator_use_gnomad,
+                    compress_output = this_args.compress_output,
+                    data_sources_paths = this_args.funcotator_data_sources_paths,
+                    annotation_defaults = this_args.funcotator_annotation_defaults,
+                    annotation_overrides = this_args.funcotator_annotation_overrides,
+                    exclude_fields = this_args.funcotator_exclude_fields,
+                    funcotate_extra_args = this_args.funcotate_extra_args,
                     runtime_params = runtime_collection.funcotate
             }
         }
@@ -109,8 +112,8 @@ workflow AnnotateVariants {
                 input:
                     selected_vcf = SelectSampleVariants.selected_vcf,
                     output_base_name = tumor_sample_name + ".annotated",
-                    output_format = args.funcotator_output_format,
-                    compress_output = args.compress_output,
+                    output_format = this_args.funcotator_output_format,
+                    compress_output = this_args.compress_output,
                     runtime_params = runtime_collection.create_empty_annotation
             }
         }
@@ -120,22 +123,22 @@ workflow AnnotateVariants {
         File this_annotation_idx = select_first([Funcotate.annotations_idx, CreateEmptyAnnotation.empty_annotation_idx])
     }
 
-    if (args.funcotator_output_format == "VCF") {
+    if (this_args.funcotator_output_format == "VCF") {
         call tasks.MergeVCFs {
             input:
                 vcfs = this_annotation,
                 vcfs_idx = this_annotation_idx,
                 output_name = tumor_sample_name + ".annotated",
-                compress_output = args.compress_output,
+                compress_output = this_args.compress_output,
                 runtime_params = runtime_collection.merge_vcfs
         }
     }
-    if (args.funcotator_output_format == "MAF") {
+    if (this_args.funcotator_output_format == "MAF") {
         call tasks.MergeMAFs {
             input:
                 mafs = this_annotation,
                 output_name = tumor_sample_name + ".annotated",
-                compress_output = args.compress_output,
+                compress_output = this_args.compress_output,
                 runtime_params = runtime_collection.merge_mafs
         }
     }
