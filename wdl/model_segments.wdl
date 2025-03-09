@@ -208,6 +208,7 @@ task PileupToAllelicCounts {
                 --output '~{output_file}' \
                 --error_output '~{error_output_file}' \
                 ~{if select_hets then "--select_hets" else ""}
+        fi
     >>>
 
     output {
