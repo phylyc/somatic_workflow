@@ -66,6 +66,41 @@ workflow CallVariants {
     # TODO: add Strelka2 and pipe via force-calling alleles into Mutect2
 
     scatter (interval_list in args.scattered_interval_list) {
+        # Mutect1
+         scatter (sample in patient.samples){ 
+             scatter {seq_run in sample.sequencing_runs} {
+                 if (sample.name != patient.matched_normal_sample.name) { # Mutect1 doesn't like same bam being referenced multiple times
+                     call Mutect1 {
+                         input:
+                             interval_list = interval_list,
+                             ref_fasta = args.files.ref_fasta,
+                             ref_fasta_index = args.files.ref_fasta_index,
+                             ref_dict = args.files.ref_dict,
+                             germline_resource = args.files.germline_resource,
+                             germline_resource_idx = args.files.germline_resource_idx,
+                             panel_of_normals = args.files.snv_panel_of_normals,
+                             panel_of_normals_idx = args.files.snv_panel_of_normals_idx,
+                             contamination_table = sample.contamination,
+ 
+                             individual_id = patient.name,
+                             tumor_sample_name = sample.name,                                       
+                             tumor_bam = seq_run.bam,
+                             tumor_bai = seq_run.bai,
+                             normal_sample_name = patient.matched_normal_sample.name,                
+                             normal_bam = patient.matched_normal_sample.sequencing_runs[0].bam,
+                             normal_bai = patient.matched_normal_sample.sequencing_runs[0].bai,
+ 
+                             runtime_params = runtime_collection.mutect1,
+                     }
+                 }
+             }
+         }
+         # Array[Array[File?]] Mutect1.vcf
+         Array[File] mutect1_vcfs = select_all(flatten(Mutect1.mutect1_vcf))
+ 
+         # TODO: Add Mutect1 stats + force call alleles TASK
+ 
+        # Mutect2
     	call Mutect2 {
             input:
                 interval_list = interval_list,
@@ -78,8 +113,8 @@ workflow CallVariants {
                 normal_bams = normal_bams,
                 normal_bais = normal_bais,
                 normal_sample_names = normal_sample_names,
-                force_call_alleles = args.files.force_call_alleles,
-                force_call_alleles_idx = args.files.force_call_alleles_idx,
+                force_call_alleles = args.files.force_call_alleles,                                      # TODO: replace with Mutect1 + force_call_alleles input
+                force_call_alleles_idx = args.files.force_call_alleles_idx,                              # TODO: replace with Mutect1 + force_call_alleles input
                 panel_of_normals = args.files.snv_panel_of_normals,
                 panel_of_normals_idx = args.files.snv_panel_of_normals_idx,
                 germline_resource = args.files.germline_resource,
@@ -137,7 +172,111 @@ workflow CallVariants {
     }
 }
 
-
+task Mutect1 {
+     input {
+         File interval_list
+         File ref_fasta
+         File ref_fasta_index
+         File ref_dict
+         File germline_resource
+         File germline_resource_idx
+         File? panel_of_normals
+         File? panel_of_normals_idx
+ 
+         String individual_id
+         String tumor_sample_name
+         File tumor_bam
+         File tumor_bai
+         String? normal_sample_name
+         File? normal_bam
+         File? normal_bai
+ 
+         Int downsample_to_coverage = 99999
+         Int max_alt_alleles_in_normal_count = 10000
+         Int max_alt_alleles_in_normal_qscore_sum = 10000
+         File? contamination_table                         
+         Int tumor_f_pretest = 0
+         Float initial_tumor_lod = 0.5
+         Int tumor_lod = 0
+ 
+         Runtime runtime_params
+     }
+ 
+     command <<<
+         set -euxo pipefail
+ 
+         # Dynamically calculate memory usage for Cromwell's retry_with_more_memory feature:
+         # This only works in a cloud VM! For HPC, you need to check cgroups.
+         machine_mb=$( free -m | awk '{ print $NF }' | head -n 2 | tail -1 )   # change to -g for GB output from free
+ 
+         ten_percent_machine_mb=$(( $machine_mb * 10 / 100 ))
+         runtime_overhead_mb=~{runtime_params.machine_mem - runtime_params.command_mem}
+ 
+         # Leave 10% of memory or runtime_overhead for overhead, whichever is larger
+         if [ $ten_percent_machine_mb -gt $runtime_overhead_mb ]; then
+             overhead_mb=$ten_percent_machine_mb
+         else
+             overhead_mb=$runtime_overhead_mb
+         fi
+         command_mb=$(( $machine_mb  - $overhead_mb ))
+ 
+         echo ""
+         echo "Available memory: $machine_mb MB."
+         echo "Overhead: $overhead_mb MB."
+         echo "Using $command_mb MB of memory for Mutect1."
+         echo ""
+ 
+         # Parse contamination_table
+         if [ -f ~{contamination_table} ]; then
+             fraction_contamination=$(tail -n 1 ~{contamination_table} | awk '{print $2}')
+         else
+             fraction_contamination=0
+         fi
+ 
+         # Run MuTect1 (without force-calling, will be done by Mutect2)
+         java "-Xmx${command_mb}m" -jar /usr/local/bin/mutect-1.1.7.jar \
+             --analysis_type MuTect \
+             --reference_sequence ~{ref_fasta} \
+             --intervals ~{interval_list} \
+             --tumor_sample_name ~{tumor_sample_name} \
+             -I:tumor ~{tumor_bam} \
+             ~{"--normal_sample_name '" + normal_sample_name + "'"} \
+             ~{"-I:normal '" + normal_bam + "'"} \         
+             --normal_panel ~{panel_of_normals} \                                                # TODO: this must be VCF v4.1, currently ours is v4.2
+             --dbsnp ~{germline_resource} \                                                      # TODO: this must be VCF v4.1, currently ours is v4.2
+             --downsample_to_coverage ~{downsample_to_coverage} \
+             --max_alt_alleles_in_normal_count ~{max_alt_alleles_in_normal_count} \
+             --max_alt_alleles_in_normal_qscore_sum ~{max_alt_alleles_in_normal_qscore_sum} \
+             --fraction_contamination ~{fraction_contamination} \                              
+             --tumor_f_pretest ~{tumor_f_pretest} \
+             --initial_tumor_lod ~{initial_tumor_lod} \
+             --tumor_lod ~{tumor_lod} \
+             --out ~{tumor_sample_name}.MuTect1.call_stats.txt \
+             --coverage_file ~{tumor_sample_name}.MuTect1.coverage.wig.txt \
+             --power_file ~{tumor_sample_name}.MuTect1.power.wig.txt \
+             --vcf ~{tumor_sample_name}.MuTect1.vcf                                         #(not sure if needed) VCF output of mutation candidates
+     >>>
+     
+     output {
+         File mutect1_call_stats="~{tumor_sample_name}.MuTect1.call_stats.txt"      
+         File mutect1_coverage_wig="~{tumor_sample_name}.MuTect1.coverage.wig.txt"
+         File mutect1_power_wig="~{tumor_sample_name}.MuTect1.power.wig.txt"
+         File mutect1_vcf="~{tumor_sample_name}.MuTect1.vcf"
+     }
+ 
+     runtime {
+         docker: runtime_params.docker
+         bootDiskSizeGb: runtime_params.boot_disk_size
+         memory: runtime_params.machine_mem + " MB"
+         runtime_minutes: runtime_params.runtime_minutes
+         disks: "local-disk " + runtime_params.disk + " HDD"
+         preemptible: runtime_params.preemptible
+         maxRetries: runtime_params.max_retries
+         cpu: runtime_params.cpu
+     }
+ }
+ 
+ # TASK: mutect1 output, drop sample columns and union with force_call_alleles (COSMIC), subset to intervals to reduce size (move to tasks.wdl later)
 task Mutect2 {
     input {
         File? interval_list

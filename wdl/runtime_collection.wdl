@@ -186,6 +186,14 @@ workflow DefineRuntimeCollection {
         #######################################################################
         ### SNV workflow
         #######################################################################
+        # java -jar Mutect1
+        Int cpu_mutect1 = 1
+        Int mem_mutect1_base = 14336                 # not sure if this is per scattered interval or per sample
+        Int mem_mutect1_overhead = 1024
+        Int time_mutect1_total = 720                # TODO: 12h?
+        Int preemptible_mutect1 = 1
+        Int max_retries_mutect1 = 2
+        Int disk_mutect1_total = bam_size           # TODO:
 
         # gatk: Mutect2
         # The GATK only parallelizes a few parts of the computation, so any extra cores would be idle for a large fraction of time.
@@ -627,6 +635,18 @@ workflow DefineRuntimeCollection {
         "runtime_minutes": time_startup + time_absolute,
         "disk": disk,
         "boot_disk_size": boot_disk_size
+    }
+
+    Runtime mutect1 = {
+        "docker": , # TODO
+        "preemptible": preemptible_mutect1,
+        "max_retries": max_retries_mutect1,
+        "cpu": cpu_mutect1,
+        "machine_mem": mem_mutect1_base + mem_mutect1_overhead,
+        "command_mem": mem_mutect1_base,
+        "runtime_minutes": time_startup + time_mutect1_total, # TODO
+        "disk": disk + disk_mutect1_total , # TODO
+        "boot_disk_size": boot_disk_size 
     }
 
     Int mem_mutect2 = mem_mutect2_base + num_bams * mem_mutect2_additional_per_sample
