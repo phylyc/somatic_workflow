@@ -199,7 +199,7 @@ task PileupToAllelicCounts {
             printf "CONTIG\tPOSITION\tREF_COUNT\tALT_COUNT\tREF_NUCLEOTIDE\tALT_NUCLEOTIDE\n" >> '~{output_file}'
 
             wget -O pileup_to_allelic_counts.py ~{script}
-            python pileup_to_allelic_counts.py
+            python pileup_to_allelic_counts.py \
                 --pileup '~{pileup}' \
                 --gvcf '~{gvcf}' \
                 ~{"--intervals '" + intervals + "'"} \
