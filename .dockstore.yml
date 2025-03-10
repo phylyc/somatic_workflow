@@ -8,10 +8,10 @@ workflows:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
 
-  - name: CreateMutect2PanelOfNormals
+  - name: CreateSNVPanelOfNormals
     subclass: WDL
     publish: true
-    primaryDescriptorPath: /wdl/resources/create_mutect2_pon.wdl
+    primaryDescriptorPath: /wdl/resources/create_snv_pon.wdl
     authors:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
@@ -68,14 +68,6 @@ workflows:
     subclass: WDL
     publish: true
     primaryDescriptorPath: /wdl/collect_read_counts.wdl
-    authors:
-      - orcid: 0000-0001-9584-9135
-      - name: Philipp Hähnel
-
-  - name: CollectCoveredRegions
-    subclass: WDL
-    publish: true
-    primaryDescriptorPath: /wdl/collect_covered_regions.wdl
     authors:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel

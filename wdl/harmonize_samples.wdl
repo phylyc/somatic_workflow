@@ -12,8 +12,6 @@ workflow HarmonizeSamples {
         String harmonize_copy_ratios_script
         String merge_pileups_script
         Array[Sample] samples
-        Array[Array[File?]] denoised_copy_ratios
-        Array[Array[File?]] allelic_counts
 
         Int harmonize_min_target_length = 100
         Int pileups_min_read_depth = 1
@@ -24,33 +22,34 @@ workflow HarmonizeSamples {
 
     scatter (sample in samples) {
         scatter (sequencing_run in sample.sequencing_runs) {
-            SequencingRun this_sequencing_run = sequencing_run
-        }
-    }
-    Array[SequencingRun] sequencing_runs = flatten(this_sequencing_run)
-
-    Array[File] all_dCRs = select_all(flatten(denoised_copy_ratios))
-    Array[File] all_ACs = select_all(flatten(allelic_counts))
-
-    Boolean has_dCR = length(all_dCRs) > 0
-    Boolean has_AC = length(all_ACs) > 0
-
-    if (has_dCR) {
-        scatter (pair in zip(sequencing_runs, all_dCRs)) {
-            if (pair.left.use_for_dCR) {
-                String chosen_dcr_name = pair.left.sample_name
-                File chosen_dcr = pair.right
+            File? cl = sequencing_run.callable_loci
+            if (sequencing_run.use_for_tCR && defined(sequencing_run.denoised_total_copy_ratios)) {
+                String dcr_sample_name = sequencing_run.sample_name
+                File? dcr = sequencing_run.denoised_total_copy_ratios
+            }
+            if (sequencing_run.use_for_aCR && defined(sequencing_run.snppanel_allelic_pileup_summaries)) {
+                String aps_sample_name = sequencing_run.sample_name
+                File? aps = sequencing_run.snppanel_allelic_pileup_summaries
             }
         }
-        Array[String] seq_dcr_sample_names = select_all(chosen_dcr_name)
-        Array[File] seq_denoised_copy_ratios = select_all(chosen_dcr)
+    }
+    Array[File] callable_loci = select_all(flatten(cl))
+    Array[String] dcr_sample_names = select_all(flatten(dcr_sample_name))
+    Array[File] denoised_copy_ratios = select_all(flatten(dcr))
+    Array[String] aps_sample_names = select_all(flatten(aps_sample_name))
+    Array[File] allelic_counts = select_all(flatten(aps))
 
+#    if (length(callable_loci) > 0) {
+#         TODO: harmonize bed files
+#    }
+
+    if (length(dcr_sample_names) > 0) {
         call HarmonizeCopyRatios {
             input:
                 script = harmonize_copy_ratios_script,
                 ref_dict = ref_dict,
-                sample_names = seq_dcr_sample_names,
-                denoised_copy_ratios = seq_denoised_copy_ratios,
+                sample_names = dcr_sample_names,
+                denoised_copy_ratios = denoised_copy_ratios,
                 min_target_length = harmonize_min_target_length,
                 compress_output = compress_output,
                 runtime_params = runtime_collection.harmonize_copy_ratios
@@ -69,22 +68,13 @@ workflow HarmonizeSamples {
         Array[File] sorted_harmonized_denoised_copy_ratios = flatten(this_sample_dcr)
     }
 
-    if (has_AC) {
-        scatter (pair in zip(sequencing_runs, all_ACs)) {
-            if (pair.left.use_for_aCR) {
-                String chosen_ac_name = pair.left.sample_name
-                File chosen_ac = pair.right
-            }
-        }
-        Array[String] seq_acr_sample_names = select_all(chosen_ac_name)
-        Array[File] seq_allelic_counts = select_all(chosen_ac)
-
+    if (length(aps_sample_names) > 0) {
         call MergeAllelicCounts {
             input:
                 script = merge_pileups_script,
                 ref_dict = ref_dict,
-                sample_names = seq_acr_sample_names,
-                allelic_counts = seq_allelic_counts,
+                sample_names = aps_sample_names,
+                allelic_counts = allelic_counts,
                 min_read_depth = pileups_min_read_depth,
                 compress_output = compress_output,
                 runtime_params = runtime_collection.merge_allelic_counts
@@ -104,6 +94,7 @@ workflow HarmonizeSamples {
     }
 
     output {
+        Array[File]? harmonized_callable_loci = []
         Array[File]? harmonized_denoised_copy_ratios = sorted_harmonized_denoised_copy_ratios
         Array[File]? merged_allelic_counts = sorted_allelic_counts
     }

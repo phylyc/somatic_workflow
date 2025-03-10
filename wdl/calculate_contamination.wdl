@@ -164,7 +164,7 @@ workflow CalculateContamination {
         File tumor_pileup_summaries = non_optional_tumor_pileups
         File? normal_pileup_summaries = optional_normal_pileup_summaries
         File contamination_table = CalculateContaminationTask.contamination_table
-        File segmentation = CalculateContaminationTask.segmentation
+        File af_segmentation_table = CalculateContaminationTask.af_segmentation_table
     }
 }
 
@@ -223,7 +223,7 @@ task CalculateContaminationTask {
 
     output {
         File contamination_table = output_contamination
-        File segmentation = output_segments
+        File af_segmentation_table = output_segments
     }
 
     runtime {

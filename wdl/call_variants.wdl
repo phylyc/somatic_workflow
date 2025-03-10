@@ -28,6 +28,7 @@ version development
 ##      force-calling alleles of a large SNP panel influences the germline filtering
 ##      model in the same way.
 
+import "shard.wdl" as sh
 import "patient.wdl" as p
 import "workflow_arguments.wdl" as wfargs
 import "runtime_collection.wdl" as rtc
@@ -63,49 +64,69 @@ workflow CallVariants {
         Array[File]? normal_bais = flatten(seq_normal_bais)
     }
 
-    # TODO: add Strelka2 and pipe via force-calling alleles into Mutect2
+    # TODO: add Mutect1 and pipe via force-calling alleles into Mutect2
 
-    scatter (interval_list in args.scattered_interval_list) {
-    	call Mutect2 {
+    scatter (shard in patient.shards) {
+        if (size(shard.raw_calls_mutect2_vcf) == 0) {
+            call Mutect2 {
+                input:
+                    interval_list = shard.intervals,
+                    ref_fasta = args.files.ref_fasta,
+                    ref_fasta_index = args.files.ref_fasta_index,
+                    ref_dict = args.files.ref_dict,
+                    individual_id = patient.name,
+                    tumor_bams = tumor_bams,
+                    tumor_bais = tumor_bais,
+                    normal_bams = normal_bams,
+                    normal_bais = normal_bais,
+                    normal_sample_names = normal_sample_names,
+                    force_call_alleles = args.files.force_call_alleles,
+                    force_call_alleles_idx = args.files.force_call_alleles_idx,
+                    panel_of_normals = args.files.snv_panel_of_normals,
+                    panel_of_normals_idx = args.files.snv_panel_of_normals_idx,
+                    germline_resource = args.files.germline_resource,
+                    germline_resource_idx = args.files.germline_resource_idx,
+                    make_bamout = args.make_bamout,
+                    get_orientation_bias_priors = args.run_orientation_bias_mixture_model,
+                    compress_output = args.compress_output,
+                    genotype_germline_sites = args.mutect2_genotype_germline_sites,
+                    native_pair_hmm_use_double_precision = args.mutect2_native_pair_hmm_use_double_precision,
+                    dont_use_soft_clipped_bases = args.mutect2_dont_use_soft_clipped_bases,
+                    use_linked_de_bruijn_graph = args.mutect2_use_linked_de_bruijn_graph,
+                    recover_all_dangling_branches = args.mutect2_recover_all_dangling_branches,
+                    pileup_detection = args.mutect2_pileup_detection,
+                    downsampling_stride = args.mutect2_downsampling_stride,
+                    pcr_snv_qual = args.mutect2_pcr_snv_qual,
+                    pcr_indel_qual = args.mutect2_pcr_indel_qual,
+                    max_reads_per_alignment_start = args.mutect2_max_reads_per_alignment_start,
+                    m2_extra_args = args.mutect2_extra_args,
+                    runtime_params = runtime_collection.mutect2,
+            }
+        }
+
+        call sh.UpdateShard as AddMutect2Calls {
             input:
-                interval_list = interval_list,
-                ref_fasta = args.files.ref_fasta,
-                ref_fasta_index = args.files.ref_fasta_index,
-                ref_dict = args.files.ref_dict,
-                individual_id = patient.name,
-                tumor_bams = tumor_bams,
-                tumor_bais = tumor_bais,
-                normal_bams = normal_bams,
-                normal_bais = normal_bais,
-                normal_sample_names = normal_sample_names,
-                force_call_alleles = args.files.force_call_alleles,
-                force_call_alleles_idx = args.files.force_call_alleles_idx,
-                panel_of_normals = args.files.snv_panel_of_normals,
-                panel_of_normals_idx = args.files.snv_panel_of_normals_idx,
-                germline_resource = args.files.germline_resource,
-                germline_resource_idx = args.files.germline_resource_idx,
-                make_bamout = args.make_bamout,
-                get_orientation_bias_priors = args.run_orientation_bias_mixture_model,
-                compress_output = args.compress_output,
-                genotype_germline_sites = args.mutect2_genotype_germline_sites,
-                native_pair_hmm_use_double_precision = args.mutect2_native_pair_hmm_use_double_precision,
-                dont_use_soft_clipped_bases = args.mutect2_dont_use_soft_clipped_bases,
-                use_linked_de_bruijn_graph = args.mutect2_use_linked_de_bruijn_graph,
-                recover_all_dangling_branches = args.mutect2_recover_all_dangling_branches,
-                pileup_detection = args.mutect2_pileup_detection,
-                downsampling_stride = args.mutect2_downsampling_stride,
-                pcr_snv_qual = args.mutect2_pcr_snv_qual,
-                pcr_indel_qual = args.mutect2_pcr_indel_qual,
-                max_reads_per_alignment_start = args.mutect2_max_reads_per_alignment_start,
-                m2_extra_args = args.mutect2_extra_args,
-                runtime_params = runtime_collection.mutect2,
-		}
+                shard = shard,
+                raw_calls_mutect2_vcf = Mutect2.vcf,
+                raw_calls_mutect2_vcf_idx = Mutect2.vcf_idx,
+                raw_mutect2_stats = Mutect2.vcf_stats,
+                raw_mutect2_bam_out = Mutect2.bam,
+                raw_mutect2_bai_out = Mutect2.bai,
+                raw_mutect2_artifact_priors = Mutect2.m2_artifact_priors,
+        }
+
+        File? raw_mutect2_vcf = AddMutect2Calls.updated_shard.raw_calls_mutect2_vcf
+        File? raw_mutect2_vcf_idx = AddMutect2Calls.updated_shard.raw_calls_mutect2_vcf_idx
+        File? raw_mutect2_stats = AddMutect2Calls.updated_shard.raw_mutect2_stats
+        File? raw_mutect2_bam = AddMutect2Calls.updated_shard.raw_mutect2_bam_out
+        File? raw_mutect2_bai = AddMutect2Calls.updated_shard.raw_mutect2_bai_out
+        File? raw_mutect2_artifact_priors = AddMutect2Calls.updated_shard.raw_mutect2_artifact_priors
 	}
 
     call tasks.MergeVCFs {
     	input:
-            vcfs = Mutect2.vcf,
-            vcfs_idx = Mutect2.vcf_idx,
+            vcfs = select_all(raw_mutect2_vcf),
+            vcfs_idx = select_all(raw_mutect2_vcf_idx),
             output_name = patient.name,
             compress_output = args.compress_output,
             runtime_params = runtime_collection.merge_vcfs
@@ -113,7 +134,7 @@ workflow CallVariants {
 
     call MergeMutectStats {
         input:
-            stats = Mutect2.vcf_stats,
+            stats = select_all(raw_mutect2_stats),
             individual_id = patient.name,
             runtime_params = runtime_collection.merge_mutect_stats
     }
@@ -122,18 +143,23 @@ workflow CallVariants {
         call LearnReadOrientationModel {
             input:
                 individual_id = patient.name,
-                f1r2_counts = select_all(Mutect2.m2_artifact_priors),
+                f1r2_counts = select_all(raw_mutect2_artifact_priors),
                 runtime_params = runtime_collection.learn_read_orientation_model
         }
     }
 
+    call p.UpdatePatient {
+        input:
+            patient = patient,
+            shards = AddMutect2Calls.updated_shard,
+            raw_snv_calls_vcf = MergeVCFs.merged_vcf,
+            raw_snv_calls_vcf_idx = MergeVCFs.merged_vcf_idx,
+            mutect2_stats = MergeMutectStats.merged_stats,
+            orientation_bias = LearnReadOrientationModel.orientation_bias,
+    }
+
     output {
-        File vcf = MergeVCFs.merged_vcf
-        File vcf_idx = MergeVCFs.merged_vcf_idx
-        File mutect_stats = MergeMutectStats.merged_stats
-        Array[File?] bams = select_all(Mutect2.bam)
-        Array[File?] bais = select_all(Mutect2.bai)
-        File? orientation_bias = LearnReadOrientationModel.orientation_bias
+        Patient updated_patient = UpdatePatient.updated_patient
     }
 }
 

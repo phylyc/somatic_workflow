@@ -8,15 +8,17 @@ import "workflow_resources.wdl"
 struct WorkflowArguments {
     WorkflowResources files
 
+    String analyst_id
+
     Int scatter_count
     Int variants_per_scatter
 
     File preprocessed_interval_list
     Array[File] scattered_interval_list
 
-    Boolean run_collect_covered_regions
-    Boolean run_collect_target_coverage
-    Boolean run_collect_allelic_coverage
+    Boolean run_collect_callable_loci
+    Boolean run_collect_total_read_counts
+    Boolean run_collect_allelic_read_counts
     Boolean run_contamination_model
     Boolean run_orientation_bias_mixture_model
     Boolean run_variant_calling
@@ -48,7 +50,9 @@ struct WorkflowArguments {
     Float genotype_variants_ref_bias
     Int harmonize_min_target_length
     Int het_to_interval_mapping_max_distance
+    Int model_segments_max_number_of_segments_per_chromosome
     Array[Int] model_segments_window_sizes
+    Int model_segments_kernel_approximation_dimension
     Float model_segments_smoothing_credible_interval_threshold
     Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound
     Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound
@@ -85,6 +89,7 @@ struct WorkflowArguments {
     Int filter_alignment_artifacts_max_reasonable_fragment_length
     Array[String] hard_filter_expressions
     Array[String] hard_filter_names
+    String somatic_filter_whitelist
     String germline_filter_whitelist
     String funcotator_reference_version
     String funcotator_output_format
@@ -115,15 +120,17 @@ workflow DefineWorkflowArguments {
     input {
         WorkflowResources resources
 
+        String analyst_id = "TIM"
+
         Int scatter_count = 10
         Int total_mean_read_depth = 500
         Int total_mean_read_depth_per_scatter = 500
         Int variants_per_scatter = 50
 
         # workflow options
-        Boolean run_collect_covered_regions = false
-        Boolean run_collect_target_coverage = true
-        Boolean run_collect_allelic_coverage = true
+        Boolean run_collect_callable_loci = false
+        Boolean run_collect_total_read_counts = true
+        Boolean run_collect_allelic_read_counts = true
         Boolean run_contamination_model = true
         Boolean run_model_segments = true
         Boolean run_filter_segments = false
@@ -150,13 +157,15 @@ workflow DefineWorkflowArguments {
         Float min_snppanel_pop_af = 0.01
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
-        Float genotype_variants_min_genotype_likelihood = 0.999
-        Float genotype_variants_outlier_prior = 0.0002
-        Int genotype_variants_overdispersion = 50
+        Float genotype_variants_min_genotype_likelihood = 0.995
+        Float genotype_variants_outlier_prior = 0.0001
+        Int genotype_variants_overdispersion = 10
         Float genotype_variants_ref_bias = 1.05
-        Int harmonize_min_target_length = 100
+        Int harmonize_min_target_length = 20
         Int het_to_interval_mapping_max_distance = 250
+        Int model_segments_max_number_of_segments_per_chromosome = 10000
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
+        Int model_segments_kernel_approximation_dimension = 200
         Float model_segments_smoothing_credible_interval_threshold = 2.0
         Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
@@ -171,7 +180,7 @@ workflow DefineWorkflowArguments {
         String acs_conversion_script =           "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
 
         Int absolute_min_hets = 0
-        Int absolute_min_probes = 0
+        Int absolute_min_probes = 2
         Float absolute_maf90_threshold = 0.485
 
         # SNV WORKFLOW
@@ -214,6 +223,7 @@ workflow DefineWorkflowArguments {
             "lowROQ",
             "germline"
         ]
+        String somatic_filter_whitelist = "PASS,normal_artifact"
         String germline_filter_whitelist = "normal_artifact,panel_of_normals"
         String funcotator_reference_version = "hg19"
         String funcotator_output_format = "MAF"
@@ -273,15 +283,18 @@ workflow DefineWorkflowArguments {
     WorkflowArguments args = object {
         files: resources,
 
+        analyst_id: analyst_id,
+
         scatter_count: length(select_first([resources.scattered_intervals, SplitIntervals.interval_files])),
         variants_per_scatter: variants_per_scatter,
 
+        # TODO: Move to files.
         preprocessed_interval_list: select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
         scattered_interval_list: select_first([resources.scattered_intervals, SplitIntervals.interval_files]),
 
-        run_collect_covered_regions: run_collect_covered_regions,
-        run_collect_target_coverage: run_collect_target_coverage,
-        run_collect_allelic_coverage: run_collect_allelic_coverage,
+        run_collect_callable_loci: run_collect_callable_loci,
+        run_collect_total_read_counts: run_collect_total_read_counts,
+        run_collect_allelic_read_counts: run_collect_allelic_read_counts,
         run_contamination_model: run_contamination_model,
         run_model_segments: run_model_segments,
         run_filter_segments: run_filter_segments,
@@ -311,7 +324,9 @@ workflow DefineWorkflowArguments {
         genotype_variants_ref_bias: genotype_variants_ref_bias,
         harmonize_min_target_length: harmonize_min_target_length,
         het_to_interval_mapping_max_distance: het_to_interval_mapping_max_distance,
+        model_segments_max_number_of_segments_per_chromosome: model_segments_max_number_of_segments_per_chromosome,
         model_segments_window_sizes: model_segments_window_sizes,
+        model_segments_kernel_approximation_dimension: model_segments_kernel_approximation_dimension,
         model_segments_smoothing_credible_interval_threshold: model_segments_smoothing_credible_interval_threshold,
         call_copy_ratios_neutral_segment_copy_ratio_lower_bound: call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
         call_copy_ratios_neutral_segment_copy_ratio_upper_bound: call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
@@ -347,6 +362,7 @@ workflow DefineWorkflowArguments {
         filter_alignment_artifacts_max_reasonable_fragment_length: filter_alignment_artifacts_max_reasonable_fragment_length,
         hard_filter_expressions: hard_filter_expressions,
         hard_filter_names: hard_filter_names,
+        somatic_filter_whitelist: somatic_filter_whitelist,
         germline_filter_whitelist: germline_filter_whitelist,
         funcotator_reference_version: funcotator_reference_version,
         funcotator_output_format: funcotator_output_format,

@@ -7,95 +7,124 @@ import "patient.wdl" as p
 workflow UpdateSamples {
     input {
         Patient patient
-        Array[File]? read_counts
-        Array[File]? covered_regions
-        Array[File]? denoised_copy_ratios
-        Array[File]? standardized_copy_ratios
-        Array[File]? snppanel_pileups
-        Array[File]? snppanel_allelic_counts
+        Array[Array[SequencingRun]]? sequencing_runs
+        Array[File]? harmonized_callable_loci
+        Array[File]? harmonized_denoised_total_copy_ratios
+        Array[File]? harmonized_snppanel_allelic_pileup_summaries
+        Array[File]? contamination_table
+        Array[File]? af_segmentation_table
+        Array[File]? allelic_pileup_summaries
+        Array[File]? aggregated_allelic_read_counts
         Array[Float]? genotype_error_probabilities
-        Array[File]? somatic_allelic_counts
-        Array[File]? germline_allelic_counts
-        Array[File]? contaminations
-        Array[File]? af_segmentations
         Array[File]? af_model_parameters
         Array[File]? cr_model_parameters
-        Array[File]? called_copy_ratio_segmentations
-        Array[File]? acs_copy_ratio_segmentations
-        Array[Float]? acs_copy_ratio_skews
-        Array[File]? annotated_variants
+        Array[File]? called_copy_ratio_segmentation
+        Array[File]? cr_plot
+        Array[File]? acs_copy_ratio_segmentation
+        Array[Float]? acs_copy_ratio_skew
+        Array[File]? annotated_somatic_variants
+        Array[File]? annotated_somatic_variants_idx
+        Array[File]? absolute_acr_rdata
+        Array[File]? absolute_acr_plot
+        Array[Int]? absolute_solution
+        Array[File]? absolute_maf
+        Array[File]? absolute_segtab
+        Array[File]? absolute_table
+        Array[Float]? purity
+        Array[Float]? ploidy
     }
 
     # Update samples:
-
-    if (defined(read_counts)) {
-        scatter (pair in zip(patient.samples, select_first([read_counts, []]))) {
-            call s.UpdateSample as UpdateReadCounts {
+    if (defined(sequencing_runs)) {
+        scatter (pair in zip(patient.samples, select_first([sequencing_runs, []]))) {
+            call s.UpdateSample as UpdateSequencingRuns {
                 input:
                     sample = pair.left,
-                    read_counts = pair.right,
+                    sequencing_runs = pair.right,
             }
         }
     }
-    Array[Sample] samples_1 = select_first([UpdateReadCounts.updated_sample, patient.samples])
+    Array[Sample] samples_sr = select_first([UpdateSequencingRuns.updated_sample, patient.samples])
 
-    if (defined(covered_regions)) {
-        scatter (pair in zip(samples_1, select_first([covered_regions, []]))) {
-            call s.UpdateSample as UpdateCoveredRegions {
+    if (defined(harmonized_callable_loci)) {
+        scatter (pair in zip(samples_sr, select_first([harmonized_callable_loci, []]))) {
+            call s.UpdateSample as UpdateHarmonizedCallableLoci {
                 input:
                     sample = pair.left,
-                    covered_regions = pair.right,
+                    harmonized_callable_loci = pair.right,
             }
         }
     }
-    Array[Sample] samples_2 = select_first([UpdateCoveredRegions.updated_sample, samples_1])
+    Array[Sample] samples_hcl = select_first([UpdateHarmonizedCallableLoci.updated_sample, samples_sr])
 
-    if (defined(denoised_copy_ratios)) {
-        scatter (pair in zip(samples_2, select_first([denoised_copy_ratios, []]))) {
-            call s.UpdateSample as UpdateDenoisedCopyRatio {
+    if (defined(harmonized_denoised_total_copy_ratios)) {
+        scatter (pair in zip(samples_hcl, select_first([harmonized_denoised_total_copy_ratios, []]))) {
+            call s.UpdateSample as UpdateHarmonizedDenoisedTotalCopyRatios {
                 input:
                     sample = pair.left,
-                    denoised_copy_ratios = pair.right,
+                    harmonized_denoised_total_copy_ratios = pair.right,
             }
         }
     }
-    Array[Sample] samples_3 = select_first([UpdateDenoisedCopyRatio.updated_sample, samples_2])
+    Array[Sample] samples_hdtcr = select_first([UpdateHarmonizedDenoisedTotalCopyRatios.updated_sample, samples_hcl])
 
-    if (defined(standardized_copy_ratios)) {
-        scatter (pair in zip(samples_3, select_first([standardized_copy_ratios, []]))) {
-            call s.UpdateSample as UpdateStandardizedCopyRatio {
+    if (defined(harmonized_snppanel_allelic_pileup_summaries)) {
+        scatter (pair in zip(samples_hdtcr, select_first([harmonized_snppanel_allelic_pileup_summaries, []]))) {
+            call s.UpdateSample as UpdateHarmonizedSnpPanelAllelicPileupSummaries {
                 input:
                     sample = pair.left,
-                    standardized_copy_ratios = pair.right,
+                    harmonized_snppanel_allelic_pileup_summaries = pair.right,
             }
         }
     }
-    Array[Sample] samples_4 = select_first([UpdateStandardizedCopyRatio.updated_sample, samples_3])
+    Array[Sample] samples_hsap = select_first([UpdateHarmonizedSnpPanelAllelicPileupSummaries.updated_sample, samples_hdtcr])
 
-    if (defined(snppanel_pileups)) {
-        scatter (pair in zip(samples_4, select_first([snppanel_pileups, []]))) {
-            call s.UpdateSample as UpdateSnpPanelPileup {
+    if (defined(contamination_table)) {
+        scatter (pair in zip(samples_hsap, select_first([contamination_table, []]))) {
+            call s.UpdateSample as UpdateContamination {
                 input:
                     sample = pair.left,
-                    snppanel_pileups = pair.right,
+                    contamination_table = pair.right,
             }
         }
     }
-    Array[Sample] samples_5 = select_first([UpdateSnpPanelPileup.updated_sample, samples_4])
+    Array[Sample] samples_ct = select_first([UpdateContamination.updated_sample, samples_hsap])
 
-    if (defined(snppanel_allelic_counts)) {
-        scatter (pair in zip(samples_5, select_first([snppanel_allelic_counts, []]))) {
-            call s.UpdateSample as UpdateSnpPanelAllelicCounts {
+    if (defined(af_segmentation_table)) {
+        scatter (pair in zip(samples_ct, select_first([af_segmentation_table, []]))) {
+            call s.UpdateSample as UpdateAfSegmentation {
                 input:
                     sample = pair.left,
-                    snppanel_allelic_counts = pair.right,
+                    af_segmentation_table = pair.right,
             }
         }
     }
-    Array[Sample] samples_6 = select_first([UpdateSnpPanelAllelicCounts.updated_sample, samples_5])
+    Array[Sample] samples_afst = select_first([UpdateAfSegmentation.updated_sample, samples_ct])
+
+    if (defined(allelic_pileup_summaries)) {
+        scatter (pair in zip(samples_afst, select_first([allelic_pileup_summaries, []]))) {
+            call s.UpdateSample as UpdateAllelicPileupSummaries {
+                input:
+                    sample = pair.left,
+                    allelic_pileup_summaries = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_aps = select_first([UpdateAllelicPileupSummaries.updated_sample, samples_afst])
+
+    if (defined(aggregated_allelic_read_counts)) {
+        scatter (pair in zip(samples_aps, select_first([aggregated_allelic_read_counts, []]))) {
+            call s.UpdateSample as UpdateAggregatedAllelicReadCounts {
+                input:
+                    sample = pair.left,
+                    aggregated_allelic_read_counts = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_aarc = select_first([UpdateAggregatedAllelicReadCounts.updated_sample, samples_aps])
 
     if (defined(genotype_error_probabilities)) {
-        scatter (pair in zip(samples_6, select_first([genotype_error_probabilities, []]))) {
+        scatter (pair in zip(samples_aarc, select_first([genotype_error_probabilities, []]))) {
             call s.UpdateSample as UpdateGenotypeErrorProbabilities {
                 input:
                     sample = pair.left,
@@ -103,54 +132,10 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_7 = select_first([UpdateGenotypeErrorProbabilities.updated_sample, samples_6])
-
-    if (defined(somatic_allelic_counts)) {
-        scatter (pair in zip(samples_7, select_first([somatic_allelic_counts, []]))) {
-            call s.UpdateSample as UpdateSomaticAllelicCounts {
-                input:
-                    sample = pair.left,
-                    somatic_allelic_counts = pair.right,
-            }
-        }
-    }
-    Array[Sample] samples_8 = select_first([UpdateSomaticAllelicCounts.updated_sample, samples_7])
-
-    if (defined(germline_allelic_counts)) {
-        scatter (pair in zip(samples_8, select_first([germline_allelic_counts, []]))) {
-            call s.UpdateSample as UpdateGermlineAllelicCounts {
-                input:
-                    sample = pair.left,
-                    germline_allelic_counts = pair.right,
-            }
-        }
-    }
-    Array[Sample] samples_9 = select_first([UpdateGermlineAllelicCounts.updated_sample, samples_8])
-
-    if (defined(contaminations)) {
-        scatter (pair in zip(samples_9, select_first([contaminations, []]))) {
-            call s.UpdateSample as UpdateContamination {
-                input:
-                    sample = pair.left,
-                    contamination = pair.right,
-            }
-        }
-    }
-    Array[Sample] samples_10 = select_first([UpdateContamination.updated_sample, samples_9])
-
-    if (defined(af_segmentations)) {
-        scatter (pair in zip(samples_10, select_first([af_segmentations, []]))) {
-            call s.UpdateSample as UpdateAfSegmentation {
-                input:
-                    sample = pair.left,
-                    af_segmentation = pair.right,
-            }
-        }
-    }
-    Array[Sample] samples_11 = select_first([UpdateAfSegmentation.updated_sample, samples_10])
+    Array[Sample] samples_gep = select_first([UpdateGenotypeErrorProbabilities.updated_sample, samples_aarc])
 
     if (defined(af_model_parameters)) {
-        scatter (pair in zip(samples_11, select_first([af_model_parameters, []]))) {
+        scatter (pair in zip(samples_gep, select_first([af_model_parameters, []]))) {
             call s.UpdateSample as UpdateAfModelParameters {
                 input:
                     sample = pair.left,
@@ -158,10 +143,10 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_12 = select_first([UpdateAfModelParameters.updated_sample, samples_11])
+    Array[Sample] samples_afmp = select_first([UpdateAfModelParameters.updated_sample, samples_gep])
 
     if (defined(cr_model_parameters)) {
-        scatter (pair in zip(samples_12, select_first([cr_model_parameters, []]))) {
+        scatter (pair in zip(samples_afmp, select_first([cr_model_parameters, []]))) {
             call s.UpdateSample as UpdateCrModelParameters {
                 input:
                     sample = pair.left,
@@ -169,10 +154,10 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_13 = select_first([UpdateCrModelParameters.updated_sample, samples_12])
+    Array[Sample] samples_crmp = select_first([UpdateCrModelParameters.updated_sample, samples_afmp])
 
-    if (defined(called_copy_ratio_segmentations)) {
-        scatter (pair in zip(samples_13, select_first([called_copy_ratio_segmentations, []]))) {
+    if (defined(called_copy_ratio_segmentation)) {
+        scatter (pair in zip(samples_crmp, select_first([called_copy_ratio_segmentation, []]))) {
             call s.UpdateSample as UpdateCalledCopyRatioSegmentation {
                 input:
                     sample = pair.left,
@@ -180,10 +165,21 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_14 = select_first([UpdateCalledCopyRatioSegmentation.updated_sample, samples_13])
+    Array[Sample] samples_ccrs = select_first([UpdateCalledCopyRatioSegmentation.updated_sample, samples_crmp])
 
-    if (defined(acs_copy_ratio_segmentations)) {
-        scatter (pair in zip(samples_14, select_first([acs_copy_ratio_segmentations, []]))) {
+    if (defined(cr_plot)) {
+        scatter (pair in zip(samples_ccrs, select_first([cr_plot, []]))) {
+            call s.UpdateSample as UpdateCrPlot {
+                input:
+                    sample = pair.left,
+                    cr_plot = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_crp = select_first([UpdateCrPlot.updated_sample, samples_ccrs])
+
+    if (defined(acs_copy_ratio_segmentation)) {
+        scatter (pair in zip(samples_crp, select_first([acs_copy_ratio_segmentation, []]))) {
             call s.UpdateSample as UpdateAcsCopyRatioSegmentation {
                 input:
                     sample = pair.left,
@@ -191,10 +187,10 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_15 = select_first([UpdateAcsCopyRatioSegmentation.updated_sample, samples_14])
+    Array[Sample] samples_acrs = select_first([UpdateAcsCopyRatioSegmentation.updated_sample, samples_crp])
 
-    if (defined(acs_copy_ratio_skews)) {
-        scatter (pair in zip(samples_15, select_first([acs_copy_ratio_skews, []]))) {
+    if (defined(acs_copy_ratio_skew)) {
+        scatter (pair in zip(samples_acrs, select_first([acs_copy_ratio_skew, []]))) {
             call s.UpdateSample as UpdateAcsCopyRatioSkew {
                 input:
                     sample = pair.left,
@@ -202,23 +198,124 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_16 = select_first([UpdateAcsCopyRatioSkew.updated_sample, samples_15])
+    Array[Sample] samples_acrsks = select_first([UpdateAcsCopyRatioSkew.updated_sample, samples_acrs])
 
-    if (defined(annotated_variants)) {
-        scatter (pair in zip(samples_16, select_first([annotated_variants, []]))) {
-            call s.UpdateSample as UpdateAnnotatedVariants {
+    if (defined(annotated_somatic_variants)) {
+        scatter (pair in zip(samples_acrsks, select_first([annotated_somatic_variants, []]))) {
+            call s.UpdateSample as UpdateAnnotatedSomaticVariants {
                 input:
                     sample = pair.left,
-                    annotated_variants = pair.right,
+                    annotated_somatic_variants = pair.right,
             }
         }
     }
-    Array[Sample] samples_17 = select_first([UpdateAnnotatedVariants.updated_sample, samples_16])
+    Array[Sample] samples_asv = select_first([UpdateAnnotatedSomaticVariants.updated_sample, samples_acrsks])
+
+    if (defined(annotated_somatic_variants_idx)) {
+        scatter (pair in zip(samples_asv, select_first([annotated_somatic_variants_idx, []]))) {
+            call s.UpdateSample as UpdateAnnotatedSomaticVariantsIdx {
+                input:
+                    sample = pair.left,
+                    annotated_somatic_variants_idx = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_asvi = select_first([UpdateAnnotatedSomaticVariantsIdx.updated_sample, samples_asv])
+
+    if (defined(absolute_acr_rdata)) {
+        scatter (pair in zip(samples_asvi, select_first([absolute_acr_rdata, []]))) {
+            call s.UpdateSample as UpdateAbsoluteRData {
+                input:
+                    sample = pair.left,
+                    absolute_acr_rdata = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_ard = select_first([UpdateAbsoluteRData.updated_sample, samples_asvi])
+
+    if (defined(absolute_acr_plot)) {
+        scatter (pair in zip(samples_ard, select_first([absolute_acr_plot, []]))) {
+            call s.UpdateSample as UpdateAbsolutePlot {
+                input:
+                    sample = pair.left,
+                    absolute_acr_plot = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_acrp = select_first([UpdateAbsolutePlot.updated_sample, samples_ard])
+
+    if (defined(absolute_solution)) {
+        scatter (pair in zip(samples_acrp, select_first([absolute_solution, []]))) {
+            call s.UpdateSample as UpdateAbsoluteSolution {
+                input:
+                    sample = pair.left,
+                    absolute_solution = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_as = select_first([UpdateAbsoluteSolution.updated_sample, samples_acrp])
+
+    if (defined(absolute_maf)) {
+        scatter (pair in zip(samples_as, select_first([absolute_maf, []]))) {
+            call s.UpdateSample as UpdateAbsoluteMaf {
+                input:
+                    sample = pair.left,
+                    absolute_maf = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_am = select_first([UpdateAbsoluteMaf.updated_sample, samples_as])
+
+    if (defined(absolute_segtab)) {
+        scatter (pair in zip(samples_am, select_first([absolute_segtab, []]))) {
+            call s.UpdateSample as UpdateAbsoluteSegtab {
+                input:
+                    sample = pair.left,
+                    absolute_segtab = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_asg = select_first([UpdateAbsoluteSegtab.updated_sample, samples_am])
+
+    if (defined(absolute_table)) {
+        scatter (pair in zip(samples_asg, select_first([absolute_table, []]))) {
+            call s.UpdateSample as UpdateAbsoluteTable {
+                input:
+                    sample = pair.left,
+                    absolute_table = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_at = select_first([UpdateAbsoluteTable.updated_sample, samples_asg])
+
+    if (defined(purity)) {
+        scatter (pair in zip(samples_at, select_first([purity, []]))) {
+            call s.UpdateSample as UpdatePurity {
+                input:
+                    sample = pair.left,
+                    purity = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_purity = select_first([UpdatePurity.updated_sample, samples_at])
+
+    if (defined(ploidy)) {
+        scatter (pair in zip(samples_purity, select_first([ploidy, []]))) {
+            call s.UpdateSample as UpdatePloidy {
+                input:
+                    sample = pair.left,
+                    ploidy = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_ploidy = select_first([UpdatePloidy.updated_sample, samples_purity])
+
+    Array[Sample] samples = samples_ploidy
 
     # Select tumor and normal samples:
 
     scatter (tumor_sample in patient.tumor_samples) {
-        scatter (sample in samples_17) {
+        scatter (sample in samples) {
             if (sample.name == tumor_sample.name) {
                 Sample selected_tumor_sample = sample
             }
@@ -228,7 +325,7 @@ workflow UpdateSamples {
 
     if (patient.has_normal) {
         scatter (normal_sample in patient.normal_samples) {
-            scatter (sample in samples_17) {
+            scatter (sample in samples) {
                 if (sample.name == normal_sample.name) {
                     Sample selected_normal_sample = sample
                 }
@@ -249,19 +346,16 @@ workflow UpdateSamples {
     }
 
     # Update patient:
-
-    Patient pat = object {
-        name: patient.name,
-        sex: patient.sex,
-        samples: flatten([tumor_samples, non_optional_normal_samples]),
-        tumor_samples: tumor_samples,
-        normal_samples: non_optional_normal_samples,
-        has_tumor: patient.has_tumor,
-        has_normal: patient.has_normal,
-        matched_normal_sample: if defined(matched_normal_sample) then matched_normal_sample else patient.matched_normal_sample,
+    call p.UpdatePatient {
+        input:
+            patient = patient,
+            samples = samples,
+            tumor_samples = tumor_samples,
+            normal_samples = non_optional_normal_samples,
+            matched_normal_sample = matched_normal_sample
     }
 
     output {
-        Patient updated_patient = pat
+        Patient updated_patient = UpdatePatient.updated_patient
     }
 }

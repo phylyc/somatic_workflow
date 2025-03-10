@@ -9,6 +9,7 @@ struct RuntimeCollection {
     Runtime annotate_intervals
     Runtime preprocess_intervals
     Runtime split_intervals
+    Runtime collect_callable_loci
     Runtime collect_covered_regions
     Runtime collect_read_counts
     Runtime denoise_read_counts
@@ -31,6 +32,7 @@ struct RuntimeCollection {
     Runtime process_maf_for_absolute
     Runtime absolute
     Runtime absolute_extract
+    Runtime absolute_extract_postprocess
     Runtime mutect2
     Runtime learn_read_orientation_model
     Runtime merge_vcfs
@@ -106,6 +108,10 @@ workflow DefineRuntimeCollection {
         #######################################################################
         # CNV workflow
         #######################################################################
+
+        # CallableLoci
+        Int mem_callable_loci = 2048
+        Int time_callable_loci = 300
 
         # CollectCoveredRegions
         Int mem_collect_covered_regions = 8192
@@ -267,6 +273,14 @@ workflow DefineRuntimeCollection {
         Int mem_absolute = 6144
         Int time_absolute = 60
 
+        # AbsoluteExtract
+        Int mem_absolute_extract = 2048
+        Int time_absolute_extract = 10
+
+        # AbsoluteExtractPostprocess
+        Int mem_absolute_extract_postprocess = 2048
+        Int time_absolute_extract_postprocess = 10
+
         #######################################################################
         ### Assorted
         #######################################################################
@@ -350,6 +364,19 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_split_intervals + mem_machine_overhead,
         "command_mem": mem_split_intervals,
         "runtime_minutes": time_startup + time_split_intervals,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime collect_callable_loci = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_callable_loci + mem_machine_overhead,
+        "command_mem": mem_callable_loci,
+        "runtime_minutes": time_startup + time_callable_loci,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -622,9 +649,21 @@ workflow DefineRuntimeCollection {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_absolute + mem_machine_overhead,
-        "command_mem": mem_absolute,
-        "runtime_minutes": time_startup + time_absolute,
+        "machine_mem": mem_absolute_extract + mem_machine_overhead,
+        "command_mem": mem_absolute_extract,
+        "runtime_minutes": time_startup + time_absolute_extract,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime absolute_extract_postprocess = {
+        "docker": python_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_absolute_extract_postprocess + mem_machine_overhead,
+        "command_mem": mem_absolute_extract_postprocess,
+        "runtime_minutes": time_startup + time_absolute_extract_postprocess,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -845,6 +884,8 @@ workflow DefineRuntimeCollection {
         "preprocess_intervals": preprocess_intervals,
         "split_intervals": split_intervals,
 
+        "collect_callable_loci": collect_callable_loci,
+        "collect_covered_regions": collect_covered_regions,
         "collect_read_counts": collect_read_counts,
         "denoise_read_counts": denoise_read_counts,
         "vcf_to_pileup_variants": vcf_to_pileup_variants,
@@ -867,6 +908,7 @@ workflow DefineRuntimeCollection {
         "process_maf_for_absolute": process_maf_for_absolute,
         "absolute": absolute,
         "absolute_extract": absolute_extract,
+        "absolute_extract_postprocess": absolute_extract_postprocess,
 
         "mutect2": mutect2,
         "learn_read_orientation_model": learn_read_orientation_model,
@@ -881,10 +923,9 @@ workflow DefineRuntimeCollection {
         "select_variants": select_variants,
         "funcotate": funcotate,
         "create_empty_annotation": create_empty_annotation,
+
         "create_cnv_panel": create_cnv_panel,
         "create_mutect2_panel": create_mutect2_panel,
-
-        "collect_covered_regions": collect_covered_regions,
         "select_af_only_from_vcf": select_af_only_from_vcf,
     }
 

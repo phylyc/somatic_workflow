@@ -1,6 +1,13 @@
 import argparse
 import numpy as np
 import pandas as pd
+import time
+import warnings
+
+
+def message(*args, **kwargs) -> None:
+    print(f"{time.strftime('%H:%M:%S')} ", *args, **kwargs)
+    return None
 
 
 def parse_args():
@@ -20,23 +27,36 @@ def parse_args():
     parser.add_argument("--output",         type=str,   required=True,  help="Path to the output file.")
     parser.add_argument("--error_output",   type=str,                   help="Path to the error rate output file.")
     parser.add_argument("--select_hets",    default=False, action="store_true", help="Keep only heterozygous sites.")
+    parser.add_argument("--verbose",        default=False, action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    print_args(args)
     convert_pileup_to_allelic_counts(args=args)
 
 
-def convert_pileup_to_allelic_counts(args):
-    vcf_columns = ["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "genotype"]
+def print_args(args):
+    if args.verbose:
+        message("Calling PileupToAllelicCounts")
+        print("Arguments:")
+        for key, value in vars(args).items():
+            print(f"  {key}: {value}")
+        print()
 
+
+def convert_pileup_to_allelic_counts(args):
     pileup = pd.read_csv(
         f"{args.pileup}", sep="\t", comment="#", low_memory=False
     ).astype({"contig": str, "position": int, "ref_count": int, "alt_count": int, "other_alt_count": int, "allele_frequency": float})
-    gvcf = pd.read_csv(
-        f"{args.gvcf}", sep="\t", comment="#", header=None, low_memory=False, names=vcf_columns
-    ).astype({"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str})
+
+    gvcf = pd.read_csv(f"{args.gvcf}", sep="\t", comment="#", header=None, low_memory=False)
+    gvcf.columns = ["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "genotype"][:gvcf.shape[1]]
+    for col, dtype in {"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str}.items():
+        if col in gvcf.columns:
+            gvcf = gvcf.astype({col: dtype})
+
     intervals = pd.read_csv(
         f"{args.intervals}", sep="\t", comment="@", low_memory=False
     ).astype({"CONTIG": str, "START": int, "END": int}) if args.intervals is not None else None
@@ -49,14 +69,21 @@ def convert_pileup_to_allelic_counts(args):
     df = df.loc[df[["ref_count", "alt_count"]].sum(axis=1) >= args.min_read_depth]
 
     if args.select_hets:
-        het_mask = df["genotype"] == "0/1"
-        print(f"Selecting {het_mask.sum()} / {het_mask.shape[0]} HETs")
-        df = df.loc[het_mask]
+        if "genotype" in df.columns:
+            het_mask = df["genotype"].str.contains(r"0[/|]1|1[/|]0")
+            print(f"Selecting {het_mask.sum()} / {het_mask.shape[0]} HETs")
+            df = df.loc[het_mask]
+        else:
+            args.select_hets = False
+            print(f"Skipping HET selection since no genotype data is available.")
 
     if intervals is not None:
         # 1) Map each pileup locus to an interval, choosing the closest interval
         #    up to args.padding distance away from an interval start/end.
         # 2) Aggregate the allelic read counts for all pileups mapped to each interval
+
+        if not args.select_hets:
+            warnings.warn("Aggregating pileups in intervals, but not explicitly pre-selected for HETs!")
 
         dfs = []
         for contig in df["contig"].unique():
@@ -82,6 +109,12 @@ def convert_pileup_to_allelic_counts(args):
             _df["START"] = np.where(use_post, _df["START_post"], _df["START_pre"])
             _df["END"] = np.where(use_post, _df["END_post"], _df["END_pre"])
 
+            # Account for haplotype phase if available
+            if "genotype" in _df.columns:
+                phased_ref_count = np.where(_df["genotype"] == "1|0", _df["alt_count"], _df["ref_count"])
+                _df["alt_count"] = np.where(_df["genotype"] == "1|0", _df["ref_count"], _df["alt_count"])
+                _df["ref_count"] = phased_ref_count
+
             # Aggregate read counts per interval
             _df = _df.groupby(["contig", "START", "END"]).agg(
                 ref_count=("ref_count", "sum"),
@@ -90,7 +123,7 @@ def convert_pileup_to_allelic_counts(args):
                 alt=("alt", "first")
             ).reset_index()
 
-            # Move pileups to center of interval
+            # Move pileup position to center of interval so that ModelSegments doesn't throw it away
             _df["position"] = (_df["START"] + _df["END"]) // 2
 
             dfs.append(_df)

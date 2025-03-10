@@ -29,10 +29,8 @@ workflow CollectReadCounts {
         Int preemptible = 1
         Int max_retries = 1
         # memory assignments in MB
-        Int mem_get_sample_name = 512  # 256
         Int mem_collect_read_counts = 2048
         Int mem_denoise_read_counts = 2048
-        Int time_get_sample_name = 1
         Int time_collect_read_counts = 300
         Int time_denoise_read_counts = 120
     }
@@ -43,10 +41,8 @@ workflow CollectReadCounts {
             gatk_override = gatk_override,
             max_retries = max_retries,
             preemptible = preemptible,
-            mem_get_sample_name = mem_get_sample_name,
             mem_collect_read_counts = mem_collect_read_counts,
             mem_denoise_read_counts = mem_denoise_read_counts,
-            time_get_sample_name = time_get_sample_name,
             time_collect_read_counts = time_collect_read_counts,
             time_denoise_read_counts = time_denoise_read_counts
     }

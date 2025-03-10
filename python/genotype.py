@@ -27,7 +27,7 @@ def parse_args():
             allele fractions. It leverages allelic pileup data (from GATK GetPileupSummaries), 
             allelic segmentation data (from GATK CalculateContamination), and contamination 
             estimates (from GATK CalculateContamination), to compute genotype likelihoods 
-            under either a binomial or beta-binomial model. The script computes variant 
+            under either a beta-binomial model. The script computes variant 
             genotype correlations across samples as a consistency check.
 
             Outputs include:
@@ -42,21 +42,22 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "genotype.py -O <output_dir> --patient <patient> --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-C <contamination> ...] [-S <segments> ...] [-V <variant> ...] [--normal_sample <name>] [--normal_to_tumor_weight <weight>] [-M <model>] [-D <min_read_depth>] [--min_allele_frequency <freq>] [-p <min_genotype_likelihood>] [-s <overdispersion>] [-l <ref_bias>] [--min_error_rate <rate>] [--max_error_rate <rate>] [--outlier_prior <prior>] [-F <format>] [--threads <num>] [--select_hets] [--save_sample_genotype_likelihoods] [--compress_output] [--verbose]"
+    parser.usage = "genotype.py -O <output_dir> --patient <patient> --sample <sample> [--sample <sample> ...] -P <pileup> [-P <pileup> ...] [-C <contamination> ...] [-S <segments> ...] [-V <variant> ...] [--normal_sample <name>] [--normal_to_tumor_weight <weight>] [-D <min_read_depth>] [--min_allele_frequency <freq>] [-p <min_genotype_likelihood>] [-s <overdispersion>] [-l <ref_bias>] [--min_error_rate <rate>] [--max_error_rate <rate>] [--outlier_prior <prior>] [-F <format>] [--threads <num>] [--select_hets] [--save_sample_genotype_likelihoods] [--compress_output] [--verbose]"
     parser.add_argument("-O", "--output_dir",                   type=str,   required=True,  help="Path to the output directory.")
     parser.add_argument("--patient",                            type=str,   required=True,  help="Name of the patient.")
+    parser.add_argument("--sex",                                type=str,   default="XXY",  help="Genotype sex of the patient for ploidy priors on X and Y chromosomes: {Female, Male, female, male, XX, XY, XXY, XYY, XXX, etc.}")
     parser.add_argument("--sample",                             type=str,   required=True,  action="append",    help="Assigned name of the sample. Does not have to coincide with the sample name in the pileup file header.")
     parser.add_argument("-P", "--pileup",                       type=str,   required=True,  action="append",    help="Path to the allelic pileup file (output of GATK's GetPileupSummaries; used for CalculateContamination).")
     parser.add_argument("-C", "--contamination",                type=str,   default=None,   action="append",    help="Path to the contamination estimate file (output of GATK's CalculateContamination).")
-    parser.add_argument("-S", "--segments",                     type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation file (output of GATK's CalculateContamination).")
+    parser.add_argument("-S", "--segments",                     type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation file (output of GATK's CalculateContamination OR ModelSegments).")
+    parser.add_argument("-L", "--af_model_parameters",          type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation model parameters containing ref bias (output of GATK's ModelSegments).")
     parser.add_argument("-V", "--variant",                      type=str,   default=None,   action="append",    help="VCF file containing germline variants and population allele frequencies. (Used to get pileup summaries.)")
     parser.add_argument("--normal_sample",                      type=str,   default=None,   action="append",    help="Assigned name of the normal sample.")
     parser.add_argument("--normal_to_tumor_weight",             type=float, default=2.0,    help="Relative weight of normal samples to tumor samples when determining patient genotype.")
-    parser.add_argument("-M", "--model",                        type=str,   default="betabinom", choices=["binom", "betabinom"], help="Genotype likelihood model.")
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
-    parser.add_argument("--min_allele_frequency",               type=float, default=0,   help="Minimum population allele frequency to consider a site.")
-    parser.add_argument("-p", "--min_genotype_likelihood",      type=float, default=0.999, help="Probability threshold for calling and retaining genotypes.")
-    parser.add_argument("-s", "--overdispersion",               type=float, default=50,     help="")
+    parser.add_argument("--min_allele_frequency",               type=float, default=0,      help="Minimum population allele frequency to consider a site.")
+    parser.add_argument("-p", "--min_genotype_likelihood",      type=float, default=0.995,  help="Probability threshold for calling and retaining genotypes.")
+    parser.add_argument("-s", "--overdispersion",               type=float, default=10,     help="")
     parser.add_argument("-l", "--ref_bias",                     type=float, default=1.05,   help="")
     parser.add_argument("--min_error_rate",                     type=float, default=1e-3,   help="")
     parser.add_argument("--max_error_rate",                     type=float, default=1e-2,   help="")
@@ -74,7 +75,7 @@ def main():
     args = parse_args()
     print_args(args)
     genotyper = Genotyper(
-        model=args.model,
+        sex=args.sex,
         overdispersion=args.overdispersion,
         ref_bias=args.ref_bias,
         min_genotype_likelihood=args.min_genotype_likelihood,
@@ -233,7 +234,7 @@ class Contamination(object):
 
 class Segments(object):
     """
-    Represents segmentation data from a specified file. (E.g. output of GATK CalculateContamination.)
+    Represents segmentation data. (Output of GATK CalculateContamination OR ModelSegments.)
 
     This class is responsible for reading segmentation data related to allele
     fractions from a file, and extracting sample name information from the file header.
@@ -254,11 +255,21 @@ class Segments(object):
         default_df = pd.DataFrame(columns=self.columns)
         can_read_file = True
         try:
-            self.df = (
-                pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.columns, low_memory=False)
-                if file_path is not None
-                else default_df
-            )
+            if file_path is None:
+                self.df = default_df
+            elif file_path.endswith(".segments"):  # GATK CalculateContamination
+                self.df = pd.read_csv(file_path, sep="\t", comment="#", header=0, names=self.columns, low_memory=False)
+            elif file_path.endswith(".seg"):  # GATK ModelSegments
+                self.df = pd.read_csv(file_path, sep="\t", comment="@", low_memory=False).rename(columns={"CONTIG": "contig", "START": "start", "END": "end"})
+                self.df["minor_allele_fraction"] = self.df["MINOR_ALLELE_FRACTION_POSTERIOR_50"].where(
+                    self.df["MINOR_ALLELE_FRACTION_POSTERIOR_50"].isna(),
+                    1 / (2 * 2 ** self.df["LOG2_COPY_RATIO_POSTERIOR_50"]),
+                )
+                self.df["minor_allele_fractions"] = self.df["minor_allele_fractions"].where(
+                    self.df["minor_allele_fractions"] > 0.5,
+                    1 - self.df["minor_allele_fractions"]
+                )
+                self.df = self.df[self.columns]
         except Exception as e:
             can_read_file = False
             warnings.warn(f"Exception reading segments file {file_path}: {e}")
@@ -271,6 +282,8 @@ class Segments(object):
                 segments_header = segments_file.readline().strip()
                 if segments_header.startswith("#<METADATA>SAMPLE="):
                     self.bam_sample_name = segments_header.removeprefix("#<METADATA>SAMPLE=")
+                elif segments_header.startswith("@RG"):
+                    self.bam_sample_name = [c.removeprefix("SM:") for c in segments_header.split("\t") if c.startswith("SM:")][0]
 
 
 def cross_check_sample_name(*args) -> str:
@@ -498,14 +511,18 @@ class Genotyper(object):
     https://github.com/broadinstitute/gatk/blob/master/src/main/java/org/broadinstitute/hellbender/tools/walkers/contamination/ContaminationModel.java
 
     Attributes:
-        model (str): The model to use for calculating genotype likelihoods ('binom' or 'betabinom').
+        contig_ploidies (dict): Dictionary mapping contig names to ploidy levels.
         overdispersion (float): Overdispersion parameter for the beta-binomial model.
         ref_bias (float): SNP bias of the reference allele.
         min_genotype_likelihood (float): Minimum genotype likelihood threshold for filtering.
+        min_error_rate (float): Minimum error rate for a read supporting an alternate allele to be a false positive.
+        max_error_rate (float): Maximum error rate for a read supporting an alternate allele to be a false positive.
+        outlier_prior (float): Prior probability for a variant to be an outlier.
         select_hets (bool): Whether to select only heterozygous sites.
+        verbose (bool): Whether to print information during execution
 
     Args:
-        model (str, optional): The model for calculating genotype likelihoods.
+        sex (str, optional): Genotype for sex chromosomes. (default: "XXY" for uninformed prior on X and Y)
         overdispersion (float, optional): Overdispersion parameter for the beta-binomial model.
         ref_bias (float, optional): SNP bias of the reference allele.
         min_genotype_likelihood (float, optional): Minimum genotype likelihood threshold.
@@ -513,8 +530,8 @@ class Genotyper(object):
     """
     genotypes = ["0/0", "0/1", "1/1", "./."]
 
-    def __init__(self, model: str = "betabinom", overdispersion: float = 100, ref_bias: float = 1.1, min_genotype_likelihood: float = 0.95, min_error_rate: float = 1e-4, max_error_rate: float = 1e-1, outlier_prior: float = 1e-4, select_hets: bool = False, verbose: bool = False):
-        self.model = model
+    def __init__(self, sex: str = "XXY", overdispersion: float = 100, ref_bias: float = 1.1, min_genotype_likelihood: float = 0.95, min_error_rate: float = 1e-4, max_error_rate: float = 1e-1, outlier_prior: float = 1e-4, select_hets: bool = False, verbose: bool = False):
+        self.contig_ploidies = self.get_contig_ploidies(sex)
         self.overdispersion = overdispersion  # overdispersion parameter for beta-binomial model
         self.ref_bias = ref_bias  # SNP bias of the ref allele
         self.min_genotype_likelihood = min_genotype_likelihood
@@ -523,6 +540,37 @@ class Genotyper(object):
         self.outlier_prior = outlier_prior
         self.select_hets = select_hets
         self.verbose = verbose
+
+    @staticmethod
+    def get_contig_ploidies(sex):
+        ploidy = {str(i): 2 for i in range(1, 23)}
+        ploidy["X"] = 2
+        ploidy["Y"] = 0
+        ploidy["MT"] = 1
+        ploidy["M"] = 1
+
+        if sex in ["XX", "Female", "female"]:
+            ploidy["X"] = 2
+            ploidy["Y"] = 0
+        elif sex in ["XY", "Male", "male"]:
+            ploidy["X"] = 1
+            ploidy["Y"] = 1
+
+        # Handle cases with XXY, etc. We only need to count up to ploidy 2 as this
+        # differentiates the existence or absence of HETs.
+        if "XX" in sex:
+            ploidy["X"] = 2
+        elif "X" in sex:
+            ploidy["X"] = 1
+
+        if "Y" in sex:
+            ploidy["Y"] = 1
+
+        # Add "chr" prefix to contig names for other references.
+        for c, p in ploidy.items():
+            ploidy[f"chr{c}"] = p
+
+        return ploidy
 
     def get_error_prob(self, pileup: pd.DataFrame) -> float:
         """
@@ -624,9 +672,7 @@ class Genotyper(object):
         Calculates genotype likelihoods for a specific segment of pileup data.
         https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3167057/
 
-        This method applies either a binomial or beta-binomial model to compute the
-        likelihoods, based on the model specified during the initialization of the
-        Genotyper.
+        This method applies a beta-binomial model to compute the likelihoods.
 
         Note: Suppose X[i] ~ Binom(N, .5), and minor_af[i] = min(X[i]/N, 1 - X[i]/N),
               then median(minor_af) = 0.47 for N = 100 (sequencing depth).
@@ -641,7 +687,7 @@ class Genotyper(object):
             pd.DataFrame: DataFrame containing calculated genotype likelihoods for the segment.
         """
 
-        # The other alt counts do not count towards the total read depth.
+        contig = pileup["contig"]
         n = pileup[["ref_count", "alt_count"]].sum(axis=1)
         alt = pileup["alt_count"]
         f = pileup["allele_frequency"]  # population allele frequency from SNP panel
@@ -649,10 +695,10 @@ class Genotyper(object):
         def bias(_f):
             return _f / (_f + (1 - _f) * self.ref_bias)
 
-        f_aa = bias(contamination * f + (1 - contamination) * error / 3)
+        f_aa = contamination * f + (1 - contamination) * error / 3
+        f_bb = contamination * f + (1 - contamination) * (1 - error)
         f_ab = bias(contamination * f + (1 - contamination) * minor_af)
         f_ba = bias(contamination * f + (1 - contamination) * (1 - minor_af))
-        f_bb = bias(contamination * f + (1 - contamination) * (1 - error))
 
         # include probability from seq error assuming error rate for alt>ref == ref>alt
         f_ab = f_ab * (1 - error) + (1 - f_ab) * error
@@ -665,30 +711,26 @@ class Genotyper(object):
         logo = np.log(outlier_prior)
         log1o = np.log1p(-outlier_prior)
 
+        ploidy = contig.apply(lambda c: self.contig_ploidies.get(c, 2))
+        # If chromosomal ploidy is 0, then only possible genotype is ./.
+        log_p0_prior = np.where(ploidy == 0, -np.inf, 0)
+        # If chromosomal ploidy is less than 2, then only possible genotypes are 0/0, 1/1, and ./.
+        log_plt2_prior = np.where(ploidy < 2, -np.inf, 0)
+
         # Prior probabilities of genotypes:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
             log1f = np.log1p(-f)
             logf = np.log(f)
 
-        if self.model == "binom":
-            aa = 2 * log1f + st.binom(n, f_aa).logpmf(alt)
-            ab = log1f + logf + st.binom(n, f_ab).logpmf(alt)
-            ba = log1f + logf + st.binom(n, f_ba).logpmf(alt)
-            bb = 2 * logf + st.binom(n, f_bb).logpmf(alt)
-            # outlier = logo + 2 * log1f + st.binom(n, 0.5).logpmf(alt)  # max entropy
-            outlier = -np.inf
-        elif self.model == "betabinom":
-            aa = log1o + 2 * log1f + st.binom(n, f_aa).logpmf(alt)
-            ab = log1o + log1f + logf + st.betabinom(n, f_ab * s, (1 - f_ab) * s).logpmf(alt)
-            ba = log1o + log1f + logf + st.betabinom(n, f_ba * s, (1 - f_ba) * s).logpmf(alt)
-            bb = log1o + 2 * logf + st.binom(n, f_bb).logpmf(alt)
             outlier = logo + 2 * log1f + st.betabinom(n, 1, 1).logpmf(alt)  # max entropy
-        else:
-            raise ValueError(f"model is {self.model} but has to be one of binom, betabinom.")
+            aa = log_p0_prior + log1o + 2 * log1f + st.binom(n, f_aa).logpmf(alt)
+            bb = log_p0_prior + log1o + 2 * logf + st.binom(n, f_bb).logpmf(alt)
+            ab = log_plt2_prior + log1o + log1f + logf + st.betabinom(n, f_ab * s, (1 - f_ab) * s).logpmf(alt)
+            ba = log_plt2_prior + log1o + log1f + logf + st.betabinom(n, f_ba * s, (1 - f_ba) * s).logpmf(alt)
 
-        het = np.logaddexp(ab, ba)
-        total = reduce(np.logaddexp, [aa, het, bb, outlier])
+            het = np.logaddexp(ab, ba)
+            total = reduce(np.logaddexp, [aa, het, bb, outlier])
 
         likelihoods = pileup.copy()
         likelihoods["0/0"] = np.exp(aa - total)
@@ -904,7 +946,7 @@ class GenotypeData(object):
         processes = np.min([max_processes, len(self.samples), os.cpu_count()])
         if processes > 1:
             try:
-                message(f"Parallel execution with {processes} processes: ", end="", flush=True) if self.verbose else None
+                message(f"Parallel execution with {processes} processes over samples: ", end="", flush=True) if self.verbose else None
                 with mp.Pool(processes=processes) as pool:
                     pileup_likelihoods = pool.starmap(
                         func=self.get_pileup_likelihood,
@@ -918,12 +960,12 @@ class GenotypeData(object):
 
             except Exception as e:
                 print(f"Error in parallel execution: {e}")
-        message("Serial execution: ", end="", flush=True) if self.verbose else None
+        message("Serial execution over samples: ", end="", flush=True) if self.verbose else None
         pileup_likelihoods = [
             self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, contamination, segments)
             for assigned_sample_name, pileup, contamination, segments in zip(self.samples, self.pileups, self.contaminations, self.segments)
         ]
-        print("\n") if self.verbose else None  # Not sure why \n is needed here but not above.
+        print("") if self.verbose else None
         return pileup_likelihoods
 
     def validate_pileup_likelihood_allele_frequencies(self):
@@ -938,6 +980,7 @@ class GenotypeData(object):
         Raises:
             Warning: If allele frequencies are not consistent across samples.
         """
+        message("Validating pileup likelihood allele frequencies ...") if self.verbose else None
         allele_frequency = pd.concat([pl.df["allele_frequency"] for pl in self.pileup_likelihoods], axis=1)
         is_same = allele_frequency.apply(lambda row: row.nunique() == 1, axis=1)
         if not is_same.all():

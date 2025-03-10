@@ -8,7 +8,7 @@ import "../tasks.wdl"
 import "../multi-sample_somatic_workflow.wdl" as mssw
 
 
-workflow CreateMutect2PanelOfNormals {
+workflow CreateSNVPanelOfNormals {
     input {
         String pon_name
 
@@ -57,9 +57,9 @@ workflow CreateMutect2PanelOfNormals {
             scatter_count = scatter_count,
             resources = resources,
 
-            run_collect_covered_regions = false,
-            run_collect_target_coverage = false,
-            run_collect_allelic_coverage = false,
+            run_collect_callable_loci = false,
+            run_collect_total_read_counts = false,
+            run_collect_allelic_read_counts = false,
             run_contamination_model = false,
             run_model_segments = false,
             run_filter_segments = false,
@@ -96,7 +96,7 @@ workflow CreateMutect2PanelOfNormals {
 
         call mssw.MultiSampleSomaticWorkflow {
             input:
-                individual_id = GetSampleName.sample_name,
+                patient_id = GetSampleName.sample_name,
                 bams = [normal.left],
                 bais = [normal.right],
                 target_intervals = [args.preprocessed_interval_list],
@@ -122,17 +122,17 @@ workflow CreateMutect2PanelOfNormals {
             runtime_params = runtime_collection.split_intervals
     }
 
-    call rt.UpdateRuntimeParameters as CreateMutect2PanelRuntime {
+    call rt.UpdateRuntimeParameters as CreateSNVPanelRuntime {
         input:
             runtime_params = runtime_collection.create_mutect2_panel,
-            disk = runtime_collection.create_mutect2_panel.disk + 10 * ceil(size(MultiSampleSomaticWorkflow.unfiltered_vcf, "GB")) + ceil(length(MultiSampleSomaticWorkflow.unfiltered_vcf) / 10)
+            disk = runtime_collection.create_mutect2_panel.disk + 10 * ceil(size(MultiSampleSomaticWorkflow.raw_snv_calls_vcf, "GB")) + ceil(length(MultiSampleSomaticWorkflow.raw_snv_calls_vcf_idx) / 10)
     }
 
     scatter (scattered_intervals in SplitIntervals.interval_files) {
-        call CreateMutect2Panel {
+        call CreateSNVPanel {
             input:
-                input_vcfs = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf),
-                input_vcf_indices = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf_idx),
+                input_vcfs = select_all(MultiSampleSomaticWorkflow.raw_snv_calls_vcf),
+                input_vcf_indices = select_all(MultiSampleSomaticWorkflow.raw_snv_calls_vcf_idx),
                 interval_list = scattered_intervals,
                 ref_fasta = args.files.ref_fasta,
                 ref_fasta_index = args.files.ref_fasta_index,
@@ -141,7 +141,7 @@ workflow CreateMutect2PanelOfNormals {
                 gnomad = args.files.germline_resource,
                 gnomad_idx = args.files.germline_resource_idx,
                 output_vcf_name = pon_name,
-                runtime_params = CreateMutect2PanelRuntime.params
+                runtime_params = CreateSNVPanelRuntime.params
         }
     }
 
@@ -150,8 +150,8 @@ workflow CreateMutect2PanelOfNormals {
             ref_fasta = args.files.ref_fasta,
             ref_fasta_index = args.files.ref_fasta_index,
             ref_dict = args.files.ref_dict,
-            vcfs = CreateMutect2Panel.output_vcf,
-            vcfs_idx = CreateMutect2Panel.output_vcf_index,
+            vcfs = CreateSNVPanel.output_vcf,
+            vcfs_idx = CreateSNVPanel.output_vcf_index,
             output_name = pon_name,
             compress_output = args.compress_output,
             runtime_params = runtime_collection.merge_vcfs
@@ -160,12 +160,12 @@ workflow CreateMutect2PanelOfNormals {
     output {
         File pon = MergeVCFs.merged_vcf
         File pon_idx = MergeVCFs.merged_vcf_idx
-        Array[File] normal_calls = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf)
-        Array[File] normal_calls_idx = select_all(MultiSampleSomaticWorkflow.unfiltered_vcf_idx)
+        Array[File] normal_calls = select_all(MultiSampleSomaticWorkflow.raw_snv_calls_vcf)
+        Array[File] normal_calls_idx = select_all(MultiSampleSomaticWorkflow.raw_snv_calls_vcf_idx)
     }
 }
 
-task CreateMutect2Panel {
+task CreateSNVPanel {
     input {
         File interval_list
         File ref_fasta

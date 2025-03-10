@@ -9,21 +9,14 @@ import "tasks.wdl"
 
 workflow FilterVariants {
     input {
-        File vcf
-        File vcf_idx
-        File? mutect_stats
-        File? orientation_bias
-
         Patient patient
         WorkflowArguments args
         RuntimeCollection runtime_collection
     }
 
-    String vcf_name = basename(basename(vcf, ".gz"), ".vcf")
-
     scatter (sample in patient.samples) {
-        File? c = sample.contamination
-        File? s = sample.af_segmentation
+        File? c = sample.contamination_table
+        File? s = sample.af_segmentation_table
     }
     if (length(select_all(c)) > 0) {
         Array[File] contamination_tables = select_all(c)
@@ -42,12 +35,12 @@ workflow FilterVariants {
             ref_fasta = args.files.ref_fasta,
             ref_fasta_index = args.files.ref_fasta_index,
             ref_dict = args.files.ref_dict,
-            vcf = vcf,
-            vcf_idx = vcf_idx,
-            orientation_bias = orientation_bias,
+            vcf = select_first([patient.raw_snv_calls_vcf]),
+            vcf_idx = select_first([patient.raw_snv_calls_vcf_idx]),
+            orientation_bias = patient.orientation_bias,
             contamination_tables = contamination_tables,
             tumor_segmentation = segmentation_tables,
-            mutect_stats = mutect_stats,
+            mutect_stats = patient.mutect2_stats,
             max_median_fragment_length_difference = args.filter_mutect2_max_median_fragment_length_difference,
             min_alt_median_base_quality = args.filter_mutect2_min_alt_median_base_quality,
             min_alt_median_mapping_quality = args.filter_mutect2_min_alt_median_mapping_quality,
@@ -97,11 +90,14 @@ workflow FilterVariants {
             vcf_idx = select_first([HardFilterVariants.filtered_vcf_idx, LeftAlignAndTrimVariants.output_vcf_idx]),
             select_passing = true,
             keep_germline = args.keep_germline,
+            somatic_filter_whitelist = args.somatic_filter_whitelist,
             germline_filter_whitelist = args.germline_filter_whitelist,
             compress_output = args.compress_output,
             select_variants_extra_args = args.select_variants_extra_args,
             runtime_params = runtime_collection.select_variants
     }
+
+    # TODO: Move SelectVariants to after realignment
 
     if (args.run_realignment_filter) {
         # Realigning reads for variants can be expensive if many variants have been
@@ -205,7 +201,7 @@ workflow FilterVariants {
                 input:
                     vcfs = select_all(FilterAlignmentArtifacts.filtered_vcf),
                     vcfs_idx = select_all(FilterAlignmentArtifacts.filtered_vcf_idx),
-                    output_name = vcf_name + ".filtered.selected.realignmentfiltered",
+                    output_name = patient.name + ".filtered.selected.realignmentfiltered",
                     compress_output = args.compress_output,
                     runtime_params = runtime_collection.merge_vcfs
             }
@@ -220,6 +216,7 @@ workflow FilterVariants {
                 vcf_idx = select_first([MergeRealignmentFilteredVCFs.merged_vcf_idx, variants_to_realign_idx]),
                 select_passing = true,
                 keep_germline = args.keep_germline,
+                somatic_filter_whitelist = args.somatic_filter_whitelist,
                 germline_filter_whitelist = args.germline_filter_whitelist,
                 compress_output = args.compress_output,
                 select_variants_extra_args = args.select_variants_extra_args,
@@ -237,7 +234,7 @@ workflow FilterVariants {
                         SelectLowConfidenceVariants.selected_vcf_idx,
                         SelectPostRealignmentVariants.selected_vcf_idx
                     ]),
-                    output_name = vcf_name + ".filtered.selected.realignmentfiltered",
+                    output_name = patient.name + ".filtered.selected.realignmentfiltered",
                     compress_output = args.compress_output,
                     runtime_params = runtime_collection.merge_vcfs
             }
@@ -283,21 +280,51 @@ workflow FilterVariants {
             select_passing = true,
             keep_germline = false,
             suffix = ".somatic",
+            somatic_filter_whitelist = args.somatic_filter_whitelist,
             compress_output = args.compress_output,
             select_variants_extra_args = args.select_variants_extra_args,
             runtime_params = runtime_collection.select_variants
     }
 
+    scatter (shard in patient.shards) {
+        File? raw_mutect2_bam_out_scattered = shard.raw_mutect2_bam_out
+        File? raw_mutect2_bai_out_scattered = shard.raw_mutect2_bai_out
+    }
+
+    # subset CallVariants.bam to reads covering the FilteredVariants.somatic_vcf only
+    if (length(select_all(raw_mutect2_bam_out_scattered)) > 0) {
+        call tasks.PrintReads as SomaticBam {
+            input:
+                ref_fasta = args.files.ref_fasta,
+                ref_fasta_index = args.files.ref_fasta_index,
+                ref_dict = args.files.ref_dict,
+                patient_name = patient.name,
+                bams = select_all(raw_mutect2_bam_out_scattered),
+                bais = select_all(raw_mutect2_bai_out_scattered),
+                vcf = SelectSomaticVariants.selected_vcf,
+                vcf_idx = SelectSomaticVariants.selected_vcf_idx,
+                runtime_params = runtime_collection.print_reads
+        }
+    }
+
+    call p.UpdatePatient {
+        input:
+            patient = patient,
+            filtered_vcf = select_first([HardFilterVariants.filtered_vcf, LeftAlignAndTrimVariants.output_vcf]),
+            filtered_vcf_idx = select_first([HardFilterVariants.filtered_vcf_idx, LeftAlignAndTrimVariants.output_vcf_idx]),
+            filtering_stats = FilterMutectCalls.filtering_stats,
+            somatic_vcf = SelectSomaticVariants.selected_vcf,
+            somatic_vcf_idx = SelectSomaticVariants.selected_vcf_idx,
+            num_somatic_variants = SelectSomaticVariants.num_selected_variants,
+            germline_vcf = SelectGermlineVariants.selected_vcf,
+            germline_vcf_idx = SelectGermlineVariants.selected_vcf_idx,
+            num_germline_variants = SelectGermlineVariants.num_selected_variants,
+            somatic_calls_bam = SomaticBam.output_bam,
+            somatic_calls_bai = SomaticBam.output_bai,
+    }
+
     output {
-        File filtering_stats = FilterMutectCalls.filtering_stats
-        File filtered_vcf = LeftAlignAndTrimVariants.output_vcf
-        File filtered_vcf_idx = LeftAlignAndTrimVariants.output_vcf_idx
-        File somatic_vcf = SelectSomaticVariants.selected_vcf
-        File somatic_vcf_idx = SelectSomaticVariants.selected_vcf_idx
-        Int num_somatic_variants = SelectSomaticVariants.num_selected_variants
-        File? germline_vcf = SelectGermlineVariants.selected_vcf
-        File? germline_vcf_idx = SelectGermlineVariants.selected_vcf_idx
-        Int? num_germline_variants = SelectGermlineVariants.num_selected_variants
+        Patient updated_patient = UpdatePatient.updated_patient
     }
 }
 

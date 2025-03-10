@@ -1,15 +1,17 @@
 version development
 
+import "sequencing_run.wdl" as seqrun
 import "sample.wdl" as s
 import "patient.wdl" as p
 import "patient.update_samples.wdl" as p_update_s
 import "workflow_arguments.wdl" as wfargs
 import "runtime_collection.wdl" as rtc
+import "collect_callable_loci.wdl" as ccl
 import "collect_read_counts.wdl" as crc
 import "collect_allelic_counts.wdl" as cac
-import "collect_covered_regions.wdl" as ccr
 import "harmonize_samples.wdl" as hs
 import "calculate_contamination.wdl" as cc
+import "model_segments.wdl" as ms
 
 
 workflow CoverageWorkflow {
@@ -21,7 +23,21 @@ workflow CoverageWorkflow {
 
     scatter (sample in patient.samples) {
         scatter (sequencing_run in sample.sequencing_runs) {
-            if (args.run_collect_target_coverage) {
+            if (args.run_collect_callable_loci && (size(sequencing_run.callable_loci) == 0)) {
+                call ccl.CollectCallableLoci {
+                    input:
+                        ref_fasta = args.files.ref_fasta,
+                        ref_fasta_index = args.files.ref_fasta_index,
+                        ref_dict = args.files.ref_dict,
+                        sample_name = sample.name,
+                        bam = sequencing_run.bam,
+                        bai = sequencing_run.bai,
+                        is_paired_end = sequencing_run.is_paired_end,
+                        runtime_collection = runtime_collection,
+                }
+            }
+
+            if (args.run_collect_total_read_counts && (size(sequencing_run.total_read_counts) == 0)) {
                 call crc.CollectReadCounts {
                     input:
                         ref_fasta = args.files.ref_fasta,
@@ -39,7 +55,7 @@ workflow CoverageWorkflow {
                 }
             }
 
-            if (args.run_collect_allelic_coverage) {
+            if (args.run_collect_allelic_read_counts && (size(sequencing_run.snppanel_allelic_pileup_summaries) == 0)) {
                 call cac.CollectAllelicCounts {
                     input:
                         ref_dict = args.files.ref_dict,
@@ -59,42 +75,21 @@ workflow CoverageWorkflow {
                 }
             }
 
-            File sample_bams = sequencing_run.bam
-            File sample_bais = sequencing_run.bai
-
-            if (select_first([sequencing_run.is_paired_end, false])) {
-                Boolean run_is_paired_end = true
-            }
-        }
-
-        # hacky way of implementing "ANY: Array[Boolean] -> Boolean"
-        Boolean sample_is_paired_end = length(select_all(run_is_paired_end)) > 0
-
-        if (args.run_collect_covered_regions) {
-            call ccr.CollectCoveredRegions {
+            call seqrun.UpdateSequencingRun as SeqAddCoverage {
                 input:
-                    ref_fasta = args.files.ref_fasta,
-                    ref_fasta_index = args.files.ref_fasta_index,
-                    ref_dict = args.files.ref_dict,
-                    sample_name = sample.name,
-                    bams = sample_bams,
-                    bais = sample_bais,
-                    min_read_depth_threshold = args.min_read_depth,
-                    is_paired_end = sample_is_paired_end,
-                    output_format = "interval_list",
-                    runtime_collection = runtime_collection,
+                    sequencing_run = sequencing_run,
+                    callable_loci = CollectCallableLoci.bed,
+                    total_read_counts = CollectReadCounts.read_counts,
+                    denoised_total_copy_ratios = CollectReadCounts.denoised_copy_ratios,
+                    snppanel_allelic_pileup_summaries = CollectAllelicCounts.pileup_summaries,
             }
         }
     }
 
-    if (args.run_collect_target_coverage) {
-        # There is no way to harmonize the total read count data. This needs to be done
-        # via a hierarchical model for the segmentation / copy ratio inference.
-        Array[File]? read_counts = select_all(flatten(CollectReadCounts.read_counts))
-    }
-
-    if (args.run_collect_covered_regions) {
-        Array[File]? covered_regions = select_all(CollectCoveredRegions.regions_interval_list)
+    call p_update_s.UpdateSamples as PatientAddCoverage {
+        input:
+            patient = patient,
+            sequencing_runs = SeqAddCoverage.updated_sequencing_run,
     }
 
     # todo: FilterIntervals
@@ -104,10 +99,9 @@ workflow CoverageWorkflow {
             ref_dict = args.files.ref_dict,
             harmonize_copy_ratios_script = args.harmonize_copy_ratios_script,
             merge_pileups_script = args.merge_pileups_script,
-            samples = patient.samples,
-            denoised_copy_ratios = CollectReadCounts.denoised_copy_ratios,
-            allelic_counts = CollectAllelicCounts.pileup_summaries,
+            samples = PatientAddCoverage.updated_patient.samples,
             harmonize_min_target_length = args.harmonize_min_target_length,
+            pileups_min_read_depth = args.min_snppanel_read_depth,
             compress_output = false,
             runtime_collection = runtime_collection,
     }
@@ -115,75 +109,57 @@ workflow CoverageWorkflow {
     call p_update_s.UpdateSamples as ConsensusPatient {
         input:
             patient = patient,
-            covered_regions = covered_regions,
-            denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios,
-            snppanel_pileups = HarmonizeSamples.merged_allelic_counts,
+            harmonized_callable_loci = HarmonizeSamples.harmonized_callable_loci,
+            harmonized_denoised_total_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios,
+            harmonized_snppanel_allelic_pileup_summaries = HarmonizeSamples.merged_allelic_counts,
+            allelic_pileup_summaries = HarmonizeSamples.merged_allelic_counts,  # Will be overwritten later
     }
 
     if (args.run_contamination_model) {
         scatter (sample in ConsensusPatient.updated_patient.samples) {
-            String sample_names = sample.name
-        }
-        scatter (tumor_sample in ConsensusPatient.updated_patient.tumor_samples) {
-            File? t_pileups = tumor_sample.snppanel_pileups
-        }
-        Array[File] tumor_pileups = select_all(t_pileups)
-        if (patient.has_normal) {
-            scatter (normal_sample in ConsensusPatient.updated_patient.normal_samples) {
-                File? n_pileups = normal_sample.snppanel_pileups
-            }
-            Array[File] normal_pileups = select_all(n_pileups)
-        }
+            if (size(sample.contamination_table) == 0) {
+                if (sample.is_tumor && defined(patient.matched_normal_sample)) {
+                    Sample matched_normal_sample = select_first([patient.matched_normal_sample])
+                    File? matched_normal_pileups = matched_normal_sample.harmonized_snppanel_allelic_pileup_summaries
+                }
 
-        if (defined(normal_pileups)) {
-            scatter (normal_pileup in select_first([normal_pileups])) {
-                call cc.CalculateContamination as CalculateNormalContamination {
+                call cc.CalculateContamination {
                     input:
-                        tumor_pileups = normal_pileup,
+                        tumor_pileups = sample.harmonized_snppanel_allelic_pileup_summaries,
+                        normal_pileups = matched_normal_pileups,
                         runtime_collection = runtime_collection,
                 }
             }
 
-            # todo: Choose the normal with the greatest sequencing depth.
-            File matched_normal_pileup = select_first(select_first([normal_pileups, []]))
+            File contamination_table = select_first([CalculateContamination.contamination_table, sample.contamination_table])
         }
-
-        scatter (tumor_pileup in tumor_pileups) {
-            # The only reason for supplying the matched normal pileup is to select
-            # sites that have been confidently genotyped as homozygous SNPs in the normal.
-            call cc.CalculateContamination as CalculateTumorContamination {
-                input:
-                    tumor_pileups = tumor_pileup,
-                    normal_pileups = matched_normal_pileup,
-                    runtime_collection = runtime_collection,
-            }
-        }
-
-        Array[File] contaminations = flatten([
-            CalculateTumorContamination.contamination_table,
-            select_first([CalculateNormalContamination.contamination_table, []])
-        ])
-        Array[File] af_segmentations = flatten([
-            CalculateTumorContamination.segmentation,
-            select_first([CalculateNormalContamination.segmentation, []])
-        ])
 
         call p_update_s.UpdateSamples as AddContaminationToSamples {
             input:
                 patient = ConsensusPatient.updated_patient,
-                contaminations = contaminations,
-                af_segmentations = af_segmentations,
+                contamination_table = contamination_table,
+        }
+
+        # Perform a first-pass segmentation to get decent prior allelic copy ratio
+        # segmentations for downstream tasks: (FilterMutectCalls & GenotypeVariants)
+        call ms.ModelSegments {
+            input:
+                patient = AddContaminationToSamples.updated_patient,
+                args = args,
+                runtime_collection = runtime_collection,
+                pre_select_hets = false,
+                gvcf = args.files.common_germline_alleles,
+                gvcf_idx = args.files.common_germline_alleles_idx,
         }
     }
 
     output {
-        Patient updated_patient = select_first([AddContaminationToSamples.updated_patient, ConsensusPatient.updated_patient, patient])
+        Patient updated_patient = select_first([ModelSegments.updated_patient, ConsensusPatient.updated_patient, patient])
 
-        Array[File]? target_read_counts = read_counts
-        Array[File]? denoised_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios
-        Array[File]? snppanel_pileups = HarmonizeSamples.merged_allelic_counts
-        Array[File?]? covered_regions_interval_list = CollectCoveredRegions.regions_interval_list
-        Array[File]? contamination_tables = contaminations
-        Array[File]? segmentation_tables = af_segmentations
+        File? modeled_segments = ModelSegments.modeled_segments
+        Array[File]? cr_segmentations = ModelSegments.called_copy_ratio_segmentations
+        Array[File]? cr_plots = ModelSegments.cr_plots
+        Array[File]? af_model_parameters = ModelSegments.af_model_final_parameters
+        Array[File]? cr_model_parameters = ModelSegments.cr_model_final_parameters
     }
 }

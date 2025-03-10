@@ -2,6 +2,12 @@ import argparse
 import numpy as np
 import os
 import pandas as pd
+import time
+
+
+def message(*args, **kwargs) -> None:
+    print(f"{time.strftime('%H:%M:%S')} ", *args, **kwargs)
+    return None
 
 
 def parse_args():
@@ -17,7 +23,7 @@ def parse_args():
     parser.add_argument("--seg",            type=str,   required=True,  help="Path to the GATK ModelSegments modelFinal.seg output file.")
     parser.add_argument("--af_parameters",  type=str,   required=True,  help="Path to the GATK ModelSegments modelFinal.af.param output file.")
     parser.add_argument("--output_dir",     type=str,   required=True,  help="Path to the output directory.")
-    parser.add_argument("--min_hets",       type=int,   default=0,     help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
+    parser.add_argument("--min_hets",       type=int,   default=0,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
     parser.add_argument("--min_probes",     type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
     parser.add_argument("--maf90_threshold",type=float, default=0.485,  help="Threshold of 90% quantile for setting minor allele fraction to 0.5.")
     parser.add_argument("--verbose",        default=False,  action="store_true", help="Print information to stdout during execution.")
@@ -32,7 +38,7 @@ def main():
 
 def print_args(args):
     if args.verbose:
-        print("Calling ModelSegmentsToAllelicCapSegConversion")
+        message("Calling ModelSegmentsToAllelicCapSegConversion")
         print("Arguments:")
         for key, value in vars(args).items():
             print(f"  {key}: {value}")

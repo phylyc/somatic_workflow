@@ -15,8 +15,15 @@ workflow DefineSequencingRun {
         File? annotated_target_intervals
         File? cnv_panel_of_normals
         Boolean? is_paired_end
-        Boolean use_for_dCR = true
+        Boolean use_for_tCR = true
         Boolean use_for_aCR = true
+
+        # CACHE
+        File? callable_loci
+        File? total_read_counts
+        File? denoised_total_copy_ratios
+        File? snppanel_allelic_pileup_summaries
+        File? rare_germline_allelic_pileup_summaries
 
         RuntimeCollection runtime_collection
     }
@@ -41,8 +48,13 @@ workflow DefineSequencingRun {
         annotated_target_intervals: annotated_target_intervals,
         cnv_panel_of_normals: cnv_panel_of_normals,
         is_paired_end: is_paired_end,
-        use_for_dCR: use_for_dCR,
+        use_for_tCR: use_for_tCR,
         use_for_aCR: use_for_aCR,
+        callable_loci: callable_loci,
+        total_read_counts: total_read_counts,
+        denoised_total_copy_ratios: denoised_total_copy_ratios,
+        snppanel_allelic_pileup_summaries: snppanel_allelic_pileup_summaries,
+        rare_germline_allelic_pileup_summaries: rare_germline_allelic_pileup_summaries,
     }
 
     output {

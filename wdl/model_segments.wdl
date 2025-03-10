@@ -12,85 +12,102 @@ workflow ModelSegments {
         Patient patient
         WorkflowArguments args
         RuntimeCollection runtime_collection
+
+        # If the gvcf does not contain GT information, we can not pre-select HETs.
+        Boolean pre_select_hets = true
+        # If GT information is available, args.files.common_germline_alleles can be provided.
+        File? gvcf = patient.gvcf
+        File? gvcf_idx = patient.gvcf_idx
     }
 
     # todo: add option to downsample HETs to e.g. 1 / 1kb
 
-    # The allelic counts were collected via GetPileupSummaries, which contains
-    # more information. We first need to convert the pileup to allelic count format.
-
     scatter (sample in patient.samples) {
-        if (defined(sample.snppanel_pileups)) {
+        # Skip this task if we run model segments only on total copy ratios.
+        if (defined(sample.allelic_pileup_summaries)) {
+            if (pre_select_hets) {
+                # Only aggregate pileups within intervals if we select for HETs!
+                File? intervals = sample.harmonized_denoised_total_copy_ratios
+            }
             call PileupToAllelicCounts {
                 input:
                     script = args.pileup_to_allelic_counts_script,
                     ref_dict = args.files.ref_dict,
-                    pileup = sample.snppanel_pileups,
-                    gvcf = patient.gvcf,
-                    gvcf_idx = patient.gvcf_idx,
-                    intervals = sample.denoised_copy_ratios,
+                    pileup = sample.allelic_pileup_summaries,
+                    gvcf = gvcf,
+                    gvcf_idx = gvcf_idx,
+                    intervals = intervals,
                     het_to_interval_mapping_max_distance = args.het_to_interval_mapping_max_distance,
-                    select_hets = true,
+                    select_hets = pre_select_hets,
                     bam_name = sample.bam_name,
                     runtime_params = runtime_collection.pileup_to_allelic_counts
             }
         }
     }
-    Array[File] sample_allelic_counts = select_all(PileupToAllelicCounts.allelic_counts)
+    Array[File] aggregated_allelic_read_counts = select_all(PileupToAllelicCounts.allelic_counts)
     Array[Float] sample_error_probabilities = select_all(PileupToAllelicCounts.error_probability)
 
     # Save the allelic counts in each sample object (if they exist)
 
-    if (length(sample_allelic_counts) > 0) {
+    if (length(aggregated_allelic_read_counts) > 0) {
         call p_update_s.UpdateSamples as AddAllelicCountsToSamples {
             input:
                 patient = patient,
-                snppanel_allelic_counts = sample_allelic_counts,
+                aggregated_allelic_read_counts = aggregated_allelic_read_counts,
                 genotype_error_probabilities = sample_error_probabilities
         }
     }
     Patient pat = select_first([AddAllelicCountsToSamples.updated_patient, patient])
 
+    # Now we can do the segmentation. First, we determine the patient-specific
+    # segmentation, then we infer the sample-specific copy ratios and call amps/dels.
+    # If HETs have been pre-selected, we can set the log odds ratio of hom/het
+    # to be very permissive.
+    if (pre_select_hets) {
+        Int genotyping_homozygous_log_ratio_threshold = 100
+    }
+    # If not, we better use the matched normal for genotyping.
+    if (!pre_select_hets) {
+        if (defined(pat.matched_normal_sample)) {
+            Sample matched_normal_sample = select_first([pat.matched_normal_sample])
+            File? normal_allelic_counts = matched_normal_sample.aggregated_allelic_read_counts
+        }
+    }
+
     # Prepare ModelSegments input
 
     scatter (sample in pat.samples) {
-        File? denoised_copy_ratios = sample.denoised_copy_ratios
-        File? allelic_counts = sample.snppanel_allelic_counts
+        File? denoised_copy_ratios = sample.harmonized_denoised_total_copy_ratios
+        File? allelic_read_counts = sample.aggregated_allelic_read_counts
     }
     if (length(select_all(denoised_copy_ratios)) > 0) {
         Array[File] dcr = select_all(denoised_copy_ratios)
     }
-    if (length(select_all(allelic_counts)) > 0) {
-        Array[File] ac = select_all(allelic_counts)
+    if (length(select_all(allelic_read_counts)) > 0) {
+        Array[File] ac = select_all(allelic_read_counts)
     }
-    if (defined(pat.matched_normal_sample)) {
-        Sample matched_normal_sample = select_first([pat.matched_normal_sample])
-        File? normal_allelic_counts = matched_normal_sample.snppanel_allelic_counts
-    }
-
-    # Now we can finally do the segmentation. First, we determine the patient-specific
-    # segmentation, then we infer the sample-specific copy ratios and call amps/dels.
-    # We set genotypung_homozygous_log_ratio_threshold = 10 since PileupToAllelicCounts
-    # selects only hets, so the log odds ratio of hom/het should be very permissive.
 
     if (length(pat.samples) > 1) {
         call ModelSegmentsTask as MultiSampleModelSegments {
             input:
                 denoised_copy_ratios = dcr,
                 allelic_counts = ac,
+                normal_allelic_counts = normal_allelic_counts,
                 prefix = patient.name + ".segmentation",
+                max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
                 window_sizes = args.model_segments_window_sizes,
-                genotyping_homozygous_log_ratio_threshold = 10,
+                kernel_approximation_dimension = args.model_segments_kernel_approximation_dimension,
+                genotyping_homozygous_log_ratio_threshold = genotyping_homozygous_log_ratio_threshold,
                 runtime_params = runtime_collection.model_segments
         }
     }
 
     scatter (sample in pat.samples) {
-        if (defined(sample.denoised_copy_ratios))  {
-            Array[File] dcr_list = select_all([sample.denoised_copy_ratios])
+        if (defined(sample.harmonized_denoised_total_copy_ratios))  {
+            Array[File] dcr_list = select_all([sample.harmonized_denoised_total_copy_ratios])
         }
-        if (defined(sample.snppanel_allelic_counts)) {
-            Array[File] ac_list = select_all([sample.snppanel_allelic_counts])
+        if (defined(sample.aggregated_allelic_read_counts)) {
+            Array[File] ac_list = select_all([sample.aggregated_allelic_read_counts])
         }
         if (defined(sample.genotype_error_probabilities)) {
             Float error_probability = select_first([sample.genotype_error_probabilities])
@@ -100,10 +117,12 @@ workflow ModelSegments {
                 segments = MultiSampleModelSegments.multi_sample_segments,
                 denoised_copy_ratios = dcr_list,
                 allelic_counts = ac_list,
+                normal_allelic_counts = normal_allelic_counts,
                 prefix = sample.name,
+                max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
                 window_sizes = args.model_segments_window_sizes,
-                minimum_total_allele_count_case = args.min_snppanel_read_depth,
-                genotyping_homozygous_log_ratio_threshold = 10,
+                kernel_approximation_dimension = args.model_segments_kernel_approximation_dimension,
+                genotyping_homozygous_log_ratio_threshold = genotyping_homozygous_log_ratio_threshold,
                 genotyping_base_error_rate = error_probability,
                 smoothing_credible_interval_threshold = args.model_segments_smoothing_credible_interval_threshold,
                 runtime_params = runtime_collection.model_segments
@@ -131,7 +150,7 @@ workflow ModelSegments {
                 ref_dict = args.files.ref_dict,
                 sample_name = sample.name,
                 segments = select_first([SingleSampleInferCR.seg_final]),
-                denoised_copy_ratios = sample.denoised_copy_ratios,
+                denoised_copy_ratios = sample.harmonized_denoised_total_copy_ratios,
                 het_allelic_counts = SingleSampleInferCR.hets,
                 runtime_params = runtime_collection.plot_modeled_segments
         }
@@ -140,15 +159,21 @@ workflow ModelSegments {
     call p_update_s.UpdateSamples as AddSegmentationResultsToSamples {
         input:
             patient = pat,
+            af_segmentation_table = select_all(SingleSampleInferCR.af_segmentation_table),
             af_model_parameters = select_all(SingleSampleInferCR.af_model_final_parameters),
             cr_model_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters),
-            called_copy_ratio_segmentations =  MergeCallsWithModeledSegments.merged_segments,
+            called_copy_ratio_segmentation =  MergeCallsWithModeledSegments.merged_segments,
+            cr_plot = PlotModeledSegments.plot
+    }
+
+    call p.UpdatePatient {
+        input:
+            patient = AddSegmentationResultsToSamples.updated_patient,
+            modeled_segments = MultiSampleModelSegments.multi_sample_segments
     }
 
     output {
-        Patient updated_patient = AddSegmentationResultsToSamples.updated_patient
-
-        Array[File] snppanel_allelic_counts = sample_allelic_counts
+        Patient updated_patient = UpdatePatient.updated_patient
 
         File? modeled_segments = MultiSampleModelSegments.multi_sample_segments
         Array[File] hets = select_all(SingleSampleInferCR.hets)
@@ -160,6 +185,7 @@ workflow ModelSegments {
         Array[File] igv_cr = select_all(SingleSampleInferCR.igv_cr)
         Array[File] seg_begin = select_all(SingleSampleInferCR.seg_begin)
         Array[File] called_copy_ratio_segmentations = MergeCallsWithModeledSegments.merged_segments
+        Array[File] af_segmentation_table = select_all(SingleSampleInferCR.af_segmentation_table)
         Array[File] cr_plots = PlotModeledSegments.plot
     }
 }
@@ -199,7 +225,7 @@ task PileupToAllelicCounts {
             printf "CONTIG\tPOSITION\tREF_COUNT\tALT_COUNT\tREF_NUCLEOTIDE\tALT_NUCLEOTIDE\n" >> '~{output_file}'
 
             wget -O pileup_to_allelic_counts.py ~{script}
-            python pileup_to_allelic_counts.py
+            python pileup_to_allelic_counts.py \
                 --pileup '~{pileup}' \
                 --gvcf '~{gvcf}' \
                 ~{"--intervals '" + intervals + "'"} \
@@ -208,6 +234,7 @@ task PileupToAllelicCounts {
                 --output '~{output_file}' \
                 --error_output '~{error_output_file}' \
                 ~{if select_hets then "--select_hets" else ""}
+        fi
     >>>
 
     output {
@@ -239,7 +266,9 @@ task ModelSegmentsTask {
         Float genotyping_homozygous_log_ratio_threshold = -10.0
         Int minimum_total_allele_count_case = 0
         Int minimum_total_allele_count_normal = 30
+        Int max_number_of_segments_per_chromosome = 1000
         Array[Int] window_sizes = [8, 16, 32, 64, 128, 256]
+        Int kernel_approximation_dimension = 100
         Int number_of_burnin_samples = 100
         Int number_of_mcmc_samples = 200
         Float smoothing_credible_interval_threshold = 2.0
@@ -248,6 +277,7 @@ task ModelSegmentsTask {
     }
 
     String output_dir = "."
+    String output_segments = prefix + ".segments"
 
     # todo: allow compressed input data
 
@@ -265,7 +295,9 @@ task ModelSegmentsTask {
             --genotyping-homozygous-log-ratio-threshold ~{genotyping_homozygous_log_ratio_threshold} \
             --minimum-total-allele-count-case ~{minimum_total_allele_count_case} \
             --minimum-total-allele-count-normal ~{minimum_total_allele_count_normal} \
+            --maximum-number-of-segments-per-chromosome ~{max_number_of_segments_per_chromosome} \
             ~{sep=" " prefix("--window-size ", window_sizes)} \
+            --kernel-approximation-dimension ~{kernel_approximation_dimension} \
             --number-of-samples-allele-fraction ~{number_of_mcmc_samples} \
             --number-of-samples-copy-ratio ~{number_of_mcmc_samples} \
             --number-of-burn-in-samples-allele-fraction ~{number_of_burnin_samples} \
@@ -273,6 +305,24 @@ task ModelSegmentsTask {
             --smoothing-credible-interval-threshold-allele-fraction ~{smoothing_credible_interval_threshold} \
             --smoothing-credible-interval-threshold-copy-ratio ~{smoothing_credible_interval_threshold} \
             --output ~{output_dir}
+
+        # Convert segmentation table into minor allele fraction segmentation table
+        # as generated by CalculateContamination and as is expected by FilterMutectCalls
+        if [ -f ~{output_dir}/~{prefix}.modelFinal.seg ] ; then
+            # Extract bam name from header and create new metadata header:
+            awk -F'\t' '/SM:/ {print "#<METADATA>SAMPLE=" substr($3, 4)}' '~{output_dir}/~{prefix}.modelFinal.seg' > '~{output_segments}'
+
+            # Add column names
+            echo -e "contig\tstart\tend\tminor_allele_fraction" >> '~{output_segments}'
+
+            # Remove any segments without information for minor allele fraction:
+            grep -v "^@" '~{output_dir}/~{prefix}.modelFinal.seg' \
+                | tail -n +1  \
+                | awk -F'\t' '{
+                    if ($9 ~ /^[+-]?[0-9]*\.?[0-9]+([eE][+-]?[0-9]+)?$/)
+                        print $1"\t"$2"\t"$3"\t"$9
+                }' >> '~{output_segments}'
+        fi
     >>>
 
     output {
@@ -287,6 +337,7 @@ task ModelSegmentsTask {
         File? cr_seg = output_dir + "/" + prefix + ".cr.seg"
         File? igv_af = output_dir + "/" + prefix + ".af.igv.seg"
         File? igv_cr = output_dir + "/" + prefix + ".cr.igv.seg"
+        File? af_segmentation_table = output_segments
     }
 
     runtime {

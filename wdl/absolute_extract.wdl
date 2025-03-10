@@ -5,10 +5,17 @@ import "runtime_collection.wdl" as rtc
 
 workflow AbsoluteExtract {
     input {
+        String sample_name
+        String? sex
+
         File rdata
         Int called_solution
         String analyst_id
         String? copy_ratio_type
+
+        File? copy_ratio_segmentation
+        File? annotated_variants
+        File? gvcf
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -22,18 +29,28 @@ workflow AbsoluteExtract {
             analyst_id = analyst_id,
             copy_ratio_type = copy_ratio_type,
             runtime_params = runtime_collection.absolute_extract
+    }
 
+    call Postprocess {
+        input:
+            sample_name = sample_name,
+            sex = sex,
+            maf = AbsoluteExtractTask.abs_maf,
+            seg = AbsoluteExtractTask.segtab,
+            copy_ratio_segmentation = copy_ratio_segmentation,
+            annotated_variants = annotated_variants,
+            gvcf = gvcf,
+            purity = AbsoluteExtractTask.purity,
+            ploidy = AbsoluteExtractTask.ploidy,
+            runtime_params = runtime_collection.absolute_extract_postprocess
     }
 
     output {
-        File absolute_maf = AbsoluteExtractTask.abs_maf
-        File absolute_segtab = AbsoluteExtractTask.segtab
-        File absolute_segtab_igv = AbsoluteExtractTask.segtab_igv
-        File absolute_called_rdata = AbsoluteExtractTask.called_rdata
+        File absolute_maf = Postprocess.abs_maf
+        File absolute_segtab = Postprocess.segtab
         File absolute_table = AbsoluteExtractTask.table
-        File absolute_gene_corrected_cn = AbsoluteExtractTask.gene_corrected_cn
-        String absolute_purity = AbsoluteExtractTask.purity
-        String absolute_ploidy = AbsoluteExtractTask.ploidy
+        Float absolute_purity = AbsoluteExtractTask.purity
+        Float absolute_ploidy = AbsoluteExtractTask.ploidy
     }
 }
 
@@ -75,8 +92,58 @@ task AbsoluteExtractTask {
         File called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
         File table = output_table
         File gene_corrected_cn = output_dir + "/reviewed/" + sample_name + ".gene_corrected_CN.txt"
-        String purity = read_string("purity")
-        String ploidy = read_string("ploidy")
+        Float purity = read_float("purity")
+        Float ploidy = read_float("ploidy")
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+}
+
+task Postprocess {
+    input {
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
+
+        String sample_name
+        String? sex
+        File maf
+        File seg
+        File? copy_ratio_segmentation
+        File? annotated_variants
+        File? gvcf
+        Float? purity
+        Float? ploidy
+
+        Runtime runtime_params
+    }
+
+    command <<<
+        set -euxo pipefail
+        wget -O map_to_absolute_copy_number.py ~{script}
+        python map_to_absolute_copy_number.py \
+            --sample '~{sample_name}' \
+            ~{"--sex  " + sex} \
+            --absolute_seg '~{seg}' \
+            --cr_seg '~{copy_ratio_segmentation}' \
+            --gvcf '~{gvcf}' \
+            --purity ~{purity} \
+            --ploidy ~{ploidy} \
+            --outdir "."
+    >>>
+
+    output {
+        File abs_maf = maf
+        File segtab = sample_name + ".segtab.completed.txt"
+        File segtab_igv = sample_name + ".IGV.seg.completed.txt"
+        File rescued_intervals = sample_name + ".rescued_intervals.txt"
     }
 
     runtime {

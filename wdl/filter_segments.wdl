@@ -46,8 +46,8 @@ workflow FilterSegments {
             call RecountMarkers {
                 input:
                     cr_seg = select_first(select_all(this_cr)),
-                    markers = sample.denoised_copy_ratios,
-                    hets = sample.snppanel_allelic_counts,
+                    markers = sample.harmonized_denoised_total_copy_ratios,
+                    hets = sample.aggregated_allelic_read_counts,
                     runtime_params = runtime_collection.recount_markers
             }
         }
@@ -55,13 +55,12 @@ workflow FilterSegments {
         call p_update_s.UpdateSamples as UpdateSegmentations {
             input:
                 patient = patient,
-                called_copy_ratio_segmentations = RecountMarkers.updated_cr_seg
+                called_copy_ratio_segmentation = RecountMarkers.updated_cr_seg
         }
     }
 
     output {
         Patient updated_patient = select_first([UpdateSegmentations.updated_patient, patient])
-        Array[File]? filtered_called_copy_ratio_segmentations = RecountMarkers.updated_cr_seg
     }
 }
 

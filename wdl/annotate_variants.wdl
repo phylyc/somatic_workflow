@@ -48,7 +48,7 @@ workflow AnnotateVariants {
     WorkflowArguments this_args = select_first([args, Parameters.arguments])
 
     if (this_args.run_variant_annotation_scattered) {
-        # Due to its long runtime, we scatter the realignment task over intervals.
+        # Due to its long runtime, we scatter the annotation task over intervals.
         Int scatter_count = ceil((num_variants + 1) / this_args.variants_per_scatter)
         call tasks.SplitIntervals {
             input:

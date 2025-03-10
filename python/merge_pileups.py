@@ -2,7 +2,13 @@ import argparse
 from collections import defaultdict
 import gzip
 import pandas as pd
+import time
 import warnings
+
+
+def message(*args, **kwargs) -> None:
+    print(f"{time.strftime('%H:%M:%S')} ", *args, **kwargs)
+    return None
 
 
 def parse_args():
@@ -36,7 +42,7 @@ def main():
 
 def print_args(args):
     if args.verbose:
-        print("Calling MergePileups")
+        message("Calling MergePileups")
         print("Arguments:")
         for key, value in vars(args).items():
             print(f"  {key}: {value}")

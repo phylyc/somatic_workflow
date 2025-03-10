@@ -356,6 +356,7 @@ task SelectVariants {
         Boolean compress_output = false
         Boolean select_passing = false
         Boolean keep_germline = false
+        String somatic_filter_whitelist = "PASS,normal_artifact"
         String germline_filter_whitelist = "normal_artifact,panel_of_normals"
         String suffix = ""
         String? tumor_sample_name
@@ -393,7 +394,7 @@ task SelectVariants {
 
         set -uo pipefail
         # =======================================
-        # We do the selection step using grep to also select germline variants.
+        # We do the selection step using grep|awk to also select germline variants.
         # ASSUMPTION: multi-allelic variants are split into one variant per row.
         # Otherwise passing variants that are accompanied by an artifactual other-allelic
         # variant will not be selected.
@@ -407,8 +408,35 @@ task SelectVariants {
             cp '~{select_variants_output_vcf}' '~{uncompressed_selected_vcf}'
         else
             if [ "~{select_passing}" == "true" ] ; then
-                echo ">> Selecting PASSing variants ... "
-                grep -v "^#" '~{select_variants_output_vcf}' | grep "PASS" >> '~{uncompressed_selected_vcf}'
+                echo ">> Selecting PASSing/whitelisted variants ... "
+                # FilterMutectCalls assumes a normal sample with no tumor cell
+                # contamination. If there is contamination from tumor cells,
+                # somatic variants will be annotated as "normal_artifact", thus
+                # it is desirable to whitelist them.
+                grep -v "^#" '~{select_variants_output_vcf}' \
+                    | awk -F'\t' -v whitelist="~{somatic_filter_whitelist}" '
+                        BEGIN {
+                            n = split(whitelist, allowed_list, ",")
+                            for (i = 1; i <= n; i++) {
+                                allowed_tags[allowed_list[i]]
+                            }
+                        }
+                        {
+                            split($7, tags, ";")
+                            is_somatic = 1
+                            for (i in tags) {
+                                if (tags[i] in allowed_tags) {
+                                    continue
+                                } else {
+                                    is_somatic = 0
+                                    break
+                                }
+                            }
+                            if (is_somatic) {
+                                print $0
+                            }
+                        }' \
+                    >> '~{uncompressed_selected_vcf}'
                 num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
                 echo ">> Selected $num_selected_vars PASSing out of $num_vars variants."
             fi
@@ -418,6 +446,7 @@ task SelectVariants {
                 # and artifacts; it's calibrated towards somatic vs non-somatic.
                 # Thus, many good germline calls may also have an artifact flag.
                 # Additional filtering of those may be necessary.
+                mkdir -p tmp
                 grep -v "^#" '~{select_variants_output_vcf}' \
                     | awk -F'\t' -v whitelist="~{germline_filter_whitelist}" '
                         BEGIN {
@@ -444,8 +473,10 @@ task SelectVariants {
                                 print $0
                             }
                         }' \
-                    >> '~{uncompressed_selected_vcf}'
-                num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | grep -v "PASS" | wc -l)
+                    > tmp/germline.vcf
+                cat tmp/germline.vcf >> '~{uncompressed_selected_vcf}'
+                num_selected_vars=$(cat tmp/germline.vcf | wc -l)
+                rm -rf tmp
                 echo ">> Selected $num_selected_vars germline out of $num_vars variants."
             fi
         fi

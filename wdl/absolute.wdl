@@ -9,11 +9,13 @@ workflow Absolute {
         File copy_ratio_segmentation
         File af_model_parameters
         File? annotated_variants
+        Float? purity
+        Float? ploidy
         String? sex
 
         String acs_conversion_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
-        Int min_hets = 10
-        Int min_probes = 4
+        Int min_hets = 0
+        Int min_probes = 1
         Float maf90_threshold = 0.485
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
@@ -49,6 +51,8 @@ workflow Absolute {
             snv_maf = ProcessMAFforAbsolute.snv_maf,
             indel_maf = ProcessMAFforAbsolute.indel_maf,
             copy_ratio_type = "allelic",
+            purity = purity,
+            ploidy = ploidy,
             sex = sex,
             runtime_params = runtime_collection.absolute
     }
@@ -67,8 +71,10 @@ workflow Absolute {
 #    }
 
     output {
-        File? acr_plot = AbsoluteACRTask.plot
-        File? acr_rdata = AbsoluteACRTask.rdata
+        File acs_copy_ratio_segmentation = ModelSegmentsToACSConversion.acs_converted_seg
+        Float acs_copy_ratio_skew = ModelSegmentsToACSConversion.skew
+        File acr_plot = AbsoluteACRTask.plot
+        File acr_rdata = AbsoluteACRTask.rdata
 #        File? tcr_plot = AbsoluteTCRTask.plot
 #        File? tcr_rdata = AbsoluteTCRTask.rdata
     }
@@ -215,6 +221,9 @@ task AbsoluteTask {
         set +e
         set -uxo pipefail
 
+        touch ~{output_plot}
+        touch ~{output_rdata}
+
         num_segments=$(( $(wc -l < '~{seg_file}') - 1 ))
 
         if [ $num_segments -gt 0 ] ; then
@@ -239,8 +248,8 @@ task AbsoluteTask {
     >>>
 
     output {
-        File? plot = output_plot
-        File? rdata = output_rdata
+        File plot = output_plot
+        File rdata = output_rdata
         File? mode_res = output_mode_res
         File? mode_tab = output_mode_tab
         File? ssnv_mode_res = output_ssnv_mode_tab

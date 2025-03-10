@@ -11,7 +11,8 @@ workflow GenotypeSNPPanel {
 
         File? ref_dict
 
-        String individual_id
+        String patient_id
+        String? sex
         Array[String] sample_names
         Array[File] tumor_pileups
         Array[File]? normal_pileups
@@ -26,9 +27,9 @@ workflow GenotypeSNPPanel {
         Boolean genotype_variants_save_sample_genotype_likelihoods = false
 
         Int genotype_variants_min_read_depth = 10
-        Float genotype_variants_min_genotype_likelihood = 0.999
+        Float genotype_variants_min_genotype_likelihood = 0.995
         Float genotype_variants_outlier_prior = 0.0001
-        Int genotype_variants_overdispersion = 50
+        Int genotype_variants_overdispersion = 10
         Float genotype_variants_ref_bias = 1.05
 
         Boolean compress_output = true
@@ -72,14 +73,15 @@ workflow GenotypeSNPPanel {
         select_first([CalculateNormalContamination.contamination_table, []])
     ])
     Array[File] segmentation_tables = flatten([
-        CalculateTumorContamination.segmentation,
-        select_first([CalculateNormalContamination.segmentation, []])
+        CalculateTumorContamination.af_segmentation_table,
+        select_first([CalculateNormalContamination.af_segmentation_table, []])
     ])
 
     call gv.GenotypeVariants as GenotypeSNPPanelVariants {
         input:
             script = genotype_variants_script,
-            individual_id = individual_id,
+            patient_id = patient_id,
+            sex = sex,
             sample_names = sample_names,
             normal_sample_names = normal_sample_names,
             pileups = common_germline_allele_pileups,
