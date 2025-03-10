@@ -87,7 +87,9 @@ workflow ModelSegments {
         Array[File] ac = select_all(allelic_read_counts)
     }
 
-    if (length(pat.samples) > 1) {
+    # As implemented, if we don't pre-select HETs, it is not guaranteed that the
+    # allelic counts sites are identical across all samples.
+    if ((length(pat.samples) > 1) && pre_select_hets) {
         call ModelSegmentsTask as MultiSampleModelSegments {
             input:
                 denoised_copy_ratios = dcr,
@@ -233,7 +235,8 @@ task PileupToAllelicCounts {
                 --het_to_interval_mapping_max_distance ~{het_to_interval_mapping_max_distance} \
                 --output '~{output_file}' \
                 --error_output '~{error_output_file}' \
-                ~{if select_hets then "--select_hets" else ""}
+                ~{if select_hets then "--select_hets" else ""} \
+                --verbose
         fi
     >>>
 

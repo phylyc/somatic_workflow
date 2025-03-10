@@ -156,7 +156,6 @@ workflow CoverageWorkflow {
     output {
         Patient updated_patient = select_first([ModelSegments.updated_patient, ConsensusPatient.updated_patient, patient])
 
-        File? modeled_segments = ModelSegments.modeled_segments
         Array[File]? cr_segmentations = ModelSegments.called_copy_ratio_segmentations
         Array[File]? cr_plots = ModelSegments.cr_plots
         Array[File]? af_model_parameters = ModelSegments.af_model_final_parameters

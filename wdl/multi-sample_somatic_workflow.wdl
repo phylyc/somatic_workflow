@@ -200,7 +200,6 @@ workflow MultiSampleSomaticWorkflow {
         File? snp_sample_correlation = out_patient.snp_sample_correlation
         File? modeled_segments = out_patient.modeled_segments
 
-        File? first_pass_modeled_segments = CoverageWorkflow.modeled_segments
         Array[File]? first_pass_cr_segmentations = CoverageWorkflow.cr_segmentations
         Array[File]? first_pass_cr_plots = CoverageWorkflow.cr_plots
         Array[File]? first_pass_af_model_parameters = CoverageWorkflow.af_model_parameters
