@@ -133,11 +133,10 @@ task GenotypeVariantsTask {
         Float min_allele_frequency = 0.0
         Int min_read_depth = 10
         Float normal_to_tumor_weight = 2.0
-        Float min_genotype_likelihood = 0.999
+        Float min_genotype_likelihood = 0.995
         Float outlier_prior = 0.0001
         Int overdispersion = 50
         Float ref_bias = 1.05
-        String model = "betabinom"
         String format = "GT"
         Boolean select_hets = false
         Boolean save_sample_genotype_likelihoods = false
@@ -183,7 +182,6 @@ task GenotypeVariantsTask {
             --outlier_prior ~{outlier_prior} \
             --overdispersion ~{overdispersion} \
             --ref_bias ~{ref_bias} \
-            --model ~{model} \
             --format ~{format} \
             --threads 1 \
             ~{if select_hets then "--select_hets" else ""} \
