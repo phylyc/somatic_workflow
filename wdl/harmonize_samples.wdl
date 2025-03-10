@@ -40,7 +40,7 @@ workflow HarmonizeSamples {
     Array[File] allelic_counts = select_all(flatten(aps))
 
     if (length(callable_loci) > 0) {
-        Array[File] sorted_harmonized_callable_loci = cl
+        Array[File] sorted_harmonized_callable_loci = callable_loci
         # TODO: harmonize bed files
     }
 
