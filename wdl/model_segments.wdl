@@ -66,15 +66,15 @@ workflow ModelSegments {
     if (pre_select_hets) {
         Int genotyping_homozygous_log_ratio_threshold = 100
     }
-    # If not, we better use the matched normal for genotyping.
-    # TODO: We can't use normal pileups here because they are not guaranteed to
-    # have identical sites.
-#    if (!pre_select_hets) {
+    if (!pre_select_hets) {
+        # If not, we better use the matched normal for genotyping.
+        # TODO: We can't use normal pileups here because they are not guaranteed to have identical sites.
 #        if (defined(pat.matched_normal_sample)) {
 #            Sample matched_normal_sample = select_first([pat.matched_normal_sample])
 #            File? normal_allelic_counts = matched_normal_sample.aggregated_allelic_read_counts
 #        }
-#    }
+        Int minimum_total_allele_count_case = args.min_snppanel_read_depth
+    }
 
     # As implemented, if we don't pre-select HETs, it is not guaranteed that the
     # allelic counts sites are identical across all samples.
@@ -120,6 +120,7 @@ workflow ModelSegments {
                 allelic_counts = ac_list,
 #                normal_allelic_counts = normal_allelic_counts,
                 prefix = sample.name,
+                minimum_total_allele_count_case = minimum_total_allele_count_case,
                 max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
                 window_sizes = args.model_segments_window_sizes,
                 kernel_approximation_dimension = args.model_segments_kernel_approximation_dimension,
