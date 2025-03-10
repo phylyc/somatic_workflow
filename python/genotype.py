@@ -567,8 +567,7 @@ class Genotyper(object):
             ploidy["Y"] = 1
 
         # Add "chr" prefix to contig names for other references.
-        for c, p in ploidy.items():
-            ploidy[f"chr{c}"] = p
+        ploidy = ploidy | {f"chr{c}": p for c, p in ploidy.items()}
 
         return ploidy
 
