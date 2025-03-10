@@ -22,17 +22,19 @@ workflow SNVWorkflow {
     }
 
     if (args.run_variant_calling) {
-        call cv.CallVariants {
-            input:
-                patient = patient,
-                args = args,
-                runtime_collection = runtime_collection,
+        if (!defined(patient.raw_snv_calls_vcf)) {
+            call cv.CallVariants {
+                input:
+                    patient = patient,
+                    args = args,
+                    runtime_collection = runtime_collection,
+            }
         }
 
         if (args.run_variant_filter) {
             call fv.FilterVariants {
                 input:
-                    patient = CallVariants.updated_patient,
+                    patient = select_first([CallVariants.updated_patient, patient]),
                     args = args,
                     runtime_collection = runtime_collection,
             }
