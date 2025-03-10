@@ -142,7 +142,7 @@ workflow DefineRuntimeCollection {
         Int time_select_pileup_summaries = 5
 
         # PileupToAllelicCounts
-        Int mem_pileup_to_allelic_counts = 2048
+        Int mem_pileup_to_allelic_counts = 8192
         Int time_pileup_to_allelic_counts = 5
 
         # HarmonizeCopyRatios
