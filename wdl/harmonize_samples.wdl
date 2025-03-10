@@ -39,9 +39,10 @@ workflow HarmonizeSamples {
     Array[String] aps_sample_names = select_all(flatten(aps_sample_name))
     Array[File] allelic_counts = select_all(flatten(aps))
 
-#    if (length(callable_loci) > 0) {
-#         TODO: harmonize bed files
-#    }
+    if (length(callable_loci) > 0) {
+        Array[File] sorted_harmonized_callable_loci = cl
+        # TODO: harmonize bed files
+    }
 
     if (length(dcr_sample_names) > 0) {
         call HarmonizeCopyRatios {
@@ -94,7 +95,7 @@ workflow HarmonizeSamples {
     }
 
     output {
-        Array[File]? harmonized_callable_loci = []
+        Array[File]? harmonized_callable_loci = sorted_harmonized_callable_loci
         Array[File]? harmonized_denoised_copy_ratios = sorted_harmonized_denoised_copy_ratios
         Array[File]? merged_allelic_counts = sorted_allelic_counts
     }
