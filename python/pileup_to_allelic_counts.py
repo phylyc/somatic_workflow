@@ -18,7 +18,7 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "pileup_to_allelic_counts.py --pileup <pileup> --gvcf <gvcf> --output <output> [--select_hets]"
+    parser.usage = "pileup_to_allelic_counts.py --pileup <pileup> --gvcf <gvcf> --output <output> [--intervals <intervals>] [--select_hets] [--verbose]"
     parser.add_argument("--pileup",         type=str,   required=True,  help="Path to a GATK GetPileupSummaries output-like file.")
     parser.add_argument("--gvcf",           type=str,   required=True,  help="Path to a genotyped germline vcf that contains ref and alt allele information for each pileup locus and contains the GT field.")
     parser.add_argument("--intervals",      type=str,   default=None,   help="Path to the (denoised total copy ratio) intervals to aggregate pileups into one allelic count. Required columns: CONTIG, START, END")

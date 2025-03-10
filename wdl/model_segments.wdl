@@ -67,34 +67,33 @@ workflow ModelSegments {
         Int genotyping_homozygous_log_ratio_threshold = 100
     }
     # If not, we better use the matched normal for genotyping.
-    if (!pre_select_hets) {
-        if (defined(pat.matched_normal_sample)) {
-            Sample matched_normal_sample = select_first([pat.matched_normal_sample])
-            File? normal_allelic_counts = matched_normal_sample.aggregated_allelic_read_counts
-        }
-    }
-
-    # Prepare ModelSegments input
-
-    scatter (sample in pat.samples) {
-        File? denoised_copy_ratios = sample.harmonized_denoised_total_copy_ratios
-        File? allelic_read_counts = sample.aggregated_allelic_read_counts
-    }
-    if (length(select_all(denoised_copy_ratios)) > 0) {
-        Array[File] dcr = select_all(denoised_copy_ratios)
-    }
-    if (length(select_all(allelic_read_counts)) > 0) {
-        Array[File] ac = select_all(allelic_read_counts)
-    }
+    # TODO: We can't use normal pileups here because they are not guaranteed to
+    # have identical sites.
+#    if (!pre_select_hets) {
+#        if (defined(pat.matched_normal_sample)) {
+#            Sample matched_normal_sample = select_first([pat.matched_normal_sample])
+#            File? normal_allelic_counts = matched_normal_sample.aggregated_allelic_read_counts
+#        }
+#    }
 
     # As implemented, if we don't pre-select HETs, it is not guaranteed that the
     # allelic counts sites are identical across all samples.
     if ((length(pat.samples) > 1) && pre_select_hets) {
+        scatter (sample in pat.samples) {
+            File? denoised_copy_ratios = sample.harmonized_denoised_total_copy_ratios
+            File? allelic_read_counts = sample.aggregated_allelic_read_counts
+        }
+        if (length(select_all(denoised_copy_ratios)) > 0) {
+            Array[File] dcr = select_all(denoised_copy_ratios)
+        }
+        if (length(select_all(allelic_read_counts)) > 0) {
+            Array[File] ac = select_all(allelic_read_counts)
+        }
         call ModelSegmentsTask as MultiSampleModelSegments {
             input:
                 denoised_copy_ratios = dcr,
                 allelic_counts = ac,
-                normal_allelic_counts = normal_allelic_counts,
+#                normal_allelic_counts = normal_allelic_counts,
                 prefix = patient.name + ".segmentation",
                 max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
                 window_sizes = args.model_segments_window_sizes,
@@ -119,7 +118,7 @@ workflow ModelSegments {
                 segments = MultiSampleModelSegments.multi_sample_segments,
                 denoised_copy_ratios = dcr_list,
                 allelic_counts = ac_list,
-                normal_allelic_counts = normal_allelic_counts,
+#                normal_allelic_counts = normal_allelic_counts,
                 prefix = sample.name,
                 max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
                 window_sizes = args.model_segments_window_sizes,
@@ -140,13 +139,6 @@ workflow ModelSegments {
                 runtime_params = runtime_collection.call_copy_ratio_segments
         }
 
-        call MergeCallsWithModeledSegments {
-            input:
-                copy_ratio_segments = select_first([SingleSampleInferCR.seg_final]),
-                called_copy_ratio_segments = CallCopyRatioSegments.called_cr_seg,
-                runtime_params = runtime_collection.merge_calls_with_modeled_segments
-        }
-
         call PlotModeledSegments {
             input:
                 ref_dict = args.files.ref_dict,
@@ -164,7 +156,7 @@ workflow ModelSegments {
             af_segmentation_table = select_all(SingleSampleInferCR.af_segmentation_table),
             af_model_parameters = select_all(SingleSampleInferCR.af_model_final_parameters),
             cr_model_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters),
-            called_copy_ratio_segmentation =  MergeCallsWithModeledSegments.merged_segments,
+            called_copy_ratio_segmentation =  CallCopyRatioSegments.called_cr_seg,
             cr_plot = PlotModeledSegments.plot
     }
 
@@ -186,7 +178,7 @@ workflow ModelSegments {
         Array[File] igv_af = select_all(SingleSampleInferCR.igv_af)
         Array[File] igv_cr = select_all(SingleSampleInferCR.igv_cr)
         Array[File] seg_begin = select_all(SingleSampleInferCR.seg_begin)
-        Array[File] called_copy_ratio_segmentations = MergeCallsWithModeledSegments.merged_segments
+        Array[File] called_copy_ratio_segmentations = CallCopyRatioSegments.called_cr_seg
         Array[File] af_segmentation_table = select_all(SingleSampleInferCR.af_segmentation_table)
         Array[File] cr_plots = PlotModeledSegments.plot
     }
@@ -379,11 +371,18 @@ task CallCopyRatioSegments {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CallCopyRatioSegments \
             -I '~{copy_ratio_segments}' \
-            -O '~{called_segments}' \
+            -O 'tmp.~{called_segments}' \
             --neutral-segment-copy-ratio-lower-bound ~{neutral_segment_copy_ratio_lower_bound} \
             --neutral-segment-copy-ratio-upper-bound ~{neutral_segment_copy_ratio_upper_bound} \
             --outlier-neutral-segment-copy-ratio-z-score-threshold ~{outlier_neutral_segment_copy_ratio_z_score_threshold} \
             --calling-copy-ratio-z-score-threshold ~{calling_copy_ratio_z_score_threshold}
+
+        # Merge the called segments with the original copy ratio segments:
+        # Extract headers (lines starting with "@") from the first file
+        grep "^@" '~{copy_ratio_segments}' > '~{called_segments}'
+
+        # Merge the data (excluding headers) from both files
+        paste <(grep -v "^@" '~{copy_ratio_segments}') <(grep -v "^@" 'tmp.~{called_segments}' | awk -F'\t' '{print $NF}') >> '~{called_segments}'
     >>>
 
     output {
@@ -403,41 +402,6 @@ task CallCopyRatioSegments {
 
     parameter_meta {
 #        copy_ratio_segments: {localization_optional: true}
-    }
-}
-
-task MergeCallsWithModeledSegments {
-    input {
-        File copy_ratio_segments
-        File called_copy_ratio_segments
-        Runtime runtime_params
-    }
-
-    String dollar = "$"
-
-    String output_file = basename(copy_ratio_segments, ".seg") + ".called.seg"
-
-    command <<<
-        # Extract headers (lines starting with "@") from the first file
-        grep "^@" '~{copy_ratio_segments}' > '~{output_file}'
-
-        # Merge the data (excluding headers) from both files
-        paste <(grep -v "^@" '~{copy_ratio_segments}') <(grep -v "^@" '~{called_copy_ratio_segments}' | awk -F'\t' '{print $NF}') >> '~{output_file}'
-    >>>
-
-    output {
-        File merged_segments = output_file
-    }
-
-    runtime {
-        docker: runtime_params.docker
-        bootDiskSizeGb: runtime_params.boot_disk_size
-        memory: runtime_params.machine_mem + " MB"
-        runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
-        preemptible: runtime_params.preemptible
-        maxRetries: runtime_params.max_retries
-        cpu: runtime_params.cpu
     }
 }
 
