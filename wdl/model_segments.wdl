@@ -132,7 +132,8 @@ workflow ModelSegments {
 
         call CallCopyRatioSegments {
             input:
-                copy_ratio_segments = select_first([SingleSampleInferCR.cr_seg]),
+                cr_seg = select_first([SingleSampleInferCR.cr_seg]),
+                seg_final = select_first([SingleSampleInferCR.seg_final]),
                 neutral_segment_copy_ratio_lower_bound = args.call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
                 neutral_segment_copy_ratio_upper_bound = args.call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
                 outlier_neutral_segment_copy_ratio_z_score_threshold = args.call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold,
@@ -157,7 +158,7 @@ workflow ModelSegments {
             af_segmentation_table = select_all(SingleSampleInferCR.af_segmentation_table),
             af_model_parameters = select_all(SingleSampleInferCR.af_model_final_parameters),
             cr_model_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters),
-            called_copy_ratio_segmentation =  CallCopyRatioSegments.called_cr_seg,
+            called_copy_ratio_segmentation =  CallCopyRatioSegments.called_seg_final,
             cr_plot = PlotModeledSegments.plot
     }
 
@@ -179,7 +180,7 @@ workflow ModelSegments {
         Array[File] igv_af = select_all(SingleSampleInferCR.igv_af)
         Array[File] igv_cr = select_all(SingleSampleInferCR.igv_cr)
         Array[File] seg_begin = select_all(SingleSampleInferCR.seg_begin)
-        Array[File] called_copy_ratio_segmentations = CallCopyRatioSegments.called_cr_seg
+        Array[File] called_copy_ratio_segmentations = CallCopyRatioSegments.called_seg_final
         Array[File] af_segmentation_table = select_all(SingleSampleInferCR.af_segmentation_table)
         Array[File] cr_plots = PlotModeledSegments.plot
     }
@@ -356,7 +357,8 @@ task ModelSegmentsTask {
 
 task CallCopyRatioSegments {
     input {
-        File copy_ratio_segments
+        File cr_seg
+        File seg_final
         Float neutral_segment_copy_ratio_lower_bound = 0.9
         Float neutral_segment_copy_ratio_upper_bound = 1.1
         Float outlier_neutral_segment_copy_ratio_z_score_threshold = 2.0
@@ -364,14 +366,14 @@ task CallCopyRatioSegments {
         Runtime runtime_params
     }
 
-    String called_segments = basename(copy_ratio_segments, ".seg") + ".called.seg"
+    String called_segments = basename(cr_seg, ".seg") + ".called.seg"
 
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CallCopyRatioSegments \
-            -I '~{copy_ratio_segments}' \
+            -I '~{cr_seg}' \
             -O 'tmp.~{called_segments}' \
             --neutral-segment-copy-ratio-lower-bound ~{neutral_segment_copy_ratio_lower_bound} \
             --neutral-segment-copy-ratio-upper-bound ~{neutral_segment_copy_ratio_upper_bound} \
@@ -380,14 +382,14 @@ task CallCopyRatioSegments {
 
         # Merge the called segments with the original copy ratio segments:
         # Extract headers (lines starting with "@") from the first file
-        grep "^@" '~{copy_ratio_segments}' > '~{called_segments}'
+        grep "^@" '~{seg_final}' > '~{called_segments}'
 
         # Merge the data (excluding headers) from both files
-        paste <(grep -v "^@" '~{copy_ratio_segments}') <(grep -v "^@" 'tmp.~{called_segments}' | awk -F'\t' '{print $NF}') >> '~{called_segments}'
+        paste <(grep -v "^@" '~{seg_final}') <(grep -v "^@" 'tmp.~{called_segments}' | awk -F'\t' '{print $NF}') >> '~{called_segments}'
     >>>
 
     output {
-        File called_cr_seg = called_segments
+        File called_seg_final = called_segments
     }
 
     runtime {
