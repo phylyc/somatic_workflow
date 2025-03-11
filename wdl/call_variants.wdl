@@ -67,38 +67,56 @@ workflow CallVariants {
 
     scatter (interval_list in args.scattered_interval_list) {
         # Mutect1
-         scatter (sample in patient.samples){ 
-             scatter {seq_run in sample.sequencing_runs} {
-                 if (sample.name != patient.matched_normal_sample.name) { # Mutect1 doesn't like same bam being referenced multiple times
-                     call Mutect1 {
-                         input:
-                             interval_list = interval_list,
-                             ref_fasta = args.files.ref_fasta,
-                             ref_fasta_index = args.files.ref_fasta_index,
-                             ref_dict = args.files.ref_dict,
-                             germline_resource = args.files.germline_resource,
-                             germline_resource_idx = args.files.germline_resource_idx,
-                             panel_of_normals = args.files.snv_panel_of_normals,
-                             panel_of_normals_idx = args.files.snv_panel_of_normals_idx,
-                             contamination_table = sample.contamination,
+        scatter (sample in patient.samples){ 
+            scatter {seq_run in sample.sequencing_runs} {
+                if (sample.name != patient.matched_normal_sample.name) { # Mutect1 doesn't like same bam being referenced multiple times
+                    call Mutect1 {
+                        input:
+                            interval_list = interval_list,
+                            ref_fasta = args.files.ref_fasta,
+                            ref_fasta_index = args.files.ref_fasta_index,
+                            ref_dict = args.files.ref_dict,
+                            germline_resource = args.files.germline_resource,
+                            germline_resource_idx = args.files.germline_resource_idx,
+                            panel_of_normals = args.files.snv_panel_of_normals,
+                            panel_of_normals_idx = args.files.snv_panel_of_normals_idx,
+                            contamination_table = sample.contamination,
+
+                            individual_id = patient.name,
+                            tumor_sample_name = sample.name,                                       
+                            tumor_bam = seq_run.bam,
+                            tumor_bai = seq_run.bai,
+                            normal_sample_name = patient.matched_normal_sample.name,                
+                            normal_bam = patient.matched_normal_sample.sequencing_runs[0].bam,
+                            normal_bai = patient.matched_normal_sample.sequencing_runs[0].bai,
+
+                            runtime_params = runtime_collection.mutect1,
+                    }
+
+                    call MergeMutect1COSMIC_VCFs {
+                        input:
+                            interval_list = interval_list,
+                            ref_fasta = args.files.ref_fasta,
+                            ref_fasta_index = args.files.ref_fasta_index,
+                            ref_dict = args.files.ref_dict,
+                            mutect1_vcf = Mutect1.mutect1_vcf,
+                            mutect1_vcf_idx = Mutect1.mutect1_vcf_idx,
+                            force_call_alleles = args.files.force_call_alleles,
+                            force_call_alleles_idx = args.files.force_call_alleles_idx,
+                            runtime_params = runtime_collection.merge_mutect1_cosmic_vcfs
+                    }
+                }
+            }
+        }
+
+        # TODO: not sure how to get this in file format
+        Array[File] merge_mutect1_cosmic_vcfs = select_all(flatten(MergeMutect1COSMIC_VCFs.force_call_alleles_vcf))
+        Array[File] merge_mutect1_cosmic_vcfs_idx = select_all(flatten(MergeMutect1COSMIC_VCFs.force_call_alleles_vcf_idx))
+        
+        # Array[Array[File?]]
+        #Array[File] mutect1_vcfs = select_all(flatten(Mutect1.mutect1_vcf))
  
-                             individual_id = patient.name,
-                             tumor_sample_name = sample.name,                                       
-                             tumor_bam = seq_run.bam,
-                             tumor_bai = seq_run.bai,
-                             normal_sample_name = patient.matched_normal_sample.name,                
-                             normal_bam = patient.matched_normal_sample.sequencing_runs[0].bam,
-                             normal_bai = patient.matched_normal_sample.sequencing_runs[0].bai,
- 
-                             runtime_params = runtime_collection.mutect1,
-                     }
-                 }
-             }
-         }
-         # Array[Array[File?]] Mutect1.vcf
-         Array[File] mutect1_vcfs = select_all(flatten(Mutect1.mutect1_vcf))
- 
-         # TODO: Add Mutect1 stats + force call alleles TASK
+        
  
         # Mutect2
     	call Mutect2 {
@@ -113,7 +131,7 @@ workflow CallVariants {
                 normal_bams = normal_bams,
                 normal_bais = normal_bais,
                 normal_sample_names = normal_sample_names,
-                force_call_alleles = args.files.force_call_alleles,                                      # TODO: replace with Mutect1 + force_call_alleles input
+                force_call_alleles = args.files.force_call_alleles,                             # TODO: replace with Mutect1 + force_call_alleles input
                 force_call_alleles_idx = args.files.force_call_alleles_idx,                              # TODO: replace with Mutect1 + force_call_alleles input
                 panel_of_normals = args.files.snv_panel_of_normals,
                 panel_of_normals_idx = args.files.snv_panel_of_normals_idx,
@@ -254,7 +272,7 @@ task Mutect1 {
              --out ~{tumor_sample_name}.MuTect1.call_stats.txt \
              --coverage_file ~{tumor_sample_name}.MuTect1.coverage.wig.txt \
              --power_file ~{tumor_sample_name}.MuTect1.power.wig.txt \
-             --vcf ~{tumor_sample_name}.MuTect1.vcf                                         #(not sure if needed) VCF output of mutation candidates
+             --vcf ~{tumor_sample_name}.MuTect1.vcf                                     
      >>>
      
      output {
@@ -262,6 +280,7 @@ task Mutect1 {
          File mutect1_coverage_wig="~{tumor_sample_name}.MuTect1.coverage.wig.txt"
          File mutect1_power_wig="~{tumor_sample_name}.MuTect1.power.wig.txt"
          File mutect1_vcf="~{tumor_sample_name}.MuTect1.vcf"
+         File mutect1_vcf_idx="~{tumor_sample_name}.MuTect1.vcf.idx"
      }
  
      runtime {
@@ -277,6 +296,77 @@ task Mutect1 {
  }
  
  # TASK: mutect1 output, drop sample columns and union with force_call_alleles (COSMIC), subset to intervals to reduce size (move to tasks.wdl later)
+
+task MergeMutect1COSMIC_VCFs {
+    input {
+        File? interval_list
+        File ref_fasta
+        File ref_fasta_index
+        File ref_dict
+
+        File mutect1_vcf
+        File mutect1_vcf_idx
+        File force_call_alleles
+        File force_call_alleles_idx
+
+        Runtime runtime_params
+    }
+
+    String mutect1_pass_no_genotypes_vcf = mutect1_vcf + ".pass.no_genotypes.vcf"
+    String mutect1_pass_no_genotypes_cosmic_vcf = mutect1_vcf + ".pass.no_genotypes.cosmic.vcf"
+    String mutect1_pass_no_genotypes_cosmic_dedup_vcf = mutect1_vcf + ".pass.no_genotypes.cosmic.dedup.vcf"
+    String mutect1_pass_no_genotypes_cosmic_dedup_vcf_idx = mutect1_pass_no_genotypes_cosmic_dedup_vcf + ".idx"
+    String mutect1_pass_no_genotypes_cosmic_dedup_subset_vcf = mutect1_vcf + ".pass.no_genotypes.cosmic.dedup.subset.vcf"
+    String mutect1_pass_no_genotypes_cosmic_dedup_subset_vcf_idx = mutect1_pass_no_genotypes_cosmic_dedup_subset_vcf + ".idx"
+
+    command <<<
+        set -euxo pipefail
+
+        # Drop FORMAT and sample name columns (i.e. only keep #CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO columns)
+        bcftools view -i 'FILTER=="PASS"' ~{mutect1_vcf} | bcftools view --drop-genotypes > ~{mutect1_pass_no_genotypes_vcf}
+
+        # Union with cosmic vcf
+        bcftools concat ~{mutect1_pass_no_genotypes_vcf} ~{force_call_alleles} > ~{mutect1_pass_no_genotypes_cosmic_vcf}
+
+        rm -f ~{mutect1_pass_no_genotypes_vcf}
+
+        # Deduplicate based on #CHROM POS REF ALT (sort needed for --rm-dup to work properly)
+        bcftools sort ~{mutect1_pass_no_genotypes_cosmic_vcf} | bcftools norm --rm-dup both -Ov > ~{mutect1_pass_no_genotypes_cosmic_dedup_vcf}
+
+        rm -f ~{mutect1_pass_no_genotypes_cosmic_vcf}
+
+        # Index needed for SelectVariants
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" IndexFeatureFile \
+            --input ~{mutect1_pass_no_genotypes_cosmic_dedup_vcf} \
+            --output ~{mutect1_pass_no_genotypes_cosmic_dedup_vcf_idx}
+
+        # Use gatk SelectVariants to subset SNV positions only found in interval_list
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" SelectVariants \
+            -R ~{ref_fasta} \
+            -V ~{mutect1_pass_no_genotypes_cosmic_dedup_vcf} \
+            -L ~{interval_list} \
+            -O ~{mutect1_pass_no_genotypes_cosmic_dedup_subset_vcf}
+        
+        rm -f {mutect1_pass_no_genotypes_cosmic_dedup_vcf} ~{mutect1_pass_no_genotypes_cosmic_dedup_vcf_idx}
+    >>>
+
+    output {
+        File force_call_alleles_vcf = mutect1_pass_no_genotypes_cosmic_dedup_subset_vcf
+        File force_call_alleles_vcf_idx = mutect1_pass_no_genotypes_cosmic_dedup_subset_vcf_idx
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+}
+
 task Mutect2 {
     input {
         File? interval_list

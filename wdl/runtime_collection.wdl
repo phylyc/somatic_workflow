@@ -188,12 +188,16 @@ workflow DefineRuntimeCollection {
         #######################################################################
         # java -jar Mutect1
         Int cpu_mutect1 = 1
-        Int mem_mutect1_base = 14336                 # not sure if this is per scattered interval or per sample
+        Int mem_mutect1_base = 10240                 # not sure if this is per scattered interval or per sample
         Int mem_mutect1_overhead = 1024
         Int time_mutect1_total = 720                # TODO: 12h?
         Int preemptible_mutect1 = 1
         Int max_retries_mutect1 = 2
         Int disk_mutect1_total = bam_size           # TODO:
+
+        # MergeMutect1COSMIC_VCFs
+        Int mem_merge_mutect1_cosmic_vcfs = 2048
+        Int time_merge_mutect1_cosmic_vcfs = 10
 
         # gatk: Mutect2
         # The GATK only parallelizes a few parts of the computation, so any extra cores would be idle for a large fraction of time.
@@ -647,6 +651,18 @@ workflow DefineRuntimeCollection {
         "runtime_minutes": time_startup + time_mutect1_total, # TODO
         "disk": disk + disk_mutect1_total , # TODO
         "boot_disk_size": boot_disk_size 
+    }
+
+    Runtime merge_mutect1_cosmic_vcfs = {
+        "docker": gatk_docker, # TODO need to check if this has bcftools
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_merge_mutect1_cosmic_vcfs + mem_machine_overhead,
+        "command_mem": mem_merge_mutect1_cosmic_vcfs,
+        "runtime_minutes": time_startup + time_merge_mutect1_cosmic_vcfs,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
     }
 
     Int mem_mutect2 = mem_mutect2_base + num_bams * mem_mutect2_additional_per_sample
