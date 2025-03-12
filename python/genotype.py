@@ -1034,6 +1034,7 @@ class GenotypeData(object):
 
         sample_names = sample_genotypes.columns
         sample_gt = [sample_genotypes[[sample]] for sample in sample_names]
+        sample_n_loc = [sample_genotypes[sample].dropna().gt(0).sum() for sample in sample_names]
 
         sample_pairs = list(combinations(sample_names, 2))
         gt_pairs = list(combinations(sample_gt, 2))
@@ -1072,7 +1073,7 @@ class GenotypeData(object):
         nloc = nloc.where(~nloc.isna(), nloc.T)
         np.fill_diagonal(sample_correlation.values, 1)
         np.fill_diagonal(pval.values, 0)
-        np.fill_diagonal(nloc.values, 0)
+        np.fill_diagonal(nloc.values, sample_n_loc)
         sample_correlation = sample_correlation.fillna(0)
         pval = pval.fillna(1)
         nloc = nloc.fillna(0).astype(int)
