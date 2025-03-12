@@ -265,9 +265,9 @@ class Segments(object):
                     self.df["MINOR_ALLELE_FRACTION_POSTERIOR_50"].isna(),
                     1 / (2 * 2 ** self.df["LOG2_COPY_RATIO_POSTERIOR_50"]),
                 )
-                self.df["minor_allele_fractions"] = self.df["minor_allele_fractions"].where(
-                    self.df["minor_allele_fractions"] > 0.5,
-                    1 - self.df["minor_allele_fractions"]
+                self.df["minor_allele_fraction"] = self.df["minor_allele_fraction"].where(
+                    self.df["minor_allele_fraction"] > 0.5,
+                    1 - self.df["minor_allele_fraction"]
                 )
                 self.df = self.df[self.columns]
         except Exception as e:
