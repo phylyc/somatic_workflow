@@ -74,10 +74,10 @@ workflow CallVariants {
                             ref_fasta = args.files.ref_fasta,
                             ref_fasta_index = args.files.ref_fasta_index,
                             ref_dict = args.files.ref_dict,
-                            germline_resource = args.files.germline_resource,
-                            germline_resource_idx = args.files.germline_resource_idx,
-                            panel_of_normals = args.files.snv_panel_of_normals,
-                            panel_of_normals_idx = args.files.snv_panel_of_normals_idx,
+                            germline_resource = args.files.germline_resource_v4_1,
+                            germline_resource_idx = args.files.germline_resource_v4_1_idx,
+                            panel_of_normals = args.files.snv_panel_of_normals_v4_1,
+                            panel_of_normals_idx = args.files.snv_panel_of_normals_v4_1_idx,
                             contamination_table = sample.contamination,
 
                             individual_id = patient.name,
@@ -261,8 +261,8 @@ task Mutect1 {
             -I:tumor ~{"'" + tumor_bam + "'"} \
             ~{"--normal_sample_name '" + normal_sample_name + "'"} \
             ~{"-I:normal '" + normal_bam + "'"} \
-            --normal_panel ~{"'" + panel_of_normals + "'"} \                        # TODO: this needs to be v4.1
-            --dbsnp ~{"'" + germline_resource + "'"} \                              # TODO: this needs to be v4.1
+            --normal_panel ~{"'" + panel_of_normals + "'"} \
+            --dbsnp ~{"'" + germline_resource + "'"} \
             --downsample_to_coverage ~{downsample_to_coverage} \
             --max_alt_alleles_in_normal_count ~{max_alt_alleles_in_normal_count} \
             --max_alt_alleles_in_normal_qscore_sum ~{max_alt_alleles_in_normal_qscore_sum} \
@@ -273,7 +273,7 @@ task Mutect1 {
             --out ~{"'" + call_stats + "'"} \
             --coverage_file ~{"'" + coverage_wig + "'"} \
             --power_file ~{"'" + power_wig + "'"} \
-            --vcf ~{"'" + mutect1_vcf + "'"}                                  
+            --vcf ~{"'" + mutect1_vcf + "'"}
     >>>
      
     output {
