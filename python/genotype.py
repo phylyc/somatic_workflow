@@ -455,7 +455,7 @@ class VCF(object):
         self.df = self.df.drop_duplicates(subset=["CHROM", "POS"], keep=False)
         n_kept_vars = self.df.shape[0]
         if n_kept_vars < n_input_vars:
-            print(f"    Dropping {n_input_vars - n_kept_vars} multi-allelic loci from Variants. {n_kept_vars} loci remaining.") if verbose else None
+            print(f"    Dropping {n_input_vars - n_kept_vars} multi-allelic and non-SNV loci from Variants. {n_kept_vars} loci remaining.") if verbose else None
         self.df = self.df.set_index(["CHROM", "POS"])
         self.df.index.names = ["contig", "position"]  # align to PileupLikelihood index names
 
