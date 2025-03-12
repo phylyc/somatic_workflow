@@ -57,6 +57,7 @@ workflow DefineRuntimeCollection {
 
         Int scatter_count = 10
         String gatk_docker = "broadinstitute/gatk:4.6.1.0"
+        String mutect1_docker = "vanallenlab/mutect:1.1.6"
         # Needs docker image with bedtools, samtools, and gatk
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
         String absolute_docker = "phylyc/absolute:1.6"
@@ -188,16 +189,16 @@ workflow DefineRuntimeCollection {
         #######################################################################
         # java -jar Mutect1
         Int cpu_mutect1 = 1
-        Int mem_mutect1_base = 10240                 # not sure if this is per scattered interval or per sample
+        Int mem_mutect1_base = 6144                 # per scatter
         Int mem_mutect1_overhead = 1024
-        Int time_mutect1_total = 720                # TODO: 12h?
+        Int time_mutect1_total = 2880                # 2d
         Int preemptible_mutect1 = 1
         Int max_retries_mutect1 = 2
-        Int disk_mutect1_total = bam_size           # TODO:
+        Int disk_mutect1_total = bam_size           #
 
-        # MergeMutect1COSMIC_VCFs
-        Int mem_merge_mutect1_cosmic_vcfs = 2048
-        Int time_merge_mutect1_cosmic_vcfs = 10
+        # MergeMutect1ForceCallVCFs
+        Int mem_merge_mutect1_forcecall_vcfs = 2048
+        Int time_merge_mutect1_forcecall_vcfs = 10
 
         # gatk: Mutect2
         # The GATK only parallelizes a few parts of the computation, so any extra cores would be idle for a large fraction of time.
@@ -642,25 +643,25 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime mutect1 = {
-        "docker": , # TODO
+        "docker": mutect1_docker,
         "preemptible": preemptible_mutect1,
         "max_retries": max_retries_mutect1,
         "cpu": cpu_mutect1,
         "machine_mem": mem_mutect1_base + mem_mutect1_overhead,
         "command_mem": mem_mutect1_base,
-        "runtime_minutes": time_startup + time_mutect1_total, # TODO
-        "disk": disk + disk_mutect1_total , # TODO
-        "boot_disk_size": boot_disk_size 
+        "runtime_minutes": time_startup + time_mutect1_total,
+        "disk": disk + disk_mutect1_total,
+        "boot_disk_size": boot_disk_size
     }
 
-    Runtime merge_mutect1_cosmic_vcfs = {
-        "docker": gatk_docker, # TODO need to check if this has bcftools
+    Runtime merge_mutect1_forcecall_vcfs = {
+        "docker": gatk_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_merge_mutect1_cosmic_vcfs + mem_machine_overhead,
-        "command_mem": mem_merge_mutect1_cosmic_vcfs,
-        "runtime_minutes": time_startup + time_merge_mutect1_cosmic_vcfs,
+        "machine_mem": mem_merge_mutect1_forcecall_vcfs + mem_machine_overhead,
+        "command_mem": mem_merge_mutect1_forcecall_vcfs,
+        "runtime_minutes": time_startup + time_merge_mutect1_forcecall_vcfs,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }

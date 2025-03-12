@@ -108,7 +108,7 @@ workflow CallVariants {
                 mutect1_vcfs_idx = mutect1_vcfs_idx,
                 force_call_alleles = args.files.force_call_alleles,
                 force_call_alleles_idx = args.files.force_call_alleles_idx,
-                runtime_params = runtime_collection.merge_mutect1_cosmic_vcfs
+                runtime_params = runtime_collection.merge_mutect1_forcecall_vcfs
         }
 
         # TODO: add Strelka2 and pipe via force-calling alleles into Mutect2
@@ -255,25 +255,25 @@ task Mutect1 {
         # Run MuTect1 (without force-calling, will be done by Mutect2)
         java "-Xmx${command_mb}m" -jar /muTect-1.1.6.jar \
             --analysis_type MuTect \
-            --reference_sequence ~{ref_fasta} \
-            --intervals ~{interval_list} \
-            --tumor_sample_name ~{tumor_sample_name} \
-            -I:tumor ~{tumor_bam} \
+            --reference_sequence ~{"'" + ref_fasta + "'"} \
+            --intervals ~{"'" + interval_list + "'"} \
+            --tumor_sample_name ~{"'" + tumor_sample_name + "'"} \
+            -I:tumor ~{"'" + tumor_bam + "'"} \
             ~{"--normal_sample_name '" + normal_sample_name + "'"} \
-            ~{"-I:normal '" + normal_bam + "'"} \         
-            --normal_panel ~{panel_of_normals} \                                                # TODO: this must be VCF v4.1, currently ours is v4.2
-            --dbsnp ~{germline_resource} \                                                      # TODO: this must be VCF v4.1, currently ours is v4.2
+            ~{"-I:normal '" + normal_bam + "'"} \
+            --normal_panel ~{"'" + panel_of_normals + "'"} \                        # TODO: this needs to be v4.1
+            --dbsnp ~{"'" + germline_resource + "'"} \                              # TODO: this needs to be v4.1
             --downsample_to_coverage ~{downsample_to_coverage} \
             --max_alt_alleles_in_normal_count ~{max_alt_alleles_in_normal_count} \
             --max_alt_alleles_in_normal_qscore_sum ~{max_alt_alleles_in_normal_qscore_sum} \
-            --fraction_contamination ~{fraction_contamination} \                              
+            --fraction_contamination ~{fraction_contamination} \
             --tumor_f_pretest ~{tumor_f_pretest} \
             --initial_tumor_lod ~{initial_tumor_lod} \
             --tumor_lod ~{tumor_lod} \
-            ---out ~{call_stats} \
-            --coverage_file ~{coverage_wig} \
-            --power_file ~{power_wig} \
-            --vcf ~{mutect1_vcf}                                  
+            --out ~{"'" + call_stats + "'"} \
+            --coverage_file ~{"'" + coverage_wig + "'"} \
+            --power_file ~{"'" + power_wig + "'"} \
+            --vcf ~{"'" + mutect1_vcf + "'"}                                  
     >>>
      
     output {
@@ -324,35 +324,35 @@ task MergeMutect1ForceCallVCFs {
         set -euxo pipefail
 
         # Concat all samples VCFs from shardX and compress the merged output
-        bcftools concat ~{sep=" " mutect1_vcfs} -Oz > ~{mutect1_vcf}
-        
+        bcftools concat ~{sep=" " mutect1_vcfs} -Oz > ~{"'" + mutect1_vcf + "'"}
+
         # Drop FORMAT and sample name columns (i.e. only keep #CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO columns)
-        bcftools view -i 'FILTER=="PASS"' ~{mutect1_vcf} | \
-            bcftools view --drop-genotypes -Oz > ~{mutect1_pass_no_genotypes_vcf}
+        bcftools view -i 'FILTER=="PASS"' ~{"'" + mutect1_vcf + "'"} | \
+            bcftools view --drop-genotypes -Oz > ~{"'" + mutect1_pass_no_genotypes_vcf + "'"}
 
         # Union with force_call_alleles vcf
-        bcftools concat ~{mutect1_pass_no_genotypes_vcf} ~{force_call_alleles} -Oz > ~{mutect1_pass_no_genotypes_forcecalled_vcf}
-        rm -f ~{mutect1_pass_no_genotypes_vcf}
+        bcftools concat ~{"'" + mutect1_pass_no_genotypes_vcf + "'"} ~{"'" + force_call_alleles + "'"} -Oz > ~{"'" + mutect1_pass_no_genotypes_forcecalled_vcf + "'"}
+        rm -f ~{"'" + mutect1_pass_no_genotypes_vcf + "'"}
 
         # Deduplicate based on #CHROM, POS, REF, ALT (sorting is needed for --rm-dup to work properly)
-        bcftools sort ~{mutect1_pass_no_genotypes_forcecalled_vcf} | \
-            bcftools norm --rm-dup both -Oz > ~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}
-        rm -f ~{mutect1_pass_no_genotypes_forcecalled_vcf}
+        bcftools sort ~{"'" + mutect1_pass_no_genotypes_forcecalled_vcf + "'"} | \
+            bcftools norm --rm-dup both -Oz > ~{"'" + mutect1_pass_no_genotypes_forcecalled_dedup_vcf + "'"}
+        rm -f ~{"'" + mutect1_pass_no_genotypes_forcecalled_vcf + "'"}
 
         # Index the deduplicated VCF for gatk SelectVariants
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" IndexFeatureFile \
-           -I ~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf} \
-           -O ~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx}
+           -I ~{"'" + mutect1_pass_no_genotypes_forcecalled_dedup_vcf + "'"} \
+           -O ~{"'" + mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx + "'"}
 
         # Use gatk SelectVariants to subset SNV positions only found in the interval_list
         # This also outputs an index file with it
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" SelectVariants \
-           -R ~{ref_fasta} \
-           -V ~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf} \
-           -L ~{interval_list} \
-           -O ~{mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf}
-
-        rm -f ~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf} ~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx}
+           -R ~{"'" + ref_fasta + "'"} \
+           -V ~{"'" + mutect1_pass_no_genotypes_forcecalled_dedup_vcf + "'"} \
+           -L ~{"'" + interval_list + "'"} \
+           -O ~{"'" + mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf + "'"}
+        
+        rm -f ~{"'" + mutect1_pass_no_genotypes_forcecalled_dedup_vcf + "'"} ~{"'" + mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx + "'"}
     >>>
 
     output {
