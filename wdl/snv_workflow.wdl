@@ -104,7 +104,6 @@ workflow SNVWorkflow {
                                 script = args.merge_pileups_script,
                                 sample_names = mgac_task_sample_names,
                                 allelic_counts = mgac_task_allelic_counts,
-                                min_read_depth = args.min_snppanel_read_depth,
                                 compress_output = args.compress_output,
                                 runtime_params = runtime_collection.merge_allelic_counts,
                         }

@@ -162,7 +162,7 @@ task MergeAllelicCounts {
         File ref_dict
         Array[String]+ sample_names
         Array[File]+ allelic_counts
-        Int min_read_depth = 1
+        Int min_read_depth = 0
         Boolean compress_output = false
         Boolean verbose = true
 
