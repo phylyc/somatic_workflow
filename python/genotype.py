@@ -769,6 +769,8 @@ class Genotyper(object):
             def nansum(ndarray):
                 # testing for NaN throws errors for some reason, so testing for 1 (log(p) must be < 0)
                 mask = ndarray != 1
+                if np.sum(mask) == 0:
+                    return -np.inf
                 return np.average(ndarray[mask], weights=weights[mask])
 
             joint_log_likelihood = {
