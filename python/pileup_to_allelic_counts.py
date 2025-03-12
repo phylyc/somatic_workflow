@@ -21,6 +21,7 @@ def parse_args():
     parser.usage = "pileup_to_allelic_counts.py --pileup <pileup> --gvcf <gvcf> --output <output> [--intervals <intervals>] [--select_hets] [--verbose]"
     parser.add_argument("--pileup",         type=str,   required=True,  help="Path to a GATK GetPileupSummaries output-like file.")
     parser.add_argument("--gvcf",           type=str,   required=True,  help="Path to a genotyped germline vcf that contains ref and alt allele information for each pileup locus and contains the GT field.")
+    parser.add_argument("-D", "--ref_dict", type=str,   help="Path to the reference dictionary to sort rows.")
     parser.add_argument("--intervals",      type=str,   default=None,   help="Path to the (denoised total copy ratio) intervals to aggregate pileups into one allelic count. Required columns: CONTIG, START, END")
     parser.add_argument("--het_to_interval_mapping_max_distance", type=int, default=0, help="If a pileup location does not map to an interval provided in the intervals, it will be mapped to the closest interval, which is at most this many base pairs away.")
     parser.add_argument("--min_read_depth", type=int,   default=0, help="Minimum read depth.")
@@ -46,6 +47,25 @@ def print_args(args):
         print()
 
 
+def sort_genomic_positions(index: pd.MultiIndex, contig_order: list[str]) -> pd.MultiIndex:
+    contig_order += list(set(index.get_level_values("contig")) - set(contig_order))
+    temp_df = pd.DataFrame(index=index).reset_index()
+    temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contig_order, ordered=True)
+    temp_df.sort_values(by=["contig", "position"], inplace=True)
+    return pd.MultiIndex.from_frame(temp_df[["contig", "position"]])
+
+
+def get_contigs(ref_dict: str) -> list[str]:
+    if ref_dict is None:
+        return (
+            [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+            + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
+        )
+    with open(ref_dict, "rt") as file:
+        contig_header = [line for line in file if line.startswith("@SQ")]
+    return [h.split("\t")[1].removeprefix("SN:") for h in contig_header]
+
+
 def convert_pileup_to_allelic_counts(args):
     pileup = pd.read_csv(
         f"{args.pileup}", sep="\t", comment="#", low_memory=False
@@ -61,12 +81,15 @@ def convert_pileup_to_allelic_counts(args):
         f"{args.intervals}", sep="\t", comment="@", low_memory=False
     ).astype({"CONTIG": str, "START": int, "END": int}) if args.intervals is not None else None
 
+    contig_order = get_contigs(args.ref_dict)
+
     if pileup.empty:
         print("No pileups found.")
         return None
 
     df = pd.merge(pileup, gvcf, how="inner", on=["contig", "position"])
     df = df.loc[df[["ref_count", "alt_count"]].sum(axis=1) >= args.min_read_depth]
+    df.drop_duplicates(subset=["contig", "position"], inplace=True)
 
     if args.select_hets:
         if "genotype" in df.columns:
@@ -132,6 +155,8 @@ def convert_pileup_to_allelic_counts(args):
 
         print(f"Remaining HETs after aggregating and mapping to intervals: {df.shape[0]}")
 
+    df = df.set_index(["contig", "position"], drop=True)
+    df = df.reindex(sort_genomic_positions(index=df.index, contig_order=contig_order)).reset_index()
     df[["contig", "position", "ref_count", "alt_count", "ref", "alt"]].to_csv(f"{args.output}", sep="\t", index=False, header=False, mode="a")
 
     if args.error_output is not None:

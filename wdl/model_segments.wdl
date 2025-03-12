@@ -224,6 +224,7 @@ task PileupToAllelicCounts {
             python pileup_to_allelic_counts.py \
                 --pileup '~{pileup}' \
                 --gvcf '~{gvcf}' \
+                -D '~{ref_dict}' \
                 ~{"--intervals '" + intervals + "'"} \
                 --min_read_depth ~{min_read_depth} \
                 --het_to_interval_mapping_max_distance ~{het_to_interval_mapping_max_distance} \

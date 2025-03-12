@@ -111,6 +111,7 @@ def merge_pileups(args):
     # load data (per sequencing run):
     for sample_name, file_path in zip(args.sample, args.pileup):
         header, df = get_header_and_df(file_path=file_path, columns=columns, column_types=column_types)
+        df.drop_duplicates(subset=["contig", "position"], inplace=True)
         headers[sample_name].append(header)
         pileups[sample_name].append(df)
         print(f"Number of loci in {file_path}: {df.shape[0]}") if args.verbose else None
