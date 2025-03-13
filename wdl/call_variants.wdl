@@ -102,25 +102,26 @@ workflow CallVariants {
                     m2_extra_args = args.mutect2_extra_args,
                     runtime_params = runtime_collection.mutect2,
             }
-        }
 
-        call sh.UpdateShard as AddMutect2Calls {
-            input:
-                shard = shard,
-                raw_calls_mutect2_vcf = Mutect2.vcf,
-                raw_calls_mutect2_vcf_idx = Mutect2.vcf_idx,
-                raw_mutect2_stats = Mutect2.vcf_stats,
-                raw_mutect2_bam_out = Mutect2.bam,
-                raw_mutect2_bai_out = Mutect2.bai,
-                raw_mutect2_artifact_priors = Mutect2.m2_artifact_priors,
+            call sh.UpdateShard as AddMutect2Calls {
+                input:
+                    shard = shard,
+                    raw_calls_mutect2_vcf = Mutect2.vcf,
+                    raw_calls_mutect2_vcf_idx = Mutect2.vcf_idx,
+                    raw_mutect2_stats = Mutect2.vcf_stats,
+                    raw_mutect2_bam_out = Mutect2.bam,
+                    raw_mutect2_bai_out = Mutect2.bai,
+                    raw_mutect2_artifact_priors = Mutect2.m2_artifact_priors,
+            }
         }
+        Shard updated_shard = select_first([AddMutect2Calls.updated_shard, shard])
 
-        File? raw_mutect2_vcf = AddMutect2Calls.updated_shard.raw_calls_mutect2_vcf
-        File? raw_mutect2_vcf_idx = AddMutect2Calls.updated_shard.raw_calls_mutect2_vcf_idx
-        File? raw_mutect2_stats = AddMutect2Calls.updated_shard.raw_mutect2_stats
-        File? raw_mutect2_bam = AddMutect2Calls.updated_shard.raw_mutect2_bam_out
-        File? raw_mutect2_bai = AddMutect2Calls.updated_shard.raw_mutect2_bai_out
-        File? raw_mutect2_artifact_priors = AddMutect2Calls.updated_shard.raw_mutect2_artifact_priors
+        File? raw_mutect2_vcf = updated_shard.raw_calls_mutect2_vcf
+        File? raw_mutect2_vcf_idx = updated_shard.raw_calls_mutect2_vcf_idx
+        File? raw_mutect2_stats = updated_shard.raw_mutect2_stats
+        File? raw_mutect2_bam = updated_shard.raw_mutect2_bam_out
+        File? raw_mutect2_bai = updated_shard.raw_mutect2_bai_out
+        File? raw_mutect2_artifact_priors = updated_shard.raw_mutect2_artifact_priors
 	}
 
     call tasks.MergeVCFs {
@@ -151,7 +152,7 @@ workflow CallVariants {
     call p.UpdatePatient {
         input:
             patient = patient,
-            shards = AddMutect2Calls.updated_shard,
+            shards = updated_shard,
             raw_snv_calls_vcf = MergeVCFs.merged_vcf,
             raw_snv_calls_vcf_idx = MergeVCFs.merged_vcf_idx,
             mutect2_stats = MergeMutectStats.merged_stats,
