@@ -167,6 +167,8 @@ workflow MultiSampleSomaticWorkflow {
         Array[File?]? annotated_somatic_variants_idx = Output.annotated_somatic_variants_idx
         Array[File]? absolute_acr_rdata = Output.absolute_acr_rdata
         Array[File]? absolute_acr_plot = Output.absolute_acr_plot
+        Array[File]? absolute_snv_maf = Output.absolute_snv_maf
+        Array[File]? absolute_indel_maf = Output.absolute_indel_maf
         Array[Int]? absolute_solution = Output.absolute_solution
         Array[File]? absolute_maf = Output.absolute_maf
         Array[File]? absolute_segtab = Output.absolute_segtab
