@@ -66,8 +66,17 @@ workflow CallVariants {
     scatter (interval_list in args.scattered_interval_list) {
         # Mutect1
         scatter (sample in patient.samples){ 
-            scatter {seq_run in sample.sequencing_runs} {
-                if (sample.name != patient.matched_normal_sample.name) { # Mutect1 doesn't like same bam being referenced multiple times
+            # Check if patient has matched_normal_sample
+            if (defined(patient.matched_normal_sample)) {
+                Sample this_matched_normal_sample = select_first([patient.matched_normal_sample]) # Cast from Sample? to Sample
+                String matched_normal_sample_name = this_matched_normal_sample.name
+                SequencingRun this_matched_normal_seq_run = select_first(this_matched_normal_sample.sequencing_runs) # Cast from SequencingRun? to SequencingRun
+                File matched_normal_bam = this_matched_normal_seq_run.bam
+                File matched_normal_bai = this_matched_normal_seq_run.bai
+            }
+
+            scatter (seq_run in sample.sequencing_runs) {
+                if (sample.name != matched_normal_sample_name) { # Mutect1 doesn't like same BAM being tumor and normal
                     call Mutect1 {
                         input:
                             interval_list = interval_list,
@@ -84,9 +93,9 @@ workflow CallVariants {
                             tumor_sample_name = sample.name,                                       
                             tumor_bam = seq_run.bam,
                             tumor_bai = seq_run.bai,
-                            normal_sample_name = patient.matched_normal_sample.name,                
-                            normal_bam = patient.matched_normal_sample.sequencing_runs[0].bam,
-                            normal_bai = patient.matched_normal_sample.sequencing_runs[0].bai,
+                            normal_sample_name = matched_normal_sample_name,                
+                            normal_bam = matched_normal_bam,
+                            normal_bai = matched_normal_bai,
 
                             runtime_params = runtime_collection.mutect1,
                     }
@@ -191,8 +200,8 @@ task Mutect1 {
         File ref_fasta
         File ref_fasta_index
         File ref_dict
-        File germline_resource
-        File germline_resource_idx
+        File? germline_resource
+        File? germline_resource_idx
         File? panel_of_normals
         File? panel_of_normals_idx
 
@@ -221,6 +230,8 @@ task Mutect1 {
     String mutect1_vcf = tumor_sample_name + ".MuTect1.vcf"
     String mutect1_vcf_idx = tumor_sample_name + ".MuTect1.vcf.idx"
     
+    Int fraction_contamination = 0
+
     command <<<
         set -euxo pipefail
 
@@ -248,9 +259,9 @@ task Mutect1 {
         # Parse contamination_table
         if [ "~{defined(contamination_table)}" == "true" ]; then
             fraction_contamination=$(tail -n 1 ~{contamination_table} | awk '{print $2}')
-        else
-            fraction_contamination=0
-        fi
+        # else
+        #     fraction_contamination=0
+        # fi
 
         # Run MuTect1 (without force-calling, will be done by Mutect2)
         java "-Xmx${command_mb}m" -jar muTect-1.1.6.jar \
@@ -305,8 +316,8 @@ task MergeMutect1ForceCallVCFs {
 
         Array[File?] mutect1_vcfs # not gzipped
         Array[File?] mutect1_vcfs_idx # not gzipped
-        File force_call_alleles # gzipped
-        File force_call_alleles_idx # gzipped
+        File? force_call_alleles # gzipped
+        File? force_call_alleles_idx # gzipped
 
         Runtime runtime_params
     }

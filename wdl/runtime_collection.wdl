@@ -31,6 +31,8 @@ struct RuntimeCollection {
     Runtime process_maf_for_absolute
     Runtime absolute
     Runtime absolute_extract
+    Runtime mutect1
+    Runtime merge_mutect1_forcecall_vcfs
     Runtime mutect2
     Runtime learn_read_orientation_model
     Runtime merge_vcfs
@@ -905,6 +907,8 @@ workflow DefineRuntimeCollection {
         "absolute": absolute,
         "absolute_extract": absolute_extract,
 
+        "mutect1": mutect1,
+        "merge_mutect1_forcecall_vcfs": merge_mutect1_forcecall_vcfs,
         "mutect2": mutect2,
         "learn_read_orientation_model": learn_read_orientation_model,
         "merge_vcfs": merge_vcfs,
