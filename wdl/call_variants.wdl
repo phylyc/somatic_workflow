@@ -87,7 +87,7 @@ workflow CallVariants {
                     germline_resource = args.files.germline_resource,
                     germline_resource_idx = args.files.germline_resource_idx,
                     make_bamout = args.make_bamout,
-                    get_orientation_bias_priors = true,
+                    get_orientation_bias_priors = args.run_orientation_bias_mixture_model,
                     compress_output = args.compress_output,
                     genotype_germline_sites = args.mutect2_genotype_germline_sites,
                     native_pair_hmm_use_double_precision = args.mutect2_native_pair_hmm_use_double_precision,
@@ -140,11 +140,13 @@ workflow CallVariants {
             runtime_params = runtime_collection.merge_mutect_stats
     }
 
-    call LearnReadOrientationModel {
-        input:
-            individual_id = patient.name,
-            f1r2_counts = select_all(raw_mutect2_artifact_priors),
-            runtime_params = runtime_collection.learn_read_orientation_model
+    if (args.run_orientation_bias_mixture_model) {
+        call LearnReadOrientationModel {
+            input:
+                individual_id = patient.name,
+                f1r2_counts = select_all(raw_mutect2_artifact_priors),
+                runtime_params = runtime_collection.learn_read_orientation_model
+        }
     }
 
     call p.UpdatePatient {

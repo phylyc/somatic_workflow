@@ -18,6 +18,7 @@ struct WorkflowArguments {
     Boolean run_collect_total_read_counts
     Boolean run_collect_allelic_read_counts
     Boolean run_contamination_model
+    Boolean run_orientation_bias_mixture_model
     Boolean run_variant_calling
     Boolean run_variant_filter
     Boolean run_realignment_filter
@@ -126,6 +127,7 @@ workflow DefineWorkflowArguments {
         Boolean run_collect_total_read_counts = true
         Boolean run_collect_allelic_read_counts = true
         Boolean run_contamination_model = true
+        Boolean run_orientation_bias_mixture_model = true
         Boolean run_model_segments = true
         Boolean run_variant_calling = true
         Boolean run_variant_filter = true
@@ -289,6 +291,7 @@ workflow DefineWorkflowArguments {
         run_collect_total_read_counts: run_collect_total_read_counts,
         run_collect_allelic_read_counts: run_collect_allelic_read_counts,
         run_contamination_model: run_contamination_model,
+        run_orientation_bias_mixture_model: run_orientation_bias_mixture_model,
         run_model_segments: run_model_segments,
         run_variant_calling: run_variant_calling,
         run_variant_filter: run_variant_filter,

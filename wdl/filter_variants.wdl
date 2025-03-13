@@ -197,7 +197,7 @@ workflow FilterVariants {
         File? raw_mutect2_bai_out_scattered = shard.raw_mutect2_bai_out
     }
 
-    # subset CallVariants.bam to reads covering the FilteredVariants.somatic_vcf only
+    # subset CallVariants.bam to reads covering the somatic_vcf only
     if ((length(select_all(raw_mutect2_bam_out_scattered)) > 0) && (!defined(patient.somatic_calls_bam))) {
         call tasks.PrintReads as SomaticBam {
             input:

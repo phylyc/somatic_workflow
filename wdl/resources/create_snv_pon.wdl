@@ -62,14 +62,11 @@ workflow CreateSNVPanelOfNormals {
             run_collect_allelic_read_counts = false,
             run_contamination_model = false,
             run_model_segments = false,
-            run_filter_segments = false,
 
             run_orientation_bias_mixture_model = false,
             run_variant_calling = true,
             run_variant_filter = false,
-            run_variant_hard_filter = false,
             run_realignment_filter = false,
-            run_realignment_filter_only_on_high_confidence_variants = false,
             run_variant_annotation = false,
             run_clonal_decomposition = false,
 
@@ -99,7 +96,7 @@ workflow CreateSNVPanelOfNormals {
                 patient_id = GetSampleName.sample_name,
                 bams = [normal.left],
                 bais = [normal.right],
-                target_intervals = [args.preprocessed_interval_list],
+                target_intervals = select_all([args.files.preprocessed_intervals]),
                 scatter_count = scatter_count,
                 args = args,
                 resources = resources,
@@ -113,7 +110,7 @@ workflow CreateSNVPanelOfNormals {
     )
     call tasks.SplitIntervals {
         input:
-            interval_list = args.preprocessed_interval_list,
+            interval_list = args.files.preprocessed_intervals,
             ref_fasta = args.files.ref_fasta,
             ref_fasta_index = args.files.ref_fasta_index,
             ref_dict = args.files.ref_dict,
