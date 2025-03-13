@@ -38,9 +38,9 @@ struct RuntimeCollection {
     Runtime merge_mafs
     Runtime merge_mutect_stats
     Runtime print_reads
-    Runtime filter_mutect_calls
-    Runtime variant_filtration
-    Runtime left_align_and_trim_variants
+    Runtime filter_variant_calls
+#    Runtime variant_filtration
+#    Runtime left_align_and_trim_variants
     Runtime filter_alignment_artifacts
     Runtime select_variants
     Runtime funcotate
@@ -221,17 +221,17 @@ workflow DefineRuntimeCollection {
         Int mem_learn_read_orientation_model_additional_per_sample = 1024
         Int time_learn_read_orientation_model = 180  # 3 h
 
-        # gatk: FilterMutectCalls
-        Int mem_filter_mutect_calls = 1024
-        Int time_filter_mutect_calls = 800  # 13 h
+        # gatk: FilterVariantCalls
+        Int mem_filter_variant_calls = 1024
+        Int time_filter_variant_calls = 800  # 13 h
 
-        # gatk: VariantFiltration
-        Int mem_variant_filtration = 512
-        Int time_variant_filtration = 5
-
-        # gatk: LeftAlignAndTrimVariants
-        Int mem_left_align_and_trim_variants = 1024
-        Int time_left_align_and_trim_variants = 60
+#        # gatk: VariantFiltration
+#        Int mem_variant_filtration = 512
+#        Int time_variant_filtration = 5
+#
+#        # gatk: LeftAlignAndTrimVariants
+#        Int mem_left_align_and_trim_variants = 1024
+#        Int time_left_align_and_trim_variants = 60
 
         # gatk: FilterAlignmentArtifacts
         Int cpu_filter_alignment_artifacts = 1
@@ -730,44 +730,44 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime filter_mutect_calls = {
+    Runtime filter_variant_calls = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_filter_mutect_calls + mem_machine_overhead,
-        "command_mem": mem_filter_mutect_calls,
-        "runtime_minutes": time_startup + time_filter_mutect_calls,
+        "machine_mem": mem_filter_variant_calls + mem_machine_overhead,
+        "command_mem": mem_filter_variant_calls,
+        "runtime_minutes": time_startup + time_filter_variant_calls,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime variant_filtration = {
-        "docker": gatk_docker,
-        "jar_override": gatk_override,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu,
-        "machine_mem": mem_variant_filtration + mem_machine_overhead,
-        "command_mem": mem_variant_filtration,
-        "runtime_minutes": time_startup + time_variant_filtration,
-        "disk": disk,
-        "boot_disk_size": boot_disk_size
-    }
-
-    Runtime left_align_and_trim_variants = {
-        "docker": gatk_docker,
-        "jar_override": gatk_override,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu,
-        "machine_mem": mem_left_align_and_trim_variants + mem_machine_overhead,
-        "command_mem": mem_left_align_and_trim_variants,
-        "runtime_minutes": time_startup + time_left_align_and_trim_variants,
-        "disk": disk,
-        "boot_disk_size": boot_disk_size
-    }
+#    Runtime variant_filtration = {
+#        "docker": gatk_docker,
+#        "jar_override": gatk_override,
+#        "preemptible": preemptible,
+#        "max_retries": max_retries,
+#        "cpu": cpu,
+#        "machine_mem": mem_variant_filtration + mem_machine_overhead,
+#        "command_mem": mem_variant_filtration,
+#        "runtime_minutes": time_startup + time_variant_filtration,
+#        "disk": disk,
+#        "boot_disk_size": boot_disk_size
+#    }
+#
+#    Runtime left_align_and_trim_variants = {
+#        "docker": gatk_docker,
+#        "jar_override": gatk_override,
+#        "preemptible": preemptible,
+#        "max_retries": max_retries,
+#        "cpu": cpu,
+#        "machine_mem": mem_left_align_and_trim_variants + mem_machine_overhead,
+#        "command_mem": mem_left_align_and_trim_variants,
+#        "runtime_minutes": time_startup + time_left_align_and_trim_variants,
+#        "disk": disk,
+#        "boot_disk_size": boot_disk_size
+#    }
 
     Int mem_filter_alignment_artifacts = mem_filter_alignment_artifacts_base + num_bams * mem_filter_alignment_artifacts_additional_per_sample
     Runtime filter_alignment_artifacts = {
@@ -898,9 +898,9 @@ workflow DefineRuntimeCollection {
         "merge_mafs": merge_mafs,
         "merge_mutect_stats": merge_mutect_stats,
         "print_reads": print_reads,
-        "filter_mutect_calls": filter_mutect_calls,
-        "variant_filtration": variant_filtration,
-        "left_align_and_trim_variants": left_align_and_trim_variants,
+        "filter_variant_calls": filter_variant_calls,
+#        "variant_filtration": variant_filtration,
+#        "left_align_and_trim_variants": left_align_and_trim_variants,
         "filter_alignment_artifacts": filter_alignment_artifacts,
         "select_variants": select_variants,
         "funcotate": funcotate,

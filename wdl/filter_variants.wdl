@@ -30,7 +30,7 @@ workflow FilterVariants {
     # to set the threshold P(error), and one to apply the learned filters. [...]
     # [As such] it is critical to merge the unfiltered output of Mutect2 before
     # filtering."
-    call FilterMutectCalls {
+    call FilterVariantCalls {
         input:
             ref_fasta = args.files.ref_fasta,
             ref_fasta_index = args.files.ref_fasta_index,
@@ -45,38 +45,14 @@ workflow FilterVariants {
             min_alt_median_base_quality = args.filter_mutect2_min_alt_median_base_quality,
             min_alt_median_mapping_quality = args.filter_mutect2_min_alt_median_mapping_quality,
             min_median_read_position = args.filter_mutect2_min_median_read_position,
+            split_multi_allelics = true,  # necessary for current SelectVariants implementation
+            filter_expressions = args.hard_filter_expressions,
+            filter_names = args.hard_filter_names,
             compress_output = args.compress_output,
             m2_filter_extra_args = args.filter_mutect2_extra_args,
-            runtime_params = runtime_collection.filter_mutect_calls
-    }
-
-    call tasks.LeftAlignAndTrimVariants {
-        input:
-            ref_fasta = args.files.ref_fasta,
-            ref_fasta_index = args.files.ref_fasta_index,
-            ref_dict = args.files.ref_dict,
-            vcf = FilterMutectCalls.filtered_vcf,
-            vcf_idx = FilterMutectCalls.filtered_vcf_idx,
-            split_multi_allelics = true,  # necessary for current SelectVariants implementation
-            compress_output = args.compress_output,
             left_align_and_trim_variants_extra_args = args.left_align_and_trim_variants_extra_args,
-            runtime_params = runtime_collection.left_align_and_trim_variants
-    }
-
-    if (args.run_variant_hard_filter) {
-        call tasks.VariantFiltration as HardFilterVariants {
-            input:
-                ref_fasta = args.files.ref_fasta,
-                ref_fasta_index = args.files.ref_fasta_index,
-                ref_dict = args.files.ref_dict,
-                vcf = LeftAlignAndTrimVariants.output_vcf,
-                vcf_idx = LeftAlignAndTrimVariants.output_vcf_idx,
-                compress_output = args.compress_output,
-                filter_expressions = args.hard_filter_expressions,
-                filter_names = args.hard_filter_names,
-                variant_filtration_extra_args = args.variant_filtration_extra_args,
-                runtime_params = runtime_collection.variant_filtration
-        }
+            variant_filtration_extra_args = args.variant_filtration_extra_args,
+            runtime_params = runtime_collection.filter_mutect_calls
     }
 
     # TODO: add DeTiN
@@ -86,8 +62,8 @@ workflow FilterVariants {
             ref_fasta = args.files.ref_fasta,
             ref_fasta_index = args.files.ref_fasta_index,
             ref_dict = args.files.ref_dict,
-            vcf = select_first([HardFilterVariants.filtered_vcf, LeftAlignAndTrimVariants.output_vcf]),
-            vcf_idx = select_first([HardFilterVariants.filtered_vcf_idx, LeftAlignAndTrimVariants.output_vcf_idx]),
+            vcf = FilterVariantCalls.filtered_vcf,
+            vcf_idx = FilterVariantCalls.filtered_vcf_idx,
             select_passing = true,
             keep_germline = args.keep_germline,
             somatic_filter_whitelist = args.somatic_filter_whitelist,
@@ -310,9 +286,9 @@ workflow FilterVariants {
     call p.UpdatePatient {
         input:
             patient = patient,
-            filtered_vcf = select_first([HardFilterVariants.filtered_vcf, LeftAlignAndTrimVariants.output_vcf]),
-            filtered_vcf_idx = select_first([HardFilterVariants.filtered_vcf_idx, LeftAlignAndTrimVariants.output_vcf_idx]),
-            filtering_stats = FilterMutectCalls.filtering_stats,
+            filtered_vcf = FilterVariantCalls.filtered_vcf,
+            filtered_vcf_idx = FilterVariantCalls.filtered_vcf_idx,
+            filtering_stats = FilterVariantCalls.filtering_stats,
             somatic_vcf = SelectSomaticVariants.selected_vcf,
             somatic_vcf_idx = SelectSomaticVariants.selected_vcf_idx,
             num_somatic_variants = SelectSomaticVariants.num_selected_variants,
@@ -328,11 +304,12 @@ workflow FilterVariants {
     }
 }
 
-task FilterMutectCalls {
+task FilterVariantCalls {
     input {
         File ref_fasta
         File ref_fasta_index
         File ref_dict
+        File? interval_list
 
         File vcf
         File vcf_idx
@@ -345,9 +322,17 @@ task FilterMutectCalls {
         Int min_alt_median_base_quality = 20  # default: 20
         Int min_alt_median_mapping_quality = 20  # default: -1
         Int min_median_read_position = 5  # default: 1
+        Int max_indel_length = 200
+        Boolean dont_trim_alleles = false
+        Boolean split_multi_allelics = false
+
+        Array[String] filter_expressions = []
+        Array[String] filter_names = []
 
         Boolean compress_output = false
         String? m2_filter_extra_args
+        String? left_align_and_trim_variants_extra_args
+        String? variant_filtration_extra_args
 
         Runtime runtime_params
     }
@@ -372,7 +357,7 @@ task FilterMutectCalls {
             FilterMutectCalls \
             --reference '~{ref_fasta}' \
             --variant '~{vcf}' \
-            --output '~{output_vcf}' \
+            --output 'tmp.~{output_vcf}' \
             ~{"--orientation-bias-artifact-priors '" + orientation_bias + "'"} \
             ~{true="--contamination-table '" false="" defined(contamination_tables)}~{default="" sep="' --contamination-table '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
             ~{true="--tumor-segmentation '" false="" defined(tumor_segmentation)}~{default="" sep="' --tumor-segmentation '" tumor_segmentation}~{true="'" false="" defined(tumor_segmentation)} \
@@ -384,6 +369,34 @@ task FilterMutectCalls {
             --filtering-stats '~{output_base_name}.stats' \
             --seconds-between-progress-updates 60 \
             ~{m2_filter_extra_args}
+
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            LeftAlignAndTrimVariants \
+            -R '~{ref_fasta}' \
+            -V 'tmp.~{output_vcf}' \
+            --output 'tmp.2.~{output_vcf}' \
+            --max-indel-length ~{max_indel_length} \
+            ~{if (dont_trim_alleles) then " --dont-trim-alleles " else ""} \
+            ~{if (split_multi_allelics) then " --split-multi-allelics " else ""} \
+            ~{left_align_and_trim_variants_extra_args}
+
+        echo ""
+        # Some variants don't have certain INFO fields, so we suppress the warning messages.
+        echo "Suppressing the following warning message: 'WARN  JexlEngine - '"
+        echo ""
+
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            VariantFiltration \
+            ~{"-R '" + ref_fasta + "'"} \
+            ~{"-L '" + interval_list + "'"} \
+            -V 'tmp.2.~{output_vcf}' \
+            ~{if (length(filter_names) > 0) then " --filter-name '" else ""}~{default="" sep="' --filter-name '" filter_names}~{if (length(filter_names) > 0) then "'" else ""} \
+            ~{if (length(filter_expressions) > 0) then " --filter-expression '" else ""}~{default="" sep="' --filter-expression '" filter_expressions}~{if (length(filter_expressions) > 0) then "'" else ""} \
+            --output '~{output_vcf}' \
+            ~{variant_filtration_extra_args} \
+            2> >(grep -v "WARN  JexlEngine - " >&2)
+
+        rm -f tmp.~{output_vcf} tmp.2.~{output_vcf}
     >>>
 
     output {
@@ -403,8 +416,8 @@ task FilterMutectCalls {
         cpu: runtime_params.cpu
     }
 
-    # Optional localization leads to cromwell error.
     parameter_meta{
+        interval_list: {localization_optional: true}
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
         ref_dict: {localization_optional: true}

@@ -6,7 +6,7 @@ import "workflow_arguments.wdl" as wfargs
 import "runtime_collection.wdl" as rtc
 import "genotype_variants.wdl" as gv
 import "model_segments.wdl" as ms
-import "filter_segments.wdl" as fs
+#import "filter_segments.wdl" as fs
 
 
 workflow CNVWorkflow {
@@ -102,19 +102,19 @@ workflow CNVWorkflow {
                 runtime_collection = runtime_collection,
         }
 
-        if (args.run_filter_segments) {
-            call fs.FilterSegments {
-                input:
-                    patient = ModelSegments.updated_patient,
-                    args = args,
-                    runtime_collection = runtime_collection,
-            }
-        }
+#        if (args.run_filter_segments) {
+#            call fs.FilterSegments {
+#                input:
+#                    patient = ModelSegments.updated_patient,
+#                    args = args,
+#                    runtime_collection = runtime_collection,
+#            }
+#        }
     }
 
     # todo: FuncotateSegments
 
     output {
-        Patient updated_patient = select_first([FilterSegments.updated_patient, ModelSegments.updated_patient, AddGVCFtoPatient.updated_patient, patient])
+        Patient updated_patient = select_first([ModelSegments.updated_patient, AddGVCFtoPatient.updated_patient, patient])
     }
 }

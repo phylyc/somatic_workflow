@@ -20,16 +20,13 @@ struct WorkflowArguments {
     Boolean run_collect_total_read_counts
     Boolean run_collect_allelic_read_counts
     Boolean run_contamination_model
-    Boolean run_orientation_bias_mixture_model
     Boolean run_variant_calling
     Boolean run_variant_filter
-    Boolean run_variant_hard_filter
     Boolean run_realignment_filter
     Boolean run_realignment_filter_only_on_high_confidence_variants
     Boolean run_variant_annotation
     Boolean run_variant_annotation_scattered
     Boolean run_model_segments
-    Boolean run_filter_segments
     Boolean run_clonal_decomposition
 
     Boolean keep_germline
@@ -133,11 +130,8 @@ workflow DefineWorkflowArguments {
         Boolean run_collect_allelic_read_counts = true
         Boolean run_contamination_model = true
         Boolean run_model_segments = true
-        Boolean run_filter_segments = false
-        Boolean run_orientation_bias_mixture_model = true
         Boolean run_variant_calling = true
         Boolean run_variant_filter = true
-        Boolean run_variant_hard_filter = true
         Boolean run_realignment_filter = true
         Boolean run_realignment_filter_only_on_high_confidence_variants = true
         Boolean run_variant_annotation = true
@@ -297,11 +291,8 @@ workflow DefineWorkflowArguments {
         run_collect_allelic_read_counts: run_collect_allelic_read_counts,
         run_contamination_model: run_contamination_model,
         run_model_segments: run_model_segments,
-        run_filter_segments: run_filter_segments,
-        run_orientation_bias_mixture_model: run_orientation_bias_mixture_model,
         run_variant_calling: run_variant_calling,
         run_variant_filter: run_variant_filter,
-        run_variant_hard_filter: run_variant_hard_filter,
         run_realignment_filter: run_realignment_filter,
         run_realignment_filter_only_on_high_confidence_variants: run_realignment_filter_only_on_high_confidence_variants,
         run_variant_annotation: run_variant_annotation,
