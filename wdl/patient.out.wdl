@@ -33,6 +33,8 @@ workflow Output {
         File? out_annotated_somatic_variants_idx = sample.annotated_somatic_variants_idx
         File? out_absolute_acr_rdata = sample.absolute_acr_rdata
         File? out_absolute_acr_plot = sample.absolute_acr_plot
+        File? out_absolute_snv_maf = sample.absolute_snv_maf
+        File? out_absolute_indel_maf = sample.absolute_indel_maf
         Int? out_absolute_solution = sample.absolute_solution
         File? out_absolute_maf = sample.absolute_maf
         File? out_absolute_segtab = sample.absolute_segtab
@@ -107,6 +109,12 @@ workflow Output {
     }
     if (length(select_all(out_absolute_acr_plot)) > 0) {
         Array[File] acr_plot_out = select_all(out_absolute_acr_plot)
+    }
+    if (length(select_all(out_absolute_snv_maf)) > 0) {
+        Array[File] asm_out = select_all(out_absolute_snv_maf)
+    }
+    if (length(select_all(out_absolute_indel_maf)) > 0) {
+        Array[File] aim_out = select_all(out_absolute_indel_maf)
     }
     if (length(select_all(out_absolute_solution)) > 0) {
         Array[Int] as_out = select_all(out_absolute_solution)
@@ -183,6 +191,8 @@ workflow Output {
         Array[File?]? annotated_somatic_variants_idx = asvi_out
         Array[File]? absolute_acr_rdata = aar_out
         Array[File]? absolute_acr_plot = acr_plot_out
+        Array[File]? absolute_snv_maf = asm_out
+        Array[File]? absolute_indel_maf = aim_out
         Array[Int]? absolute_solution = as_out
         Array[File]? absolute_maf = am_out
         Array[File]? absolute_segtab = ast_out

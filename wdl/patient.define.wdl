@@ -51,6 +51,8 @@ workflow DefinePatient {
         Array[File]? annotated_somatic_variants_idx
         Array[File]? absolute_acr_rdata
         Array[File]? absolute_acr_plot
+        Array[File]? absolute_snv_maf
+        Array[File]? absolute_indel_maf
         Array[Int]? absolute_solution
         Array[File]? absolute_maf
         Array[File]? absolute_segtab
@@ -357,6 +359,8 @@ workflow DefinePatient {
             annotated_somatic_variants_idx = annotated_somatic_variants_idx,
             absolute_acr_rdata = absolute_acr_rdata,
             absolute_acr_plot = absolute_acr_plot,
+            absolute_snv_maf = absolute_snv_maf,
+            absolute_indel_maf = absolute_indel_maf,
             absolute_solution = absolute_solution,
             absolute_maf = absolute_maf,
             absolute_segtab = absolute_segtab,

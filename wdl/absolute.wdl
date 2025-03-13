@@ -15,7 +15,7 @@ workflow Absolute {
 
         String acs_conversion_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
         Int min_hets = 0
-        Int min_probes = 1
+        Int min_probes = 2
         Float maf90_threshold = 0.485
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
@@ -73,6 +73,8 @@ workflow Absolute {
     output {
         File acs_copy_ratio_segmentation = ModelSegmentsToACSConversion.acs_converted_seg
         Float acs_copy_ratio_skew = ModelSegmentsToACSConversion.skew
+        File? snv_maf = ProcessMAFforAbsolute.snv_maf
+        File? indel_maf = ProcessMAFforAbsolute.indel_maf
         File acr_plot = AbsoluteACRTask.plot
         File acr_rdata = AbsoluteACRTask.rdata
 #        File? tcr_plot = AbsoluteTCRTask.plot
@@ -217,7 +219,8 @@ task AbsoluteTask {
     String output_ssnv_mode_tab = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_SSNV.mode.res.Rds"
 
     command <<<
-        # ABSOLUTE may fail for various reasons, but we still want to capture the output files for all other samples.
+        # ABSOLUTE may fail for various edge cases, but we still want to capture
+        # the output files for all other samples if run within the somatic workflow.
         set +e
         set -uxo pipefail
 

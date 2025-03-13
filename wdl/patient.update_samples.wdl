@@ -26,6 +26,8 @@ workflow UpdateSamples {
         Array[File]? annotated_somatic_variants_idx
         Array[File]? absolute_acr_rdata
         Array[File]? absolute_acr_plot
+        Array[File]? absolute_snv_maf
+        Array[File]? absolute_indel_maf
         Array[Int]? absolute_solution
         Array[File]? absolute_maf
         Array[File]? absolute_segtab
@@ -244,8 +246,30 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_acrp = select_first([UpdateAbsolutePlot.updated_sample, samples_ard])
 
+    if (defined(absolute_snv_maf)) {
+        scatter (pair in zip(samples_acrp, select_first([absolute_snv_maf, []]))) {
+            call s.UpdateSample as UpdateAbsoluteSnvMaf {
+                input:
+                    sample = pair.left,
+                    absolute_snv_maf = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_asnm = select_first([UpdateAbsoluteSnvMaf.updated_sample, samples_acrp])
+
+    if (defined(absolute_indel_maf)) {
+        scatter (pair in zip(samples_asnm, select_first([absolute_indel_maf, []]))) {
+            call s.UpdateSample as UpdateAbsoluteIndelMaf {
+                input:
+                    sample = pair.left,
+                    absolute_indel_maf = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_asim = select_first([UpdateAbsoluteIndelMaf.updated_sample, samples_asnm])
+
     if (defined(absolute_solution)) {
-        scatter (pair in zip(samples_acrp, select_first([absolute_solution, []]))) {
+        scatter (pair in zip(samples_asim, select_first([absolute_solution, []]))) {
             call s.UpdateSample as UpdateAbsoluteSolution {
                 input:
                     sample = pair.left,
@@ -253,7 +277,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_as = select_first([UpdateAbsoluteSolution.updated_sample, samples_acrp])
+    Array[Sample] samples_as = select_first([UpdateAbsoluteSolution.updated_sample, samples_asim])
 
     if (defined(absolute_maf)) {
         scatter (pair in zip(samples_as, select_first([absolute_maf, []]))) {

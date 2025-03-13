@@ -13,8 +13,10 @@ workflow AbsoluteExtract {
         String analyst_id
         String? copy_ratio_type
 
-        File? copy_ratio_segmentation
-        File? annotated_variants
+        File? acs_copy_ratio_segmentation
+        Float? acs_copy_ratio_skew
+        File? snv_maf
+        File? indel_maf
         File? gvcf
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
@@ -28,29 +30,37 @@ workflow AbsoluteExtract {
             called_solution = called_solution,
             analyst_id = analyst_id,
             copy_ratio_type = copy_ratio_type,
+            acs_copy_ratio_segmentation = acs_copy_ratio_segmentation,
+            acs_copy_ratio_skew = acs_copy_ratio_skew,
+            snv_maf = snv_maf,
+            indel_maf = indel_maf,
+            sex = sex,
             runtime_params = runtime_collection.absolute_extract
     }
 
-    call Postprocess {
-        input:
-            sample_name = sample_name,
-            sex = sex,
-            maf = AbsoluteExtractTask.abs_maf,
-            seg = AbsoluteExtractTask.segtab,
-            copy_ratio_segmentation = copy_ratio_segmentation,
-            annotated_variants = annotated_variants,
-            gvcf = gvcf,
-            purity = AbsoluteExtractTask.purity,
-            ploidy = AbsoluteExtractTask.ploidy,
-            runtime_params = runtime_collection.absolute_extract_postprocess
+    if (defined(AbsoluteExtractTask.segtab)) {
+        call Postprocess {
+            input:
+                sample_name = sample_name,
+                sex = sex,
+                maf = AbsoluteExtractTask.abs_maf,
+                seg = select_first([AbsoluteExtractTask.segtab]),
+                copy_ratio_segmentation = acs_copy_ratio_segmentation,
+                snv_maf = snv_maf,
+                indel_maf = indel_maf,
+                gvcf = gvcf,
+                purity = AbsoluteExtractTask.purity,
+                ploidy = AbsoluteExtractTask.ploidy,
+                runtime_params = runtime_collection.absolute_extract_postprocess
+        }
     }
 
     output {
-        File absolute_maf = Postprocess.abs_maf
-        File absolute_segtab = Postprocess.segtab
         File absolute_table = AbsoluteExtractTask.table
         Float absolute_purity = AbsoluteExtractTask.purity
         Float absolute_ploidy = AbsoluteExtractTask.ploidy
+        File? absolute_maf = Postprocess.abs_maf
+        File? absolute_segtab = Postprocess.segtab
     }
 }
 
@@ -62,6 +72,13 @@ task AbsoluteExtractTask {
         String analyst_id
         String copy_ratio_type = "allelic"
 
+        File? acs_copy_ratio_segmentation
+        Float? acs_copy_ratio_skew
+        File? snv_maf
+        File? indel_maf
+        String? sex
+        String? platform
+
         Runtime runtime_params
     }
 
@@ -72,28 +89,66 @@ task AbsoluteExtractTask {
     command <<<
         set -euxo pipefail
 
+        mkdir -p "~{output_dir}/reviewed/"
+
+        if [[ "~{called_solution}" == "-" ]] ; then
+            echo -e "array\tsample\tcall status\tpurity\tploidy\tGenome doublings\tdelta\tCoverage for 80% power\tCancer DNA fraction\tSubclonal genome fraction\ttau\tE_CR\n" \
+                > "~{output_table}"
+            echo -e "~{sample_name}\t~{sample_name}\tfailed\t\t\t\t\t\t\t\t\t\n" \
+                >> "~{output_table}"
+            echo -1 > purity
+            echo -1 > ploidy
+            exit 0
+
+        elif [[ "~{called_solution}" == "0" ]] ; then
+            Rscript /library/scripts/run_absolute.R \
+                --results_dir ~{output_dir} \
+                --sample "~{sample_name}" \
+                --seg_dat_fn "~{acs_copy_ratio_segmentation}" \
+                ~{"--maf '" + snv_maf + "'"} \
+                ~{"--indel_maf '" + indel_maf + "'"} \
+                --alpha 1 \
+                --tau 2 \
+                ~{"--gender  " + sex} \
+                ~{"--platform " + platform} \
+                --ssnv_skew ~{acs_copy_ratio_skew} \
+                --copy_num_type ~{copy_ratio_type} \
+                --pkg_dir "/"
+
+            this_rdata="~{output_dir}/~{sample_name}.force-call/~{sample_name}.allelic.ABSOLUTE.RData"
+            this_called_solution=1
+
+        else
+            this_rdata=~{rdata}
+            this_called_solution=~{called_solution}
+        fi
+
         Rscript /library/scripts/extract_solution.R \
-            --solution_num ~{called_solution} \
+            --solution_num $this_called_solution \
+            --rdata "$this_rdata" \
             --results_dir ~{output_dir} \
-            --analyst_id ~{analyst_id} \
-            --pkg_dir "/" \
-            --sample ~{sample_name} \
-            --rdata ~{rdata} \
-            --copy_num_type ~{copy_ratio_type}
+            --analyst_id '~{analyst_id}' \
+            --sample '~{sample_name}' \
+            --copy_num_type ~{copy_ratio_type} \
+            --pkg_dir "/"
+
+        if [[ "~{called_solution}" == "0" ]] ; then
+            sed -i -E "s/\tcalled\t/\tlow purity\t/" "~{output_table}"
+        fi
 
         cut -f4 "~{output_table}" | tail -n 1 > purity
         cut -f5 "~{output_table}" | tail -n 1 > ploidy
     >>>
 
     output {
-        File abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".ABS_MAF.txt"
-        File segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab.txt"
-        File segtab_igv = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".IGV.seg.txt"
-        File called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
         File table = output_table
-        File gene_corrected_cn = output_dir + "/reviewed/" + sample_name + ".gene_corrected_CN.txt"
         Float purity = read_float("purity")
         Float ploidy = read_float("ploidy")
+        File? abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".ABS_MAF.txt"
+        File? segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab.txt"
+        File? segtab_igv = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".IGV.seg.txt"
+        File? called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
+        File? gene_corrected_cn = output_dir + "/reviewed/" + sample_name + ".gene_corrected_CN.txt"
     }
 
     runtime {
@@ -114,10 +169,12 @@ task Postprocess {
 
         String sample_name
         String? sex
-        File maf
+        File? maf
         File seg
         File? copy_ratio_segmentation
         File? annotated_variants
+        File? snv_maf
+        File? indel_maf
         File? gvcf
         Float? purity
         Float? ploidy

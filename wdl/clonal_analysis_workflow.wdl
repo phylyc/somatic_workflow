@@ -38,6 +38,8 @@ workflow ClonalAnalysisWorkflow {
 
             File acs_copy_ratio_segmentation = select_first([Absolute.acs_copy_ratio_segmentation, sample.acs_copy_ratio_segmentation])
             Float acs_copy_ratio_skew = select_first([Absolute.acs_copy_ratio_skew, sample.acs_copy_ratio_skew])
+            File? snv_maf = if defined(Absolute.snv_maf) then Absolute.snv_maf else sample.absolute_snv_maf
+            File? indel_maf = if defined(Absolute.indel_maf) then Absolute.indel_maf else sample.absolute_indel_maf
             File acr_rdata = select_first([Absolute.acr_rdata, sample.absolute_acr_rdata])
             File acr_plot = select_first([Absolute.acr_plot, sample.absolute_acr_plot])
 
@@ -50,11 +52,20 @@ workflow ClonalAnalysisWorkflow {
                         called_solution = select_first([sample.absolute_solution]),
                         analyst_id = args.analyst_id,
                         copy_ratio_type = "allelic",
-                        copy_ratio_segmentation = acs_copy_ratio_segmentation,
-                        annotated_variants = sample.annotated_somatic_variants,
+                        acs_copy_ratio_segmentation = acs_copy_ratio_segmentation,
+                        acs_copy_ratio_skew = acs_copy_ratio_skew,
+                        snv_maf = snv_maf,
+                        indel_maf = indel_maf,
                         gvcf = patient.gvcf,
                 }
             }
+        }
+
+        if (length(select_all(snv_maf)) > 0) {
+            Array[File] absolute_snv_maf = select_all(snv_maf)
+        }
+        if (length(select_all(indel_maf)) > 0) {
+            Array[File] absolute_indel_maf = select_all(indel_maf)
         }
         if (length(select_all(AbsoluteExtract.absolute_maf)) > 0) {
             Array[File] absolute_maf = select_all(AbsoluteExtract.absolute_maf)
@@ -79,6 +90,8 @@ workflow ClonalAnalysisWorkflow {
                 acs_copy_ratio_skew = acs_copy_ratio_skew,
                 absolute_acr_rdata = acr_rdata,
                 absolute_acr_plot = acr_plot,
+                absolute_snv_maf = absolute_snv_maf,
+                absolute_indel_maf = absolute_indel_maf,
                 absolute_maf = absolute_maf,
                 absolute_segtab = absolute_segtab,
                 absolute_table = absolute_table,

@@ -27,6 +27,8 @@ struct Sample {
     File? annotated_somatic_variants_idx                # GATK Funcotator
     File? absolute_acr_rdata                            # ABSOLUTE
     File? absolute_acr_plot                             # ABSOLUTE
+    File? absolute_snv_maf                             # ABSOLUTE
+    File? absolute_indel_maf                            # ABSOLUTE
     Int? absolute_solution                              # manual
     File? absolute_maf                                  # ABSOLUTE + Postprocess
     File? absolute_segtab                               # ABSOLUTE + Postprocess
@@ -62,6 +64,8 @@ workflow UpdateSample {
         File? annotated_somatic_variants_idx
         File? absolute_acr_rdata
         File? absolute_acr_plot
+        File? absolute_snv_maf
+        File? absolute_indel_maf
         Int? absolute_solution
         File? absolute_maf
         File? absolute_segtab
@@ -94,6 +98,8 @@ workflow UpdateSample {
         annotated_somatic_variants_idx: if defined(annotated_somatic_variants_idx) then annotated_somatic_variants_idx else sample.annotated_somatic_variants_idx,
         absolute_acr_rdata: if defined(absolute_acr_rdata) then absolute_acr_rdata else sample.absolute_acr_rdata,
         absolute_acr_plot: if defined(absolute_acr_plot) then absolute_acr_plot else sample.absolute_acr_plot,
+        absolute_snv_maf: if defined(absolute_snv_maf) then absolute_snv_maf else sample.absolute_snv_maf,
+        absolute_indel_maf: if defined(absolute_indel_maf) then absolute_indel_maf else sample.absolute_indel_maf,
         absolute_solution: if defined(absolute_solution) then absolute_solution else sample.absolute_solution,
         absolute_maf: if defined(absolute_maf) then absolute_maf else sample.absolute_maf,
         absolute_segtab: if defined(absolute_segtab) then absolute_segtab else sample.absolute_segtab,
