@@ -292,6 +292,9 @@ workflow DefinePatient {
     }
     Array[Sample] normal_samples = select_first([this_normal_samples, []])
 
+    # TODO: This technically has the potential to fail since the Patient object
+    # requires Array[Shard] shards to be non-optional! In this workflow this will
+    # always be defined though.
     if (defined(scattered_intervals)) {
         scatter (intervals in select_first([scattered_intervals, []])) {
             Shard shards = object {

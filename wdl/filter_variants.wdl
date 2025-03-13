@@ -132,7 +132,7 @@ workflow FilterVariants {
         Int scatter_count = ceil((num_variants_to_realign + 1) / args.variants_per_scatter)
         call tasks.SplitIntervals {
             input:
-                interval_list = args.preprocessed_interval_list,
+                interval_list = args.files.preprocessed_intervals,
                 ref_fasta = args.files.ref_fasta,
                 ref_fasta_index = args.files.ref_fasta_index,
                 ref_dict = args.files.ref_dict,

@@ -2,7 +2,8 @@ version development
 
 import "runtime_collection.wdl" as rtc
 import "tasks.wdl"
-import "workflow_resources.wdl"
+import "workflow_resources.wdl" as wfres
+import "workflow_resources.update.wdl" as wfres_update
 
 
 struct WorkflowArguments {
@@ -12,9 +13,6 @@ struct WorkflowArguments {
 
     Int scatter_count
     Int variants_per_scatter
-
-    File preprocessed_interval_list
-    Array[File] scattered_interval_list
 
     Boolean run_collect_callable_loci
     Boolean run_collect_total_read_counts
@@ -274,17 +272,20 @@ workflow DefineWorkflowArguments {
         }
     }
 
+    call wfres_update.UpdateWorkflowResources {
+        input:
+            resources = resources,
+            preprocessed_intervals = select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
+            scattered_intervals = select_first([resources.scattered_intervals, SplitIntervals.interval_files]),
+    }
+
     WorkflowArguments args = object {
-        files: resources,
+        files: UpdateWorkflowResources.updated_resources,
 
         analyst_id: analyst_id,
 
         scatter_count: length(select_first([resources.scattered_intervals, SplitIntervals.interval_files])),
         variants_per_scatter: variants_per_scatter,
-
-        # TODO: Move to files.
-        preprocessed_interval_list: select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
-        scattered_interval_list: select_first([resources.scattered_intervals, SplitIntervals.interval_files]),
 
         run_collect_callable_loci: run_collect_callable_loci,
         run_collect_total_read_counts: run_collect_total_read_counts,

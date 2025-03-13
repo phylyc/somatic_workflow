@@ -52,7 +52,7 @@ workflow AnnotateVariants {
         Int scatter_count = ceil((num_variants + 1) / this_args.variants_per_scatter)
         call tasks.SplitIntervals {
             input:
-                interval_list = this_args.preprocessed_interval_list,
+                interval_list = this_args.files.preprocessed_intervals,
                 ref_fasta = this_args.files.ref_fasta,
                 ref_fasta_index = this_args.files.ref_fasta_index,
                 ref_dict = this_args.files.ref_dict,
@@ -62,7 +62,7 @@ workflow AnnotateVariants {
         }
     }
 
-    scatter (intervals in select_first([SplitIntervals.interval_files, [this_args.preprocessed_interval_list]])) {
+    scatter (intervals in select_first([SplitIntervals.interval_files, [this_args.files.preprocessed_intervals]])) {
         call tasks.SelectVariants as SelectSampleVariants {
             input:
                 ref_fasta = this_args.files.ref_fasta,

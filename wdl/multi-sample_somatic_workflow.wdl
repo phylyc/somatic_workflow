@@ -29,10 +29,11 @@ workflow MultiSampleSomaticWorkflow {
         # target intervals must be supplied. For whole genome sequencing, the intervals
         # are just the chromosomal intervals (ideally blacklist-removed).
         Array[File]+ target_intervals
+        # The target_intervals annotated with gc content, mappability, and segmental duplications.
         Array[File]? annotated_target_intervals
         # If a panel of normals is not available for the sequencing platform of a sample,
-        # it corresponding path must point to an empty file. The annotated_target_intervals
-        # will instead be used for denoising.
+        # its corresponding path must point to an empty file (of size 0B). The
+        # annotated_target_intervals will instead be used for denoising.
         Array[File]? cnv_panel_of_normals
         # Setting this avoids double counting evidence from paired-end reads. This is
         # particularly important for cell-free DNA samples, where the majority of
@@ -95,7 +96,7 @@ workflow MultiSampleSomaticWorkflow {
                 use_for_tCR = use_sample_for_tCR,
                 use_for_aCR = use_sample_for_aCR,
                 normal_sample_names = normal_sample_names,
-                scattered_intervals = this_args.scattered_interval_list,
+                scattered_intervals = this_args.files.scattered_intervals,
                 runtime_collection = this_runtime_collection,
         }
     }
