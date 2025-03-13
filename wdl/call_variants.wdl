@@ -87,7 +87,7 @@ workflow CallVariants {
                     germline_resource = args.files.germline_resource,
                     germline_resource_idx = args.files.germline_resource_idx,
                     make_bamout = args.make_bamout,
-                    get_orientation_bias_priors = args.run_orientation_bias_mixture_model,
+                    get_orientation_bias_priors = true,
                     compress_output = args.compress_output,
                     genotype_germline_sites = args.mutect2_genotype_germline_sites,
                     native_pair_hmm_use_double_precision = args.mutect2_native_pair_hmm_use_double_precision,
