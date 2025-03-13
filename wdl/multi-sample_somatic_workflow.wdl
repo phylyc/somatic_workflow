@@ -191,6 +191,10 @@ workflow MultiSampleSomaticWorkflow {
         File? filtered_vcf = out_patient.filtered_vcf
         File? filtered_vcf_idx = out_patient.filtered_vcf_idx
         File? filtering_stats = out_patient.filtering_stats
+        File? somatic_vcf = out_patient.somatic_vcf
+        File? somatic_vcf_idx = out_patient.somatic_vcf_idx
+        File? germline_vcf = out_patient.germline_vcf
+        File? germline_vcf_idx = out_patient.germline_vcf_idx
         File? somatic_calls_bam = out_patient.somatic_calls_bam
         File? somatic_calls_bai = out_patient.somatic_calls_bai
         File? gvcf = out_patient.gvcf

@@ -57,176 +57,123 @@ workflow FilterVariants {
 
     # TODO: add DeTiN
 
-    call tasks.SelectVariants as SelectPassingVariants {
-        input:
-            ref_fasta = args.files.ref_fasta,
-            ref_fasta_index = args.files.ref_fasta_index,
-            ref_dict = args.files.ref_dict,
-            vcf = FilterVariantCalls.filtered_vcf,
-            vcf_idx = FilterVariantCalls.filtered_vcf_idx,
-            select_passing = true,
-            keep_germline = args.keep_germline,
-            somatic_filter_whitelist = args.somatic_filter_whitelist,
-            germline_filter_whitelist = args.germline_filter_whitelist,
-            compress_output = args.compress_output,
-            select_variants_extra_args = args.select_variants_extra_args,
-            runtime_params = runtime_collection.select_variants
-    }
-
-    # TODO: Move SelectVariants to after realignment
-
     if (args.run_realignment_filter) {
         # Realigning reads for variants can be expensive if many variants have been
         # called. Especially for tumor-only calling, plenty of variant calls are
         # sequencing artifacts or rare germline variants that have been missed by
         # FilterMutectCalls. In order to make the filter affordable, we divide
         # the called variants into groups of low and high somatic confidence.
-        if (args.run_realignment_filter_only_on_high_confidence_variants) {
-            call tasks.SelectVariants as SelectLowConfidenceVariants {
-                input:
-                    ref_fasta = args.files.ref_fasta,
-                    ref_fasta_index = args.files.ref_fasta_index,
-                    ref_dict = args.files.ref_dict,
-                    vcf = SelectPassingVariants.selected_vcf,
-                    vcf_idx = SelectPassingVariants.selected_vcf_idx,
-                    compress_output = args.compress_output,
-                    select_variants_extra_args = "-select '" + args.select_low_conficence_variants_jexl_arg + "'",
-                    runtime_params = runtime_collection.select_variants
-            }
-
-            call tasks.SelectVariants as SelectHighConfidenceVariants {
-                input:
-                    ref_fasta = args.files.ref_fasta,
-                    ref_fasta_index = args.files.ref_fasta_index,
-                    ref_dict = args.files.ref_dict,
-                    vcf = SelectPassingVariants.selected_vcf,
-                    vcf_idx = SelectPassingVariants.selected_vcf_idx,
-                    compress_output = args.compress_output,
-                    select_variants_extra_args = "-select '" + args.select_low_conficence_variants_jexl_arg + "' -invertSelect true",
-                    runtime_params = runtime_collection.select_variants
-            }
-        }
-
-        File variants_to_realign = select_first([
-            SelectHighConfidenceVariants.selected_vcf,
-            SelectPassingVariants.selected_vcf
-        ])
-        File variants_to_realign_idx = select_first([
-            SelectHighConfidenceVariants.selected_vcf_idx,
-            SelectPassingVariants.selected_vcf_idx
-        ])
-        Int num_variants_to_realign = select_first([
-            SelectHighConfidenceVariants.num_selected_variants,
-            SelectPassingVariants.num_selected_variants
-        ])
-        scatter (tumor_sample in patient.tumor_samples) {
-            scatter (seq_run in tumor_sample.sequencing_runs) {
-                File seq_tumor_bams = seq_run.bam
-                File seq_tumor_bais = seq_run.bai
-            }
-        }
-        Array[File] tumor_bams = flatten(seq_tumor_bams)
-        Array[File] tumor_bais = flatten(seq_tumor_bais)
-
-        # Due to its long runtime, we scatter the realignment task over intervals.
-        Int scatter_count = ceil((num_variants_to_realign + 1) / args.variants_per_scatter)
-        call tasks.SplitIntervals {
-            input:
-                interval_list = args.files.preprocessed_intervals,
-                ref_fasta = args.files.ref_fasta,
-                ref_fasta_index = args.files.ref_fasta_index,
-                ref_dict = args.files.ref_dict,
-                scatter_count = scatter_count,
-                split_intervals_extra_args = args.split_intervals_extra_args,
-                runtime_params = runtime_collection.split_intervals,
-        }
-        scatter (interval_list in SplitIntervals.interval_files) {
-            call tasks.SelectVariants as SelectPreRealignmentVariants {
-                input:
-                    interval_list = interval_list,
-                    ref_fasta = args.files.ref_fasta,
-                    ref_fasta_index = args.files.ref_fasta_index,
-                    ref_dict = args.files.ref_dict,
-                    vcf = variants_to_realign,
-                    vcf_idx = variants_to_realign_idx,
-                    compress_output = args.compress_output,
-                    runtime_params = runtime_collection.select_variants
-            }
-
-            if (SelectPreRealignmentVariants.num_selected_variants > 0) {
-                call FilterAlignmentArtifacts {
-                    input:
-                        ref_fasta = args.files.ref_fasta,
-                        ref_fasta_index = args.files.ref_fasta_index,
-                        ref_dict = args.files.ref_dict,
-                        tumor_bams = tumor_bams,
-                        tumor_bais = tumor_bais,
-                        vcf = SelectPreRealignmentVariants.selected_vcf,
-                        vcf_idx = SelectPreRealignmentVariants.selected_vcf_idx,
-                        bwa_mem_index_image = args.files.realignment_bwa_mem_index_image,
-                        compress_output = args.compress_output,
-                        max_reasonable_fragment_length = args.filter_alignment_artifacts_max_reasonable_fragment_length,
-                        realignment_extra_args = args.realignment_extra_args,
-                        runtime_params = runtime_collection.filter_alignment_artifacts
-                }
-            }
-        }
-
-        if (length(select_all(FilterAlignmentArtifacts.filtered_vcf)) > 0) {
-            call tasks.MergeVCFs as MergeRealignmentFilteredVCFs {
-                input:
-                    vcfs = select_all(FilterAlignmentArtifacts.filtered_vcf),
-                    vcfs_idx = select_all(FilterAlignmentArtifacts.filtered_vcf_idx),
-                    output_name = patient.name + ".filtered.selected.realignmentfiltered",
-                    compress_output = args.compress_output,
-                    runtime_params = runtime_collection.merge_vcfs
-            }
-        }
-
-        call tasks.SelectVariants as SelectPostRealignmentVariants {
+        call tasks.SelectVariants as SelectVariantsToRealign {
             input:
                 ref_fasta = args.files.ref_fasta,
                 ref_fasta_index = args.files.ref_fasta_index,
                 ref_dict = args.files.ref_dict,
-                vcf = select_first([MergeRealignmentFilteredVCFs.merged_vcf, variants_to_realign]),
-                vcf_idx = select_first([MergeRealignmentFilteredVCFs.merged_vcf_idx, variants_to_realign_idx]),
-                select_passing = true,
-                keep_germline = args.keep_germline,
+                vcf = FilterVariantCalls.filtered_vcf,
+                vcf_idx = FilterVariantCalls.filtered_vcf_idx,
+                compress_output = args.compress_output,
+                select_somatic = true,
                 somatic_filter_whitelist = args.somatic_filter_whitelist,
                 germline_filter_whitelist = args.germline_filter_whitelist,
-                compress_output = args.compress_output,
-                select_variants_extra_args = args.select_variants_extra_args,
+                select_variants_extra_args = "-select '" + args.select_high_conficence_variants_jexl_arg + "'",
                 runtime_params = runtime_collection.select_variants
         }
 
-        if (args.run_realignment_filter_only_on_high_confidence_variants) {
+        if (SelectVariantsToRealign.num_selected_variants > 0) {
+            scatter (tumor_sample in patient.tumor_samples) {
+                scatter (seq_run in tumor_sample.sequencing_runs) {
+                    File seq_tumor_bams = seq_run.bam
+                    File seq_tumor_bais = seq_run.bai
+                }
+            }
+            Array[File] tumor_bams = flatten(seq_tumor_bams)
+            Array[File] tumor_bais = flatten(seq_tumor_bais)
+
+            # Due to its long runtime, we scatter the realignment task over intervals.
+            Int scatter_count = ceil(SelectVariantsToRealign.num_selected_variants / args.variants_per_scatter)
+            call tasks.SplitIntervals {
+                input:
+                    interval_list = args.files.preprocessed_intervals,
+                    ref_fasta = args.files.ref_fasta,
+                    ref_fasta_index = args.files.ref_fasta_index,
+                    ref_dict = args.files.ref_dict,
+                    scatter_count = scatter_count,
+                    split_intervals_extra_args = args.split_intervals_extra_args,
+                    runtime_params = runtime_collection.split_intervals,
+            }
+            scatter (interval_list in SplitIntervals.interval_files) {
+                call tasks.SelectVariants as SelectPreRealignmentVariants {
+                    input:
+                        interval_list = interval_list,
+                        ref_fasta = args.files.ref_fasta,
+                        ref_fasta_index = args.files.ref_fasta_index,
+                        ref_dict = args.files.ref_dict,
+                        vcf = SelectVariantsToRealign.selected_vcf,
+                        vcf_idx = SelectVariantsToRealign.selected_vcf_idx,
+                        compress_output = args.compress_output,
+                        runtime_params = runtime_collection.select_variants
+                }
+
+                if (SelectPreRealignmentVariants.num_selected_variants > 0) {
+                    call FilterAlignmentArtifacts {
+                        input:
+                            ref_fasta = args.files.ref_fasta,
+                            ref_fasta_index = args.files.ref_fasta_index,
+                            ref_dict = args.files.ref_dict,
+                            tumor_bams = tumor_bams,
+                            tumor_bais = tumor_bais,
+                            vcf = SelectPreRealignmentVariants.selected_vcf,
+                            vcf_idx = SelectPreRealignmentVariants.selected_vcf_idx,
+                            bwa_mem_index_image = args.files.realignment_bwa_mem_index_image,
+                            compress_output = args.compress_output,
+                            max_reasonable_fragment_length = args.filter_alignment_artifacts_max_reasonable_fragment_length,
+                            realignment_extra_args = args.realignment_extra_args,
+                            runtime_params = runtime_collection.filter_alignment_artifacts
+                    }
+                }
+            }
+
             call tasks.MergeVCFs as MergeLowConfidenceAndRealignmentFilteredVCFs {
                 input:
-                    vcfs = select_all([
-                        SelectLowConfidenceVariants.selected_vcf,
-                        SelectPostRealignmentVariants.selected_vcf
-                    ]),
-                    vcfs_idx = select_all([
-                        SelectLowConfidenceVariants.selected_vcf_idx,
-                        SelectPostRealignmentVariants.selected_vcf_idx
-                    ]),
-                    output_name = patient.name + ".filtered.selected.realignmentfiltered",
+                    vcfs = select_all(flatten([
+                        [SelectVariantsToRealign.not_selected_vcf],
+                        FilterAlignmentArtifacts.filtered_vcf
+                    ])),
+                    vcfs_idx = select_all(flatten([
+                        [SelectVariantsToRealign.not_selected_vcf_idx],
+                        FilterAlignmentArtifacts.filtered_vcf_idx
+                    ])),
+                    output_name = patient.name + ".filtered.realignmentfiltered",
                     compress_output = args.compress_output,
                     runtime_params = runtime_collection.merge_vcfs
             }
         }
     }
 
-    File selected_vcf = select_first([
+    File filtered_vcf = select_first([
         MergeLowConfidenceAndRealignmentFilteredVCFs.merged_vcf,
-        SelectPostRealignmentVariants.selected_vcf,
-        SelectPassingVariants.selected_vcf,
+        SelectVariantsToRealign.not_selected_vcf,
+        FilterVariantCalls.filtered_vcf
     ])
-    File selected_vcf_idx = select_first([
+    File filtered_vcf_idx = select_first([
         MergeLowConfidenceAndRealignmentFilteredVCFs.merged_vcf_idx,
-        SelectPostRealignmentVariants.selected_vcf_idx,
-        SelectPassingVariants.selected_vcf_idx,
+        SelectVariantsToRealign.not_selected_vcf_idx,
+        FilterVariantCalls.filtered_vcf_idx
     ])
+
+    call tasks.SelectVariants as SelectSomaticVariants {
+        input:
+            ref_fasta = args.files.ref_fasta,
+            ref_fasta_index = args.files.ref_fasta_index,
+            ref_dict = args.files.ref_dict,
+            vcf = filtered_vcf,
+            vcf_idx = filtered_vcf,
+            select_somatic = true,
+            suffix = ".somatic",
+            somatic_filter_whitelist = args.somatic_filter_whitelist,
+            compress_output = args.compress_output,
+            select_variants_extra_args = args.select_variants_extra_args,
+            runtime_params = runtime_collection.select_variants
+    }
 
     if (args.keep_germline) {
         call tasks.SelectVariants as SelectGermlineVariants {
@@ -234,10 +181,9 @@ workflow FilterVariants {
                 ref_fasta = args.files.ref_fasta,
                 ref_fasta_index = args.files.ref_fasta_index,
                 ref_dict = args.files.ref_dict,
-                vcf = selected_vcf,
-                vcf_idx = selected_vcf_idx,
-                select_passing = false,
-                keep_germline = true,
+                vcf = filtered_vcf,
+                vcf_idx = filtered_vcf,
+                select_germline = true,
                 suffix = ".germline",
                 germline_filter_whitelist = args.germline_filter_whitelist,
                 compress_output = args.compress_output,
@@ -246,29 +192,13 @@ workflow FilterVariants {
         }
     }
 
-    call tasks.SelectVariants as SelectSomaticVariants {
-        input:
-            ref_fasta = args.files.ref_fasta,
-            ref_fasta_index = args.files.ref_fasta_index,
-            ref_dict = args.files.ref_dict,
-            vcf = selected_vcf,
-            vcf_idx = selected_vcf_idx,
-            select_passing = true,
-            keep_germline = false,
-            suffix = ".somatic",
-            somatic_filter_whitelist = args.somatic_filter_whitelist,
-            compress_output = args.compress_output,
-            select_variants_extra_args = args.select_variants_extra_args,
-            runtime_params = runtime_collection.select_variants
-    }
-
     scatter (shard in patient.shards) {
         File? raw_mutect2_bam_out_scattered = shard.raw_mutect2_bam_out
         File? raw_mutect2_bai_out_scattered = shard.raw_mutect2_bai_out
     }
 
     # subset CallVariants.bam to reads covering the FilteredVariants.somatic_vcf only
-    if (length(select_all(raw_mutect2_bam_out_scattered)) > 0) {
+    if ((length(select_all(raw_mutect2_bam_out_scattered)) > 0) && (!defined(patient.somatic_calls_bam))) {
         call tasks.PrintReads as SomaticBam {
             input:
                 ref_fasta = args.files.ref_fasta,
@@ -286,8 +216,8 @@ workflow FilterVariants {
     call p.UpdatePatient {
         input:
             patient = patient,
-            filtered_vcf = FilterVariantCalls.filtered_vcf,
-            filtered_vcf_idx = FilterVariantCalls.filtered_vcf_idx,
+            filtered_vcf = filtered_vcf,
+            filtered_vcf_idx = filtered_vcf_idx,
             filtering_stats = FilterVariantCalls.filtering_stats,
             somatic_vcf = SelectSomaticVariants.selected_vcf,
             somatic_vcf_idx = SelectSomaticVariants.selected_vcf_idx,

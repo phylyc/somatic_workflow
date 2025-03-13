@@ -21,7 +21,6 @@ struct WorkflowArguments {
     Boolean run_variant_calling
     Boolean run_variant_filter
     Boolean run_realignment_filter
-    Boolean run_realignment_filter_only_on_high_confidence_variants
     Boolean run_variant_annotation
     Boolean run_variant_annotation_scattered
     Boolean run_model_segments
@@ -105,7 +104,7 @@ struct WorkflowArguments {
     String? variant_filtration_extra_args
     String? left_align_and_trim_variants_extra_args
     String? select_variants_extra_args
-    String? select_low_conficence_variants_jexl_arg
+    String? select_high_conficence_variants_jexl_arg
     String? realignment_extra_args
     String? funcotate_extra_args
 }
@@ -131,7 +130,6 @@ workflow DefineWorkflowArguments {
         Boolean run_variant_calling = true
         Boolean run_variant_filter = true
         Boolean run_realignment_filter = true
-        Boolean run_realignment_filter_only_on_high_confidence_variants = true
         Boolean run_variant_annotation = true
         Boolean run_variant_annotation_scattered = false
         Boolean run_clonal_decomposition = true
@@ -236,7 +234,7 @@ workflow DefineWorkflowArguments {
         String? variant_filtration_extra_args
         String? left_align_and_trim_variants_extra_args
         String? select_variants_extra_args
-        String? select_low_conficence_variants_jexl_arg = "GERMQ < 30"
+        String? select_high_conficence_variants_jexl_arg = "GERMQ > 30"
         String? realignment_extra_args
         String? funcotate_extra_args
 
@@ -295,7 +293,6 @@ workflow DefineWorkflowArguments {
         run_variant_calling: run_variant_calling,
         run_variant_filter: run_variant_filter,
         run_realignment_filter: run_realignment_filter,
-        run_realignment_filter_only_on_high_confidence_variants: run_realignment_filter_only_on_high_confidence_variants,
         run_variant_annotation: run_variant_annotation,
         run_variant_annotation_scattered: run_variant_annotation_scattered,
         run_clonal_decomposition: run_clonal_decomposition,
@@ -374,7 +371,7 @@ workflow DefineWorkflowArguments {
         variant_filtration_extra_args: variant_filtration_extra_args,
         left_align_and_trim_variants_extra_args: left_align_and_trim_variants_extra_args,
         select_variants_extra_args: select_variants_extra_args,
-        select_low_conficence_variants_jexl_arg: select_low_conficence_variants_jexl_arg,
+        select_high_conficence_variants_jexl_arg: select_high_conficence_variants_jexl_arg,
         realignment_extra_args: realignment_extra_args,
         funcotate_extra_args: funcotate_extra_args
     }

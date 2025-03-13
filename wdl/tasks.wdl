@@ -354,8 +354,8 @@ task SelectVariants {
         File vcf
         File vcf_idx
         Boolean compress_output = false
-        Boolean select_passing = false
-        Boolean keep_germline = false
+        Boolean select_somatic = false
+        Boolean select_germline = false
         String somatic_filter_whitelist = "PASS,normal_artifact"
         String germline_filter_whitelist = "normal_artifact,panel_of_normals"
         String suffix = ""
@@ -376,6 +376,9 @@ task SelectVariants {
     String uncompressed_selected_vcf_idx = uncompressed_selected_vcf + ".idx"
     String output_vcf = uncompressed_selected_vcf + if compress_output then ".gz" else ""
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
+
+    String output_not_selected_vcf = output_base_name + ".not_selected.vcf" + if compress_output then ".gz" else ""
+    String output_not_selected_vcf_idx = output_not_selected_vcf + if compress_output then ".tbi" else ".idx"
 
     command <<<
         set -e
@@ -403,11 +406,11 @@ task SelectVariants {
         grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
         num_vars=$(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
 
-        if [ "$num_vars" -eq 0 ] || [ "~{select_passing}" == "false" ] && [ "~{keep_germline}" == "false" ] ; then
+        if [ "$num_vars" -eq 0 ] || [ "~{select_somatic}" == "false" ] && [ "~{select_germline}" == "false" ] ; then
             echo ">> No variants selected."
             cp '~{select_variants_output_vcf}' '~{uncompressed_selected_vcf}'
         else
-            if [ "~{select_passing}" == "true" ] ; then
+            if [ "~{select_somatic}" == "true" ] ; then
                 echo ">> Selecting PASSing/whitelisted variants ... "
                 # FilterMutectCalls assumes a normal sample with no tumor cell
                 # contamination. If there is contamination from tumor cells,
@@ -440,7 +443,7 @@ task SelectVariants {
                 num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
                 echo ">> Selected $num_selected_vars PASSing out of $num_vars variants."
             fi
-            if [ "~{keep_germline}" == "true" ] ; then
+            if [ "~{select_germline}" == "true" ] ; then
                 echo ">> Selecting germline variants ... "
                 # FilterMutectCalls does not distinguish well between germline
                 # and artifacts; it's calibrated towards somatic vs non-somatic.
@@ -527,12 +530,27 @@ task SelectVariants {
                 --output '~{output_vcf_idx}'
             rm -f '~{uncompressed_selected_vcf}' '~{uncompressed_selected_vcf_idx}'
         fi
+
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            SelectVariants \
+            ~{"-R '" + ref_fasta + "'"} \
+            -V '~{vcf}' \
+            --discordance '~{output_vcf}' \
+            --output '~{output_not_selected_vcf}'
+
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            CountVariants \
+            -V '~{output_not_selected_vcf}' \
+            -O 'num_not_selected_vars.txt'
     >>>
 
     output {
         File selected_vcf = output_vcf
         File selected_vcf_idx = output_vcf_idx
         Int num_selected_variants = read_int("num_selected_vars.txt")
+        File not_selected_vcf = output_not_selected_vcf
+        File not_selected_vcf_idx = output_not_selected_vcf_idx
+        Int num_not_selected_variants = read_int("num_not_selected_vars.txt")
     }
 
     runtime {
