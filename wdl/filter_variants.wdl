@@ -52,7 +52,7 @@ workflow FilterVariants {
             m2_filter_extra_args = args.filter_mutect2_extra_args,
             left_align_and_trim_variants_extra_args = args.left_align_and_trim_variants_extra_args,
             variant_filtration_extra_args = args.variant_filtration_extra_args,
-            runtime_params = runtime_collection.filter_mutect_calls
+            runtime_params = runtime_collection.filter_variant_calls
     }
 
     # TODO: add DeTiN
@@ -357,7 +357,7 @@ task FilterVariantCalls {
             FilterMutectCalls \
             --reference '~{ref_fasta}' \
             --variant '~{vcf}' \
-            --output 'tmp.~{output_vcf}' \
+            --output 'filtered.~{output_vcf}' \
             ~{"--orientation-bias-artifact-priors '" + orientation_bias + "'"} \
             ~{true="--contamination-table '" false="" defined(contamination_tables)}~{default="" sep="' --contamination-table '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
             ~{true="--tumor-segmentation '" false="" defined(tumor_segmentation)}~{default="" sep="' --tumor-segmentation '" tumor_segmentation}~{true="'" false="" defined(tumor_segmentation)} \
@@ -373,8 +373,8 @@ task FilterVariantCalls {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             LeftAlignAndTrimVariants \
             -R '~{ref_fasta}' \
-            -V 'tmp.~{output_vcf}' \
-            --output 'tmp.2.~{output_vcf}' \
+            -V 'filtered.~{output_vcf}' \
+            --output 'left_aligned_and_trimmed.~{output_vcf}' \
             --max-indel-length ~{max_indel_length} \
             ~{if (dont_trim_alleles) then " --dont-trim-alleles " else ""} \
             ~{if (split_multi_allelics) then " --split-multi-allelics " else ""} \
@@ -389,14 +389,14 @@ task FilterVariantCalls {
             VariantFiltration \
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-L '" + interval_list + "'"} \
-            -V 'tmp.2.~{output_vcf}' \
+            -V 'left_aligned_and_trimmed.~{output_vcf}' \
             ~{if (length(filter_names) > 0) then " --filter-name '" else ""}~{default="" sep="' --filter-name '" filter_names}~{if (length(filter_names) > 0) then "'" else ""} \
             ~{if (length(filter_expressions) > 0) then " --filter-expression '" else ""}~{default="" sep="' --filter-expression '" filter_expressions}~{if (length(filter_expressions) > 0) then "'" else ""} \
             --output '~{output_vcf}' \
             ~{variant_filtration_extra_args} \
             2> >(grep -v "WARN  JexlEngine - " >&2)
 
-        rm -f tmp.~{output_vcf} tmp.2.~{output_vcf}
+        rm -f 'filtered.~{output_vcf}' 'left_aligned_and_trimmed.~{output_vcf}'
     >>>
 
     output {
