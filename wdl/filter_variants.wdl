@@ -258,7 +258,7 @@ task FilterVariantCalls {
         Int min_alt_median_base_quality = 20  # default: 20
         Int min_alt_median_mapping_quality = 20  # default: -1
         Int min_median_read_position = 5  # default: 1
-        Int max_indel_length = 200
+        Int max_indel_length = 1000  # default: 200
         Boolean dont_trim_alleles = false
         Boolean split_multi_allelics = false
 
