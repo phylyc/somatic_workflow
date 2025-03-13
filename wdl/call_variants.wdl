@@ -124,23 +124,27 @@ workflow CallVariants {
         File? raw_mutect2_artifact_priors = updated_shard.raw_mutect2_artifact_priors
 	}
 
-    call tasks.MergeVCFs {
-    	input:
-            vcfs = select_all(raw_mutect2_vcf),
-            vcfs_idx = select_all(raw_mutect2_vcf_idx),
-            output_name = patient.name,
-            compress_output = args.compress_output,
-            runtime_params = runtime_collection.merge_vcfs
+    if (!defined(patient.raw_snv_calls_vcf)) {
+        call tasks.MergeVCFs {
+            input:
+                vcfs = select_all(raw_mutect2_vcf),
+                vcfs_idx = select_all(raw_mutect2_vcf_idx),
+                output_name = patient.name,
+                compress_output = args.compress_output,
+                runtime_params = runtime_collection.merge_vcfs
+        }
     }
 
-    call MergeMutectStats {
-        input:
-            stats = select_all(raw_mutect2_stats),
-            individual_id = patient.name,
-            runtime_params = runtime_collection.merge_mutect_stats
+    if (!defined(patient.mutect2_stats)) {
+        call MergeMutectStats {
+            input:
+                stats = select_all(raw_mutect2_stats),
+                individual_id = patient.name,
+                runtime_params = runtime_collection.merge_mutect_stats
+        }
     }
 
-    if (args.run_orientation_bias_mixture_model) {
+    if (args.run_orientation_bias_mixture_model && (!defined(patient.orientation_bias))) {
         call LearnReadOrientationModel {
             input:
                 individual_id = patient.name,

@@ -32,7 +32,7 @@ workflow SNVWorkflow {
         if (args.run_variant_filter) {
             call fv.FilterVariants {
                 input:
-                    patient = select_first([CallVariants.updated_patient, patient]),
+                    patient = CallVariants.updated_patient,
                     args = args,
                     runtime_collection = runtime_collection,
             }
@@ -111,34 +111,38 @@ workflow SNVWorkflow {
                 # since cromwell shits the bed for piping optional inputs into a nested scatter.
                 Patient pat = select_first([AddGermlineAlleles.updated_patient, FilterVariants.updated_patient])
                 scatter (sample in pat.samples) {
-                    if (sample.is_tumor && defined(pat.matched_normal_sample)) {
-                        Sample matched_normal_sample = select_first([pat.matched_normal_sample])
-                        String? matched_normal_sample_name = matched_normal_sample.name
-                        String? matched_normal_bam_name = matched_normal_sample.bam_name
-                    }
+                    if (size(sample.annotated_somatic_variants) == 0) {
+                        if (sample.is_tumor && defined(pat.matched_normal_sample)) {
+                            Sample matched_normal_sample = select_first([pat.matched_normal_sample])
+                            String? matched_normal_sample_name = matched_normal_sample.name
+                            String? matched_normal_bam_name = matched_normal_sample.bam_name
+                        }
 
-                    call av.AnnotateVariants {
-                        input:
-                            vcf = select_first([pat.somatic_vcf]),
-                            vcf_idx = select_first([pat.somatic_vcf_idx]),
-                            num_variants = pat.num_somatic_variants,
-                            individual_id = patient.name,
-                            tumor_sample_name = sample.name,
-                            tumor_bam_name = sample.bam_name,
-                            normal_sample_name = matched_normal_sample_name,
-                            normal_bam_name = matched_normal_bam_name,
-                            args = args,
-                            runtime_collection = runtime_collection,
+                        call av.AnnotateVariants {
+                            input:
+                                vcf = select_first([pat.somatic_vcf]),
+                                vcf_idx = select_first([pat.somatic_vcf_idx]),
+                                num_variants = pat.num_somatic_variants,
+                                individual_id = patient.name,
+                                tumor_sample_name = sample.name,
+                                tumor_bam_name = sample.bam_name,
+                                normal_sample_name = matched_normal_sample_name,
+                                normal_bam_name = matched_normal_bam_name,
+                                args = args,
+                                runtime_collection = runtime_collection,
+                        }
                     }
+                    File annotated_somatic_variants = select_first([AnnotateVariants.annotated_variants, sample.annotated_somatic_variants])
+                    File? annotated_somatic_variants_idx = if defined(AnnotateVariants.annotated_variants_idx) then AnnotateVariants.annotated_variants_idx else sample.annotated_somatic_variants_idx
                 }
-                if (length(select_all(AnnotateVariants.annotated_variants_idx)) > 0) {
-                    Array[File] annotated_variants_idx = select_all(AnnotateVariants.annotated_variants_idx)
+                if (length(select_all(annotated_somatic_variants_idx)) > 0) {
+                    Array[File] annotated_variants_idx = select_all(annotated_somatic_variants_idx)
                 }
 
                 call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
                     input:
                         patient = pat,
-                        annotated_somatic_variants = AnnotateVariants.annotated_variants,
+                        annotated_somatic_variants = annotated_somatic_variants,
                         annotated_somatic_variants_idx = annotated_variants_idx,
                 }
             }

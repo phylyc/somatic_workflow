@@ -18,7 +18,7 @@ workflow ClonalAnalysisWorkflow {
 
     if (args.run_clonal_decomposition) {
         scatter (sample in patient.samples) {
-            if (defined(sample.called_copy_ratio_segmentation) && defined(sample.af_model_parameters) && !defined(sample.absolute_acr_rdata)) {
+            if (defined(sample.called_copy_ratio_segmentation) && defined(sample.af_model_parameters) && !defined(sample.absolute_acr_rdata) && !defined(sample.absolute_acr_plot)) {
                 call abs.Absolute {
                     input:
                         acs_conversion_script = args.acs_conversion_script,

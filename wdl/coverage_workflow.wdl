@@ -237,9 +237,14 @@ workflow CoverageWorkflow {
     output {
         Patient updated_patient = select_first([SecondPassSegmentation.updated_patient, ConsensusPatient.updated_patient])
 
-        Array[File]? cr_segmentations = SecondPassSegmentation.called_copy_ratio_segmentations
-        Array[File]? cr_plots = SecondPassSegmentation.cr_plots
-        Array[File]? af_model_parameters = SecondPassSegmentation.af_model_final_parameters
-        Array[File]? cr_model_parameters = SecondPassSegmentation.cr_model_final_parameters
+        Array[File]? first_pass_cr_segmentations = FirstPassSegmentation.called_copy_ratio_segmentations
+        Array[File]? first_pass_cr_plots = FirstPassSegmentation.cr_plots
+        Array[File]? first_pass_af_model_parameters = FirstPassSegmentation.af_model_final_parameters
+        Array[File]? first_pass_cr_model_parameters = FirstPassSegmentation.cr_model_final_parameters
+
+        Array[File]? second_pass_cr_segmentations = SecondPassSegmentation.called_copy_ratio_segmentations
+        Array[File]? second_pass_cr_plots = SecondPassSegmentation.cr_plots
+        Array[File]? second_pass_af_model_parameters = SecondPassSegmentation.af_model_final_parameters
+        Array[File]? second_pass_cr_model_parameters = SecondPassSegmentation.cr_model_final_parameters
     }
 }
