@@ -181,7 +181,9 @@ task VcfToPileupVariants {
         File? interval_list_idx
         File? interval_blacklist
         File? interval_blacklist_idx
+        Array[String]? sample_names
         Float AF = 0.00000007
+        Boolean compress_output = false
 
         Runtime runtime_params
     }
@@ -251,7 +253,7 @@ task VcfToPileupVariants {
                     if ($8 ~ /^POPAF=/) {
                         # Extract POPAF value and calculate AF as 10^(-POPAF)
                         popaf_value = substr($8, 7)  # Extract value after 'POPAF='
-                        AF_value = sprintf("%.6f", 10^(-popaf_value))
+                        AF_value = sprintf("%.6f", exp(log(10) * -popaf_value))
                     } else {
                         # Use default AF if POPAF is not found
                         AF_value = default_AF
@@ -268,6 +270,28 @@ task VcfToPileupVariants {
         # Index the compressed VCF file
         bcftools index -t -o '~{af_only_vcf_idx}' '~{af_only_vcf}'
 
+        # Generate pileup tables for each sample
+        if [ "~{defined(sample_names)}" == "true" ]; then
+            for sample in ~{sep=" " sample_names}; do
+                bcftools query -s "$sample" -f '%CHROM\t%POS\t%INFO/POPAF\t[%DP\t%AD]\n' "~{vcf}" \
+                    | awk -v default_AF='~{AF}' '
+                        BEGIN {OFS="\t"; print "contig", "position", "ref_count", "alt_count", "other_alt_count", "allele_frequency"}
+                        {
+                            split($5, ad, ",");
+                            ref_count = ad[1];
+                            alt_count = ad[2];
+                            total_depth = $4;
+                            other_alt_count = total_depth - ref_count - alt_count;
+                            allele_frequency = ($3 != "" ? exp(log(10) * -$3) : default_AF);  # Use default AF if missing
+                            print $1, $2, ref_count, alt_count, other_alt_count, allele_frequency;
+                        }' > "$sample.pileup"
+                if [ "~{compress_output}" == "true" ]; then
+                    gzip -c "$sample.pileup" > "$sample.pileup.gz"
+                    rm -f "$sample.pileup"
+                fi
+            done
+        fi
+
         # Clean up temporary files
         rm -f '~{tmp_vcf}' '~{uncompressed_vcf}' 'header_file'
     >>>
@@ -275,6 +299,7 @@ task VcfToPileupVariants {
     output {
         File variants = af_only_vcf
         File variants_idx = af_only_vcf_idx
+        Array[File] pileups = glob("*.pileup" + (if compress_output then ".gz" else ""))
     }
 
     runtime {

@@ -22,13 +22,11 @@ workflow SNVWorkflow {
     }
 
     if (args.run_variant_calling) {
-        if (!defined(patient.raw_snv_calls_vcf)) {
-            call cv.CallVariants {
-                input:
-                    patient = patient,
-                    args = args,
-                    runtime_collection = runtime_collection,
-            }
+        call cv.CallVariants {
+            input:
+                patient = patient,
+                args = args,
+                runtime_collection = runtime_collection,
         }
 
         if (args.run_variant_filter) {
@@ -57,75 +55,55 @@ workflow SNVWorkflow {
                 }
 
                 if (SelectGermlineNotInResource.num_selected_variants > 0) {
+                    scatter (sample in FilterVariants.updated_patient.samples) {
+                        String bam_names = sample.bam_name
+                        String sample_names = sample.name
+                        File? allelic_pileup_summaries = sample.allelic_pileup_summaries
+                    }
                     call cac.VcfToPileupVariants as GermlineVariantsNotInResource {
                         input:
                             vcf = SelectGermlineNotInResource.selected_vcf,
                             vcf_idx = SelectGermlineNotInResource.selected_vcf_idx,
+                            sample_names = bam_names,
+                            compress_output = args.compress_output,
                             runtime_params = runtime_collection.vcf_to_pileup_variants,
                     }
 
-                    scatter (sample in patient.samples) {
-                        scatter (sequencing_run in sample.sequencing_runs) {
-                            call cac.CollectAllelicCounts as GermlineAllelicCounts {
-                                input:
-                                    scattered_interval_list = args.scattered_interval_list,
-                                    bam = sequencing_run.bam,
-                                    bai = sequencing_run.bai,
-                                    is_paired_end = sequencing_run.is_paired_end,
-                                    ref_dict = args.files.ref_dict,
-                                    variants = GermlineVariantsNotInResource.variants,
-                                    variants_idx = GermlineVariantsNotInResource.variants_idx,
-                                    getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,
-                                    sample_name = sequencing_run.name,
-                                    runtime_collection = runtime_collection,
-                            }
-                            String seq_sample_names = sample.name
-
-                            call seqrun.UpdateSequencingRun as SeqAddRareGermlinePileups {
-                                input:
-                                    sequencing_run = sequencing_run,
-                                    rare_germline_allelic_pileup_summaries = GermlineAllelicCounts.pileup_summaries,
-                            }
-                        }
-
-                        Array[String] mgac_task_sample_names = (
-                            if defined(sample.allelic_pileup_summaries)
-                            then flatten([seq_sample_names, [sample.name]])
-                            else seq_sample_names
-                        )
-                        Array[File] mgac_task_allelic_counts = (
-                            if defined(sample.allelic_pileup_summaries)
-                            then flatten([GermlineAllelicCounts.pileup_summaries, [select_first([sample.allelic_pileup_summaries])]])
-                            else GermlineAllelicCounts.pileup_summaries
-                        )
-                        call hs.MergeAllelicCounts as MergeGermlineAllelicCounts {
-                            input:
-                                ref_dict = args.files.ref_dict,
-                                script = args.merge_pileups_script,
-                                sample_names = mgac_task_sample_names,
-                                allelic_counts = mgac_task_allelic_counts,
-                                compress_output = args.compress_output,
-                                runtime_params = runtime_collection.merge_allelic_counts,
-                        }
-                        # We select the first file since we only supplied one unique sample name, so all counts were merged into the same file.
-                        File extended_allelic_pileup_summaries = select_first(MergeGermlineAllelicCounts.merged_allelic_counts)
+                    call hs.MergeAllelicCounts as MergeGermlineAllelicCounts {
+                        input:
+                            ref_dict = args.files.ref_dict,
+                            script = args.merge_pileups_script,
+                            sample_names = flatten([sample_names, sample_names]),
+                            allelic_counts = select_all(flatten([allelic_pileup_summaries, GermlineVariantsNotInResource.pileups])),
+                            compress_output = args.compress_output,
+                            runtime_params = runtime_collection.merge_allelic_counts,
                     }
-                    Array[File] rg_acs = select_all(flatten(GermlineAllelicCounts.pileup_summaries))
+
+                    # sort output to match order of sample_names since glob doesn't guarantee order
+                    scatter (sample in FilterVariants.updated_patient.samples) {
+                        scatter (allelic_count in MergeGermlineAllelicCounts.merged_allelic_counts) {
+                            String this_sample_name = basename(basename(allelic_count, ".gz"), ".pileup")
+                            if (sample.name == this_sample_name) {
+                                File this_allelic_counts = allelic_count
+                            }
+                        }
+                        Array[File] this_sample_allelic_counts = select_all(this_allelic_counts)
+                    }
+                    Array[File] sorted_allelic_counts = flatten(this_sample_allelic_counts)
 
                     call p_update_s.UpdateSamples as ExtendAllelicPileups {
                         input:
                             patient = FilterVariants.updated_patient,
-                            sequencing_runs = SeqAddRareGermlinePileups.updated_sequencing_run,
-                            allelic_pileup_summaries = extended_allelic_pileup_summaries,
+                            allelic_pileup_summaries = sorted_allelic_counts,
+                    }
+
+                    call p.UpdatePatient as AddGermlineAlleles {
+                        input:
+                            patient = ExtendAllelicPileups.updated_patient,
+                            rare_germline_alleles = GermlineVariantsNotInResource.variants,
+                            rare_germline_alleles_idx = GermlineVariantsNotInResource.variants_idx
                     }
                 }
-            }
-
-            call p.UpdatePatient as AddGermlineAlleles {
-                input:
-                    patient = select_first([ExtendAllelicPileups.updated_patient, FilterVariants.updated_patient]),
-                    rare_germline_alleles = GermlineVariantsNotInResource.variants,
-                    rare_germline_alleles_idx = GermlineVariantsNotInResource.variants_idx
             }
 
             if (args.run_variant_annotation) {
@@ -159,7 +137,7 @@ workflow SNVWorkflow {
 
                 call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
                     input:
-                        patient = select_first([AddGermlineAlleles.updated_patient, patient]),
+                        patient = pat,
                         annotated_somatic_variants = AnnotateVariants.annotated_variants,
                         annotated_somatic_variants_idx = annotated_variants_idx,
                 }
@@ -172,6 +150,12 @@ workflow SNVWorkflow {
     }
 
     output {
-        Patient updated_patient = select_first([AddAnnotatedVariantsToSamples.updated_patient, AddGermlineAlleles.updated_patient, CallVariants.updated_patient, patient])
+        Patient updated_patient = select_first([
+            AddAnnotatedVariantsToSamples.updated_patient,
+            AddGermlineAlleles.updated_patient,
+            FilterVariants.updated_patient,
+            CallVariants.updated_patient,
+            patient
+        ])
     }
 }
