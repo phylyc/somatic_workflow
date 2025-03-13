@@ -273,6 +273,7 @@ task VcfToPileupVariants {
         # Generate pileup tables for each sample
         if [ "~{defined(sample_names)}" == "true" ]; then
             for sample in ~{sep=" " sample_names}; do
+                printf "#<METADATA>SAMPLE=$sample\n" > "$sample.pileup"
                 bcftools query -s "$sample" -f '%CHROM\t%POS\t%INFO/POPAF\t[%DP\t%AD]\n' "~{vcf}" \
                     | awk -v default_AF='~{AF}' '
                         BEGIN {OFS="\t"; print "contig", "position", "ref_count", "alt_count", "other_alt_count", "allele_frequency"}
@@ -284,7 +285,7 @@ task VcfToPileupVariants {
                             other_alt_count = total_depth - ref_count - alt_count;
                             allele_frequency = ($3 != "" ? exp(log(10) * -$3) : default_AF);  # Use default AF if missing
                             print $1, $2, ref_count, alt_count, other_alt_count, allele_frequency;
-                        }' > "$sample.pileup"
+                        }' >> "$sample.pileup"
                 if [ "~{compress_output}" == "true" ]; then
                     gzip -c "$sample.pileup" > "$sample.pileup.gz"
                     rm -f "$sample.pileup"
