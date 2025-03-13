@@ -195,6 +195,8 @@ workflow MultiSampleSomaticWorkflow {
         File? somatic_vcf_idx = out_patient.somatic_vcf_idx
         File? germline_vcf = out_patient.germline_vcf
         File? germline_vcf_idx = out_patient.germline_vcf_idx
+        File? rare_germline_alleles = out_patient.rare_germline_alleles
+        File? rare_germline_alleles_idx = out_patient.rare_germline_alleles_idx
         File? somatic_calls_bam = out_patient.somatic_calls_bam
         File? somatic_calls_bai = out_patient.somatic_calls_bai
         File? gvcf = out_patient.gvcf

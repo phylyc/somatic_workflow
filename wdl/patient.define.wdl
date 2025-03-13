@@ -31,7 +31,6 @@ workflow DefinePatient {
         Array[File]? total_read_counts
         Array[File]? denoised_total_copy_ratios
         Array[File]? snppanel_allelic_pileup_summaries
-        Array[File]? rare_germline_allelic_pileup_summaries
 
         # for each sample:
         # CACHE (as returned by the workflow)
@@ -232,24 +231,13 @@ workflow DefinePatient {
     }
     Array[SequencingRun] seqruns_saps = select_first([UpdateAllelicPileupSummaries.updated_sequencing_run, seqruns_dtcr])
 
-    if (defined(rare_germline_allelic_pileup_summaries)) {
-        scatter (pair in zip(seqruns_saps, select_first([rare_germline_allelic_pileup_summaries, []]))) {
-            call seq_run.UpdateSequencingRun as UpdateRareGermlineAllelicPileupSummaries {
-                input:
-                    sequencing_run = pair.left,
-                    rare_germline_allelic_pileup_summaries = pair.right,
-            }
-        }
-    }
-    Array[SequencingRun] seqruns_rgaps = select_first([UpdateRareGermlineAllelicPileupSummaries.updated_sequencing_run, seqruns_saps])
-
     # GroupBy sample name:
     # We assume that sample_names and bam_names share the same uniqueness,
     # that is if the supplied sample name is the same for two input bams, then the
     # bam names should also be the same, and vice versa.
 
     Array[String] theses_sample_names = select_first([sample_names, bam_names])
-    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_rgaps)))
+    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_saps)))
 
     # Pick tumor and normal samples apart:
 

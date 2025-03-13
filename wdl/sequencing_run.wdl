@@ -18,7 +18,6 @@ struct SequencingRun {
     File? total_read_counts
     File? denoised_total_copy_ratios
     File? snppanel_allelic_pileup_summaries
-    File? rare_germline_allelic_pileup_summaries
 }
 
 
@@ -40,7 +39,6 @@ workflow UpdateSequencingRun {
         File? total_read_counts
         File? denoised_total_copy_ratios
         File? snppanel_allelic_pileup_summaries
-        File? rare_germline_allelic_pileup_summaries
     }
 
     SequencingRun seq_run = object {
@@ -59,7 +57,6 @@ workflow UpdateSequencingRun {
         total_read_counts: if defined(total_read_counts) then total_read_counts else sequencing_run.total_read_counts,
         denoised_total_copy_ratios: if defined(denoised_total_copy_ratios) then denoised_total_copy_ratios else sequencing_run.denoised_total_copy_ratios,
         snppanel_allelic_pileup_summaries: if defined(snppanel_allelic_pileup_summaries) then snppanel_allelic_pileup_summaries else sequencing_run.snppanel_allelic_pileup_summaries,
-        rare_germline_allelic_pileup_summaries: if defined(rare_germline_allelic_pileup_summaries) then rare_germline_allelic_pileup_summaries else sequencing_run.rare_germline_allelic_pileup_summaries,
     }
 
     output {
