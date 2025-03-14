@@ -376,6 +376,7 @@ task GetPileupSummaries {
                 -XL '~{interval_blacklist}'
         fi
         # GetPileupSummaries does not support non-SNP variants
+        echo ">> Selecting SNPs only from input variants."
         select_variants \
             -V '~{if defined(scattered_intervals) || defined(interval_list) || defined(interval_blacklist) then "selected_loci.vcf" else variants}' \
             --select-type-to-include SNP
@@ -398,8 +399,8 @@ task GetPileupSummaries {
                 GetPileupSummaries \
                 --input '~{input_bam}' \
                 --read-index '~{input_bai}' \
-                --intervals '~{if defined(scattered_intervals) || defined(interval_list) || defined(interval_blacklist) then "selected_loci.vcf" else variants}' \
-                --variant '~{if defined(scattered_intervals) || defined(interval_list) || defined(interval_blacklist) then "selected_loci.vcf" else variants}' \
+                --intervals 'selected_loci.vcf' \
+                --variant 'selected_loci.vcf' \
                 -min-af '~{minimum_population_allele_frequency}' \
                 -max-af '~{maximum_population_allele_frequency}' \
                 --output '~{pileup_file}' \
