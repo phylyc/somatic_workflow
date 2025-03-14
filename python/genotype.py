@@ -450,8 +450,8 @@ class VCF(object):
         n_input_vars = self.df.shape[0]
         ## GetPileupSummaries only supports SNVs well.
         ## CAUTION: the input vcf may contain multi-allelic sites and other stuff!!!! (removed here)
-        # snv_mask = (self.df["REF"].apply(len) == 1) & (self.df["ALT"].apply(len) == 1) & ~self.df["REF"].isin(["-", "."]) & ~self.df["ALT"].isin(["-", "."])
-        # self.df = self.df.loc[snv_mask]
+        snv_mask = (self.df["REF"].apply(len) == 1) & (self.df["ALT"].apply(len) == 1) & ~self.df["REF"].isin(["-", "."]) & ~self.df["ALT"].isin(["-", "."])
+        self.df = self.df.loc[snv_mask]
         self.df = self.df.drop_duplicates(subset=["CHROM", "POS"], keep=False)
         n_kept_vars = self.df.shape[0]
         if n_kept_vars < n_input_vars:

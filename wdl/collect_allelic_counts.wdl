@@ -375,6 +375,10 @@ task GetPileupSummaries {
                 -V '~{if defined(scattered_intervals) || defined(interval_list) then "selected_loci.vcf" else variants}' \
                 -XL '~{interval_blacklist}'
         fi
+        # GetPileupSummaries does not support non-SNP variants
+        select_variants \
+            -V '~{if defined(scattered_intervals) || defined(interval_list) || defined(interval_blacklist) then "selected_loci.vcf" else variants}' \
+            --select-type-to-include SNP
 
         if [ -f selected_loci.vcf ] ; then
             set +e  # grep returns 1 if no lines are found
