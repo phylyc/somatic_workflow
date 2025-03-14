@@ -41,6 +41,7 @@ workflow SNVWorkflow {
                 # Collect allelic pileups for all putative germline sites that were
                 # not yet collected via the coverage workflow, then merge them.
                 # This allows for more sensitive aCR segmentation.
+                # Only collect SNPs since Indels or MNVs are too likely misclassified.
                 call tasks.SelectVariants as SelectGermlineNotInResource {
                     input:
                         ref_fasta = args.files.ref_fasta,
@@ -51,6 +52,7 @@ workflow SNVWorkflow {
                         interval_blacklist = args.files.common_germline_alleles,
                         interval_blacklist_idx = args.files.common_germline_alleles_idx,
                         compress_output = args.compress_output,
+                        select_variants_extra_args = "--select-type-to-include SNP",
                         runtime_params = runtime_collection.select_variants
                 }
 
