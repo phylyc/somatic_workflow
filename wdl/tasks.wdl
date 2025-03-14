@@ -405,9 +405,9 @@ task SelectVariants {
         set +e  # grep returns 1 if no lines are found
         grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
         num_vars=$(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
+        echo ">> Selected $num_vars variants."
 
         if [ "$num_vars" -eq 0 ] || [ "~{select_somatic}" == "false" ] && [ "~{select_germline}" == "false" ] ; then
-            echo ">> No variants selected."
             cp '~{select_variants_output_vcf}' '~{uncompressed_selected_vcf}'
         else
             if [ "~{select_somatic}" == "true" ] ; then
