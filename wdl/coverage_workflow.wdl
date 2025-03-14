@@ -38,7 +38,7 @@ workflow CoverageWorkflow {
                 }
             }
 
-            if (args.run_collect_total_read_counts && (size(sequencing_run.total_read_counts) == 0)) {
+            if (args.run_collect_total_read_counts && (size(sequencing_run.total_read_counts) == 0) && (size(sequencing_run.denoised_total_copy_ratios) == 0)) {
                 call crc.CollectReadCounts {
                     input:
                         ref_fasta = args.files.ref_fasta,
