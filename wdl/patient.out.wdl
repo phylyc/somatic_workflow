@@ -10,11 +10,15 @@ workflow Output {
 
     scatter (sample in patient.samples) {
         scatter (seqrun in sample.sequencing_runs) {
-            File? out_callable_loci = seqrun.callable_loci
-            File? out_total_read_counts = seqrun.total_read_counts
-            File? out_denoised_total_copy_ratios = seqrun.denoised_total_copy_ratios
-            File? out_snppanel_allelic_pileup_summaries = seqrun.snppanel_allelic_pileup_summaries
+            File? cl = seqrun.callable_loci
+            File? trc = seqrun.total_read_counts
+            File? dtcr = seqrun.denoised_total_copy_ratios
+            File? saps = seqrun.snppanel_allelic_pileup_summaries
         }
+        Array[File] out_callable_loci = select_all(cl)
+        Array[File] out_total_read_counts = select_all(trc)
+        Array[File] out_denoised_total_copy_ratios = select_all(dtcr)
+        Array[File] out_snppanel_allelic_pileup_summaries = select_all(saps)
         File? out_harmonized_callable_loci = sample.harmonized_callable_loci
         File? out_harmonized_denoised_total_copy_ratios = sample.harmonized_denoised_total_copy_ratios
         File? out_harmonized_snppanel_allelic_pileup_summaries = sample.harmonized_snppanel_allelic_pileup_summaries
@@ -43,17 +47,17 @@ workflow Output {
         Float? out_ploidy = sample.ploidy
     }
 
-    if (length(select_all(flatten(out_callable_loci))) > 0) {
-        Array[File] cl_out = select_all(flatten(out_callable_loci))
+    if (length(flatten(out_callable_loci)) > 0) {
+        Array[Array[File]] cl_out = out_callable_loci
     }
-    if (length(select_all(flatten(out_total_read_counts))) > 0) {
-        Array[File] trc_out = select_all(flatten(out_total_read_counts))
+    if (length(flatten(out_total_read_counts)) > 0) {
+        Array[Array[File]] trc_out = out_total_read_counts
     }
-    if (length(select_all(flatten(out_denoised_total_copy_ratios))) > 0) {
-        Array[File] dtrc_out = select_all(flatten(out_denoised_total_copy_ratios))
+    if (length(flatten(out_denoised_total_copy_ratios)) > 0) {
+        Array[Array[File]] dtcr_out = out_denoised_total_copy_ratios
     }
-    if (length(select_all(flatten(out_snppanel_allelic_pileup_summaries))) > 0) {
-        Array[File] snpaps_out = select_all(flatten(out_snppanel_allelic_pileup_summaries))
+    if (length(flatten(out_snppanel_allelic_pileup_summaries)) > 0) {
+        Array[Array[File]] snpaps_out = out_snppanel_allelic_pileup_summaries
     }
 
     if (length(select_all(out_harmonized_callable_loci)) > 0) {
@@ -166,10 +170,10 @@ workflow Output {
     output {
         # for each sequencing run:
         # CACHE (as returned by the workflow)
-        Array[File]? callable_loci = cl_out
-        Array[File]? total_read_counts = trc_out
-        Array[File]? denoised_total_copy_ratios = dtrc_out
-        Array[File]? snppanel_allelic_pileup_summaries = snpaps_out
+        Array[Array[File]]? callable_loci = cl_out
+        Array[Array[File]]? total_read_counts = trc_out
+        Array[Array[File]]? denoised_total_copy_ratios = dtcr_out
+        Array[Array[File]]? snppanel_allelic_pileup_summaries = snpaps_out
 
         # for each sample:
         # CACHE (as returned by the workflow)

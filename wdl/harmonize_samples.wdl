@@ -23,11 +23,11 @@ workflow HarmonizeSamples {
     scatter (sample in samples) {
         scatter (sequencing_run in sample.sequencing_runs) {
             File? cl = sequencing_run.callable_loci
-            if (sequencing_run.use_for_tCR && defined(sequencing_run.denoised_total_copy_ratios)) {
+            if (sequencing_run.use_for_tCR && (size(sequencing_run.denoised_total_copy_ratios) > 0)) {
                 String dcr_sample_name = sequencing_run.sample_name
                 File? dcr = sequencing_run.denoised_total_copy_ratios
             }
-            if (sequencing_run.use_for_aCR && defined(sequencing_run.snppanel_allelic_pileup_summaries)) {
+            if (sequencing_run.use_for_aCR && (size(sequencing_run.snppanel_allelic_pileup_summaries) > 0)) {
                 String aps_sample_name = sequencing_run.sample_name
                 File? aps = sequencing_run.snppanel_allelic_pileup_summaries
             }

@@ -142,10 +142,10 @@ workflow MultiSampleSomaticWorkflow {
     output {
         # for each sequencing run:
         # CACHE (as returned by the workflow)
-        Array[File]? callable_loci = Output.callable_loci
-        Array[File]? total_read_counts = Output.total_read_counts
-        Array[File]? denoised_total_copy_ratios = Output.denoised_total_copy_ratios
-        Array[File]? snppanel_allelic_pileup_summaries = Output.snppanel_allelic_pileup_summaries
+        Array[Array[File]]? callable_loci = Output.callable_loci
+        Array[Array[File]]? total_read_counts = Output.total_read_counts
+        Array[Array[File]]? denoised_total_copy_ratios = Output.denoised_total_copy_ratios
+        Array[Array[File]]? snppanel_allelic_pileup_summaries = Output.snppanel_allelic_pileup_summaries
 
         # for each sample:
         # CACHE (as returned by the workflow)

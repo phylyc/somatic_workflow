@@ -183,6 +183,10 @@ task DenoiseReadCounts {
             mv '~{read_counts}' '~{uncompressed_read_counts}'
         fi
 
+        touch '~{tsv_denoised_copy_ratios}'
+        touch '~{tsv_standardized_copy_ratios}'
+
+        set +e
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             DenoiseReadCounts \
             -I '~{uncompressed_read_counts}' \
@@ -191,6 +195,7 @@ task DenoiseReadCounts {
             ~{"--number-of-eigensamples " + number_of_eigensamples} \
             ~{"--annotated-intervals '" + annotated_interval_list + "'"} \
             ~{"--count-panel-of-normals '" + count_panel_of_normals + "'"}
+        set -e
 
         if [ "~{compress_output}" == "true" ] ; then
             bgzip -c '~{tsv_denoised_copy_ratios}' > '~{output_denoised_copy_ratios}'

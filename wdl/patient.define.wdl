@@ -26,11 +26,12 @@ workflow DefinePatient {
         Array[Boolean]? use_for_tCR
         Array[Boolean]? use_for_aCR
         Array[String]? sample_names
+
         # CACHE
-        Array[File]? callable_loci
-        Array[File]? total_read_counts
-        Array[File]? denoised_total_copy_ratios
-        Array[File]? snppanel_allelic_pileup_summaries
+        Array[Array[File]]? callable_loci
+        Array[Array[File]]? total_read_counts
+        Array[Array[File]]? denoised_total_copy_ratios
+        Array[Array[File]]? snppanel_allelic_pileup_summaries
 
         # for each sample:
         # CACHE (as returned by the workflow)
@@ -189,57 +190,13 @@ workflow DefinePatient {
     }
     Array[SequencingRun] seqruns_sn = select_first([UpdateSampleName.updated_sequencing_run, seqruns_uacr])
 
-    if (defined(callable_loci)) {
-        scatter (pair in zip(seqruns_sn, select_first([callable_loci, []]))) {
-            call seq_run.UpdateSequencingRun as UpdateCallableLoci {
-                input:
-                    sequencing_run = pair.left,
-                    callable_loci = pair.right,
-            }
-        }
-    }
-    Array[SequencingRun] seqruns_cl = select_first([UpdateCallableLoci.updated_sequencing_run, seqruns_sn])
-
-    if (defined(total_read_counts)) {
-        scatter (pair in zip(seqruns_cl, select_first([total_read_counts, []]))) {
-            call seq_run.UpdateSequencingRun as UpdateTotalReadCounts {
-                input:
-                    sequencing_run = pair.left,
-                    total_read_counts = pair.right,
-            }
-        }
-    }
-    Array[SequencingRun] seqruns_trc = select_first([UpdateTotalReadCounts.updated_sequencing_run, seqruns_cl])
-
-    if (defined(denoised_total_copy_ratios)) {
-        scatter (pair in zip(seqruns_trc, select_first([denoised_total_copy_ratios, []]))) {
-            call seq_run.UpdateSequencingRun as UpdateDenoisedTotalCopyRatios {
-                input:
-                    sequencing_run = pair.left,
-                    denoised_total_copy_ratios = pair.right,
-            }
-        }
-    }
-    Array[SequencingRun] seqruns_dtcr = select_first([UpdateDenoisedTotalCopyRatios.updated_sequencing_run, seqruns_trc])
-
-    if (defined(snppanel_allelic_pileup_summaries)) {
-        scatter (pair in zip(seqruns_dtcr, select_first([snppanel_allelic_pileup_summaries, []]))) {
-            call seq_run.UpdateSequencingRun as UpdateAllelicPileupSummaries {
-                input:
-                    sequencing_run = pair.left,
-                    snppanel_allelic_pileup_summaries = pair.right,
-            }
-        }
-    }
-    Array[SequencingRun] seqruns_saps = select_first([UpdateAllelicPileupSummaries.updated_sequencing_run, seqruns_dtcr])
-
     # GroupBy sample name:
     # We assume that sample_names and bam_names share the same uniqueness,
     # that is if the supplied sample name is the same for two input bams, then the
     # bam names should also be the same, and vice versa.
 
     Array[String] theses_sample_names = select_first([sample_names, bam_names])
-    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_saps)))
+    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_sn)))
 
     # Pick tumor and normal samples apart:
 
@@ -339,9 +296,66 @@ workflow DefinePatient {
             raw_mutect2_artifact_priors_scattered = raw_mutect2_artifact_priors_scattered,
     }
 
+    scatter (sample in UpdateShards.updated_patient.samples) {
+        Array[SequencingRun] seqruns = sample.sequencing_runs
+    }
+
+    if (defined(callable_loci)) {
+        scatter (sample_pair in zip(seqruns, select_first([callable_loci, []]))) {
+            scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
+                call seq_run.UpdateSequencingRun as UpdateCallableLoci {
+                    input:
+                        sequencing_run = seqrun_pair.left,
+                        callable_loci = seqrun_pair.right
+                }
+            }
+        }
+    }
+    Array[Array[SequencingRun]] cl_seqrun = select_first([UpdateCallableLoci.updated_sequencing_run, seqruns])
+
+    if (defined(total_read_counts)) {
+        scatter (sample_pair in zip(cl_seqrun, select_first([total_read_counts, []]))) {
+            scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
+                call seq_run.UpdateSequencingRun as UpdateTotalReadCounts {
+                    input:
+                        sequencing_run = seqrun_pair.left,
+                        total_read_counts = seqrun_pair.right
+                }
+            }
+        }
+    }
+    Array[Array[SequencingRun]] trc_seqrun = select_first([UpdateTotalReadCounts.updated_sequencing_run, cl_seqrun])
+
+    if (defined(denoised_total_copy_ratios)) {
+        scatter (sample_pair in zip(trc_seqrun, select_first([denoised_total_copy_ratios, []]))) {
+            scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
+                call seq_run.UpdateSequencingRun as UpdateDenoisedTotalCopyRatios {
+                    input:
+                        sequencing_run = seqrun_pair.left,
+                        denoised_total_copy_ratios = seqrun_pair.right
+                }
+            }
+        }
+    }
+    Array[Array[SequencingRun]] dtcr_seqrun = select_first([UpdateDenoisedTotalCopyRatios.updated_sequencing_run, trc_seqrun])
+
+    if (defined(snppanel_allelic_pileup_summaries)) {
+        scatter (sample_pair in zip(dtcr_seqrun, select_first([snppanel_allelic_pileup_summaries, []]))) {
+            scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
+                call seq_run.UpdateSequencingRun as UpdateSnppanelAllelicPileupSummaries {
+                    input:
+                        sequencing_run = seqrun_pair.left,
+                        snppanel_allelic_pileup_summaries = seqrun_pair.right
+                }
+            }
+        }
+    }
+    Array[Array[SequencingRun]] sap_seqrun = select_first([UpdateSnppanelAllelicPileupSummaries.updated_sequencing_run, dtcr_seqrun])
+
     call p_update_s.UpdateSamples {
         input:
             patient = UpdateShards.updated_patient,
+            sequencing_runs = sap_seqrun,
             harmonized_callable_loci = harmonized_callable_loci,
             harmonized_denoised_total_copy_ratios = harmonized_denoised_total_copy_ratios,
             harmonized_snppanel_allelic_pileup_summaries = harmonized_snppanel_allelic_pileup_summaries,
