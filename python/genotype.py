@@ -455,7 +455,7 @@ class VCF(object):
         self.df = self.df.drop_duplicates(subset=["CHROM", "POS"], keep=False)
         n_kept_vars = self.df.shape[0]
         if n_kept_vars < n_input_vars:
-            print(f"    Dropping {n_input_vars - n_kept_vars} multi-allelic and non-SNV loci from Variants. {n_kept_vars} loci remaining.") if verbose else None
+            print(f"    Dropping {n_input_vars - n_kept_vars} multi-allelic and non-SNP loci from Variants. {n_kept_vars} loci remaining.") if verbose else None
         self.df = self.df.set_index(["CHROM", "POS"])
         self.df.index.names = ["contig", "position"]  # align to PileupLikelihood index names
 
@@ -601,7 +601,8 @@ class Genotyper(object):
         """
         if genotypes is None:
             genotypes = self.genotypes
-        return likelihoods.loc[likelihoods[genotypes].max(axis=1) >= self.min_genotype_likelihood]
+        total = likelihoods[genotypes].sum(axis=1)
+        return likelihoods.loc[likelihoods[genotypes].max(axis=1) >= self.min_genotype_likelihood * total]
 
     def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, contamination: float = 0.001, segments: pd.DataFrame = None) -> pd.DataFrame:
         """
@@ -729,13 +730,12 @@ class Genotyper(object):
             ba = log_plt2_prior + log1o + log1f + logf + st.betabinom(n, f_ba * s, (1 - f_ba) * s).logpmf(alt)
 
             het = np.logaddexp(ab, ba)
-            total = reduce(np.logaddexp, [aa, het, bb, outlier])
 
         likelihoods = pileup.copy()
-        likelihoods["0/0"] = np.exp(aa - total)
-        likelihoods["0/1"] = np.exp(het - total)
-        likelihoods["1/1"] = np.exp(bb - total)
-        likelihoods["./."] = np.exp(outlier - total)
+        likelihoods["0/0"] = np.exp(aa)
+        likelihoods["0/1"] = np.exp(het)
+        likelihoods["1/1"] = np.exp(bb)
+        likelihoods["./."] = np.exp(outlier)
 
         return likelihoods
 
@@ -757,6 +757,8 @@ class Genotyper(object):
             pd.DataFrame: DataFrame with joint genotype likelihoods for each genomic position.
         """
         # Calculate the joint genotype likelihoods.
+        message(f"Calculating joint genotype likelihoods ...") if self.verbose else None
+
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
 
@@ -767,16 +769,22 @@ class Genotyper(object):
             )
 
             def nansum(ndarray):
-                # testing for NaN throws errors for some reason, so testing for 1 (log(p) must be < 0)
+                # testing for NaN throws errors for some reason, so testing for 1 instead (log(p) must be < 0)
                 mask = ndarray != 1
                 if np.sum(mask) == 0:
                     return -np.inf
                 return np.average(ndarray[mask], weights=weights[mask])
 
-            joint_log_likelihood = {
-                gt: pd.concat([np.log(pl.df[gt]) for pl in pileup_likelihoods], axis=1).fillna(1).apply(nansum, axis=1)
-                for gt in self.genotypes
-            }
+            joint_log_likelihood = {}
+            for gt in self.genotypes:
+                log_likelihoods = []
+                for pl in pileup_likelihoods:
+                    # Only use evidence in covered regions.
+                    coverage_mask = pl.df[["ref_count", "alt_count"]].sum(axis=1) > 0
+                    log_likelihoods.append(np.log(pl.df.loc[coverage_mask, gt]))
+
+                joint_log_likelihood[gt] = pd.concat(log_likelihoods, axis=1).fillna(1).apply(nansum, axis=1)
+
         # Normalize likelihoods
         total = pd.concat(joint_log_likelihood.values(), axis=1).apply(lambda row: reduce(np.logaddexp, row), axis=1)
         genotype_likelihood = {
@@ -1011,6 +1019,8 @@ class GenotypeData(object):
         Raises:
             Warning: If genotype correlations between samples are below the threshold.
         """
+        message("Evaluating genotype concordance ...") if self.verbose else None
+
         sample_gt_list = []
         for pl in self.pileup_likelihoods:
             confident_calls = genotyper.select_confident_calls(likelihoods=pl.df)
@@ -1079,7 +1089,6 @@ class GenotypeData(object):
         nloc = nloc.fillna(0).astype(int)
 
         if self.verbose:
-            message("Evaluating genotype concordance ...")
             print("Kendall-tau correlation of variant genotypes between samples:")
             print(sample_correlation.round(3).to_string())
             print()
