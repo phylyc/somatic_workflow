@@ -65,6 +65,7 @@ workflow ModelSegments {
     # to be very permissive.
     if (pre_select_hets) {
         Int genotyping_homozygous_log_ratio_threshold = 100
+        Float model_segments_smoothing_credible_interval_threshold = args.model_segments_smoothing_credible_interval_threshold
     }
     if (!pre_select_hets) {
         # If not, we better use the matched normal for genotyping.
@@ -126,7 +127,7 @@ workflow ModelSegments {
                 kernel_approximation_dimension = args.model_segments_kernel_approximation_dimension,
                 genotyping_homozygous_log_ratio_threshold = genotyping_homozygous_log_ratio_threshold,
                 genotyping_base_error_rate = error_probability,
-                smoothing_credible_interval_threshold = args.model_segments_smoothing_credible_interval_threshold,
+                smoothing_credible_interval_threshold = model_segments_smoothing_credible_interval_threshold,
                 runtime_params = runtime_collection.model_segments
         }
 
