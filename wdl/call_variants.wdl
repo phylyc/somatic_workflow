@@ -263,6 +263,8 @@ task Mutect1 {
     String mutect1_vcf = tumor_sample_name + ".MuTect1.vcf"
     String mutect1_vcf_idx = tumor_sample_name + ".MuTect1.vcf.idx"
 
+    # COMPUTE DISK SIZE
+    Int diskGB = runtime_params.disk + ceil(size(ref_fasta, "GB") + size(germline_resource, "GB") + size(panel_of_normals, "GB") + size(tumor_bam, "GB") + size(normal_bam, "GB"))
 
     command <<<
         set -euxo pipefail
@@ -333,7 +335,7 @@ task Mutect1 {
         bootDiskSizeGb: runtime_params.boot_disk_size
         memory: runtime_params.machine_mem + " MB"
         runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
+        disks: "local-disk " + diskGB + " HDD"
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
