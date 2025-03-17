@@ -116,6 +116,7 @@ workflow CollectAllelicCounts {
                     getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                     minimum_population_allele_frequency = minimum_population_allele_frequency,
                     maximum_population_allele_frequency = maximum_population_allele_frequency,
+                    padding = padding,
                     compress_output = false,
                     runtime_params = runtime_collection.get_pileup_summaries,
             }
