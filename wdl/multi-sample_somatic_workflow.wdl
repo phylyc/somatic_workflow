@@ -213,10 +213,5 @@ workflow MultiSampleSomaticWorkflow {
         Array[File]? first_pass_cr_plots = CoverageWorkflow.first_pass_cr_plots
         Array[File]? first_pass_af_model_parameters = CoverageWorkflow.first_pass_af_model_parameters
         Array[File]? first_pass_cr_model_parameters = CoverageWorkflow.first_pass_cr_model_parameters
-
-        Array[File]? second_pass_cr_segmentations = CoverageWorkflow.second_pass_cr_segmentations
-        Array[File]? second_pass_cr_plots = CoverageWorkflow.second_pass_cr_plots
-        Array[File]? second_pass_af_model_parameters = CoverageWorkflow.second_pass_af_model_parameters
-        Array[File]? second_pass_cr_model_parameters = CoverageWorkflow.second_pass_cr_model_parameters
     }
 }
