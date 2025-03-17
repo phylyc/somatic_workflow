@@ -10,23 +10,26 @@ java -jar cromwell.jar run mult-sample_somatic_workflow.wdl --inputs mult-sample
 The workflow is organized into the following main tasks:
 
 ### 1. Preprocessing
-- **1.1 Define Patients**: Define a patient as a set of samples, and each sample as a set of sequencing runs. Sequencing runs are grouped by sample name.
-- **1.2 Preprocess and Split Calling Intervals**: Prepare the intervals for scatter-gather tasks for variant calling, realignment, and annotation.
+- **1.1 Preprocess and Split Calling Intervals**: Prepare the intervals for scatter-gather tasks in shards for variant calling.
+- **1.2 Define Patients**: Define a patient as a set of samples, and each sample as a set of sequencing runs. Sequencing runs are grouped by sample name.
 
 ### 2. Coverage Aggregation
-- **2.1 Total Read Count Collection**: Collect total read counts in target intervals and perform denoising of total copy ratios via tangent-normalization.
-- **2.2 Allelic Read Count Collection**: Collect allelic read counts at common germline sites (SNP panel: `common_germline_alleles`).
-- **2.3 Harmonization of Target Intervals and Allelic Counts**: Harmonize target intervals across samples, subset to intersection; merge read count data from multiple sequencing runs per sample.
-- **2.4 Contamination Estimation**: Estimate out-of-patient contamination in each sample.
-- **2.5 First-pass copy ratio segmentation**: Same as steps 4.2-4.6 to get a prior allelic copy ratio segmentation which is used for filtering SNVs (3.2) and for genotyping germline sites (4.1).
+- **2.1 Callable Loci Collection**: (Coming Soon) 
+- **2.2 Total Read Count Collection**: Collect total read counts in target intervals and perform denoising of total copy ratios via tangent-normalization.
+- **2.3 Allelic Read Count Collection**: Collect allelic read counts at common germline sites (SNP panel: `common_germline_alleles`).
+- **2.4 Harmonization of Target Intervals and Allelic Counts**: Harmonize target intervals across samples, subset to intersection; merge read count data from multiple sequencing runs per sample.
+- **2.5 Contamination Estimation**: Estimate out-of-patient contamination in each sample.
+- **2.6 First-pass copy ratio segmentation**: get a prior allelic copy ratio segmentation which is used for filtering SNVs (3.2) and for genotyping germline sites (4.1)
 
 ### 3. SNV Calling
 Tasks involved in the detection and analysis of short nucleotide variations:
-- **3.1 Mutect2 Multi-sample Calling**: Use Mutect2 for multi-sample mutation calling.
-- **3.2 Filter Variant Calls**: Apply statistical filters for sequencing artifacts, germline variants, read orientation bias, and contamination, among others.
-- **3.3 Hard Filtering**: Apply hard filters based on base quality, mappability, fragment length, read depth, read orientation quality, position on the read, and population allele frequency.
-- **3.4 Realignment Filter**: Filter based on realignment success (to hg38 or whichever reference is given by `realignment_bwa_mem_index_image`).
-- **3.5 Annotate SNVs**: Annotate short nucleotide variants with functional information.
+- **3.1 Mutect1 Single-sample Calling**: Use Mutect1 for single-sample mutation calling in tumor-normal mode if a matched normal sample is available.
+- **3.2 Mutect2 Multi-sample Calling**: Use Mutect2 for multi-sample mutation calling. Force-call alleles that were called via Mutect1.
+- **3.3 Filter Variant Calls**: Annotate and select somatic vs germline vs artifactual variants based on various filters.
+  - **3.3a Filter**: Apply statistical filters for sequencing artifacts, germline variants, read orientation bias, and contamination, among others.
+  - **3.3b Hard Filter**: Apply hard filters based on base quality, mappability, fragment length, read depth, read orientation quality, position on the read, and population allele frequency.
+  - **3.3c Realignment Filter**: Filter based on realignment success (to hg38 or whichever reference is given by `realignment_bwa_mem_index_image`).
+- **3.4 Annotate SNVs**: Annotate short nucleotide variants with functional information.
 
 ### 4. CNV Calling
 Tasks involved in the detection and analysis of copy number variations:
@@ -34,11 +37,12 @@ Tasks involved in the detection and analysis of copy number variations:
 - **4.2 Multi-sample Segmentation**: Segment denoised total copy ratios and allelic copy ratio across multiple samples.
 - **4.3 Per-sample Copy Ratio Inference**: Infer copy ratios for each sample.
 - **4.4 Per-sample Event Calling**: Call amplifications and deletions for each sample. 
-- **4.5 Per-sample Germline Filtering**: Filter segments called as amp/del in the matched normal sample from the tumor segmentations.
-- **4.6 Per-sample Segmentation Plotting**: Plot the segmented denoised copy ratios and allelic copy ratios for each sample.
+- **4.5 Per-sample Segmentation Plotting**: Plot the segmented denoised copy ratios and allelic copy ratios for each sample.
+- **4.6 Per-sample Germline Filtering**: Filter segments called as amp/del in the matched normal sample from the tumor segmentations. (optional, by default turned off)
 
 ### 5. Clonal Analysis
 - **5.1 ABSOLUTE**: Perform per-sample clonal analysis of the identified variants and estimate tumor purity and ploidy.
+- **5.2 ABSOLUTE extraction**: Extract results for one chosen solution (needs manual input).
 
 Please remember to always review the intermediate results to ensure that the final results are as expected. Inappropriate filtering or parameter settings can lead to misleading output.
 
@@ -47,19 +51,20 @@ Please remember to always review the intermediate results to ensure that the fin
 Detailed descriptions of expected inputs:
 
 ```wdl
-# This string is used to label the patient-specific outputs of the workflow.
-String individual_id
-# If defined, all arrays must have the same length. Each entry corresponds to a 
+# This string is used to label the outputs of the workflow.
+String patient_id
+String? sex
+# If defined, all arrays must have the same length. Each entry corresponds to a
 # sequencing run, and the same index in each array corresponds to the same run.
-# Several sequencing runs from the same physical sample are allowed and will be 
+# Several sequencing runs from the same physical sample are allowed and will be
 # grouped based on the sample name. If the sample name is not provided, it will
 # be inferred from the bam.
 Array[String]? sample_names
 Array[File]+ bams
 Array[File]+ bais
-# For targeted sequencing, the (possibly padded and ideally blacklist-removed) 
-# target intervals must be supplied. For whole genome sequencing, the intervals 
-# are just the binned chromosomal intervals (ideally blacklist-removed). 
+# For targeted sequencing, the (possibly padded and ideally blacklist-removed)
+# target intervals must be supplied. For whole genome sequencing, the intervals
+# are just the chromosomal intervals (ideally blacklist-removed).
 Array[File]+ target_intervals
 # The target_intervals annotated with gc content, mappability, and segmental duplications. 
 Array[File]? annotated_target_intervals
@@ -67,15 +72,13 @@ Array[File]? annotated_target_intervals
 # its corresponding path must point to an empty file (of size 0B). The 
 # annotated_target_intervals will instead be used for denoising.
 Array[File]? cnv_panel_of_normals
-# Paired-end reads that overlap at some sites of interest lead to double counting. 
-# This process in general is more of an issue in cell-free DNA where the vast majority 
-# of templates are ~166bp long, which is shorter than twice the read length. The result 
-# is that many bases on a given template are reported twice, once from each paired-end 
-# read. This is mitigated by setting the respective `is_paired_end` entry to `true`.
-Array[Boolean]? is_paired_end       # Boolean inputs, ensure correct format!
+# Setting this avoids double counting evidence from paired-end reads. This is
+# particularly important for cell-free DNA samples, where the majority of
+# templates is shorter than twice the read length.
+Array[Boolean]? is_paired_end
 # Whether to use the sample for denoised copy ratio (dCR) and allelic copy ratio 
 # (aCR) estimation. If not provided, all samples will be used.
-Array[Boolean]? use_sample_for_dCR  # Boolean inputs, ensure correct format!
+Array[Boolean]? use_sample_for_tCR  # Boolean inputs, ensure correct format!
 Array[Boolean]? use_sample_for_aCR  # Boolean inputs, ensure correct format!
     
 # A list of normal sample names. If not provided, all samples will be treated as
@@ -99,15 +102,15 @@ File ref_dict
 # VCF file of sites to force mutation calling at, e.g. COSMIC or known driver mutations.
 File? force_call_alleles
 File? force_call_alleles_idx
-# VCF file of common sequencing artifacts to filter out. This should match the 
+# VCF file of common SNV sequencing artifacts to filter out. This should match the 
 # sequencing platform(s) of the samples.
 File? snv_panel_of_normals
 File? snv_panel_of_normals_idx
-# VCF file of annotating / filtering germline alleles (gnomAD).
+# VCF file with AF field for annotating / filtering germline alleles (gnomAD).
 File? germline_resource
 File? germline_resource_idx
 # VCF file of common biallelic germline alleles (e.g. population allele frequency > 5%) to
-# collect allelic counts at for first-pass allelic copy ratio (aCR) and contamination estimation.
+# collect allelic counts at for allelic copy ratio (aCR) and contamination estimation.
 File? common_germline_alleles
 File? common_germline_alleles_idx
 # BWA index image file for realignment task (to hg38).
@@ -121,86 +124,82 @@ File? funcotator_data_sources_tar_gz
 
 ## Expected Final Outputs
 ```wdl
-### COVERAGE WORKFLOW:
-# Read count summarization of bam files.
-# Total read counts in supplied target intervals for each sequencing run (!)
-Array[File?]? target_read_counts
-# Harmonized denoised total copy ratios for each sample
-Array[File?]? denoised_copy_ratios
-# Allelic read count pileup tables at sites of common and rare germline sites
-Array[File]? germline_pileups
-# Interval list of bases covered by at least 4 reads
-Array[File?]? covered_regions_interval_list
-# Contamination estimates for each sample
-Array[File]? contamination_tables
-    
-# FIRST-PASS copy ratio segmentations; see below for final segmentations
-# Multi-sample segmentation intervals
-File? first_pass_modeled_segments
-# Denoised copy ratio and allelic copy ratio segmentations per sample
-Array[File]? first_pass_cr_segmentations
-# Denoised copy ratio and allelic copy ratio segmentation model plots
-Array[File]? first_pass_cr_plots
-# Model parameters from GATK's ModelSegments 
-Array[File]? first_pass_af_model_parameters
-Array[File]? first_pass_cr_model_parameters
+# for each sequencing run:
+# CACHE (as returned by the workflow)
+Array[Array[File]]? callable_loci = Output.callable_loci
+Array[Array[File]]? total_read_counts = Output.total_read_counts
+Array[Array[File]]? denoised_total_copy_ratios = Output.denoised_total_copy_ratios
+Array[Array[File]]? snppanel_allelic_pileup_summaries = Output.snppanel_allelic_pileup_summaries
 
-### SNV WORKFLOW
-# Raw Mutect2 output of called variants
-File? unfiltered_vcf
-File? unfiltered_vcf_idx
-File? mutect_stats
-# Learned read orientation bias for filtering FFPE or OxOG artifacts
-File? orientation_bias
-# unfiltered_vcf with filter annotations for several artifacts, germline, and PASS (somatic)
-File? filtered_vcf
-File? filtered_vcf_idx
-File? filtering_stats
-# Final, selected multi-sample somatic vcf
-File? somatic_vcf
-File? somatic_vcf_idx
-# Locally realigned multi-sample bam containing only reads covering the filtered, selected somatic calls
-File? somatic_calls_bam
-File? somatic_calls_bai
-# MAF with functional annotations from Funcotator 
-Array[File]? annotated_variants
-Array[File?]? annotated_variants_idx
+# for each sample:
+# CACHE (as returned by the workflow)
+Array[File]? harmonized_callable_loci = Output.harmonized_callable_loci
+Array[File]? harmonized_denoised_total_copy_ratios = Output.harmonized_denoised_total_copy_ratios
+Array[File]? harmonized_snppanel_allelic_pileup_summaries = Output.harmonized_snppanel_allelic_pileup_summaries
+Array[File]? contamination_table = Output.contamination_table
+Array[File]? af_segmentation_table = Output.af_segmentation_table
+Array[File]? allelic_pileup_summaries = Output.allelic_pileup_summaries
+Array[File]? aggregated_allelic_read_counts = Output.aggregated_allelic_read_counts
+Array[Float]? genotype_error_probabilities = Output.genotype_error_probabilities
+Array[File]? af_model_parameters = Output.af_model_parameters
+Array[File]? cr_model_parameters = Output.cr_model_parameters
+Array[File]? called_copy_ratio_segmentation = Output.called_copy_ratio_segmentation
+Array[File]? cr_plot = Output.cr_plot
+Array[File]? acs_copy_ratio_segmentation = Output.acs_copy_ratio_segmentation
+Array[Float]? acs_copy_ratio_skew = Output.acs_copy_ratio_skew
+Array[File]? annotated_somatic_variants = Output.annotated_somatic_variants
+Array[File?]? annotated_somatic_variants_idx = Output.annotated_somatic_variants_idx
+Array[File]? absolute_acr_rdata = Output.absolute_acr_rdata
+Array[File]? absolute_acr_plot = Output.absolute_acr_plot
+Array[File]? absolute_snv_maf = Output.absolute_snv_maf
+Array[File]? absolute_indel_maf = Output.absolute_indel_maf
+Array[Int]? absolute_solution = Output.absolute_solution
+Array[File]? absolute_maf = Output.absolute_maf
+Array[File]? absolute_segtab = Output.absolute_segtab
+Array[File]? absolute_table = Output.absolute_table
+Array[Float]? purity = Output.purity
+Array[Float]? ploidy = Output.ploidy
 
-### CNV WORKFLOW
-# gVCF file with genotype information for sites from the SNP panel (common germline alleles) 
-# and rare germline alleles that were called by the SNV workflow
-File? germline_vcf
-File? germline_vcf_idx
-# Allelic read count matrices at sites of the germline_vcf
-File? germline_ref_counts
-File? germline_alt_counts
-File? germline_other_alt_counts
-# Sample cross-correlation table of variant genotypes. Low correlation indicates patient-mismatch or sample swaps. 
-File? germline_sample_correlation
-# Allelic read count pileup tables at sites of the germline_vcf with genotype likelihoods
-Array[File]? germline_sample_genotype_likelihoods
-# Germline pileups in allelic count format
-Array[File]? germline_allelic_counts
+Array[File]? first_pass_cr_segmentations = CoverageWorkflow.first_pass_cr_segmentations
+Array[File]? first_pass_cr_plots = CoverageWorkflow.first_pass_cr_plots
+Array[File]? first_pass_af_model_parameters = CoverageWorkflow.first_pass_af_model_parameters
+Array[File]? first_pass_cr_model_parameters = CoverageWorkflow.first_pass_cr_model_parameters
 
-# FINAL copy ratio segmentations
-# Multi-sample segmentation intervals
-File? modeled_segments
-# Denoised copy ratio and allelic copy ratio segmentations per sample
-Array[File]? cr_segmentations
-# Denoised copy ratio and allelic copy ratio segmentation model plots
-Array[File]? cr_plots
-# Model parameters from GATK's ModelSegments 
-Array[File]? af_model_parameters
-Array[File]? cr_model_parameters
-# Allelic read count tables as used by ModelSegments to infer allelic copy ratio.
-# The genomic loci are moved to match the target intervals, and read counts are 
-# aggregated across ach interval (haplotype-aware).
-Array[File]? segmentation_allelic_counts
+# for each interval shard:
+# CACHE (as returned by the workflow)
+Array[File]? raw_calls_mutect2_vcf_scattered = Output.raw_calls_mutect2_vcf_scattered
+Array[File]? raw_calls_mutect2_vcf_idx_scattered = Output.raw_calls_mutect2_vcf_idx_scattered
+Array[File]? raw_mutect2_stats_scattered = Output.raw_mutect2_stats_scattered
+Array[File]? raw_mutect2_bam_out_scattered = Output.raw_mutect2_bam_out_scattered
+Array[File]? raw_mutect2_bai_out_scattered = Output.raw_mutect2_bai_out_scattered
+Array[File]? raw_mutect2_artifact_priors_scattered = Output.raw_mutect2_artifact_priors_scattered
 
-# ABSOLUTE output files per sample. Manual review necessary for downstream analysis!
-Array[File]? absolute_acr_plots
-Array[File]? absolute_acr_rdata
+# for patient
+File? raw_snv_calls_vcf = out_patient.raw_snv_calls_vcf
+File? raw_snv_calls_vcf_idx = out_patient.raw_snv_calls_vcf_idx
+File? mutect2_stats = out_patient.mutect2_stats
+File? orientation_bias = out_patient.orientation_bias
+File? filtered_vcf = out_patient.filtered_vcf
+File? filtered_vcf_idx = out_patient.filtered_vcf_idx
+File? filtering_stats = out_patient.filtering_stats
+File? somatic_vcf = out_patient.somatic_vcf
+File? somatic_vcf_idx = out_patient.somatic_vcf_idx
+File? germline_vcf = out_patient.germline_vcf
+File? germline_vcf_idx = out_patient.germline_vcf_idx
+File? rare_germline_alleles = out_patient.rare_germline_alleles
+File? rare_germline_alleles_idx = out_patient.rare_germline_alleles_idx
+File? somatic_calls_bam = out_patient.somatic_calls_bam
+File? somatic_calls_bai = out_patient.somatic_calls_bai
+File? gvcf = out_patient.gvcf
+File? gvcf_idx = out_patient.gvcf_idx
+File? snp_ref_counts = out_patient.snp_ref_counts
+File? snp_alt_counts = out_patient.snp_alt_counts
+File? snp_other_alt_counts = out_patient.snp_other_alt_counts
+File? snp_sample_correlation = out_patient.snp_sample_correlation
+File? modeled_segments = out_patient.modeled_segments
 ```
+The outputs can be used as cached workflow inputs with the same name to skip the corresponding tasks.
+
 
 ## Important Notes:
 - Up until GATK v4.5.0.0, force-calling alleles led to mis-classification of filtered variants in the same way as [the flag `--genotype-germline-sites` does](https://github.com/broadinstitute/gatk/issues/7391). Use GATK v4.6.0.0 or higher.
