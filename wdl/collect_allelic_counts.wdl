@@ -41,6 +41,7 @@ workflow CollectAllelicCounts {
         Float minimum_population_allele_frequency = 0.0
         Float maximum_population_allele_frequency = 1.0
         Int minimum_read_depth = 0
+        Int padding = 0
 
         Boolean compress_output = false
 
@@ -146,6 +147,7 @@ workflow CollectAllelicCounts {
                 getpileupsummaries_extra_args = getpileupsummaries_extra_args,
                 minimum_population_allele_frequency = minimum_population_allele_frequency,
                 maximum_population_allele_frequency = maximum_population_allele_frequency,
+                padding = padding,
                 compress_output = compress_output,
                 runtime_params = runtime_collection.get_pileup_summaries,
         }
@@ -332,6 +334,7 @@ task GetPileupSummaries {
 
         Float minimum_population_allele_frequency = 0.0
         Float maximum_population_allele_frequency = 1.0
+        Int padding = 0
 
         Boolean compress_output
 
@@ -363,12 +366,14 @@ task GetPileupSummaries {
         if [ "~{defined(scattered_intervals)}" == "true" ]; then
             select_variants \
                 -V '~{variants}' \
-                -L '~{scattered_intervals}'
+                -L '~{scattered_intervals}' \
+                --interval-padding '~{padding}'
         fi
         if [ "~{defined(interval_list)}" == "true" ]; then
             select_variants \
                 -V '~{if defined(scattered_intervals) then "selected_loci.vcf" else variants}' \
-                -L '~{interval_list}'
+                -L '~{interval_list}' \
+                --interval-padding '~{padding}'
         fi
         if [ "~{defined(interval_blacklist)}" == "true" ]; then
             select_variants \

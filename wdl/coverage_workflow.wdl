@@ -72,6 +72,7 @@ workflow CoverageWorkflow {
                         minimum_population_allele_frequency = args.min_snppanel_pop_af,
                         maximum_population_allele_frequency = args.max_snppanel_pop_af,
                         minimum_read_depth = args.min_snppanel_read_depth,
+                        padding = args.het_to_interval_mapping_max_distance,
                         runtime_collection = runtime_collection,
                 }
             }
