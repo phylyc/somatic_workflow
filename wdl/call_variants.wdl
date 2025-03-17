@@ -298,7 +298,7 @@ task Mutect1 {
         fi
 
         # Run MuTect1 (without force-calling, will be done by Mutect2)
-        java "-Xmx${command_mb}m" -jar muTect-1.1.6.jar \
+        java "-Xmx${command_mb}m" -jar /muTect-1.1.6.jar \
             --analysis_type MuTect \
             --reference_sequence '~{ref_fasta}' \
             --intervals '~{interval_list}' \
