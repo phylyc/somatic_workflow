@@ -128,12 +128,12 @@ workflow DefineWorkflowArguments {
         Boolean run_collect_allelic_read_counts = true
         Boolean run_contamination_model = true
         Boolean run_orientation_bias_mixture_model = true
-        Boolean run_model_segments = true
         Boolean run_variant_calling = true
         Boolean run_variant_filter = true
         Boolean run_realignment_filter = true
         Boolean run_variant_annotation = true
         Boolean run_variant_annotation_scattered = false
+        Boolean run_model_segments = true
         Boolean run_clonal_decomposition = true
 
         Boolean keep_germline = true
@@ -292,12 +292,12 @@ workflow DefineWorkflowArguments {
         run_collect_allelic_read_counts: run_collect_allelic_read_counts,
         run_contamination_model: run_contamination_model,
         run_orientation_bias_mixture_model: run_orientation_bias_mixture_model,
-        run_model_segments: run_model_segments,
         run_variant_calling: run_variant_calling,
         run_variant_filter: run_variant_filter,
         run_realignment_filter: run_realignment_filter,
         run_variant_annotation: run_variant_annotation,
         run_variant_annotation_scattered: run_variant_annotation_scattered,
+        run_model_segments: run_model_segments,
         run_clonal_decomposition: run_clonal_decomposition,
 
         keep_germline: keep_germline,

@@ -176,7 +176,12 @@ workflow MultiSampleSomaticWorkflow {
         Array[Float]? purity = Output.purity
         Array[Float]? ploidy = Output.ploidy
 
-        # for each shard:
+        Array[File]? first_pass_cr_segmentations = CoverageWorkflow.first_pass_cr_segmentations
+        Array[File]? first_pass_cr_plots = CoverageWorkflow.first_pass_cr_plots
+        Array[File]? first_pass_af_model_parameters = CoverageWorkflow.first_pass_af_model_parameters
+        Array[File]? first_pass_cr_model_parameters = CoverageWorkflow.first_pass_cr_model_parameters
+
+        # for each interval shard:
         # CACHE (as returned by the workflow)
         Array[File]? raw_calls_mutect2_vcf_scattered = Output.raw_calls_mutect2_vcf_scattered
         Array[File]? raw_calls_mutect2_vcf_idx_scattered = Output.raw_calls_mutect2_vcf_idx_scattered
@@ -208,10 +213,5 @@ workflow MultiSampleSomaticWorkflow {
         File? snp_other_alt_counts = out_patient.snp_other_alt_counts
         File? snp_sample_correlation = out_patient.snp_sample_correlation
         File? modeled_segments = out_patient.modeled_segments
-
-        Array[File]? first_pass_cr_segmentations = CoverageWorkflow.first_pass_cr_segmentations
-        Array[File]? first_pass_cr_plots = CoverageWorkflow.first_pass_cr_plots
-        Array[File]? first_pass_af_model_parameters = CoverageWorkflow.first_pass_af_model_parameters
-        Array[File]? first_pass_cr_model_parameters = CoverageWorkflow.first_pass_cr_model_parameters
     }
 }

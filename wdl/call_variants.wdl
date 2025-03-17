@@ -64,10 +64,67 @@ workflow CallVariants {
         Array[File]? normal_bais = flatten(seq_normal_bais)
     }
 
-    # TODO: add Mutect1 and pipe via force-calling alleles into Mutect2
+    # TODO: add Strelka2
 
     scatter (shard in patient.shards) {
         if (size(shard.raw_calls_mutect2_vcf) == 0) {
+
+            # Mutect1
+            scatter (sample in patient.samples){
+                # Check if patient has matched_normal_sample
+                if (defined(patient.matched_normal_sample)) {
+                    Sample this_matched_normal_sample = select_first([patient.matched_normal_sample]) # Cast from Sample? to Sample
+                    String matched_normal_sample_name = this_matched_normal_sample.name
+                    SequencingRun this_matched_normal_seq_run = select_first(this_matched_normal_sample.sequencing_runs) # Cast from SequencingRun? to SequencingRun
+                    File matched_normal_bam = this_matched_normal_seq_run.bam
+                    File matched_normal_bai = this_matched_normal_seq_run.bai
+                }
+
+                scatter (seq_run in sample.sequencing_runs) {
+                    if (sample.name != matched_normal_sample_name) { # Mutect1 doesn't like same BAM being tumor and normal
+                        call Mutect1 {
+                            input:
+                                interval_list = shard.intervals,
+                                ref_fasta = args.files.ref_fasta,
+                                ref_fasta_index = args.files.ref_fasta_index,
+                                ref_dict = args.files.ref_dict,
+                                germline_resource = args.files.germline_resource_v4_1,
+                                germline_resource_idx = args.files.germline_resource_v4_1_idx,
+                                panel_of_normals = args.files.snv_panel_of_normals_v4_1,
+                                panel_of_normals_idx = args.files.snv_panel_of_normals_v4_1_idx,
+                                contamination_table = sample.contamination_table,
+
+                                individual_id = patient.name,
+                                tumor_sample_name = sample.name,
+                                tumor_bam = seq_run.bam,
+                                tumor_bai = seq_run.bai,
+                                normal_sample_name = matched_normal_sample_name,
+                                normal_bam = matched_normal_bam,
+                                normal_bai = matched_normal_bai,
+
+                                runtime_params = runtime_collection.mutect1,
+                        }
+                    }
+                }
+            }
+            # Within a shard
+            Array[File] mutect1_vcfs = select_all(flatten(Mutect1.mutect1_vcf))
+            Array[File] mutect1_vcfs_idx = select_all(flatten(Mutect1.mutect1_vcf_idx))
+
+            call MergeMutect1ForceCallVCFs {
+                input:
+                    interval_list = shard.intervals,
+                    ref_fasta = args.files.ref_fasta,
+                    ref_fasta_index = args.files.ref_fasta_index,
+                    ref_dict = args.files.ref_dict,
+
+                    mutect1_vcfs = mutect1_vcfs,
+                    mutect1_vcfs_idx = mutect1_vcfs_idx,
+                    force_call_alleles = args.files.force_call_alleles,
+                    force_call_alleles_idx = args.files.force_call_alleles_idx,
+                    runtime_params = runtime_collection.merge_mutect1_forcecall_vcfs
+            }
+
             call Mutect2 {
                 input:
                     interval_list = shard.intervals,
@@ -80,8 +137,8 @@ workflow CallVariants {
                     normal_bams = normal_bams,
                     normal_bais = normal_bais,
                     normal_sample_names = normal_sample_names,
-                    force_call_alleles = args.files.force_call_alleles,
-                    force_call_alleles_idx = args.files.force_call_alleles_idx,
+                    force_call_alleles = MergeMutect1ForceCallVCFs.merged_vcf,
+                    force_call_alleles_idx = MergeMutect1ForceCallVCFs.merged_vcf_idx,
                     panel_of_normals = args.files.snv_panel_of_normals,
                     panel_of_normals_idx = args.files.snv_panel_of_normals_idx,
                     germline_resource = args.files.germline_resource,
@@ -168,6 +225,196 @@ workflow CallVariants {
     }
 }
 
+task Mutect1 {
+    input {
+        File interval_list
+        File ref_fasta
+        File ref_fasta_index
+        File ref_dict
+        File? germline_resource
+        File? germline_resource_idx
+        File? panel_of_normals
+        File? panel_of_normals_idx
+
+        String individual_id
+        String tumor_sample_name
+        File tumor_bam
+        File tumor_bai
+        String? normal_sample_name
+        File? normal_bam
+        File? normal_bai
+
+        Int downsample_to_coverage = 99999
+        Int max_alt_alleles_in_normal_count = 10000
+        Int max_alt_alleles_in_normal_qscore_sum = 10000
+        File? contamination_table
+        Int tumor_f_pretest = 0
+        Float initial_tumor_lod = 0.5
+        Int tumor_lod = 0
+
+        Boolean only_passing_calls = true
+
+        Runtime runtime_params
+    }
+
+    String call_stats = tumor_sample_name + ".MuTect1.call_stats.txt"
+    String coverage_wig = tumor_sample_name + ".MuTect1.coverage.wig.txt"
+    String power_wig = tumor_sample_name + ".MuTect1.power.wig.txt"
+    String mutect1_vcf = tumor_sample_name + ".MuTect1.vcf"
+    String mutect1_vcf_idx = tumor_sample_name + ".MuTect1.vcf.idx"
+
+
+    command <<<
+        set -euxo pipefail
+
+        # Dynamically calculate memory usage for Cromwell's retry_with_more_memory feature:
+        # This only works in a cloud VM! For HPC, you need to check cgroups.
+        machine_mb=$( free -m | awk '{ print $NF }' | head -n 2 | tail -1 )   # change to -g for GB output from free
+
+        ten_percent_machine_mb=$(( $machine_mb * 10 / 100 ))
+        runtime_overhead_mb=~{runtime_params.machine_mem - runtime_params.command_mem}
+
+        # Leave 10% of memory or runtime_overhead for overhead, whichever is larger
+        if [ $ten_percent_machine_mb -gt $runtime_overhead_mb ]; then
+            overhead_mb=$ten_percent_machine_mb
+        else
+            overhead_mb=$runtime_overhead_mb
+        fi
+        command_mb=$(( $machine_mb  - $overhead_mb ))
+
+        echo ""
+        echo "Available memory: $machine_mb MB."
+        echo "Overhead: $overhead_mb MB."
+        echo "Using $command_mb MB of memory for Mutect1."
+        echo ""
+
+        # Parse contamination_table
+        if [ "~{defined(contamination_table)}" == "true" ]; then
+            fraction_contamination=$(tail -n 1 '~{contamination_table}' | awk '{print $2}')
+        else
+            fraction_contamination=0
+        fi
+
+        # Run MuTect1 (without force-calling, will be done by Mutect2)
+        java "-Xmx${command_mb}m" -jar muTect-1.1.6.jar \
+            --analysis_type MuTect \
+            --reference_sequence '~{ref_fasta}' \
+            --intervals '~{interval_list}' \
+            --tumor_sample_name '~{tumor_sample_name}' \
+            -I:tumor '~{tumor_bam}' \
+            ~{"--normal_sample_name '" + normal_sample_name + "'"} \
+            ~{"-I:normal '" + normal_bam + "'"} \
+            ~{"--normal_panel '" + panel_of_normals + "'"} \
+            ~{"--dbsnp '" + germline_resource + "'"} \
+            --downsample_to_coverage ~{downsample_to_coverage} \
+            --max_alt_alleles_in_normal_count ~{max_alt_alleles_in_normal_count} \
+            --max_alt_alleles_in_normal_qscore_sum ~{max_alt_alleles_in_normal_qscore_sum} \
+            --fraction_contamination $fraction_contamination \
+            --tumor_f_pretest ~{tumor_f_pretest} \
+            --initial_tumor_lod ~{initial_tumor_lod} \
+            --tumor_lod ~{tumor_lod} \
+            --out '~{call_stats}' \
+            --coverage_file '~{coverage_wig}' \
+            --power_file '~{power_wig}' \
+            ~{if only_passing_calls then "--only_passing_calls" else ""} \
+            --vcf '~{mutect1_vcf}'
+    >>>
+
+    output {
+        File mutect1_call_stats = call_stats
+        File mutect1_coverage_wig = coverage_wig
+        File mutect1_power_wig = power_wig
+        File mutect1_vcf = mutect1_vcf
+        File mutect1_vcf_idx = mutect1_vcf_idx
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+ }
+
+task MergeMutect1ForceCallVCFs {
+    input {
+        File interval_list
+        File ref_fasta
+        File ref_fasta_index
+        File ref_dict
+
+        Array[File] mutect1_vcfs # not gzipped
+        Array[File] mutect1_vcfs_idx # not gzipped
+        File? force_call_alleles # gzipped
+        File? force_call_alleles_idx # gzipped
+
+        Runtime runtime_params
+    }
+
+    String base = "merged_mutect1"
+    String mutect1_vcf = base + ".vcf.gz"
+    String mutect1_pass_no_genotypes_vcf = base + ".pass.no_genotypes.vcf.gz"
+    String mutect1_pass_no_genotypes_forcecalled_vcf = base + ".pass.no_genotypes.forcecalled.vcf.gz"
+    String mutect1_pass_no_genotypes_forcecalled_dedup_vcf = base + ".pass.no_genotypes.forcecalled.dedup.vcf.gz"
+    String mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx = mutect1_pass_no_genotypes_forcecalled_dedup_vcf + ".tbi"
+    String mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf = base + ".pass.no_genotypes.forcecalled.dedup.subset.vcf.gz"
+    String mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf_idx = mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf + ".tbi"
+
+    command <<<
+        set -euxo pipefail
+
+        # Concat all samples VCFs from shardX and compress the merged output
+        bcftools concat ~{sep="' " prefix(" '", mutect1_vcfs)} -Oz > '~{mutect1_vcf}'
+
+        # Drop FORMAT and sample name columns (i.e. only keep #CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO columns)
+        bcftools view -i 'FILTER=="PASS"' '~{mutect1_vcf}' | \
+            bcftools view --drop-genotypes -Oz > '~{mutect1_pass_no_genotypes_vcf}'
+
+        # Union with force_call_alleles vcf
+        bcftools concat '~{mutect1_pass_no_genotypes_vcf}' '~{force_call_alleles}' -Oz > '~{mutect1_pass_no_genotypes_forcecalled_vcf}'
+        rm -f '~{mutect1_pass_no_genotypes_vcf}'
+
+        # Deduplicate based on #CHROM, POS, REF, ALT (sorting is needed for --rm-dup to work properly)
+        bcftools sort '~{mutect1_pass_no_genotypes_forcecalled_vcf}' | \
+            bcftools norm --rm-dup both -Oz > '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}'
+        rm -f '~{mutect1_pass_no_genotypes_forcecalled_vcf}'
+
+        # Index the deduplicated VCF for gatk SelectVariants
+        gatk --java-options "-Xmx$~{runtime_params.command_mem}m" IndexFeatureFile \
+            -I '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' \
+            -O '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx}'
+
+        # Use gatk SelectVariants to subset SNV positions only found in the interval_list
+        # This also outputs an index file with it
+        gatk --java-options "-Xmx$~{runtime_params.command_mem}m" SelectVariants \
+            -R '~{ref_fasta}' \
+            -V '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' \
+            -L '~{interval_list}' \
+            -O '~{mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf}'
+
+        rm -f '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx}'
+    >>>
+
+    output {
+        File merged_vcf = mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf
+        File merged_vcf_idx = mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf_idx
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+}
 
 task Mutect2 {
     input {
