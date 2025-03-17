@@ -103,8 +103,8 @@ workflow CallVariants {
             }
         }
         # Within a shard
-        Array[File?] mutect1_vcfs = select_all(flatten(Mutect1.mutect1_vcf))
-        Array[File?] mutect1_vcfs_idx = select_all(flatten(Mutect1.mutect1_vcf_idx))
+        Array[File] mutect1_vcfs = select_all(flatten(Mutect1.mutect1_vcf))
+        Array[File] mutect1_vcfs_idx = select_all(flatten(Mutect1.mutect1_vcf_idx))
 
         call MergeMutect1ForceCallVCFs {
             input:
@@ -313,8 +313,8 @@ task MergeMutect1ForceCallVCFs {
         File ref_fasta_index
         File ref_dict
 
-        Array[File?] mutect1_vcfs # not gzipped
-        Array[File?] mutect1_vcfs_idx # not gzipped
+        Array[File] mutect1_vcfs # not gzipped
+        Array[File] mutect1_vcfs_idx # not gzipped
         File? force_call_alleles # gzipped
         File? force_call_alleles_idx # gzipped
 
@@ -351,16 +351,16 @@ task MergeMutect1ForceCallVCFs {
 
         # Index the deduplicated VCF for gatk SelectVariants
         gatk --java-options "-Xmx$~{runtime_params.command_mem}m" IndexFeatureFile \
-        -I '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' \
-        -O '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx}'
+            -I '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' \
+            -O '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx}'
 
         # Use gatk SelectVariants to subset SNV positions only found in the interval_list
         # This also outputs an index file with it
         gatk --java-options "-Xmx$~{runtime_params.command_mem}m" SelectVariants \
-        -R '~{ref_fasta}' \
-        -V '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' \
-        -L '~{interval_list}' \
-        -O '~{mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf}'
+            -R '~{ref_fasta}' \
+            -V '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' \
+            -L '~{interval_list}' \
+            -O '~{mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf}'
                 
         rm -f '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx}'
     >>>
