@@ -91,7 +91,7 @@ task AbsoluteExtractTask {
 
         mkdir -p "~{output_dir}/reviewed/"
 
-        if [[ "~{called_solution}" == "-" ]] ; then
+        if [[ "~{called_solution}" == "-1" ]] ; then
             echo -e "array\tsample\tcall status\tpurity\tploidy\tGenome doublings\tdelta\tCoverage for 80% power\tCancer DNA fraction\tSubclonal genome fraction\ttau\tE_CR\n" \
                 > "~{output_table}"
             echo -e "~{sample_name}\t~{sample_name}\tfailed\t\t\t\t\t\t\t\t\t\n" \
