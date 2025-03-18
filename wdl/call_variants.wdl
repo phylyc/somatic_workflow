@@ -332,6 +332,9 @@ task MergeMutect1ForceCallVCFs {
     String mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf = base + ".pass.no_genotypes.forcecalled.dedup.subset.vcf.gz"
     String mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf_idx = mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf + ".tbi"
 
+    # COMPUTE DISK SIZE
+    Int diskGB = runtime_params.disk + ceil(size(ref_fasta, "GB") + size(force_call_alleles, "GB") + size(mutect1_vcfs, "GB"))
+
     command <<<
         set -euxo pipefail
 
@@ -377,7 +380,7 @@ task MergeMutect1ForceCallVCFs {
         bootDiskSizeGb: runtime_params.boot_disk_size
         memory: runtime_params.machine_mem + " MB"
         runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
+        disks: "local-disk " + diskGB + " HDD"
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
