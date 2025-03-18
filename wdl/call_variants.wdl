@@ -266,6 +266,8 @@ task Mutect1 {
     # COMPUTE DISK SIZE
     Int diskGB = runtime_params.disk + ceil(size(ref_fasta, "GB") + size(germline_resource, "GB") + size(panel_of_normals, "GB") + size(tumor_bam, "GB") + size(normal_bam, "GB"))
 
+    String dollar = "$"
+
     command <<<
         set -euxo pipefail
 
@@ -298,7 +300,7 @@ task Mutect1 {
         fi
 
         # Run MuTect1 (without force-calling, will be done by Mutect2)
-        java "-Xmx${command_mb}m" -jar /muTect-1.1.6.jar \
+        java "-Xmx~{dollar}{command_mb}m" -jar /muTect-1.1.6.jar \
             --analysis_type MuTect \
             --reference_sequence '~{ref_fasta}' \
             --intervals '~{interval_list}' \
@@ -340,7 +342,7 @@ task Mutect1 {
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
     }
- }
+}
 
 task MergeMutect1ForceCallVCFs {
     input {
