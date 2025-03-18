@@ -361,54 +361,61 @@ task MergeMutect1ForceCallVCFs {
 
     String base = "merged_mutect1"
     String mutect1_vcf = base + ".vcf.gz"
+    String mutect1_vcf_idx = mutect1_vcf + ".tbi"
     String mutect1_pass_no_genotypes_vcf = base + ".pass.no_genotypes.vcf.gz"
-    String mutect1_pass_no_genotypes_forcecalled_vcf = base + ".pass.no_genotypes.forcecalled.vcf.gz"
-    String mutect1_pass_no_genotypes_forcecalled_dedup_vcf = base + ".pass.no_genotypes.forcecalled.dedup.vcf.gz"
-    String mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx = mutect1_pass_no_genotypes_forcecalled_dedup_vcf + ".tbi"
-    String mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf = base + ".pass.no_genotypes.forcecalled.dedup.subset.vcf.gz"
-    String mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf_idx = mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf + ".tbi"
+    String mutect1_pass_no_genotypes_vcf_idx = mutect1_pass_no_genotypes_vcf + ".tbi"
+    String force_call_alleles_subset_vcf = "forcecall.subset.vcf.gz"
+    String force_call_alleles_subset_vcf_idx = force_call_alleles_subset_vcf + ".tbi"
+    String mutect1_pass_no_genotypes_forcecall_vcf = base + ".pass.no_genotypes.forcecall_alleles.vcf.gz"
+    String mutect1_pass_no_genotypes_forcecall_vcf_idx = mutect1_pass_no_genotypes_forcecall_vcf + ".tbi"
+    String mutect1_pass_no_genotypes_forcecall_dedup_vcf = base + ".pass.no_genotypes.forcecall_alleles.dedup.vcf.gz"
+    String mutect1_pass_no_genotypes_forcecall_dedup_vcf_idx = mutect1_pass_no_genotypes_forcecall_dedup_vcf + ".tbi"
 
     # COMPUTE DISK SIZE
-    Int diskGB = runtime_params.disk + ceil(size(ref_fasta, "GB") + size(force_call_alleles, "GB") + size(mutect1_vcfs, "GB"))
+    Int diskGB = runtime_params.disk + ceil(2 * size(mutect1_vcfs, "GB"))
 
     command <<<
         set -euxo pipefail
 
         # Concat all samples VCFs from shardX and compress the merged output
-        bcftools concat ~{sep="' " prefix(" '", mutect1_vcfs)}' -Oz > '~{mutect1_vcf}'
+        bcftools concat ~{sep="' " prefix(" '", mutect1_vcfs)}' -Oz -W \
+            > '~{mutect1_vcf}'
 
         # Drop FORMAT and sample name columns (i.e. only keep #CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO columns)
         bcftools view -i 'FILTER=="PASS"' '~{mutect1_vcf}' | \
-            bcftools view --drop-genotypes -Oz > '~{mutect1_pass_no_genotypes_vcf}'
-
-        # Union with force_call_alleles vcf
-        bcftools concat -a '~{mutect1_pass_no_genotypes_vcf}' '~{force_call_alleles}' -Oz > '~{mutect1_pass_no_genotypes_forcecalled_vcf}'
-        rm -f '~{mutect1_pass_no_genotypes_vcf}'
-
-        # Deduplicate based on #CHROM, POS, REF, ALT (sorting is needed for --rm-dup to work properly)
-        bcftools sort '~{mutect1_pass_no_genotypes_forcecalled_vcf}' | \
-            bcftools norm --rm-dup both -Oz > '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}'
-        rm -f '~{mutect1_pass_no_genotypes_forcecalled_vcf}'
-
-        # Index the deduplicated VCF for gatk SelectVariants
-        gatk --java-options "-Xmx$~{runtime_params.command_mem}m" IndexFeatureFile \
-            -I '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' \
-            -O '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx}'
+            bcftools view --drop-genotypes -Oz -W \
+            > '~{mutect1_pass_no_genotypes_vcf}'
+        rm -f '~{mutect1_vcf}' '~{mutect1_vcf_idx}'
 
         # Use gatk SelectVariants to subset SNV positions only found in the interval_list
         # This also outputs an index file with it
-        gatk --java-options "-Xmx$~{runtime_params.command_mem}m" SelectVariants \
-            -R '~{ref_fasta}' \
-            -V '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' \
-            -L '~{interval_list}' \
-            -O '~{mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf}'
+        if [ "~{defined(force_call_alleles)}" == "true" ]; then
+            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+                SelectVariants \
+                ~{"-R '" + ref_fasta + "'"} \
+                ~{"-L '" + interval_list + "'"} \
+                -V '~{force_call_alleles}' \
+                -O '~{force_call_alleles_subset_vcf}'
 
-        rm -f '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx}'
+            # Union with force_call_alleles vcf
+            bcftools concat -a '~{mutect1_pass_no_genotypes_vcf}' '~{force_call_alleles_subset_vcf}' -Oz -W \
+                > '~{mutect1_pass_no_genotypes_forcecall_vcf}'
+            rm -f '~{mutect1_pass_no_genotypes_vcf}' '~{mutect1_pass_no_genotypes_vcf_idx}' '~{force_call_alleles_subset_vcf}' '~{force_call_alleles_subset_vcf_idx}'
+
+            # Deduplicate based on #CHROM, POS, REF, ALT (sorting is needed for --rm-dup to work properly)
+            bcftools sort '~{mutect1_pass_no_genotypes_forcecall_vcf}' | \
+                bcftools norm --rm-dup both -Oz -W \
+                > '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf}'
+            rm -f '~{mutect1_pass_no_genotypes_forcecall_vcf}'
+        else
+            mv '~{mutect1_pass_no_genotypes_vcf}' '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf}'
+            mv '~{mutect1_pass_no_genotypes_vcf_idx}' '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf_idx}'
+        fi
     >>>
 
     output {
-        File merged_vcf = mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf
-        File merged_vcf_idx = mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf_idx
+        File merged_vcf = mutect1_pass_no_genotypes_forcecall_dedup_vcf
+        File merged_vcf_idx = mutect1_pass_no_genotypes_forcecall_dedup_vcf_idx
     }
 
     runtime {
@@ -420,6 +427,15 @@ task MergeMutect1ForceCallVCFs {
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        interval_list: {localization_optional: true}
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
+        force_call_alleles: {localization_optional: true}
+        force_call_alleles_idx: {localization_optional: true}
     }
 }
 
