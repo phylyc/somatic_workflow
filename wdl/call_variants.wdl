@@ -392,14 +392,13 @@ task MergeMutect1ForceCallVCFs {
             --input '~{mutect1_pass_no_genotypes_vcf}' \
             --output '~{mutect1_pass_no_genotypes_vcf_idx}'
 
-        # Use gatk SelectVariants to subset SNV positions only found in the interval_list
-        # This also outputs an index file with it
         if [ "~{defined(force_call_alleles)}" == "true" ]; then
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
                 SelectVariants \
                 ~{"-R '" + ref_fasta + "'"} \
                 ~{"-L '" + interval_list + "'"} \
                 -V '~{force_call_alleles}' \
+                --lenient \
                 -O '~{force_call_alleles_subset_vcf}'
 
             # Union with force_call_alleles vcf
