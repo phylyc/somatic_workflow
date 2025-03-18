@@ -375,7 +375,7 @@ task MergeMutect1ForceCallVCFs {
         set -euxo pipefail
 
         # Concat all samples VCFs from shardX and compress the merged output
-        bcftools concat ~{sep="' " prefix(" '", mutect1_vcfs)} -Oz > '~{mutect1_vcf}'
+        bcftools concat ~{sep="' " prefix(" '", mutect1_vcfs)}' -Oz > '~{mutect1_vcf}'
 
         # Drop FORMAT and sample name columns (i.e. only keep #CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO columns)
         bcftools view -i 'FILTER=="PASS"' '~{mutect1_vcf}' | \
