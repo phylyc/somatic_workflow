@@ -382,7 +382,7 @@ task MergeMutect1ForceCallVCFs {
             bcftools view --drop-genotypes -Oz > '~{mutect1_pass_no_genotypes_vcf}'
 
         # Union with force_call_alleles vcf
-        bcftools concat '~{mutect1_pass_no_genotypes_vcf}' '~{force_call_alleles}' -Oz > '~{mutect1_pass_no_genotypes_forcecalled_vcf}'
+        bcftools concat -a '~{mutect1_pass_no_genotypes_vcf}' '~{force_call_alleles}' -Oz > '~{mutect1_pass_no_genotypes_forcecalled_vcf}'
         rm -f '~{mutect1_pass_no_genotypes_vcf}'
 
         # Deduplicate based on #CHROM, POS, REF, ALT (sorting is needed for --rm-dup to work properly)
