@@ -378,14 +378,19 @@ task MergeMutect1ForceCallVCFs {
         set -euxo pipefail
 
         # Concat all samples VCFs from shardX and compress the merged output
-        bcftools concat ~{sep="' " prefix(" '", mutect1_vcfs)}' -Oz -W \
+        bcftools concat ~{sep="' " prefix(" '", mutect1_vcfs)}' -Oz \
             > '~{mutect1_vcf}'
 
         # Drop FORMAT and sample name columns (i.e. only keep #CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO columns)
         bcftools view -i 'FILTER=="PASS"' '~{mutect1_vcf}' | \
-            bcftools view --drop-genotypes -Oz -W \
+            bcftools view --drop-genotypes -Oz \
             > '~{mutect1_pass_no_genotypes_vcf}'
         rm -f '~{mutect1_vcf}' '~{mutect1_vcf_idx}'
+
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            IndexFeatureFile \
+            --input '~{mutect1_pass_no_genotypes_vcf}' \
+            --output '~{mutect1_pass_no_genotypes_vcf_idx}'
 
         # Use gatk SelectVariants to subset SNV positions only found in the interval_list
         # This also outputs an index file with it
@@ -398,15 +403,20 @@ task MergeMutect1ForceCallVCFs {
                 -O '~{force_call_alleles_subset_vcf}'
 
             # Union with force_call_alleles vcf
-            bcftools concat -a '~{mutect1_pass_no_genotypes_vcf}' '~{force_call_alleles_subset_vcf}' -Oz -W \
+            bcftools concat -a '~{mutect1_pass_no_genotypes_vcf}' '~{force_call_alleles_subset_vcf}' -Oz \
                 > '~{mutect1_pass_no_genotypes_forcecall_vcf}'
             rm -f '~{mutect1_pass_no_genotypes_vcf}' '~{mutect1_pass_no_genotypes_vcf_idx}' '~{force_call_alleles_subset_vcf}' '~{force_call_alleles_subset_vcf_idx}'
 
             # Deduplicate based on #CHROM, POS, REF, ALT (sorting is needed for --rm-dup to work properly)
             bcftools sort '~{mutect1_pass_no_genotypes_forcecall_vcf}' | \
-                bcftools norm --rm-dup both -Oz -W \
+                bcftools norm --rm-dup both -Oz \
                 > '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf}'
             rm -f '~{mutect1_pass_no_genotypes_forcecall_vcf}'
+
+            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+                IndexFeatureFile \
+                --input '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf}' \
+                --output '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf_idx}'
         else
             mv '~{mutect1_pass_no_genotypes_vcf}' '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf}'
             mv '~{mutect1_pass_no_genotypes_vcf_idx}' '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf_idx}'
