@@ -216,14 +216,16 @@ task Mutect1 {
         Int downsample_to_coverage = 99999
         Int max_alt_alleles_in_normal_count = 10000
         Int max_alt_alleles_in_normal_qscore_sum = 10000
-        File? contamination_table                         
+        File? contamination_table
         Int tumor_f_pretest = 0
         Float initial_tumor_lod = 0.5
         Int tumor_lod = 0
 
+        Boolean only_passing_calls = true
+
         Runtime runtime_params
-    } 
-    
+    }
+
     String call_stats = tumor_sample_name + ".MuTect1.call_stats.txt"
     String coverage_wig = tumor_sample_name + ".MuTect1.coverage.wig.txt"
     String power_wig = tumor_sample_name + ".MuTect1.power.wig.txt"
@@ -232,7 +234,9 @@ task Mutect1 {
 
     # COMPUTE DISK SIZE
     Int diskGB = runtime_params.disk + ceil(size(ref_fasta, "GB") + size(germline_resource, "GB") + size(panel_of_normals, "GB") + size(tumor_bam, "GB") + size(normal_bam, "GB"))
-    
+
+    String dollar = "$"
+
     command <<<
         set -euxo pipefail
 
@@ -262,10 +266,10 @@ task Mutect1 {
             fraction_contamination=$(tail -n 1 '~{contamination_table}' | awk '{print $2}')
         else
             fraction_contamination=0
-        fi    
+        fi
 
         # Run MuTect1 (without force-calling, will be done by Mutect2)
-        java "-Xmx${command_mb}m" -jar /muTect-1.1.6.jar \
+        java "-Xmx~{dollar}{command_mb}m" -jar /muTect-1.1.6.jar \
             --analysis_type MuTect \
             --reference_sequence '~{ref_fasta}' \
             --intervals '~{interval_list}' \
@@ -273,8 +277,8 @@ task Mutect1 {
             -I:tumor '~{tumor_bam}' \
             ~{"--normal_sample_name '" + normal_sample_name + "'"} \
             ~{"-I:normal '" + normal_bam + "'"} \
-            --normal_panel '~{panel_of_normals}' \
-            --dbsnp '~{germline_resource}' \
+            ~{"--normal_panel '" + panel_of_normals + "'"} \
+            ~{"--dbsnp '" + germline_resource + "'"} \
             --downsample_to_coverage ~{downsample_to_coverage} \
             --max_alt_alleles_in_normal_count ~{max_alt_alleles_in_normal_count} \
             --max_alt_alleles_in_normal_qscore_sum ~{max_alt_alleles_in_normal_qscore_sum} \
@@ -285,11 +289,12 @@ task Mutect1 {
             --out '~{call_stats}' \
             --coverage_file '~{coverage_wig}' \
             --power_file '~{power_wig}' \
+            ~{if only_passing_calls then "--only_passing_calls" else ""} \
             --vcf '~{mutect1_vcf}'
     >>>
-     
+
     output {
-        File mutect1_call_stats = call_stats      
+        File mutect1_call_stats = call_stats
         File mutect1_coverage_wig = coverage_wig
         File mutect1_power_wig = power_wig
         File mutect1_vcf = mutect1_vcf
@@ -306,8 +311,8 @@ task Mutect1 {
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
     }
- }
- 
+}
+
 task MergeMutect1ForceCallVCFs {
     input {
         File interval_list
@@ -325,54 +330,70 @@ task MergeMutect1ForceCallVCFs {
 
     String base = "merged_mutect1"
     String mutect1_vcf = base + ".vcf.gz"
+    String mutect1_vcf_idx = mutect1_vcf + ".tbi"
     String mutect1_pass_no_genotypes_vcf = base + ".pass.no_genotypes.vcf.gz"
-    String mutect1_pass_no_genotypes_forcecalled_vcf = base + ".pass.no_genotypes.forcecalled.vcf.gz"
-    String mutect1_pass_no_genotypes_forcecalled_dedup_vcf = base + ".pass.no_genotypes.forcecalled.dedup.vcf.gz"
-    String mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx = mutect1_pass_no_genotypes_forcecalled_dedup_vcf + ".tbi"
-    String mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf = base + ".pass.no_genotypes.forcecalled.dedup.subset.vcf.gz"
-    String mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf_idx = mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf + ".tbi"
+    String mutect1_pass_no_genotypes_vcf_idx = mutect1_pass_no_genotypes_vcf + ".tbi"
+    String force_call_alleles_subset_vcf = "forcecall.subset.vcf.gz"
+    String force_call_alleles_subset_vcf_idx = force_call_alleles_subset_vcf + ".tbi"
+    String mutect1_pass_no_genotypes_forcecall_vcf = base + ".pass.no_genotypes.forcecall_alleles.vcf.gz"
+    String mutect1_pass_no_genotypes_forcecall_vcf_idx = mutect1_pass_no_genotypes_forcecall_vcf + ".tbi"
+    String mutect1_pass_no_genotypes_forcecall_dedup_vcf = base + ".pass.no_genotypes.forcecall_alleles.dedup.vcf.gz"
+    String mutect1_pass_no_genotypes_forcecall_dedup_vcf_idx = mutect1_pass_no_genotypes_forcecall_dedup_vcf + ".tbi"
 
     # COMPUTE DISK SIZE
-    Int diskGB = runtime_params.disk + ceil(size(ref_fasta, "GB") + size(force_call_alleles, "GB") + size(mutect1_vcfs, "GB"))
+    Int diskGB = runtime_params.disk + ceil(2 * size(mutect1_vcfs, "GB"))
 
     command <<<
         set -euxo pipefail
 
         # Concat all samples VCFs from shardX and compress the merged output
-        bcftools concat ~{sep="' " prefix(" '", mutect1_vcfs)} -Oz > '~{mutect1_vcf}'
+        bcftools concat ~{sep="' " prefix(" '", mutect1_vcfs)}' -Oz \
+            > '~{mutect1_vcf}'
 
         # Drop FORMAT and sample name columns (i.e. only keep #CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO columns)
         bcftools view -i 'FILTER=="PASS"' '~{mutect1_vcf}' | \
-            bcftools view --drop-genotypes -Oz > '~{mutect1_pass_no_genotypes_vcf}'
+            bcftools view --drop-genotypes -Oz \
+            > '~{mutect1_pass_no_genotypes_vcf}'
+        rm -f '~{mutect1_vcf}' '~{mutect1_vcf_idx}'
 
-        # Union with force_call_alleles vcf
-        bcftools concat '~{mutect1_pass_no_genotypes_vcf}' '~{force_call_alleles}' -Oz > '~{mutect1_pass_no_genotypes_forcecalled_vcf}'
-        rm -f '~{mutect1_pass_no_genotypes_vcf}'
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            IndexFeatureFile \
+            --input '~{mutect1_pass_no_genotypes_vcf}' \
+            --output '~{mutect1_pass_no_genotypes_vcf_idx}'
 
-        # Deduplicate based on #CHROM, POS, REF, ALT (sorting is needed for --rm-dup to work properly)
-        bcftools sort '~{mutect1_pass_no_genotypes_forcecalled_vcf}' | \
-            bcftools norm --rm-dup both -Oz > '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}'
-        rm -f '~{mutect1_pass_no_genotypes_forcecalled_vcf}'
+        if [ "~{defined(force_call_alleles)}" == "true" ]; then
+            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+                SelectVariants \
+                ~{"-R '" + ref_fasta + "'"} \
+                ~{"-L '" + interval_list + "'"} \
+                -V '~{force_call_alleles}' \
+                --lenient \
+                -O '~{force_call_alleles_subset_vcf}'
 
-        # Index the deduplicated VCF for gatk SelectVariants
-        gatk --java-options "-Xmx$~{runtime_params.command_mem}m" IndexFeatureFile \
-            -I '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' \
-            -O '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx}'
+            # Union with force_call_alleles vcf
+            bcftools concat -a '~{mutect1_pass_no_genotypes_vcf}' '~{force_call_alleles_subset_vcf}' -Oz \
+                > '~{mutect1_pass_no_genotypes_forcecall_vcf}'
+            rm -f '~{mutect1_pass_no_genotypes_vcf}' '~{mutect1_pass_no_genotypes_vcf_idx}' '~{force_call_alleles_subset_vcf}' '~{force_call_alleles_subset_vcf_idx}'
 
-        # Use gatk SelectVariants to subset SNV positions only found in the interval_list
-        # This also outputs an index file with it
-        gatk --java-options "-Xmx$~{runtime_params.command_mem}m" SelectVariants \
-            -R '~{ref_fasta}' \
-            -V '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' \
-            -L '~{interval_list}' \
-            -O '~{mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf}'
-                
-        rm -f '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf}' '~{mutect1_pass_no_genotypes_forcecalled_dedup_vcf_idx}'
+            # Deduplicate based on #CHROM, POS, REF, ALT (sorting is needed for --rm-dup to work properly)
+            bcftools sort '~{mutect1_pass_no_genotypes_forcecall_vcf}' | \
+                bcftools norm --rm-dup both -Oz \
+                > '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf}'
+            rm -f '~{mutect1_pass_no_genotypes_forcecall_vcf}'
+
+            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+                IndexFeatureFile \
+                --input '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf}' \
+                --output '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf_idx}'
+        else
+            mv '~{mutect1_pass_no_genotypes_vcf}' '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf}'
+            mv '~{mutect1_pass_no_genotypes_vcf_idx}' '~{mutect1_pass_no_genotypes_forcecall_dedup_vcf_idx}'
+        fi
     >>>
 
     output {
-        File merged_vcf = mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf
-        File merged_vcf_idx = mutect1_pass_no_genotypes_forcecalled_dedup_subset_vcf_idx
+        File merged_vcf = mutect1_pass_no_genotypes_forcecall_dedup_vcf
+        File merged_vcf_idx = mutect1_pass_no_genotypes_forcecall_dedup_vcf_idx
     }
 
     runtime {
@@ -384,6 +405,15 @@ task MergeMutect1ForceCallVCFs {
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        interval_list: {localization_optional: true}
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        ref_dict: {localization_optional: true}
+        force_call_alleles: {localization_optional: true}
+        force_call_alleles_idx: {localization_optional: true}
     }
 }
 
