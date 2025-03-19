@@ -86,6 +86,7 @@ workflow CallVariants {
                             prefix = matched_normal_sample_name,
                             bams = [matched_normal_seq_run.bam],
                             bais = [matched_normal_seq_run.bai],
+                            runtime_params = runtime_collection.print_reads
                     }
                 }
 
@@ -107,6 +108,7 @@ workflow CallVariants {
                                 prefix = sample.name,
                                 bams = [seq_run.bam],
                                 bais = [seq_run.bai],
+                                runtime_params = runtime_collection.print_reads
                         }
                         call Mutect1 {
                             input:
