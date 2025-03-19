@@ -56,7 +56,6 @@ struct RuntimeCollection {
 workflow DefineRuntimeCollection {
     input {
         Int num_bams = 1
-        Int bam_size = 0
 
         Int scatter_count = 10
         String gatk_docker = "broadinstitute/gatk:4.6.1.0"
@@ -198,7 +197,7 @@ workflow DefineRuntimeCollection {
         Int time_mutect1_total = 2880                # 2d
         Int preemptible_mutect1 = 1
         Int max_retries_mutect1 = 2
-        Int disk_mutect1_total = bam_size           #
+        # disk size is dynamically inferred.
 
         # MergeMutect1ForceCallVCFs
         Int mem_merge_mutect1_forcecall_vcfs = 2048
@@ -213,7 +212,7 @@ workflow DefineRuntimeCollection {
         Int time_mutect2_total = 10000  # 6 d / scatter_count
         Int preemptible_mutect2 = 1
         Int max_retries_mutect2 = 2
-        Int disk_mutect2_total = bam_size
+        # disk size is dynamically inferred.
 
         # gatk: MergeVCFs
         Int mem_merge_vcfs = 2048
@@ -230,7 +229,6 @@ workflow DefineRuntimeCollection {
         # gatk: PrintReads
         Int mem_print_reads = 32768
         Int time_print_reads = 60
-        Int disk_print_reads = bam_size
 
         # gatk: LearnReadOrientationModel
         Int mem_learn_read_orientation_model_base = 8192
@@ -675,7 +673,7 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_mutect1_base + mem_mutect1_overhead,
         "command_mem": mem_mutect1_base,
         "runtime_minutes": time_startup + time_mutect1_total,
-        "disk": disk + disk_mutect1_total,
+        "disk": disk,
         "boot_disk_size": boot_disk_size
     }
 
@@ -701,7 +699,7 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_mutect2 + mem_mutect2_overhead,
         "command_mem": mem_mutect2,
         "runtime_minutes": time_startup + ceil(time_mutect2_total / scatter_count),
-        "disk": disk + ceil(disk_mutect2_total / scatter_count),
+        "disk": disk,
         "boot_disk_size": boot_disk_size
     }
 
@@ -766,7 +764,7 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_print_reads + mem_machine_overhead,
         "command_mem": mem_print_reads,
         "runtime_minutes": time_startup + time_print_reads,
-        "disk": disk + disk_print_reads,
+        "disk": disk,
         "boot_disk_size": boot_disk_size
     }
 
@@ -782,32 +780,6 @@ workflow DefineRuntimeCollection {
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
-
-#    Runtime variant_filtration = {
-#        "docker": gatk_docker,
-#        "jar_override": gatk_override,
-#        "preemptible": preemptible,
-#        "max_retries": max_retries,
-#        "cpu": cpu,
-#        "machine_mem": mem_variant_filtration + mem_machine_overhead,
-#        "command_mem": mem_variant_filtration,
-#        "runtime_minutes": time_startup + time_variant_filtration,
-#        "disk": disk,
-#        "boot_disk_size": boot_disk_size
-#    }
-#
-#    Runtime left_align_and_trim_variants = {
-#        "docker": gatk_docker,
-#        "jar_override": gatk_override,
-#        "preemptible": preemptible,
-#        "max_retries": max_retries,
-#        "cpu": cpu,
-#        "machine_mem": mem_left_align_and_trim_variants + mem_machine_overhead,
-#        "command_mem": mem_left_align_and_trim_variants,
-#        "runtime_minutes": time_startup + time_left_align_and_trim_variants,
-#        "disk": disk,
-#        "boot_disk_size": boot_disk_size
-#    }
 
     Int mem_filter_alignment_artifacts = mem_filter_alignment_artifacts_base + num_bams * mem_filter_alignment_artifacts_additional_per_sample
     Runtime filter_alignment_artifacts = {

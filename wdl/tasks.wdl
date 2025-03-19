@@ -727,6 +727,10 @@ task PrintReads {
     String output_file = prefix + ".bam"
     String output_index = prefix + ".bai"
 
+    # Even if we subset the bams to the interval_list, this task is very short,
+    # so we won't spend a lot of money on it.
+    Int diskGB = runtime_params.disk + ceil(size(bams, "GB"))
+
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
@@ -750,7 +754,7 @@ task PrintReads {
         bootDiskSizeGb: runtime_params.boot_disk_size
         memory: runtime_params.machine_mem + " MB"
         runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
+        disks: "local-disk " + diskGB + " HDD"
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
