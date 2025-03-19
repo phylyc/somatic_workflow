@@ -68,20 +68,46 @@ workflow CallVariants {
 
     scatter (shard in patient.shards) {
         if (size(shard.raw_calls_mutect2_vcf) == 0) {
-
-            # Mutect1
-            scatter (sample in patient.samples){
-                # Check if patient has matched_normal_sample
+            if (args.run_variant_calling_mutect1) {
+                # Mutect1
+                # Old GATK does not stream input files, so we have to localize them.
+                # Localizing the full bams is very expensive, so we first subset them
+                # to the sharded intervals.
                 if (defined(patient.matched_normal_sample)) {
-                    Sample this_matched_normal_sample = select_first([patient.matched_normal_sample]) # Cast from Sample? to Sample
+                    Sample this_matched_normal_sample = select_first([patient.matched_normal_sample])
                     String matched_normal_sample_name = this_matched_normal_sample.name
-                    SequencingRun this_matched_normal_seq_run = select_first(this_matched_normal_sample.sequencing_runs) # Cast from SequencingRun? to SequencingRun
-                    File matched_normal_bam = this_matched_normal_seq_run.bam
-                    File matched_normal_bai = this_matched_normal_seq_run.bai
+                    SequencingRun matched_normal_seq_run = select_first(this_matched_normal_sample.sequencing_runs)
+                    call tasks.PrintReads as MatchedNormalShard {
+                        input:
+                            interval_list = shard.intervals,
+                            ref_fasta = args.files.ref_fasta,
+                            ref_fasta_index = args.files.ref_fasta_index,
+                            ref_dict = args.files.ref_dict,
+                            prefix = matched_normal_sample_name,
+                            bams = [matched_normal_seq_run.bam],
+                            bais = [matched_normal_seq_run.bai],
+                    }
                 }
 
-                scatter (seq_run in sample.sequencing_runs) {
-                    if (sample.name != matched_normal_sample_name) { # Mutect1 doesn't like same BAM being tumor and normal
+                scatter (sample in patient.samples) {
+                    # Only supply matched normal sample for tumor samples as
+                    # Mutect1 does not like the same bam for tumor and normal.
+                    if (sample.is_tumor) {
+                        String? this_normal_sample_name = matched_normal_sample_name
+                        File? this_normal_bam = MatchedNormalShard.output_bam
+                        File? this_normal_bai = MatchedNormalShard.output_bai
+                    }
+                    scatter (seq_run in sample.sequencing_runs) {
+                        call tasks.PrintReads as SeqRunShard {
+                            input:
+                                interval_list = shard.intervals,
+                                ref_fasta = args.files.ref_fasta,
+                                ref_fasta_index = args.files.ref_fasta_index,
+                                ref_dict = args.files.ref_dict,
+                                prefix = sample.name,
+                                bams = [seq_run.bam],
+                                bais = [seq_run.bai],
+                        }
                         call Mutect1 {
                             input:
                                 interval_list = shard.intervals,
@@ -94,35 +120,34 @@ workflow CallVariants {
                                 panel_of_normals_idx = args.files.snv_panel_of_normals_v4_1_idx,
                                 contamination_table = sample.contamination_table,
 
-                                individual_id = patient.name,
+                                patient_id = patient.name,
                                 tumor_sample_name = sample.name,
-                                tumor_bam = seq_run.bam,
-                                tumor_bai = seq_run.bai,
-                                normal_sample_name = matched_normal_sample_name,
-                                normal_bam = matched_normal_bam,
-                                normal_bai = matched_normal_bai,
+                                tumor_bam = SeqRunShard.output_bam,
+                                tumor_bai = SeqRunShard.output_bai,
+                                normal_sample_name = this_normal_sample_name,
+                                normal_bam = this_normal_bam,
+                                normal_bai = this_normal_bai,
 
                                 runtime_params = runtime_collection.mutect1,
                         }
                     }
                 }
-            }
-            # Within a shard
-            Array[File] mutect1_vcfs = select_all(flatten(Mutect1.mutect1_vcf))
-            Array[File] mutect1_vcfs_idx = select_all(flatten(Mutect1.mutect1_vcf_idx))
+                Array[File] mutect1_vcfs = select_all(flatten(Mutect1.mutect1_vcf))
+                Array[File] mutect1_vcfs_idx = select_all(flatten(Mutect1.mutect1_vcf_idx))
 
-            call MergeMutect1ForceCallVCFs {
-                input:
-                    interval_list = shard.intervals,
-                    ref_fasta = args.files.ref_fasta,
-                    ref_fasta_index = args.files.ref_fasta_index,
-                    ref_dict = args.files.ref_dict,
+                call MergeMutect1ForceCallVCFs {
+                    input:
+                        interval_list = shard.intervals,
+                        ref_fasta = args.files.ref_fasta,
+                        ref_fasta_index = args.files.ref_fasta_index,
+                        ref_dict = args.files.ref_dict,
 
-                    mutect1_vcfs = mutect1_vcfs,
-                    mutect1_vcfs_idx = mutect1_vcfs_idx,
-                    force_call_alleles = args.files.force_call_alleles,
-                    force_call_alleles_idx = args.files.force_call_alleles_idx,
-                    runtime_params = runtime_collection.merge_mutect1_forcecall_vcfs
+                        mutect1_vcfs = mutect1_vcfs,
+                        mutect1_vcfs_idx = mutect1_vcfs_idx,
+                        force_call_alleles = args.files.force_call_alleles,
+                        force_call_alleles_idx = args.files.force_call_alleles_idx,
+                        runtime_params = runtime_collection.merge_mutect1_forcecall_vcfs
+                }
             }
 
             call Mutect2 {
@@ -131,14 +156,14 @@ workflow CallVariants {
                     ref_fasta = args.files.ref_fasta,
                     ref_fasta_index = args.files.ref_fasta_index,
                     ref_dict = args.files.ref_dict,
-                    individual_id = patient.name,
+                    patient_id = patient.name,
                     tumor_bams = tumor_bams,
                     tumor_bais = tumor_bais,
                     normal_bams = normal_bams,
                     normal_bais = normal_bais,
                     normal_sample_names = normal_sample_names,
-                    force_call_alleles = MergeMutect1ForceCallVCFs.merged_vcf,
-                    force_call_alleles_idx = MergeMutect1ForceCallVCFs.merged_vcf_idx,
+                    force_call_alleles = if defined(MergeMutect1ForceCallVCFs.merged_vcf) then MergeMutect1ForceCallVCFs.merged_vcf else args.files.force_call_alleles,
+                    force_call_alleles_idx = if defined(MergeMutect1ForceCallVCFs.merged_vcf_idx) then MergeMutect1ForceCallVCFs.merged_vcf_idx else args.files.force_call_alleles_idx,
                     panel_of_normals = args.files.snv_panel_of_normals,
                     panel_of_normals_idx = args.files.snv_panel_of_normals_idx,
                     germline_resource = args.files.germline_resource,
@@ -196,7 +221,7 @@ workflow CallVariants {
         call MergeMutectStats {
             input:
                 stats = select_all(raw_mutect2_stats),
-                individual_id = patient.name,
+                patient_id = patient.name,
                 runtime_params = runtime_collection.merge_mutect_stats
         }
     }
@@ -204,7 +229,7 @@ workflow CallVariants {
     if (args.run_orientation_bias_mixture_model && (!defined(patient.orientation_bias))) {
         call LearnReadOrientationModel {
             input:
-                individual_id = patient.name,
+                patient_id = patient.name,
                 f1r2_counts = select_all(raw_mutect2_artifact_priors),
                 runtime_params = runtime_collection.learn_read_orientation_model
         }
@@ -236,7 +261,7 @@ task Mutect1 {
         File? panel_of_normals
         File? panel_of_normals_idx
 
-        String individual_id
+        String patient_id
         String tumor_sample_name
         File tumor_bam
         File tumor_bai
@@ -286,10 +311,12 @@ task Mutect1 {
         fi
         command_mb=$(( $machine_mb  - $overhead_mb ))
 
+        n_threads=$(nproc)
+
         echo ""
         echo "Available memory: $machine_mb MB."
         echo "Overhead: $overhead_mb MB."
-        echo "Using $command_mb MB of memory for Mutect1."
+        echo "Using $command_mb MB of memory for Mutect1 and $n_threads threads."
         echo ""
 
         # Parse contamination_table
@@ -321,7 +348,13 @@ task Mutect1 {
             --coverage_file '~{coverage_wig}' \
             --power_file '~{power_wig}' \
             ~{if only_passing_calls then "--only_passing_calls" else ""} \
-            --vcf '~{mutect1_vcf}'
+            --vcf '~{mutect1_vcf}' \
+            --num_threads $n_threads \
+            --required_maximum_alt_allele_mapping_quality_score 10 \
+            --filter_reads_with_N_cigar \
+            --filter_mismatching_base_and_quals \
+            --filter_bases_not_stored \
+            --phone_home STDOUT
     >>>
 
     output {
@@ -455,7 +488,7 @@ task Mutect2 {
         File ref_fasta_index
         File ref_dict
 
-        String individual_id
+        String patient_id
         Array[File] tumor_bams
         Array[File] tumor_bais
         Array[File]? normal_bams
@@ -500,13 +533,13 @@ task Mutect2 {
 
     Boolean normal_is_present = defined(normal_bams) && (length(select_first([normal_bams])) > 0)
 
-    String output_vcf = individual_id + if compress_output then ".vcf.gz" else ".vcf"
+    String output_vcf = patient_id + if compress_output then ".vcf.gz" else ".vcf"
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
     String output_stats = output_vcf + ".stats"
 
-    String output_bam = individual_id + ".bamout.bam"
-    String output_bai = individual_id + ".bamout.bai"
-    String output_artifact_priors = individual_id + ".f1r2_counts.tar.gz"
+    String output_bam = patient_id + ".bamout.bam"
+    String output_bai = patient_id + ".bamout.bai"
+    String output_artifact_priors = patient_id + ".f1r2_counts.tar.gz"
 
     String dollar = "$"
 
@@ -624,12 +657,12 @@ task Mutect2 {
 task MergeMutectStats {
     input {
         Array[File]+ stats
-        String individual_id
+        String patient_id
 
         Runtime runtime_params
     }
 
-    String output_name = individual_id + ".stats"
+    String output_name = patient_id + ".stats"
 
     command <<<
         set -e
@@ -677,7 +710,7 @@ task LearnReadOrientationModel {
     # lead to false positives and false negatives.
 
     input {
-        String individual_id
+        String patient_id
         Array[File] f1r2_counts
 
         Int max_depth = 200
@@ -686,7 +719,7 @@ task LearnReadOrientationModel {
         Runtime runtime_params
     }
 
-    String output_name = individual_id + ".artifact_priors.tar.gz"
+    String output_name = patient_id + ".artifact_priors.tar.gz"
 
     command <<<
         set -e

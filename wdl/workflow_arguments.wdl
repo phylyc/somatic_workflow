@@ -20,6 +20,7 @@ struct WorkflowArguments {
     Boolean run_contamination_model
     Boolean run_orientation_bias_mixture_model
     Boolean run_variant_calling
+    Boolean run_variant_calling_mutect1
     Boolean run_variant_filter
     Boolean run_realignment_filter
     Boolean run_variant_annotation
@@ -129,6 +130,7 @@ workflow DefineWorkflowArguments {
         Boolean run_contamination_model = true
         Boolean run_orientation_bias_mixture_model = true
         Boolean run_variant_calling = true
+        Boolean run_variant_calling_mutect1 = true
         Boolean run_variant_filter = true
         Boolean run_realignment_filter = true
         Boolean run_variant_annotation = true
@@ -293,6 +295,7 @@ workflow DefineWorkflowArguments {
         run_contamination_model: run_contamination_model,
         run_orientation_bias_mixture_model: run_orientation_bias_mixture_model,
         run_variant_calling: run_variant_calling,
+        run_variant_calling_mutect1: run_variant_calling_mutect1,
         run_variant_filter: run_variant_filter,
         run_realignment_filter: run_realignment_filter,
         run_variant_annotation: run_variant_annotation,

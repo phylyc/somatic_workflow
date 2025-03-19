@@ -210,7 +210,7 @@ workflow FilterVariants {
                 ref_fasta = args.files.ref_fasta,
                 ref_fasta_index = args.files.ref_fasta_index,
                 ref_dict = args.files.ref_dict,
-                patient_name = patient.name,
+                prefix = patient.name + ".somatic",
                 bams = select_all(raw_mutect2_bam_out_scattered),
                 bais = select_all(raw_mutect2_bai_out_scattered),
                 vcf = select_first([SelectSomaticVariants.selected_vcf, patient.somatic_vcf]),

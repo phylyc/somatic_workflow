@@ -714,7 +714,7 @@ task PrintReads {
         File? ref_fasta_index
         File? ref_dict
 
-        String patient_name
+        String prefix
         Array[File] bams
         Array[File] bais
         File? interval_list
@@ -724,8 +724,8 @@ task PrintReads {
         Runtime runtime_params
     }
 
-    String output_file = patient_name + ".somatic.bam"
-    String output_index = patient_name + ".somatic.bai"
+    String output_file = prefix + ".bam"
+    String output_index = prefix + ".bai"
 
     command <<<
         set -e
