@@ -354,9 +354,9 @@ task MergeMutect1ForceCallVCFs {
             # Construct a new output file name, inputs: ".vcf", outputs: ".noGT.vcf.gz"
             out_vcf="${vcf%.vcf}.noGT.vcf.gz"
             
-            # Drop genotype information and compress the output
+            # Drop genotype information and compress the output, -t for .tbi
             bcftools view --drop-genotypes "$vcf" -Oz -o "$out_vcf"
-            bcftools index "$out_vcf" 
+            bcftools index -t "$out_vcf" 
             
             # Append the processed file to the array
             no_gt_vcfs+=("$out_vcf")
