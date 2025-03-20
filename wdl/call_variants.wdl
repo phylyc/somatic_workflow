@@ -356,6 +356,7 @@ task MergeMutect1ForceCallVCFs {
             
             # Drop genotype information and compress the output
             bcftools view --drop-genotypes "$vcf" -Oz -o "$out_vcf"
+            bcftools index "$out_vcf" 
             
             # Append the processed file to the array
             no_gt_vcfs+=("$out_vcf")
