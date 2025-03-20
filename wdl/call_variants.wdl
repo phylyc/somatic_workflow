@@ -343,6 +343,8 @@ task MergeMutect1ForceCallVCFs {
     # COMPUTE DISK SIZE
     Int diskGB = runtime_params.disk + ceil(2 * size(mutect1_vcfs, "GB"))
 
+    String dollar = "$"
+
     command <<<
         set -euxo pipefail
 
@@ -360,7 +362,7 @@ task MergeMutect1ForceCallVCFs {
         done
 
         # Concat all samples VCFs from shardX and compress the merged output
-        bcftools concat -a ~{sep="' " prefix(" '", no_gt_vcfs)}' -Oz > '~{mutect1_vcf}'
+        bcftools concat -a "~{dollar}{no_gt_vcfs[@]}" -Oz > '~{mutect1_vcf}'
 
         # Drop FORMAT and sample name columns (i.e. only keep #CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO columns)
         bcftools view -i 'FILTER=="PASS"' '~{mutect1_vcf}' | \
