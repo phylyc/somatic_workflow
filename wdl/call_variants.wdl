@@ -418,7 +418,8 @@ task MergeMutect1ForceCallVCFs {
             out_vcf="${vcf%.vcf}.noGT.vcf.gz"
 
             # Drop genotype information and compress the output
-            bcftools view --drop-genotypes "$vcf" -Oz -o "$out_vcf"
+            bcftools view --drop-genotypes "$vcf" -Oz > "$out_vcf"
+            bcftools index -t "$out_vcf"
 
             # Append the processed file to the array
             no_gt_vcfs+=("$out_vcf")
@@ -428,8 +429,7 @@ task MergeMutect1ForceCallVCFs {
         bcftools concat -a "~{dollar}{no_gt_vcfs[@]}" -Oz > '~{mutect1_vcf}'
 
         # Drop FORMAT and sample name columns (i.e. only keep #CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO columns)
-        bcftools view -i 'FILTER=="PASS"' '~{mutect1_vcf}' \
-            > '~{mutect1_pass_no_genotypes_vcf}'
+        bcftools view -i 'FILTER=="PASS"' '~{mutect1_vcf}' -Oz > '~{mutect1_pass_no_genotypes_vcf}'
         rm -f '~{mutect1_vcf}' '~{mutect1_vcf_idx}'
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
@@ -447,8 +447,7 @@ task MergeMutect1ForceCallVCFs {
                 -O '~{force_call_alleles_subset_vcf}'
 
             # Union with force_call_alleles vcf
-            bcftools concat -a '~{mutect1_pass_no_genotypes_vcf}' '~{force_call_alleles_subset_vcf}' -Oz \
-                > '~{mutect1_pass_no_genotypes_forcecall_vcf}'
+            bcftools concat -a '~{mutect1_pass_no_genotypes_vcf}' '~{force_call_alleles_subset_vcf}' -Oz > '~{mutect1_pass_no_genotypes_forcecall_vcf}'
             rm -f '~{mutect1_pass_no_genotypes_vcf}' '~{mutect1_pass_no_genotypes_vcf_idx}' '~{force_call_alleles_subset_vcf}' '~{force_call_alleles_subset_vcf_idx}'
 
             # Deduplicate based on #CHROM, POS, REF, ALT (sorting is needed for --rm-dup to work properly)
