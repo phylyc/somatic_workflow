@@ -102,15 +102,19 @@ def convert_pileup_to_allelic_counts(args):
             print(f"Skipping HET selection since no genotype data is available.")
 
     if intervals is not None:
-        # 1) Map each pileup locus to an interval, choosing the closest interval
-        #    up to args.padding distance away from an interval start/end.
-        # 2) Aggregate the allelic read counts for all pileups mapped to each interval
+        # Map each pileup locus to an interval, choosing the closest interval up to
+        # args.het_to_interval_mapping_max_distance distance away from an interval start/end.
 
+        if args.aggregate_hets:
+            if not args.select_hets:
+                warnings.warn("Aggregating pileups in intervals, but not explicitly pre-selected for HETs!")
+
+        message("Mapping nearby pileups to intervals:", end="", flush=True)
         dfs = []
         for contig in df["contig"].unique():
             _df = df.loc[df["contig"] == contig]
             i_contig = intervals.loc[intervals["CONTIG"] == contig]
-            if i_contig.empty:
+            if _df.empty or i_contig.empty:
                 continue
 
             # Find positions in intervals:
@@ -130,15 +134,32 @@ def convert_pileup_to_allelic_counts(args):
             _df["START"] = np.where(use_post, _df["START_post"], _df["START_pre"])
             _df["END"] = np.where(use_post, _df["END_post"], _df["END_pre"])
 
-            mapped_hets = _df["distance"] > 0
-            # Move pileup position to center of interval so that ModelSegments doesn't throw it away
-            _df.loc[mapped_hets, "position"] = (_df["START"] + _df["END"]) // 2
+            # Move pileup into unoccupied position in interval so that ModelSegments doesn't throw it away
+            pileups = []
+            for (start, end), group in _df.groupby(["START", "END"]):
+                mapped_hets = group["distance"] > 0
+                pileups_within_interval = group.loc[~mapped_hets]
+                pileups.append(pileups_within_interval)
+                if not any(mapped_hets):
+                    continue
+
+                occupied_positions = pileups_within_interval["position"].to_numpy()
+                # Map to the last free positions since ModelSegments uses the
+                # first appearing HET, and HETs within the interval are a bit
+                # more informative than HETs mapped to the interval from nearby.
+                free_positions = [p for p in np.arange(end, start, -1) if p not in occupied_positions]
+                n_mapped = min(len(free_positions), np.sum(mapped_hets))
+                if n_mapped > 0:
+                    mapped_positions = free_positions[:n_mapped]
+                    for new_pos, (_, p) in zip(mapped_positions, group.loc[mapped_hets].iterrows()):
+                        p["position"] = new_pos
+                        pileups.append(p.to_frame(0).T)
+
+            _df = pd.concat(pileups, ignore_index=True)
+            print(".", end="", flush=True) if args.verbose else None
 
             # Aggregate read counts per interval
             if args.aggregate_hets:
-                if not args.select_hets:
-                    warnings.warn("Aggregating pileups in intervals, but not explicitly pre-selected for HETs!")
-
                 # TODO: infer relative haplotype phase of HETs within each interval
                 # Account for haplotype phase if available
                 if "genotype" in _df.columns:
@@ -155,11 +176,14 @@ def convert_pileup_to_allelic_counts(args):
 
                 _df["position"] = (_df["START"] + _df["END"]) // 2
 
+                print("+", end="", flush=True) if args.verbose else None
+
             dfs.append(_df)
+        print("")
 
         df = pd.concat(dfs).astype({"contig": str, "position": int, "ref_count": int, "alt_count": int})
 
-        print(f"Remaining HETs after aggregating and mapping to intervals: {df.shape[0]}")
+        print(f"Remaining pileups after mapping to intervals: {df.shape[0]}")
 
     df["depth"] = df[["ref_count", "alt_count"]].sum(axis=1)
     df = df.sort_values(by=["depth"], ascending=False).drop_duplicates(subset=["contig", "position"]).set_index(["contig", "position"], drop=True)

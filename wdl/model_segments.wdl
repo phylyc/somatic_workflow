@@ -25,10 +25,6 @@ workflow ModelSegments {
     scatter (sample in patient.samples) {
         # Skip this task if we run model segments only on total copy ratios.
         if (defined(sample.allelic_pileup_summaries)) {
-            if (pre_select_hets) {
-                # Only aggregate pileups within intervals if we select for HETs!
-                File? intervals = sample.harmonized_denoised_total_copy_ratios
-            }
             call PileupToAllelicCounts {
                 input:
                     script = args.pileup_to_allelic_counts_script,
@@ -36,7 +32,7 @@ workflow ModelSegments {
                     pileup = sample.allelic_pileup_summaries,
                     gvcf = gvcf,
                     gvcf_idx = gvcf_idx,
-                    intervals = intervals,
+                    intervals = sample.harmonized_denoised_total_copy_ratios,
                     het_to_interval_mapping_max_distance = args.het_to_interval_mapping_max_distance,
                     select_hets = pre_select_hets,
                     bam_name = sample.bam_name,
