@@ -365,7 +365,7 @@ task MergeMutect1ForceCallVCFs {
         bcftools concat -a "~{dollar}{no_gt_vcfs[@]}" -Oz > '~{mutect1_vcf}'
 
         # Drop FORMAT and sample name columns (i.e. only keep #CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO columns)
-        bcftools view -i 'FILTER=="PASS"' '~{mutect1_vcf}' | \
+        bcftools view -i 'FILTER=="PASS"' '~{mutect1_vcf}' \
             > '~{mutect1_pass_no_genotypes_vcf}'
         rm -f '~{mutect1_vcf}' '~{mutect1_vcf_idx}'
 
