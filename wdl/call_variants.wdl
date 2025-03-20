@@ -346,13 +346,24 @@ task MergeMutect1ForceCallVCFs {
     command <<<
         set -euxo pipefail
 
+        # Loop over each VCF, drop genotypes, add to empty array 
+        no_gt_vcfs=()
+        for vcf in ~{sep="' " prefix(" '", mutect1_vcfs)}'; do
+            # Construct a new output file name, inputs: ".vcf", outputs: ".noGT.vcf.gz"
+            out_vcf="${vcf%.vcf}.noGT.vcf.gz"
+            
+            # Drop genotype information and compress the output
+            bcftools view --drop-genotypes "$vcf" -Oz -o "$out_vcf"
+            
+            # Append the processed file to the array
+            no_gt_vcfs+=("$out_vcf")
+        done
+
         # Concat all samples VCFs from shardX and compress the merged output
-        bcftools concat ~{sep="' " prefix(" '", mutect1_vcfs)}' -Oz \
-            > '~{mutect1_vcf}'
+        bcftools concat -a ~{sep="' " prefix(" '", no_gt_vcfs)}' -Oz > '~{mutect1_vcf}'
 
         # Drop FORMAT and sample name columns (i.e. only keep #CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO columns)
         bcftools view -i 'FILTER=="PASS"' '~{mutect1_vcf}' | \
-            bcftools view --drop-genotypes -Oz \
             > '~{mutect1_pass_no_genotypes_vcf}'
         rm -f '~{mutect1_vcf}' '~{mutect1_vcf_idx}'
 
