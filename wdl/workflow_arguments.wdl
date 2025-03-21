@@ -40,6 +40,7 @@ struct WorkflowArguments {
     Float min_snppanel_pop_af
     Float max_snppanel_pop_af
     Int min_snppanel_read_depth
+    Float genotype_variants_normal_to_tumor_weight
     Float genotype_variants_min_genotype_likelihood
     Float genotype_variants_outlier_prior
     Int genotype_variants_overdispersion
@@ -151,6 +152,7 @@ workflow DefineWorkflowArguments {
         Float min_snppanel_pop_af = 0.01
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
+        Float genotype_variants_normal_to_tumor_weight = 10.0
         Float genotype_variants_min_genotype_likelihood = 0.995
         Float genotype_variants_outlier_prior = 0.0001
         Int genotype_variants_overdispersion = 10
@@ -313,6 +315,7 @@ workflow DefineWorkflowArguments {
         min_snppanel_pop_af: min_snppanel_pop_af,
         max_snppanel_pop_af: max_snppanel_pop_af,
         min_snppanel_read_depth: min_snppanel_read_depth,
+        genotype_variants_normal_to_tumor_weight: genotype_variants_normal_to_tumor_weight,
         genotype_variants_min_genotype_likelihood: genotype_variants_min_genotype_likelihood,
         genotype_variants_outlier_prior: genotype_variants_outlier_prior,
         genotype_variants_overdispersion: genotype_variants_overdispersion,

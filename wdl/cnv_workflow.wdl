@@ -64,6 +64,7 @@ workflow CNVWorkflow {
                 rare_germline_alleles_idx = patient.rare_germline_alleles_idx,
                 compress_output = args.compress_output,
                 min_read_depth = args.min_snppanel_read_depth,
+                normal_to_tumor_weight = args.genotype_variants_normal_to_tumor_weight,
                 min_genotype_likelihood = args.genotype_variants_min_genotype_likelihood,
                 outlier_prior = args.genotype_variants_outlier_prior,
                 overdispersion = args.genotype_variants_overdispersion,

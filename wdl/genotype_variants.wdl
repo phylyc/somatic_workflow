@@ -23,6 +23,7 @@ workflow GenotypeVariants {
 
         Float min_allele_frequency = 0.0
         Int min_read_depth = 10
+        Float normal_to_tumor_weight = 10.0
         Float min_genotype_likelihood = 0.995
         Float outlier_prior = 0.0001
         Int overdispersion = 10
@@ -76,6 +77,7 @@ workflow GenotypeVariants {
             af_model_parameters = af_model_parameters,
             min_allele_frequency = min_allele_frequency,
             min_read_depth = min_read_depth,
+            normal_to_tumor_weight = normal_to_tumor_weight,
             min_genotype_likelihood = min_genotype_likelihood,
             outlier_prior = outlier_prior,
             overdispersion = overdispersion,
@@ -132,7 +134,7 @@ task GenotypeVariantsTask {
 
         Float min_allele_frequency = 0.0
         Int min_read_depth = 10
-        Float normal_to_tumor_weight = 2.0
+        Float normal_to_tumor_weight = 10.0
         Float min_genotype_likelihood = 0.995
         Float outlier_prior = 0.0001
         Int overdispersion = 50

@@ -53,7 +53,7 @@ def parse_args():
     parser.add_argument("-L", "--af_model_parameters",          type=str,   default=None,   action="append",    help="Path to the allelic copy ratio segmentation model parameters containing ref bias (output of GATK's ModelSegments).")
     parser.add_argument("-V", "--variant",                      type=str,   default=None,   action="append",    help="VCF file containing germline variants and population allele frequencies. (Used to get pileup summaries.)")
     parser.add_argument("--normal_sample",                      type=str,   default=None,   action="append",    help="Assigned name of the normal sample.")
-    parser.add_argument("--normal_to_tumor_weight",             type=float, default=2.0,    help="Relative weight of normal samples to tumor samples when determining patient genotype.")
+    parser.add_argument("--normal_to_tumor_weight",             type=float, default=10.0,   help="Relative weight of normal samples to tumor samples when determining patient genotype.")
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
     parser.add_argument("--min_allele_frequency",               type=float, default=0,      help="Minimum population allele frequency to consider a site.")
     parser.add_argument("-p", "--min_genotype_likelihood",      type=float, default=0.995,  help="Probability threshold for calling and retaining genotypes.")
