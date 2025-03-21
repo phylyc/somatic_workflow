@@ -67,6 +67,10 @@ task SelectAFonly {
     String vcf_af_only_filtered_idx = vcf_af_only_filtered + if compress_output then ".tbi" else ".idx"
     String vcf_af_only_filtered_AFgtX = output_base_name + ".af_only.AFgt" + minAF + ".filtered.vcf" + if compress_output then ".gz" else ""
     String vcf_af_only_filtered_AFgtX_idx = vcf_af_only_filtered_AFgtX + if compress_output then ".tbi" else ".idx"
+    String vcf_af_only_filtered_AFgtX_onlySNP = output_base_name + ".af_only.AFgt" + minAF + ".filtered.onlySNP.vcf" + if compress_output then ".gz" else ""
+    String vcf_af_only_filtered_AFgtX_onlySNP_idx = vcf_af_only_filtered_AFgtX_onlySNP + if compress_output then ".tbi" else ".idx"
+    String vcf_af_only_filtered_AFgtX_onlySNP_biallelic = output_base_name + ".af_only.AFgt" + minAF + ".filtered.onlySNP.biallelic.vcf" + if compress_output then ".gz" else ""
+    String vcf_af_only_filtered_AFgtX_onlySNP_biallelic_idx = vcf_af_only_filtered_AFgtX_onlySNP_biallelic + if compress_output then ".tbi" else ".idx"
 
 	command <<<
         set -e
@@ -78,11 +82,12 @@ task SelectAFonly {
             -o '~{vcf_af_only}' \
             '~{vcf}'
 
-        echo "Creating index for vcf file ... "
+        echo "Creating index for vcf_af_only file ... "
         bcftools index -t \
             -o '~{vcf_af_only_idx}' \
             '~{vcf_af_only}'
 
+        # Also outputs idx file
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             SelectVariants \
             -R '~{ref_fasta}' \
@@ -94,6 +99,7 @@ task SelectAFonly {
         rm '~{vcf_af_only}'
         rm '~{vcf_af_only_idx}'
 
+        # --- Transformations for common germline resource ---
         echo "Subsetting to AF > ~{minAF} ... "
         bcftools view \
             -i "INFO/AF > ~{minAF}" \
@@ -104,13 +110,33 @@ task SelectAFonly {
         bcftools index -t \
             -o '~{vcf_af_only_filtered_AFgtX_idx}' \
             '~{vcf_af_only_filtered_AFgtX}'
+        
+        # Subset to only SNPs 
+        echo "Subsetting to only SNPs ... "
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            SelectVariants \
+            -R '~{ref_fasta}' \
+            -V '~{vcf_af_only_filtered_AFgtX}' \
+            --select-type-to-include SNP \
+            -O '~{vcf_af_only_filtered_AFgtX_onlySNP}'
+        
+        # For multiallelic sites (>1 rows), keep first record
+        echo "Making biallelic ... "
+        bcftools sort '~{vcf_af_only_filtered_AFgtX_onlySNP}' | \
+            bcftools norm --rm-dup both -Oz > '~{vcf_af_only_filtered_AFgtX_onlySNP_biallelic}'
+
+        # Index the biallelic only SNP file
+        echo "Creating index for biallelic only SNP vcf file ... "
+        bcftools index -t \
+            -o '~{vcf_af_only_filtered_AFgtX_onlySNP_biallelic_idx}' \
+            '~{vcf_af_only_filtered_AFgtX_onlySNP_biallelic}'
 	>>>
 
 	output {
         File af_only_vcf = vcf_af_only_filtered
         File af_only_vcf_idx = vcf_af_only_filtered_idx
-        File common_af_only_vcf = vcf_af_only_filtered_AFgtX
-        File common_af_only_vcf_idx = vcf_af_only_filtered_AFgtX_idx
+        File common_af_only_vcf = vcf_af_only_filtered_AFgtX_onlySNP_biallelic
+        File common_af_only_vcf_idx = vcf_af_only_filtered_AFgtX_onlySNP_biallelic_idx
 	}
 
     runtime {
