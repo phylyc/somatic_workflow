@@ -149,6 +149,8 @@ workflow CallVariants {
                     File bam = m2_seq_run.bam
                     File bai = m2_seq_run.bai
                 }
+                String bam_names = m2_sample.bam_name
+                String sample_names = m2_sample.name
             }
             Array[File] shard_bams = select_all(flatten(bam))
             Array[File] shard_bais = select_all(flatten(bai))
@@ -163,6 +165,8 @@ workflow CallVariants {
                     bams = shard_bams,
                     bais = shard_bais,
                     normal_sample_names = normal_sample_names,
+                    bam_names = bam_names,
+                    sample_names = sample_names,
                     force_call_alleles = if defined(MergeMutect1ForceCallVCFs.merged_vcf) then MergeMutect1ForceCallVCFs.merged_vcf else args.files.force_call_alleles,
                     force_call_alleles_idx = if defined(MergeMutect1ForceCallVCFs.merged_vcf_idx) then MergeMutect1ForceCallVCFs.merged_vcf_idx else args.files.force_call_alleles_idx,
                     panel_of_normals = args.files.snv_panel_of_normals,
@@ -317,7 +321,7 @@ task Mutect1 {
         echo ""
         echo "Available memory: $machine_mb MB."
         echo "Overhead: $overhead_mb MB."
-        echo "Using $command_mb MB of memory for Mutect1 and $n_threads threads."
+        echo "Using $command_mb MB of memory for Mutect1 and 1/$n_threads threads."
         echo ""
 
         # Parse contamination_table
@@ -350,7 +354,6 @@ task Mutect1 {
             --power_file '~{power_wig}' \
             ~{if only_passing_calls then "--only_passing_calls" else ""} \
             --vcf '~{mutect1_vcf}' \
-            --num_threads $n_threads \
             --required_maximum_alt_allele_mapping_quality_score 10 \
             --filter_reads_with_N_cigar \
             --filter_mismatching_base_and_quals \
@@ -505,6 +508,9 @@ task Mutect2 {
         Array[File] bais
         Array[String]? normal_sample_names
 
+        Array[String] bam_names
+        Array[String] sample_names
+
         File? force_call_alleles
         File? force_call_alleles_idx
         File? panel_of_normals
@@ -625,6 +631,27 @@ task Mutect2 {
                 grep -v 'More than two reads with the same name found' \
                 >&2 \
             )
+
+        # Add map of bam names to chosen samples names to header.
+        # Convert comma-separated strings to arrays
+        IFS=',' read -r -a bam_names <<< "~{sep="," bam_names}"
+        IFS=',' read -r -a sample_names <<< "~{sep="," sample_names}"
+        # Create string to inset into header
+        header=""
+        for i in "~{dollar}{!bam_names[@]}"; do
+            header+="##bam_to_sample_name_map=~{dollar}{bam_names[i]}:~{dollar}{sample_names[i]}\n"
+        done
+        header="~{dollar}{header%??}"  # Trim the trailing newline
+        # Insert string
+        if [ "~{compress_output}" == "true" ]; then
+            zcat '~{output_vcf}' | \
+                awk -v header="$header" '/^#CHROM/ {print header} {print}' | \
+                bgzip > 'tmp.~{output_vcf}'
+        else
+            awk -v header="$header" '/^#CHROM/ {print header} {print}' '~{output_vcf}' > 'tmp.~{output_vcf}'
+        fi
+        mv 'tmp.~{output_vcf}' '~{output_vcf}'
+        bcftools index -t -o '~{output_vcf_idx}' '~{output_vcf}'
     >>>
 
     output {
