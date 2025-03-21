@@ -62,7 +62,7 @@ workflow ModelSegments {
     # to be very permissive. This introduces a bit more noise, which we compensate
     # for by stronger smoothing.
     if (pre_select_hets) {
-        Int genotyping_homozygous_log_ratio_threshold = 100
+        Int genotyping_homozygous_log_ratio_threshold = 10
         Float model_segments_smoothing_credible_interval_threshold = args.model_segments_smoothing_credible_interval_threshold
     }
 
