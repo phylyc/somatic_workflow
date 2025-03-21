@@ -29,7 +29,9 @@ version development
 ##      model in the same way.
 
 import "shard.wdl" as sh
+import "sequencing_run.wdl" as seqrun
 import "patient.wdl" as p
+import "patient.update_samples.wdl" as p_update_s
 import "workflow_arguments.wdl" as wfargs
 import "runtime_collection.wdl" as rtc
 import "runtimes.wdl" as rt
@@ -60,34 +62,9 @@ workflow CallVariants {
                 # Old GATK does not stream input files, so we have to localize them.
                 # Localizing the full bams is very expensive, so we first subset them
                 # to the sharded intervals.
-                if (defined(patient.matched_normal_sample)) {
-                    Sample this_matched_normal_sample = select_first([patient.matched_normal_sample])
-                    String matched_normal_sample_name = this_matched_normal_sample.name
-                    SequencingRun matched_normal_seq_run = select_first(this_matched_normal_sample.sequencing_runs)
-                    call tasks.PrintReads as MatchedNormalShard {
-                        input:
-                            interval_list = shard.intervals,
-                            ref_fasta = args.files.ref_fasta,
-                            ref_fasta_index = args.files.ref_fasta_index,
-                            ref_dict = args.files.ref_dict,
-                            prefix = matched_normal_sample_name,
-                            bams = [matched_normal_seq_run.bam],
-                            bais = [matched_normal_seq_run.bai],
-                            runtime_params = runtime_collection.print_reads
-                    }
-                }
-
                 scatter (sample in patient.samples) {
-                    # Only supply matched normal sample for tumor samples as
-                    # Mutect1 does not like the same bam for tumor and normal.
-                    if (sample.is_tumor) {
-                        String? this_normal_sample_name = matched_normal_sample_name
-                        File? this_normal_bam = MatchedNormalShard.output_bam
-                        File? this_normal_bai = MatchedNormalShard.output_bai
-                    }
                     scatter (seq_run in sample.sequencing_runs) {
-                        # TODO: use the bam above if the same
-                        call tasks.PrintReads as SeqRunShard {
+                        call tasks.PrintReads as SubsetToShard {
                             input:
                                 interval_list = shard.intervals,
                                 ref_fasta = args.files.ref_fasta,
@@ -97,6 +74,32 @@ workflow CallVariants {
                                 bams = [seq_run.bam],
                                 bais = [seq_run.bai],
                                 runtime_params = runtime_collection.print_reads
+                        }
+                        call seqrun.UpdateSequencingRun as SeqRunShard {
+                            input:
+                                sequencing_run = seq_run,
+                                bam = SubsetToShard.output_bam,
+                                bai = SubsetToShard.output_bai
+                        }
+                    }
+                }
+                call p_update_s.UpdateSamples as PatientShard {
+                    input:
+                        patient = patient,
+                        sequencing_runs = SeqRunShard.updated_sequencing_run
+                }
+                Patient patient_shard = PatientShard.updated_patient
+
+                scatter (sample in patient_shard.samples) {
+                    scatter (seq_run in sample.sequencing_runs) {
+                        # Only supply matched normal sample for tumor samples as
+                        # Mutect1 does not like the same bam for tumor and normal.
+                        if (sample.is_tumor && defined(patient_shard.matched_normal_sample)) {
+                            Sample matched_normal_sample = select_first([patient_shard.matched_normal_sample])
+                            String matched_normal_sample_name = matched_normal_sample.name
+                            SequencingRun matched_normal_sample_seq_run = select_first(matched_normal_sample.sequencing_runs)
+                            File matched_normal_bam = matched_normal_sample_seq_run.bam
+                            File matched_normal_bai = matched_normal_sample_seq_run.bai
                         }
                         call Mutect1 {
                             input:
@@ -112,11 +115,11 @@ workflow CallVariants {
 
                                 patient_id = patient.name,
                                 tumor_sample_name = seq_run.sample_name,
-                                tumor_bam = SeqRunShard.output_bam,
-                                tumor_bai = SeqRunShard.output_bai,
-                                normal_sample_name = this_normal_sample_name,
-                                normal_bam = this_normal_bam,
-                                normal_bai = this_normal_bai,
+                                tumor_bam = seq_run.bam,
+                                tumor_bai = seq_run.bai,
+                                normal_sample_name = matched_normal_sample_name,
+                                normal_bam = matched_normal_bam,
+                                normal_bai = matched_normal_bai,
 
                                 runtime_params = runtime_collection.mutect1,
                         }
@@ -139,17 +142,15 @@ workflow CallVariants {
                         runtime_params = runtime_collection.merge_mutect1_forcecall_vcfs
                 }
             }
-            if (!args.run_variant_calling_mutect1) {
-                scatter (m2_sample in patient.samples) {
-                    scatter (m2_seq_run in m2_sample.sequencing_runs) {
-                        File bam = m2_seq_run.bam
-                        File bai = m2_seq_run.bai
-                    }
+            Patient m2_patient = select_first([patient_shard, patient])
+            scatter (m2_sample in m2_patient.samples) {
+                scatter (m2_seq_run in m2_sample.sequencing_runs) {
+                    File bam = m2_seq_run.bam
+                    File bai = m2_seq_run.bai
                 }
             }
-
-            Array[File] shard_bams = select_all(flatten(select_first([bam, SeqRunShard.output_bam])))
-            Array[File] shard_bais = select_all(flatten(select_first([bai, SeqRunShard.output_bai])))
+            Array[File] shard_bams = select_all(flatten(bam))
+            Array[File] shard_bais = select_all(flatten(bai))
 
             call Mutect2 {
                 input:
