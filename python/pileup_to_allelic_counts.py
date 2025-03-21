@@ -147,7 +147,7 @@ def convert_pileup_to_allelic_counts(args):
                 # Map to the last free positions since ModelSegments uses the
                 # first appearing HET, and HETs within the interval are a bit
                 # more informative than HETs mapped to the interval from nearby.
-                free_positions = [p for p in np.arange(end, start, -1) if p not in occupied_positions]
+                free_positions = [p for p in np.arange(end - 1, start, -1) if p not in occupied_positions]
                 n_mapped = min(len(free_positions), np.sum(mapped_hets))
                 if n_mapped > 0:
                     mapped_positions = free_positions[:n_mapped]
