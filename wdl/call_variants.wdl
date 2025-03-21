@@ -354,8 +354,7 @@ task Mutect1 {
             --required_maximum_alt_allele_mapping_quality_score 10 \
             --filter_reads_with_N_cigar \
             --filter_mismatching_base_and_quals \
-            --filter_bases_not_stored \
-            --phone_home STDOUT
+            --filter_bases_not_stored
     >>>
 
     output {
