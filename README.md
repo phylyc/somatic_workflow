@@ -19,30 +19,32 @@ The workflow is organized into the following main tasks:
 - **2.3 Allelic Read Count Collection**: Collect allelic read counts at common germline sites (SNP panel: `common_germline_alleles`).
 - **2.4 Harmonization of Target Intervals and Allelic Counts**: Harmonize target intervals across samples, subset to intersection; merge read count data from multiple sequencing runs per sample.
 - **2.5 Contamination Estimation**: Estimate out-of-patient contamination in each sample.
-- **2.6 First-pass copy ratio segmentation**: get a prior allelic copy ratio segmentation which is used for filtering SNVs (3.2) and for genotyping germline sites (4.1)
+- **2.6 First-pass copy ratio segmentation**: get a prior single-sample allelic copy ratio segmentation which is used for filtering SNVs (3.3) and for genotyping germline sites (4.1).
 
 ### 3. SNV Calling
 Tasks involved in the detection and analysis of short nucleotide variations:
-- **3.1 Mutect1 Single-sample Calling**: Use Mutect1 for single-sample mutation calling in tumor-normal mode if a matched normal sample is available.
+- **3.1 Mutect1 Single-sample Calling**: Use Mutect1 for single-sample mutation calling in tumor-normal mode if a matched normal sample is available, otherwise in tumor-only mode.
 - **3.2 Mutect2 Multi-sample Calling**: Use Mutect2 for multi-sample mutation calling. Force-call alleles that were called via Mutect1.
 - **3.3 Filter Variant Calls**: Annotate and select somatic vs germline vs artifactual variants based on various filters.
   - **3.3a Filter**: Apply statistical filters for sequencing artifacts, germline variants, read orientation bias, and contamination, among others.
   - **3.3b Hard Filter**: Apply hard filters based on base quality, mappability, fragment length, read depth, read orientation quality, position on the read, and population allele frequency.
   - **3.3c Realignment Filter**: Filter based on realignment success (to hg38 or whichever reference is given by `realignment_bwa_mem_index_image`).
 - **3.4 Annotate SNVs**: Annotate short nucleotide variants with functional information.
+- **3.5 Tumor mutational burden (TMB) estimation**: (coming soon)
 
 ### 4. CNV Calling
 Tasks involved in the detection and analysis of copy number variations:
-- **4.1 SNP Genotyping**: Genotype allelic count data at common (from 2.3) and rare (from 3.2) germline sites using evidence across all samples; harmonize loci across samples.
+- **4.1 SNP Genotyping**: Genotype allelic count data at common (from 2.3) and rare (from 3.3) germline sites using evidence across all samples; harmonize loci across samples.
 - **4.2 Multi-sample Segmentation**: Segment denoised total copy ratios and allelic copy ratio across multiple samples.
-- **4.3 Per-sample Copy Ratio Inference**: Infer copy ratios for each sample.
+- **4.3 Per-sample Copy Ratio Inference**: Infer total and allelic copy ratios for each sample.
 - **4.4 Per-sample Event Calling**: Call amplifications and deletions for each sample. 
 - **4.5 Per-sample Segmentation Plotting**: Plot the segmented denoised copy ratios and allelic copy ratios for each sample.
-- **4.6 Per-sample Germline Filtering**: Filter segments called as amp/del in the matched normal sample from the tumor segmentations. (optional, by default turned off)
 
 ### 5. Clonal Analysis
-- **5.1 ABSOLUTE**: Perform per-sample clonal analysis of the identified variants and estimate tumor purity and ploidy.
+- **5.1 ABSOLUTE**: Perform per-sample clonal analysis of the identified somatic variants and estimate tumor purity and ploidy.
 - **5.2 ABSOLUTE extraction**: Extract results for one chosen solution (needs manual input).
+  - **5.2a**: Rescue dropped somatic variants.
+- **5.3 PhylogicNDT**: (Coming soon)
 
 Please remember to always review the intermediate results to ensure that the final results are as expected. Inappropriate filtering or parameter settings can lead to misleading output.
 
@@ -53,6 +55,7 @@ Detailed descriptions of expected inputs:
 ```wdl
 # This string is used to label the outputs of the workflow.
 String patient_id
+# Sex genotype: XX or XY.
 String? sex
 # If defined, all arrays must have the same length. Each entry corresponds to a
 # sequencing run, and the same index in each array corresponds to the same run.
@@ -62,15 +65,15 @@ String? sex
 Array[String]? sample_names
 Array[File]+ bams
 Array[File]+ bais
-# For targeted sequencing, the (possibly padded and ideally blacklist-removed)
+# For targeted sequencing, the (possibly padded and ideally mappability blacklist-removed)
 # target intervals must be supplied. For whole genome sequencing, the intervals
-# are just the chromosomal intervals (ideally blacklist-removed).
+# are just the chromosomal intervals (ideally mappability blacklist-removed).
 Array[File]+ target_intervals
 # The target_intervals annotated with gc content, mappability, and segmental duplications. 
 Array[File]? annotated_target_intervals
 # If a panel of normals is not available for the sequencing platform of a sample,
 # its corresponding path must point to an empty file (of size 0B). The 
-# annotated_target_intervals will instead be used for denoising.
+# annotated_target_intervals will instead be used for denoising of total read counts.
 Array[File]? cnv_panel_of_normals
 # Setting this avoids double counting evidence from paired-end reads. This is
 # particularly important for cell-free DNA samples, where the majority of
@@ -198,7 +201,7 @@ File? snp_other_alt_counts = out_patient.snp_other_alt_counts
 File? snp_sample_correlation = out_patient.snp_sample_correlation
 File? modeled_segments = out_patient.modeled_segments
 ```
-The outputs can be used as cached workflow inputs with the same name to skip the corresponding tasks.
+These outputs can be used as cached workflow inputs with the same name to skip the corresponding tasks.
 
 
 ## Important Notes:
