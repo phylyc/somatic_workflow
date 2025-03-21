@@ -6,7 +6,7 @@ import "patient.wdl" as p
 import "patient.update_samples.wdl" as p_update_s
 import "workflow_arguments.wdl" as wfargs
 import "runtime_collection.wdl" as rtc
-import "collect_callable_loci.wdl" as ccl
+#import "collect_callable_loci.wdl" as ccl
 import "collect_read_counts.wdl" as crc
 import "collect_allelic_counts.wdl" as cac
 import "harmonize_samples.wdl" as hs
@@ -24,19 +24,19 @@ workflow CoverageWorkflow {
 
     scatter (sample in patient.samples) {
         scatter (sequencing_run in sample.sequencing_runs) {
-            if (args.run_collect_callable_loci && (size(sequencing_run.callable_loci) == 0)) {
-                call ccl.CollectCallableLoci {
-                    input:
-                        ref_fasta = args.files.ref_fasta,
-                        ref_fasta_index = args.files.ref_fasta_index,
-                        ref_dict = args.files.ref_dict,
-                        sample_name = sample.name,
-                        bam = sequencing_run.bam,
-                        bai = sequencing_run.bai,
-                        is_paired_end = sequencing_run.is_paired_end,
-                        runtime_collection = runtime_collection,
-                }
-            }
+#            if (args.run_collect_callable_loci && (size(sequencing_run.callable_loci) == 0)) {
+#                call ccl.CollectCallableLoci {
+#                    input:
+#                        ref_fasta = args.files.ref_fasta,
+#                        ref_fasta_index = args.files.ref_fasta_index,
+#                        ref_dict = args.files.ref_dict,
+#                        sample_name = sample.name,
+#                        bam = sequencing_run.bam,
+#                        bai = sequencing_run.bai,
+#                        is_paired_end = sequencing_run.is_paired_end,
+#                        runtime_collection = runtime_collection,
+#                }
+#            }
 
             if (args.run_collect_total_read_counts && (size(sequencing_run.total_read_counts) == 0) && (size(sequencing_run.denoised_total_copy_ratios) == 0)) {
                 call crc.CollectReadCounts {
@@ -80,7 +80,7 @@ workflow CoverageWorkflow {
             call seqrun.UpdateSequencingRun as SeqAddCoverage {
                 input:
                     sequencing_run = sequencing_run,
-                    callable_loci = CollectCallableLoci.bed,
+#                    callable_loci = CollectCallableLoci.bed,
                     total_read_counts = CollectReadCounts.read_counts,
                     denoised_total_copy_ratios = CollectReadCounts.denoised_copy_ratios,
                     snppanel_allelic_pileup_summaries = CollectAllelicCounts.pileup_summaries,
