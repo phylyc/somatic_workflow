@@ -29,9 +29,9 @@ version development
 ##      model in the same way.
 
 import "shard.wdl" as sh
-import "sequencing_run.wdl" as seqrun
+#import "sequencing_run.wdl" as seqrun
 import "patient.wdl" as p
-import "patient.update_samples.wdl" as p_update_s
+#import "patient.update_samples.wdl" as p_update_s
 import "workflow_arguments.wdl" as wfargs
 import "runtime_collection.wdl" as rtc
 import "runtimes.wdl" as rt
