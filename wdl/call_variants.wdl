@@ -559,7 +559,7 @@ task Mutect2 {
     String dollar = "$"
 
     # Allocate enough space for output bam, if requested
-    Int diskGB = runtime_params.disk + if make_bamout then ceil(size(bams, "GB")) else 0
+    Int diskGB = runtime_params.disk + if make_bamout then ceil(1.2 * size(bams, "GB")) else 0
 
     command <<<
         set -e
@@ -623,7 +623,7 @@ task Mutect2 {
             ~{if native_pair_hmm_use_double_precision then "--native-pair-hmm-use-double-precision true" else ""} \
             ~{"--downsampling-stride " + downsampling_stride} \
             ~{"--max-reads-per-alignment-start " + max_reads_per_alignment_start} \
-            --seconds-between-progress-updates 60 \
+            --seconds-between-progress-updates 600 \
             ~{m2_extra_args} \
             2> >( \
                 grep -v 'Dangling End recovery killed because of a loop (findPath)' | \
@@ -631,7 +631,10 @@ task Mutect2 {
                 >&2 \
             )
 
-        # Add map of bam names to chosen samples names to header.
+        #####
+        # Add map of bam names to chosen samples names to header. This makes it
+        # easier for downstream tools to map called variants to samples.
+
         # Convert comma-separated strings to arrays
         IFS=',' read -r -a bam_names <<< "~{sep="," bam_names}"
         IFS=',' read -r -a sample_names <<< "~{sep="," sample_names}"
