@@ -1,3 +1,4 @@
 .idea
 python/test_data/output/*
 local_validate_wdls.sh
+**.DS_Store**
