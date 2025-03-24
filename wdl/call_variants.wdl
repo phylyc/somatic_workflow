@@ -653,7 +653,7 @@ task Mutect2 {
             awk -v header="$header" '/^#CHROM/ {print header} {print}' '~{output_vcf}' > 'tmp.~{output_vcf}'
         fi
         mv 'tmp.~{output_vcf}' '~{output_vcf}'
-        bcftools index -t -o '~{output_vcf_idx}' '~{output_vcf}'
+        bcftools index -f -t -o '~{output_vcf_idx}' '~{output_vcf}'
     >>>
 
     output {
