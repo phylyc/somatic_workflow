@@ -142,17 +142,29 @@ workflow CallVariants {
                         runtime_params = runtime_collection.merge_mutect1_forcecall_vcfs
                 }
             }
-            Patient m2_patient = select_first([patient_shard, patient])
-            scatter (m2_sample in m2_patient.samples) {
+
+            scatter (m2_sample in patient.samples) {
                 scatter (m2_seq_run in m2_sample.sequencing_runs) {
-                    File bam = m2_seq_run.bam
-                    File bai = m2_seq_run.bai
+                    File full_bam = m2_seq_run.bam
+                    File full_bai = m2_seq_run.bai
                 }
                 String bam_names = m2_sample.bam_name
                 String sample_names = m2_sample.name
             }
-            Array[File] shard_bams = select_all(flatten(bam))
-            Array[File] shard_bais = select_all(flatten(bai))
+            Array[File] shard_bams = select_first([
+                select_all(flatten(SubsetToShard.output_bam)),
+                flatten(full_bam)
+            ])
+            Array[File] shard_bais = select_first([
+                select_all(flatten(SubsetToShard.output_bai)),
+                flatten(full_bai)
+            ])
+
+            Int scale = if args.run_variant_calling_mutect1 then 1 else length(patient.shards)
+            Int m2_diskGB = (
+                runtime_collection.mutect2.disk
+                + if args.make_bamout then ceil(1.2 * size(shard_bams, "GB") / scale) else 0
+            )
 
             call Mutect2 {
                 input:
@@ -161,8 +173,8 @@ workflow CallVariants {
                     ref_fasta_index = args.files.ref_fasta_index,
                     ref_dict = args.files.ref_dict,
                     patient_id = patient.name,
-                    bams = shard_bams,
-                    bais = shard_bais,
+                    bams = flatten(full_bam),
+                    bais = flatten(full_bai),
                     normal_sample_names = normal_sample_names,
                     bam_names = bam_names,
                     sample_names = sample_names,
@@ -186,6 +198,7 @@ workflow CallVariants {
                     pcr_indel_qual = args.mutect2_pcr_indel_qual,
                     max_reads_per_alignment_start = args.mutect2_max_reads_per_alignment_start,
                     m2_extra_args = args.mutect2_extra_args,
+                    diskGB = m2_diskGB,
                     runtime_params = runtime_collection.mutect2,
             }
 
@@ -543,6 +556,7 @@ task Mutect2 {
         Boolean compress_output = false
         Boolean make_bamout = false
 
+        Int diskGB = runtime_params.disk + if make_bamout then ceil(1.2 * size(bams, "GB")) else 0
         Runtime runtime_params
     }
 
@@ -557,9 +571,6 @@ task Mutect2 {
     String output_artifact_priors = patient_id + ".f1r2_counts.tar.gz"
 
     String dollar = "$"
-
-    # Allocate enough space for output bam, if requested
-    Int diskGB = runtime_params.disk + if make_bamout then ceil(1.2 * size(bams, "GB")) else 0
 
     command <<<
         set -e

@@ -192,11 +192,11 @@ workflow DefineRuntimeCollection {
 
         # java -jar Mutect1
         Int cpu_mutect1 = 1
-        Int mem_mutect1_base = 6144                 # per scatter
+        Int mem_mutect1_base = 3072
         Int mem_mutect1_overhead = 1024
         Int time_mutect1_total = 2880                # 2d
         Int preemptible_mutect1 = 1
-        Int max_retries_mutect1 = 2
+        Int max_retries_mutect1 = 1
         # disk size is dynamically inferred.
 
         # MergeMutect1ForceCallVCFs
@@ -211,7 +211,7 @@ workflow DefineRuntimeCollection {
         Int mem_mutect2_overhead = 1024  # needs to be at least 1GB to run decently
         Int time_mutect2_total = 10000  # 6 d / scatter_count
         Int preemptible_mutect2 = 1
-        Int max_retries_mutect2 = 2
+        Int max_retries_mutect2 = 1
         # disk size is dynamically inferred.
 
         # gatk: MergeVCFs
@@ -672,7 +672,7 @@ workflow DefineRuntimeCollection {
         "cpu": cpu_mutect1,
         "machine_mem": mem_mutect1_base + mem_mutect1_overhead,
         "command_mem": mem_mutect1_base,
-        "runtime_minutes": time_startup + time_mutect1_total,
+        "runtime_minutes": time_startup + ceil(time_mutect1_total / scatter_count),
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
