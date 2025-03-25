@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument("--sex",            type=str,   required=False, help="Patient's sex genotype.")
     parser.add_argument("--absolute_seg",   type=str,   required=True,  help="Path to a ABSOLUTE segtab output file.")
     parser.add_argument("--cr_seg",         type=str,   required=True,  help="Path to a ACS segmentation output file.")
-    parser.add_argument("--gvcf",           type=str,   required=True,  help="Path to a genotyped germline vcf that contains ref and alt allele information for each pileup locus and contains the GT field.")
+    parser.add_argument("--gvcf",           type=str,   required=False, help="Path to a genotyped germline vcf that contains ref and alt allele information for each pileup locus and contains the GT field.")
     parser.add_argument("--purity",         type=float, required=True,  help="Tumor purity as inferred by ABSOLUTE")
     parser.add_argument("--ploidy",         type=float, required=True,  help="Tumor ploidy as inferred by ABSOLUTE")
     parser.add_argument("--outdir",         type=str,   required=True,  help="Path to the output directory to write the extended segmentations.")
@@ -73,9 +73,11 @@ def map_to_cn(args):
             continue
     cr_seg = cr_seg.set_index(["Chromosome", "Start.bp", "End.bp"])
 
-    gvcf = pd.read_csv(
-        f"{args.gvcf}", sep="\t", comment="#", header=None, low_memory=False, names=vcf_columns
-    ).astype({"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str})
+    gvcf = None
+    if args.gvcf is not None:
+        gvcf = pd.read_csv(
+            f"{args.gvcf}", sep="\t", comment="#", header=None, low_memory=False, names=vcf_columns
+        ).astype({"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str})
 
     seg = pd.concat([abs_seg.drop(columns=["n_probes", "length"]), cr_seg], axis=1).sort_index()
 
@@ -142,6 +144,9 @@ def map_to_cn(args):
     seg.loc[new_segs, "LOH"] = 1
     seg.loc[new_segs, "rescaled.cn.a1"] = 0
     seg.loc[new_segs, "rescaled.cn.a2"] = seg.loc[new_segs, "CN"]
+
+
+    # sample	Chromosome	Start.bp	End.bp	n_probes	length	seg_sigma	W	total_copy_ratio	modal_total_cn	expected_total_cn	total_HZ	total_amp	corrected_total_cn	rescaled_total_cn	bi.allelic	copy.ratio	hscr.a1	hscr.a2	modal.a1	modal.a2	expected.a1	expected.a2	subclonal.a1	subclonal.a2	cancer.cell.frac.a1	ccf.ci95.low.a1	ccf.ci95.high.a1	cancer.cell.frac.a2	ccf.ci95.low.a2	ccf.ci95.high.a2	LOH	HZ	SC_HZ	amp.a1	amp.a2	rescaled.cn.a1	rescaled.cn.a2
 
     print(f"Number of rescued segments: {new_segs.sum()}")
 
