@@ -110,6 +110,8 @@ workflow ModelSegments {
         if (defined(sample.genotype_error_probabilities)) {
             Float error_probability = select_first([sample.genotype_error_probabilities])
         }
+        # If we provide matched normal allelic counts, we run into:
+        # java.lang.IllegalArgumentException:
         # The minimum total count for filtering allelic counts in case samples
         # must be set to zero in matched-normal mode. If the effect of statistical
         # noise due to low depth in case samples on segmentation is a concern,
@@ -288,7 +290,7 @@ task ModelSegmentsTask {
 
         # The cost function should scale with the number of samples, though it
         # doesn't. This empirical scaling seems to be good.
-        penalty_factor=$(awk 'BEGIN { print ~{num_samples} - log(~{num_samples}) / ~{num_samples} ')
+        penalty_factor=$(awk 'BEGIN { print ~{num_samples} - log(~{num_samples}) / ~{num_samples}  }')
 
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
