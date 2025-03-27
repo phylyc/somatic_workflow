@@ -88,14 +88,13 @@ workflow CallVariants {
                         patient = patient,
                         sequencing_runs = SeqRunShard.updated_sequencing_run
                 }
-                Patient patient_shard = PatientShard.updated_patient
 
-                scatter (sample in patient_shard.samples) {
+                scatter (sample in PatientShard.updated_patient.samples) {
                     scatter (seq_run in sample.sequencing_runs) {
                         # Only supply matched normal sample for tumor samples as
                         # Mutect1 does not like the same bam for tumor and normal.
-                        if (sample.is_tumor && defined(patient_shard.matched_normal_sample)) {
-                            Sample matched_normal_sample = select_first([patient_shard.matched_normal_sample])
+                        if (sample.is_tumor && defined(PatientShard.updated_patient.matched_normal_sample)) {
+                            Sample matched_normal_sample = select_first([PatientShard.updated_patient.matched_normal_sample])
                             String matched_normal_sample_name = matched_normal_sample.name
                             SequencingRun matched_normal_sample_seq_run = select_first(matched_normal_sample.sequencing_runs)
                             File matched_normal_bam = matched_normal_sample_seq_run.bam
@@ -141,6 +140,8 @@ workflow CallVariants {
                         force_call_alleles_idx = args.files.force_call_alleles_idx,
                         runtime_params = runtime_collection.merge_mutect1_forcecall_vcfs
                 }
+
+                Float shard_bams_size = size(flatten(SubsetToShard.output_bam), "GB")
             }
 
             scatter (m2_sample in patient.samples) {
@@ -151,19 +152,11 @@ workflow CallVariants {
                 String bam_names = m2_sample.bam_name
                 String sample_names = m2_sample.name
             }
-            Array[File] shard_bams = select_first([
-                select_all(flatten(SubsetToShard.output_bam)),
-                flatten(full_bam)
-            ])
-            Array[File] shard_bais = select_first([
-                select_all(flatten(SubsetToShard.output_bai)),
-                flatten(full_bai)
-            ])
+            Float full_bams_size = size(flatten(full_bam), "GB")
 
-            Int scale = if args.run_variant_calling_mutect1 then 1 else length(patient.shards)
             Int m2_diskGB = (
                 runtime_collection.mutect2.disk
-                + if args.make_bamout then ceil(1.2 * size(shard_bams, "GB") / scale) else 0
+                + if args.make_bamout then ceil(1.2 * select_first([shard_bams_size, full_bams_size / length(patient.shards)])) else 0
             )
 
             call Mutect2 {

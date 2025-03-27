@@ -67,7 +67,7 @@ workflow ModelSegments {
         Float model_segments_smoothing_credible_interval_threshold = args.model_segments_smoothing_credible_interval_threshold
         if (defined(pat.matched_normal_sample)) {
             Sample matched_normal_sample = select_first([pat.matched_normal_sample])
-            File normal_allelic_counts = matched_normal_sample.aggregated_allelic_read_counts
+            File? normal_allelic_counts = matched_normal_sample.aggregated_allelic_read_counts
             Int minimum_total_allele_count_normal = 0
         }
     }
