@@ -1,5 +1,6 @@
 version development
 
+import "sample.wdl" as s
 import "patient.wdl" as p
 import "patient.update_samples.wdl" as p_update_s
 import "workflow_arguments.wdl" as wfargs
@@ -64,6 +65,11 @@ workflow ModelSegments {
     if (pre_select_hets) {
         Int genotyping_homozygous_log_ratio_threshold = 10
         Float model_segments_smoothing_credible_interval_threshold = args.model_segments_smoothing_credible_interval_threshold
+        if (defined(pat.matched_normal_sample)) {
+            Sample matched_normal_sample = select_first([pat.matched_normal_sample])
+            File normal_allelic_counts = matched_normal_sample.aggregated_allelic_read_counts
+            Int minimum_total_allele_count_normal = 0
+        }
     }
 
     # As implemented, if we don't pre-select HETs, it is not guaranteed that the
@@ -83,12 +89,13 @@ workflow ModelSegments {
             input:
                 denoised_copy_ratios = dcr,
                 allelic_counts = ac,
-#                normal_allelic_counts = normal_allelic_counts,
+                normal_allelic_counts = normal_allelic_counts,
                 prefix = patient.name + ".segmentation",
                 max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
                 window_sizes = args.model_segments_window_sizes,
                 kernel_approximation_dimension = args.model_segments_kernel_approximation_dimension,
                 genotyping_homozygous_log_ratio_threshold = genotyping_homozygous_log_ratio_threshold,
+                minimum_total_allele_count_normal = minimum_total_allele_count_normal,
                 runtime_params = runtime_collection.model_segments
         }
     }
@@ -108,9 +115,10 @@ workflow ModelSegments {
                 segments = MultiSampleModelSegments.multi_sample_segments,
                 denoised_copy_ratios = dcr_list,
                 allelic_counts = ac_list,
-#                normal_allelic_counts = normal_allelic_counts,
+                normal_allelic_counts = normal_allelic_counts,
                 prefix = sample.name,
                 minimum_total_allele_count_case = args.min_snppanel_read_depth,
+                minimum_total_allele_count_normal = minimum_total_allele_count_normal,
                 max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
                 window_sizes = args.model_segments_window_sizes,
                 kernel_approximation_dimension = args.model_segments_kernel_approximation_dimension,
@@ -264,6 +272,8 @@ task ModelSegmentsTask {
         Runtime runtime_params
     }
 
+    Int num_samples = if defined(denoised_copy_ratios) then length(select_first([denoised_copy_ratios])) else length(select_first([allelic_counts]))
+
     String output_dir = "."
     String output_segments = prefix + ".segments"
     String seg_final = output_dir + "/" + prefix + ".modelFinal.seg"
@@ -272,6 +282,11 @@ task ModelSegmentsTask {
 
     command <<<
         set -e
+
+        # The cost function should scale with the number of samples, though it
+        # doesn't. This empirical scaling seems to be good.
+        penalty_factor=$(awk 'BEGIN { print ~{num_samples} - log(~{num_samples}) / ~{num_samples} ')
+
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             ModelSegments \
@@ -291,6 +306,7 @@ task ModelSegmentsTask {
             --number-of-samples-copy-ratio ~{number_of_mcmc_samples} \
             --number-of-burn-in-samples-allele-fraction ~{number_of_burnin_samples} \
             --number-of-burn-in-samples-copy-ratio ~{number_of_burnin_samples} \
+            --number-of-changepoints-penalty-factor $penalty_factor \
             --smoothing-credible-interval-threshold-allele-fraction ~{smoothing_credible_interval_threshold} \
             --smoothing-credible-interval-threshold-copy-ratio ~{smoothing_credible_interval_threshold} \
             --output ~{output_dir}
