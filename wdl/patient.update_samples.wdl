@@ -356,17 +356,15 @@ workflow UpdateSamples {
             }
             Sample normal_samples = select_all(selected_normal_sample)[0]
         }
-    }
-    Array[Sample] non_optional_normal_samples = select_first([normal_samples, []])
-
-    if (defined(patient.matched_normal_sample)) {
-        Sample previous_matched_normal_sample = select_first([patient.matched_normal_sample])
-        scatter (sample in non_optional_normal_samples) {
-            if (sample.name == previous_matched_normal_sample.name) {
-                Sample matched_normal_samples = sample
+        if (defined(patient.matched_normal_sample)) {
+            Sample previous_matched_normal_sample = select_first([patient.matched_normal_sample])
+            scatter (sample in normal_samples) {
+                if (sample.name == previous_matched_normal_sample.name) {
+                    Sample matched_normal_samples = sample
+                }
             }
+            Sample matched_normal_sample = select_all(matched_normal_samples)[0]
         }
-        Sample matched_normal_sample = select_all(matched_normal_samples)[0]
     }
 
     # Update patient:
@@ -375,7 +373,7 @@ workflow UpdateSamples {
             patient = patient,
             samples = samples,
             tumor_samples = tumor_samples,
-            normal_samples = non_optional_normal_samples,
+            normal_samples = normal_samples,
             matched_normal_sample = matched_normal_sample
     }
 
