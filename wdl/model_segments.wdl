@@ -110,15 +110,18 @@ workflow ModelSegments {
         if (defined(sample.genotype_error_probabilities)) {
             Float error_probability = select_first([sample.genotype_error_probabilities])
         }
+        # The minimum total count for filtering allelic counts in case samples
+        # must be set to zero in matched-normal mode. If the effect of statistical
+        # noise due to low depth in case samples on segmentation is a concern,
+        # consider using only denoised copy ratios or externally preprocessing
+        # allelic-count files to remove sites that are poorly covered across all samples.
         call ModelSegmentsTask as SingleSampleInferCR {
             input:
                 segments = MultiSampleModelSegments.multi_sample_segments,
                 denoised_copy_ratios = dcr_list,
                 allelic_counts = ac_list,
-                normal_allelic_counts = normal_allelic_counts,
                 prefix = sample.name,
                 minimum_total_allele_count_case = args.min_snppanel_read_depth,
-                minimum_total_allele_count_normal = minimum_total_allele_count_normal,
                 max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
                 window_sizes = args.model_segments_window_sizes,
                 kernel_approximation_dimension = args.model_segments_kernel_approximation_dimension,
