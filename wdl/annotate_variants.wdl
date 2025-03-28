@@ -186,11 +186,9 @@ task Funcotate {
     # ==============
     # Process input args:
     String output_maf = output_base_name + ".maf"
-    String output_maf_index = output_maf + ".idx"
     String output_vcf = output_base_name + if compress_output then ".vcf.gz" else ".vcf"
-    String output_vcf_idx = output_vcf +  if compress_output then ".tbi" else ".idx"
     String output_file = if output_format == "MAF" then output_maf else output_vcf
-    String output_file_index = if output_format == "MAF" then output_maf_index else output_vcf_idx
+    String output_file_index = output_file +  if compress_output then ".tbi" else ".idx"
 
     # Calculate disk size:
     Int funco_tar_sizeGB = if defined(data_sources_paths) then 0 else (if defined(data_sources_tar_gz) then 4 * ceil(size(data_sources_tar_gz, "GB")) else 100)
@@ -241,7 +239,8 @@ task Funcotate {
             fi
         fi
 
-        touch ~{output_file_index}
+        echo "Creating dummy index file."
+        touch '~{output_file_index}'
 
         echo ""
         # using a custom list of transcripts gives this INFO message:
