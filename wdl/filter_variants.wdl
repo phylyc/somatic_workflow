@@ -90,7 +90,7 @@ workflow FilterVariants {
                 Array[File] tumor_bais = flatten(seq_tumor_bais)
 
                 # Due to its long runtime, we scatter the realignment task over intervals.
-                Int scatter_count = ceil(SelectVariantsToRealign.num_selected_variants / args.variants_per_scatter)
+                Int scatter_count = ceil(SelectVariantsToRealign.num_selected_variants / args.variants_per_scatter) + 1
                 call tasks.SplitIntervals {
                     input:
                         interval_list = args.files.preprocessed_intervals,
