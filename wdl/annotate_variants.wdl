@@ -317,7 +317,7 @@ task CreateEmptyAnnotation {
     Boolean is_compressed = (uncompressed_vcf != basename(selected_vcf))
 
     String output_file = if output_format == "VCF" then output_base_name + ".vcf" else output_base_name + ".maf"
-    String output_file_idx = if output_format == "VCF" && compress_output then output_base_name + ".vcf.gz.tbi" else output_base_name + ".vcf.idx"
+    String output_file_idx = output_file +  if compress_output then ".tbi" else ".idx"
 
     command <<<
         # Uncompress the selected_vcf if it is gzipped
