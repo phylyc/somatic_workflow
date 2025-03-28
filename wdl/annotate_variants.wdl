@@ -322,18 +322,18 @@ task CreateEmptyAnnotation {
     command <<<
         # Uncompress the selected_vcf if it is gzipped
         if [[ "~{is_compressed}" == "true" ]]; then
-            gunzip -c ~{selected_vcf} > ~{uncompressed_vcf}
+            gunzip -c '~{selected_vcf}' > '~{uncompressed_vcf}'
         else
-            mv ~{selected_vcf} ~{uncompressed_vcf}
+            mv '~{selected_vcf}' '~{uncompressed_vcf}'
         fi
 
         if [ "~{output_format}" == "VCF" ]; then
             # Copy all headers from selected_vcf to create an empty VCF
-            grep "^#" ~{uncompressed_vcf} > ~{output_base_name}.vcf
+            grep "^#" '~{uncompressed_vcf}' > '~{output_base_name}.vcf'
 
         elif [ "~{output_format}" == "MAF" ]; then
             # Copy header lines except VCF schema to create an empty MAF
-            grep "^##" ~{uncompressed_vcf} > ~{output_base_name}.maf
+            grep "^##" '~{uncompressed_vcf}' > '~{output_base_name}.maf'
 
             # Add MAF schema to the empty MAF
             echo -e "Hugo_Symbol\tEntrez_Gene_Id\tCenter\tNCBI_Build\tChromosome\tStart_Position\tEnd_Position\tStrand\t"\
@@ -343,11 +343,11 @@ task CreateEmptyAnnotation {
             "Match_Norm_Validation_Allele1\tMatch_Norm_Validation_Allele2\tVerification_Status\tValidation_Status\t"\
             "Mutation_Status\tSequencing_Phase\tSequence_Source\tValidation_Method\tScore\tBAM_File\tSequencer\t"\
             "Tumor_Sample_UUID\tMatched_Norm_Sample_UUID\tHGVSc\tHGVSp\tHGVSp_Short\tTranscript_ID\tExon_Number\t"\
-            "t_depth\tt_ref_count\tt_alt_count\tn_depth\tn_ref_count\tn_alt_count\tProtein_Change\tUniProt_AApos" >> ~{output_base_name}.maf
+            "t_depth\tt_ref_count\tt_alt_count\tn_depth\tn_ref_count\tn_alt_count\tProtein_Change\tUniProt_AApos" >> '~{output_base_name}.maf'
         fi
 
         # Create an empty index file for VCF based on compress_output
-        touch ~{output_file_idx}
+        touch '~{output_file_idx}'
     >>>
 
     output {
