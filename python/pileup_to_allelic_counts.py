@@ -95,7 +95,7 @@ def convert_pileup_to_allelic_counts(args):
     if args.select_hets:
         if "genotype" in df.columns:
             het_mask = df["genotype"].str.contains(r"0[/|]1|1[/|]0")
-            print(f"Selecting {het_mask.sum()} / {het_mask.shape[0]} HETs")
+            print(f"Selecting {het_mask.sum()} HETs / {het_mask.shape[0]} sites.")
             df = df.loc[het_mask]
         else:
             args.select_hets = False
@@ -178,16 +178,22 @@ def convert_pileup_to_allelic_counts(args):
 
                 print("+", end="", flush=True) if args.verbose else None
 
-            dfs.append(_df)
+            if not _df.empty:
+                dfs.append(_df)
+
         print("")
 
-        df = pd.concat(dfs).astype({"contig": str, "position": int, "ref_count": int, "alt_count": int})
+        if len(dfs):
+            df = pd.concat(dfs).astype({"contig": str, "position": int, "ref_count": int, "alt_count": int})
+        else:
+            df = pd.DataFrame(columns=["contig", "position", "ref_count", "alt_count", "ref", "alt"])
 
         print(f"Remaining pileups after mapping to intervals: {df.shape[0]}")
 
-    df["depth"] = df[["ref_count", "alt_count"]].sum(axis=1)
-    df = df.sort_values(by=["depth"], ascending=False).drop_duplicates(subset=["contig", "position"]).set_index(["contig", "position"], drop=True)
-    df = df.reindex(sort_genomic_positions(index=df.index, contig_order=contig_order)).reset_index()
+    if not df.empty:
+        df["depth"] = df[["ref_count", "alt_count"]].sum(axis=1)
+        df = df.sort_values(by=["depth"], ascending=False).drop_duplicates(subset=["contig", "position"]).set_index(["contig", "position"], drop=True)
+        df = df.reindex(sort_genomic_positions(index=df.index, contig_order=contig_order)).reset_index()
     df[["contig", "position", "ref_count", "alt_count", "ref", "alt"]].to_csv(f"{args.output}", sep="\t", index=False, header=False, mode="a")
 
     if args.error_output is not None:
