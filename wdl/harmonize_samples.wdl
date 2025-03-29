@@ -38,24 +38,19 @@ workflow HarmonizeSamples {
         Array[String] sample_aps_name = select_all(aps_sample_name)
         Array[File] sample_aps = select_all(aps)
     }
-    Array[File] callable_loci = flatten(sample_cl)
-    Array[String] dcr_sample_names = flatten(sample_dcr_names)
-    Array[File] denoised_copy_ratios = flatten(sample_dcr)
-    Array[String] aps_sample_names = flatten(sample_aps_name)
-    Array[File] allelic_counts = flatten(sample_aps)
 
-    if (length(callable_loci) > 0) {
-        Array[File] sorted_harmonized_callable_loci = callable_loci
+    if (length(flatten(sample_cl)) > 0) {
+        Array[File] sorted_harmonized_callable_loci = flatten(sample_cl)
         # TODO: harmonize bed files
     }
 
-    if (length(dcr_sample_names) > 0) {
+    if (length(flatten(sample_dcr_names)) > 0) {
         call HarmonizeCopyRatios {
             input:
                 script = harmonize_copy_ratios_script,
                 ref_dict = ref_dict,
-                sample_names = dcr_sample_names,
-                denoised_copy_ratios = denoised_copy_ratios,
+                sample_names = flatten(sample_dcr_names),
+                denoised_copy_ratios = flatten(sample_dcr),
                 min_target_length = harmonize_min_target_length,
                 compress_output = compress_output,
                 runtime_params = runtime_collection.harmonize_copy_ratios
@@ -74,13 +69,13 @@ workflow HarmonizeSamples {
         Array[File] sorted_harmonized_denoised_copy_ratios = flatten(this_sample_dcr)
     }
 
-    if (length(aps_sample_names) > 0) {
+    if (length(flatten(sample_aps_name)) > 0) {
         call MergeAllelicCounts {
             input:
                 script = merge_pileups_script,
                 ref_dict = ref_dict,
-                sample_names = aps_sample_names,
-                allelic_counts = allelic_counts,
+                sample_names = flatten(sample_aps_name),
+                allelic_counts = flatten(sample_aps),
                 min_read_depth = pileups_min_read_depth,
                 compress_output = compress_output,
                 runtime_params = runtime_collection.merge_allelic_counts
