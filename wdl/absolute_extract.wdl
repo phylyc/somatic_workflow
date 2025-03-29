@@ -119,7 +119,7 @@ task AbsoluteExtractTask {
             this_called_solution=1
 
         else
-            this_rdata=~{rdata}
+            this_rdata='~{rdata}'
             this_called_solution=~{called_solution}
         fi
 

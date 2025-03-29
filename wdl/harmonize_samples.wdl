@@ -32,12 +32,17 @@ workflow HarmonizeSamples {
                 File? aps = sequencing_run.snppanel_allelic_pileup_summaries
             }
         }
+        Array[File] sample_cl = select_all(cl)
+        Array[String] sample_dcr_names = select_all(dcr_sample_name)
+        Array[File] sample_dcr = select_all(dcr)
+        Array[String] sample_aps_name = select_all(aps_sample_name)
+        Array[File] sample_aps = select_all(aps)
     }
-    Array[File] callable_loci = select_all(flatten(cl))
-    Array[String] dcr_sample_names = select_all(flatten(dcr_sample_name))
-    Array[File] denoised_copy_ratios = select_all(flatten(dcr))
-    Array[String] aps_sample_names = select_all(flatten(aps_sample_name))
-    Array[File] allelic_counts = select_all(flatten(aps))
+    Array[File] callable_loci = flatten(sample_cl)
+    Array[String] dcr_sample_names = flatten(sample_dcr_names)
+    Array[File] denoised_copy_ratios = flatten(sample_dcr)
+    Array[String] aps_sample_names = flatten(sample_aps_name)
+    Array[File] allelic_counts = flatten(sample_aps)
 
     if (length(callable_loci) > 0) {
         Array[File] sorted_harmonized_callable_loci = callable_loci
