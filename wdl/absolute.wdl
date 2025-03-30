@@ -224,16 +224,16 @@ task AbsoluteTask {
         set +e
         set -uxo pipefail
 
-        touch ~{output_plot}
-        touch ~{output_rdata}
+        touch '~{output_plot}'
+        touch '~{output_rdata}'
 
         num_segments=$(( $(wc -l < '~{seg_file}') - 1 ))
 
         if [ $num_segments -gt 0 ] ; then
             Rscript /library/scripts/run_absolute.R \
-                --results_dir ~{output_dir} \
-                --sample "~{sample_name}" \
-                --seg_dat_fn "~{seg_file}" \
+                --results_dir '~{output_dir}' \
+                --sample '~{sample_name}' \
+                --seg_dat_fn '~{seg_file}' \
                 ~{"--maf '" + snv_maf + "'"} \
                 ~{"--indel_maf '" + indel_maf + "'"} \
                 ~{"--alpha " + purity} \
