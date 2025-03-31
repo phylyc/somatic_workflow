@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import time
 import warnings
+import gzip
 
 
 def message(*args, **kwargs) -> None:
@@ -66,13 +67,20 @@ def get_contigs(ref_dict: str) -> list[str]:
         contig_header = [line for line in file if line.startswith("@SQ")]
     return [h.split("\t")[1].removeprefix("SN:") for h in contig_header]
 
+# Handles gzipped or uncompressed gvcf files
+def read_gvcf(filename: str):
+    if filename.endswith(".gz") or filename.endswith(".bgz"):
+        return gzip.open(filename, "rt")
+    else:
+        return open(filename, "r")
 
 def convert_pileup_to_allelic_counts(args):
     pileup = pd.read_csv(
         f"{args.pileup}", sep="\t", comment="#", low_memory=False
     ).astype({"contig": str, "position": int, "ref_count": int, "alt_count": int, "other_alt_count": int, "allele_frequency": float})
 
-    gvcf = pd.read_csv(f"{args.gvcf}", sep="\t", comment="#", header=None, low_memory=False)
+    with read_gvcf(args.gvcf) as gvcf_file:
+        gvcf = pd.read_csv(gvcf_file, sep="\t", comment="#", header=None, low_memory=False)
     gvcf.columns = ["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "genotype"][:gvcf.shape[1]]
     for col, dtype in {"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str}.items():
         if col in gvcf.columns:
