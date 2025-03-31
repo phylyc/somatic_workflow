@@ -472,7 +472,7 @@ class VCF(object):
         ref_dict = []
         if self.file_path is None:
             return ref_dict
-        open_func = gzip.open if self.file_path.endswith(".gz") else open
+        open_func = gzip.open if self.file_path.endswith(".gz") or self.file_path.endswith(".bgz") else open
         with open_func(self.file_path, "rt") as ifile:
             for line in ifile:
                 if line.startswith("##contig"):
