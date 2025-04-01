@@ -48,9 +48,18 @@ Tasks involved in the detection and analysis of copy number variations:
 
 Please remember to always review the intermediate results to ensure that the final results are as expected. Inappropriate filtering or parameter settings can lead to misleading output.
 
+
 ## Expected Inputs
 
-Detailed descriptions of expected inputs:
+The input arguments are grouped into 
+```wdl
+MultiSampleSomaticWorkflow # (mandatory + optional)
+Cache # (workflow output)
+Files # (reference data resources)
+Parameters # (workflow parameters)
+RuntimeParameters
+```
+Detailed descriptions of expected inputs (MultiSampleSomaticWorkflow):
 
 ```wdl
 # This string is used to label the outputs of the workflow.
@@ -88,8 +97,11 @@ Array[Boolean]? use_sample_for_aCR  # Boolean inputs, ensure correct format!
 # tumor samples. The first sample in this list will be used as the "matched" normal
 # sample. If known, it is recommended to choose the one with the highest coverage.
 Array[String]? normal_sample_names
+
+# 
+Int scatter_count
 ```
-Reference data:
+Reference data (Files):
 ```wdl
 # Intervals for short variant calling. The interval_list and interval_lists will
 # be combined and interval_blacklist will be subtracted from the result.
@@ -126,6 +138,9 @@ File? funcotator_data_sources_tar_gz
 ```
 
 ## Expected Final Outputs
+
+These outputs can be used as cached workflow inputs with the same name to skip the corresponding tasks.
+
 ```wdl
 # for each sequencing run:
 # CACHE (as returned by the workflow)
@@ -201,7 +216,6 @@ File? snp_other_alt_counts = out_patient.snp_other_alt_counts
 File? snp_sample_correlation = out_patient.snp_sample_correlation
 File? modeled_segments = out_patient.modeled_segments
 ```
-These outputs can be used as cached workflow inputs with the same name to skip the corresponding tasks.
 
 
 ## Important Notes:
