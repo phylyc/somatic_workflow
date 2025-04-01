@@ -441,11 +441,13 @@ class VCF(object):
         self.file_path = file_path
         self.ref_dict = self.get_vcf_sequence_dict()
         self.contigs = self.get_contigs()
-        self.df = (
-            pd.read_csv(file_path, sep="\t", comment="#", header=None, low_memory=False, names=self.columns)
-            if file_path is not None
-            else pd.DataFrame(columns=self.columns)
-        )
+        if file_path is not None:
+            open_func = gzip.open if file_path.endswith(".gz") or file_path.endswith(".bgz") else open
+            with open_func(file_path, "rt") as f:
+                self.df = pd.read_csv(f, sep="\t", comment="#", header=None, low_memory=False, names=self.columns)
+        else:
+            self.df = pd.DataFrame(columns=self.columns)
+    
         self.df = self.df.astype({"CHROM": str, "POS": int, "ID": str, "REF": str, "ALT": str, "INFO": str})
         n_input_vars = self.df.shape[0]
         ## GetPileupSummaries only supports SNVs well.
@@ -472,7 +474,7 @@ class VCF(object):
         ref_dict = []
         if self.file_path is None:
             return ref_dict
-        open_func = gzip.open if self.file_path.endswith(".gz") else open
+        open_func = gzip.open if self.file_path.endswith(".gz") or self.file_path.endswith(".bgz") else open
         with open_func(self.file_path, "rt") as ifile:
             for line in ifile:
                 if line.startswith("##contig"):
