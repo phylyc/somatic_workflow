@@ -2,7 +2,13 @@ import argparse
 from collections import defaultdict
 import gzip
 import pandas as pd
+import time
 import warnings
+
+
+def message(*args, **kwargs) -> None:
+    print(f"{time.strftime('%H:%M:%S')} ", *args, **kwargs)
+    return None
 
 
 def parse_args():
@@ -36,7 +42,7 @@ def main():
 
 def print_args(args):
     if args.verbose:
-        print("Calling MergePileups")
+        message("Calling MergePileups")
         print("Arguments:")
         for key, value in vars(args).items():
             print(f"  {key}: {value}")
@@ -49,7 +55,7 @@ def get_header_and_df(file_path: str, columns: list[str] = None, column_types:  
         with open_func(file_path, "rt") as file:
             # save all lines starting with comment_char as header
             header = "".join([line for line in file if line.startswith(comment_char)])
-        df = pd.read_csv(file_path, sep="\t", comment=comment_char, header=0, names=columns, low_memory=False)
+        df = pd.read_csv(file_path, sep="\t", comment=comment_char, usecols=columns, low_memory=False)
         if column_types is not None:
             df = df.astype({key: column_types[key] for key in columns if key in column_types})
     except Exception as e:
@@ -105,6 +111,7 @@ def merge_pileups(args):
     # load data (per sequencing run):
     for sample_name, file_path in zip(args.sample, args.pileup):
         header, df = get_header_and_df(file_path=file_path, columns=columns, column_types=column_types)
+        df.drop_duplicates(subset=["contig", "position"], inplace=True)
         headers[sample_name].append(header)
         pileups[sample_name].append(df)
         print(f"Number of loci in {file_path}: {df.shape[0]}") if args.verbose else None

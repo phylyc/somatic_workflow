@@ -29,6 +29,8 @@ workflow CreateReadCountPanelOfNormals {
         File? segmental_duplication_track
         File? segmental_duplication_track_idx
 
+        Int number_of_eigensamples = 20
+
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
         String gatk_docker = "broadinstitute/gatk"
@@ -116,6 +118,7 @@ workflow CreateReadCountPanelOfNormals {
             input_counts = CollectReadCounts.read_counts,
             output_name = pon_name,
             annotated_interval_list = this_annotated_interval_list,
+            number_of_eigensamples = number_of_eigensamples,
             runtime_params = CreateCNVPanelRuntime.params,
 	}
 

@@ -11,6 +11,11 @@ from typing import Union
 import warnings
 
 
+def message(*args, **kwargs) -> None:
+    print(f"{time.strftime('%H:%M:%S')} ", *args, **kwargs)
+    return None
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         prog="HarmonizeCopyRatios",
@@ -59,7 +64,7 @@ def main():
 
 def print_args(args):
     if args.verbose:
-        print("Calling HarmonizeCopyRatios")
+        message("Calling HarmonizeCopyRatios")
         print("Arguments:")
         for key, value in vars(args).items():
             print(f"  {key}: {value}")

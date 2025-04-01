@@ -35,6 +35,12 @@ struct WorkflowResources {
     # Tarball of data sources for Funcotator. If not provided, the tarball will automatically
     # be downloaded from the GATK resource bundle, which is much slower.
     File? funcotator_data_sources_tar_gz
+
+    # Mutect1 specific resources
+    File? germline_resource_v4_1
+    File? germline_resource_v4_1_idx
+    File? snv_panel_of_normals_v4_1
+    File? snv_panel_of_normals_v4_1_idx
 }
 
 
@@ -59,6 +65,12 @@ workflow DefineWorkflowResources {
         File? realignment_bwa_mem_index_image
         File? funcotator_transcript_list
         File? funcotator_data_sources_tar_gz
+        
+        # Mutect1 specific resources
+        File? germline_resource_v4_1
+        File? germline_resource_v4_1_idx
+        File? snv_panel_of_normals_v4_1
+        File? snv_panel_of_normals_v4_1_idx
     }
 
     WorkflowResources files = object {
@@ -80,7 +92,11 @@ workflow DefineWorkflowResources {
         common_germline_alleles_idx: common_germline_alleles_idx,
         realignment_bwa_mem_index_image: realignment_bwa_mem_index_image,
         funcotator_transcript_list: funcotator_transcript_list,
-        funcotator_data_sources_tar_gz: funcotator_data_sources_tar_gz
+        funcotator_data_sources_tar_gz: funcotator_data_sources_tar_gz,
+        germline_resource_v4_1: germline_resource_v4_1,
+        germline_resource_v4_1_idx: germline_resource_v4_1_idx,
+        snv_panel_of_normals_v4_1: snv_panel_of_normals_v4_1,
+        snv_panel_of_normals_v4_1_idx: snv_panel_of_normals_v4_1_idx,
     }
 
     output {

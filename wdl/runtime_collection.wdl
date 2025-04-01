@@ -9,6 +9,7 @@ struct RuntimeCollection {
     Runtime annotate_intervals
     Runtime preprocess_intervals
     Runtime split_intervals
+    Runtime collect_callable_loci
     Runtime collect_covered_regions
     Runtime collect_read_counts
     Runtime denoise_read_counts
@@ -23,7 +24,6 @@ struct RuntimeCollection {
     Runtime genotype_variants
     Runtime model_segments
     Runtime call_copy_ratio_segments
-    Runtime merge_calls_with_modeled_segments
     Runtime plot_modeled_segments
     Runtime filter_germline_cnvs
     Runtime recount_markers
@@ -31,15 +31,18 @@ struct RuntimeCollection {
     Runtime process_maf_for_absolute
     Runtime absolute
     Runtime absolute_extract
+    Runtime absolute_extract_postprocess
+    Runtime mutect1
+    Runtime merge_mutect1_forcecall_vcfs
     Runtime mutect2
     Runtime learn_read_orientation_model
     Runtime merge_vcfs
     Runtime merge_mafs
     Runtime merge_mutect_stats
     Runtime print_reads
-    Runtime filter_mutect_calls
-    Runtime variant_filtration
-    Runtime left_align_and_trim_variants
+    Runtime filter_variant_calls
+#    Runtime variant_filtration
+#    Runtime left_align_and_trim_variants
     Runtime filter_alignment_artifacts
     Runtime select_variants
     Runtime funcotate
@@ -53,10 +56,10 @@ struct RuntimeCollection {
 workflow DefineRuntimeCollection {
     input {
         Int num_bams = 1
-        Int bam_size = 0
 
         Int scatter_count = 10
         String gatk_docker = "broadinstitute/gatk:4.6.1.0"
+        String mutect1_docker = "vanallenlab/mutect:1.1.6"
         # Needs docker image with bedtools, samtools, and gatk
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
         String absolute_docker = "phylyc/absolute:1.6"
@@ -107,6 +110,10 @@ workflow DefineRuntimeCollection {
         # CNV workflow
         #######################################################################
 
+        # CallableLoci
+        Int mem_callable_loci = 2048
+        Int time_callable_loci = 300
+
         # CollectCoveredRegions
         Int mem_collect_covered_regions = 8192
         Int time_collect_covered_regions = 300
@@ -136,7 +143,7 @@ workflow DefineRuntimeCollection {
         Int time_select_pileup_summaries = 5
 
         # PileupToAllelicCounts
-        Int mem_pileup_to_allelic_counts = 2048
+        Int mem_pileup_to_allelic_counts = 8192
         Int time_pileup_to_allelic_counts = 5
 
         # HarmonizeCopyRatios
@@ -167,10 +174,6 @@ workflow DefineRuntimeCollection {
         Int mem_call_copy_ratio_segments = 1024
         Int time_call_copy_ratio_segments = 10
 
-        # custom task to merge calls with modeled segments
-        Int mem_merge_calls_with_modeled_segments = 512
-        Int time_merge_calls_with_modeled_segments = 1
-
         # gatk: PlotModeledSegments
         Int mem_plot_modeled_segments = 1024
         Int time_plot_modeled_segments = 10
@@ -187,6 +190,19 @@ workflow DefineRuntimeCollection {
         ### SNV workflow
         #######################################################################
 
+        # java -jar Mutect1
+        Int cpu_mutect1 = 1
+        Int mem_mutect1_base = 3072
+        Int mem_mutect1_overhead = 1024
+        Int time_mutect1_total = 2880                # 2d
+        Int preemptible_mutect1 = 1
+        Int max_retries_mutect1 = 1
+        # disk size is dynamically inferred.
+
+        # MergeMutect1ForceCallVCFs
+        Int mem_merge_mutect1_forcecall_vcfs = 2048
+        Int time_merge_mutect1_forcecall_vcfs = 10
+
         # gatk: Mutect2
         # The GATK only parallelizes a few parts of the computation, so any extra cores would be idle for a large fraction of time.
         Int cpu_mutect2 = 1
@@ -195,8 +211,8 @@ workflow DefineRuntimeCollection {
         Int mem_mutect2_overhead = 1024  # needs to be at least 1GB to run decently
         Int time_mutect2_total = 10000  # 6 d / scatter_count
         Int preemptible_mutect2 = 1
-        Int max_retries_mutect2 = 2
-        Int disk_mutect2_total = bam_size
+        Int max_retries_mutect2 = 1
+        # disk size is dynamically inferred.
 
         # gatk: MergeVCFs
         Int mem_merge_vcfs = 2048
@@ -213,24 +229,23 @@ workflow DefineRuntimeCollection {
         # gatk: PrintReads
         Int mem_print_reads = 32768
         Int time_print_reads = 60
-        Int disk_print_reads = bam_size
 
         # gatk: LearnReadOrientationModel
         Int mem_learn_read_orientation_model_base = 8192
         Int mem_learn_read_orientation_model_additional_per_sample = 1024
         Int time_learn_read_orientation_model = 180  # 3 h
 
-        # gatk: FilterMutectCalls
-        Int mem_filter_mutect_calls = 1024
-        Int time_filter_mutect_calls = 800  # 13 h
+        # gatk: FilterVariantCalls
+        Int mem_filter_variant_calls = 1024
+        Int time_filter_variant_calls = 800  # 13 h
 
-        # gatk: VariantFiltration
-        Int mem_variant_filtration = 512
-        Int time_variant_filtration = 5
-
-        # gatk: LeftAlignAndTrimVariants
-        Int mem_left_align_and_trim_variants = 1024
-        Int time_left_align_and_trim_variants = 60
+#        # gatk: VariantFiltration
+#        Int mem_variant_filtration = 512
+#        Int time_variant_filtration = 5
+#
+#        # gatk: LeftAlignAndTrimVariants
+#        Int mem_left_align_and_trim_variants = 1024
+#        Int time_left_align_and_trim_variants = 60
 
         # gatk: FilterAlignmentArtifacts
         Int cpu_filter_alignment_artifacts = 1
@@ -266,6 +281,14 @@ workflow DefineRuntimeCollection {
         # Absolute
         Int mem_absolute = 6144
         Int time_absolute = 60
+
+        # AbsoluteExtract
+        Int mem_absolute_extract = 2048
+        Int time_absolute_extract = 10
+
+        # AbsoluteExtractPostprocess
+        Int mem_absolute_extract_postprocess = 2048
+        Int time_absolute_extract_postprocess = 10
 
         #######################################################################
         ### Assorted
@@ -350,6 +373,19 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_split_intervals + mem_machine_overhead,
         "command_mem": mem_split_intervals,
         "runtime_minutes": time_startup + time_split_intervals,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime collect_callable_loci = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_callable_loci + mem_machine_overhead,
+        "command_mem": mem_callable_loci,
+        "runtime_minutes": time_startup + time_callable_loci,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -532,18 +568,6 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime merge_calls_with_modeled_segments = {
-        "docker": ubuntu_docker,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu,
-        "machine_mem": mem_merge_calls_with_modeled_segments + mem_machine_overhead,
-        "command_mem": mem_merge_calls_with_modeled_segments,
-        "runtime_minutes": time_startup + time_merge_calls_with_modeled_segments,
-        "disk": disk,
-        "boot_disk_size": boot_disk_size
-    }
-
     Runtime plot_modeled_segments = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
@@ -622,9 +646,45 @@ workflow DefineRuntimeCollection {
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_absolute + mem_machine_overhead,
-        "command_mem": mem_absolute,
-        "runtime_minutes": time_startup + time_absolute,
+        "machine_mem": mem_absolute_extract + mem_machine_overhead,
+        "command_mem": mem_absolute_extract,
+        "runtime_minutes": time_startup + time_absolute_extract,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime absolute_extract_postprocess = {
+        "docker": python_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_absolute_extract_postprocess + mem_machine_overhead,
+        "command_mem": mem_absolute_extract_postprocess,
+        "runtime_minutes": time_startup + time_absolute_extract_postprocess,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime mutect1 = {
+        "docker": mutect1_docker,
+        "preemptible": preemptible_mutect1,
+        "max_retries": max_retries_mutect1,
+        "cpu": cpu_mutect1,
+        "machine_mem": mem_mutect1_base + mem_mutect1_overhead,
+        "command_mem": mem_mutect1_base,
+        "runtime_minutes": time_startup + ceil(time_mutect1_total / scatter_count),
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime merge_mutect1_forcecall_vcfs = {
+        "docker": gatk_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_merge_mutect1_forcecall_vcfs + mem_machine_overhead,
+        "command_mem": mem_merge_mutect1_forcecall_vcfs,
+        "runtime_minutes": time_startup + time_merge_mutect1_forcecall_vcfs,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -639,7 +699,7 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_mutect2 + mem_mutect2_overhead,
         "command_mem": mem_mutect2,
         "runtime_minutes": time_startup + ceil(time_mutect2_total / scatter_count),
-        "disk": disk + ceil(disk_mutect2_total / scatter_count),
+        "disk": disk,
         "boot_disk_size": boot_disk_size
     }
 
@@ -704,45 +764,19 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_print_reads + mem_machine_overhead,
         "command_mem": mem_print_reads,
         "runtime_minutes": time_startup + time_print_reads,
-        "disk": disk + disk_print_reads,
-        "boot_disk_size": boot_disk_size
-    }
-
-    Runtime filter_mutect_calls = {
-        "docker": gatk_docker,
-        "jar_override": gatk_override,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu,
-        "machine_mem": mem_filter_mutect_calls + mem_machine_overhead,
-        "command_mem": mem_filter_mutect_calls,
-        "runtime_minutes": time_startup + time_filter_mutect_calls,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime variant_filtration = {
+    Runtime filter_variant_calls = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_variant_filtration + mem_machine_overhead,
-        "command_mem": mem_variant_filtration,
-        "runtime_minutes": time_startup + time_variant_filtration,
-        "disk": disk,
-        "boot_disk_size": boot_disk_size
-    }
-
-    Runtime left_align_and_trim_variants = {
-        "docker": gatk_docker,
-        "jar_override": gatk_override,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu,
-        "machine_mem": mem_left_align_and_trim_variants + mem_machine_overhead,
-        "command_mem": mem_left_align_and_trim_variants,
-        "runtime_minutes": time_startup + time_left_align_and_trim_variants,
+        "machine_mem": mem_filter_variant_calls + mem_machine_overhead,
+        "command_mem": mem_filter_variant_calls,
+        "runtime_minutes": time_startup + time_filter_variant_calls,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -845,6 +879,8 @@ workflow DefineRuntimeCollection {
         "preprocess_intervals": preprocess_intervals,
         "split_intervals": split_intervals,
 
+        "collect_callable_loci": collect_callable_loci,
+        "collect_covered_regions": collect_covered_regions,
         "collect_read_counts": collect_read_counts,
         "denoise_read_counts": denoise_read_counts,
         "vcf_to_pileup_variants": vcf_to_pileup_variants,
@@ -858,7 +894,6 @@ workflow DefineRuntimeCollection {
         "genotype_variants": genotype_variants,
         "model_segments": model_segments,
         "call_copy_ratio_segments": call_copy_ratio_segments,
-        "merge_calls_with_modeled_segments": merge_calls_with_modeled_segments,
         "plot_modeled_segments": plot_modeled_segments,
         "filter_germline_cnvs": filter_germline_cnvs,
         "recount_markers": recount_markers,
@@ -867,24 +902,26 @@ workflow DefineRuntimeCollection {
         "process_maf_for_absolute": process_maf_for_absolute,
         "absolute": absolute,
         "absolute_extract": absolute_extract,
+        "absolute_extract_postprocess": absolute_extract_postprocess,
 
+        "mutect1": mutect1,
+        "merge_mutect1_forcecall_vcfs": merge_mutect1_forcecall_vcfs,
         "mutect2": mutect2,
         "learn_read_orientation_model": learn_read_orientation_model,
         "merge_vcfs": merge_vcfs,
         "merge_mafs": merge_mafs,
         "merge_mutect_stats": merge_mutect_stats,
         "print_reads": print_reads,
-        "filter_mutect_calls": filter_mutect_calls,
-        "variant_filtration": variant_filtration,
-        "left_align_and_trim_variants": left_align_and_trim_variants,
+        "filter_variant_calls": filter_variant_calls,
+#        "variant_filtration": variant_filtration,
+#        "left_align_and_trim_variants": left_align_and_trim_variants,
         "filter_alignment_artifacts": filter_alignment_artifacts,
         "select_variants": select_variants,
         "funcotate": funcotate,
         "create_empty_annotation": create_empty_annotation,
+
         "create_cnv_panel": create_cnv_panel,
         "create_mutect2_panel": create_mutect2_panel,
-
-        "collect_covered_regions": collect_covered_regions,
         "select_af_only_from_vcf": select_af_only_from_vcf,
     }
 

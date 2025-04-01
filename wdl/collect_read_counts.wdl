@@ -29,10 +29,8 @@ workflow CollectReadCounts {
         Int preemptible = 1
         Int max_retries = 1
         # memory assignments in MB
-        Int mem_get_sample_name = 512  # 256
         Int mem_collect_read_counts = 2048
         Int mem_denoise_read_counts = 2048
-        Int time_get_sample_name = 1
         Int time_collect_read_counts = 300
         Int time_denoise_read_counts = 120
     }
@@ -43,10 +41,8 @@ workflow CollectReadCounts {
             gatk_override = gatk_override,
             max_retries = max_retries,
             preemptible = preemptible,
-            mem_get_sample_name = mem_get_sample_name,
             mem_collect_read_counts = mem_collect_read_counts,
             mem_denoise_read_counts = mem_denoise_read_counts,
-            time_get_sample_name = time_get_sample_name,
             time_collect_read_counts = time_collect_read_counts,
             time_denoise_read_counts = time_denoise_read_counts
     }
@@ -187,6 +183,10 @@ task DenoiseReadCounts {
             mv '~{read_counts}' '~{uncompressed_read_counts}'
         fi
 
+        touch '~{tsv_denoised_copy_ratios}'
+        touch '~{tsv_standardized_copy_ratios}'
+
+        set +e
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             DenoiseReadCounts \
             -I '~{uncompressed_read_counts}' \
@@ -195,6 +195,7 @@ task DenoiseReadCounts {
             ~{"--number-of-eigensamples " + number_of_eigensamples} \
             ~{"--annotated-intervals '" + annotated_interval_list + "'"} \
             ~{"--count-panel-of-normals '" + count_panel_of_normals + "'"}
+        set -e
 
         if [ "~{compress_output}" == "true" ] ; then
             bgzip -c '~{tsv_denoised_copy_ratios}' > '~{output_denoised_copy_ratios}'

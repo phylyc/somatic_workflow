@@ -2,32 +2,30 @@ version development
 
 import "runtime_collection.wdl" as rtc
 import "tasks.wdl"
-import "workflow_resources.wdl"
+import "workflow_resources.wdl" as wfres
+import "workflow_resources.update.wdl" as wfres_update
 
 
 struct WorkflowArguments {
     WorkflowResources files
 
+    String analyst_id
+
     Int scatter_count
     Int variants_per_scatter
 
-    File preprocessed_interval_list
-    Array[File] scattered_interval_list
-
-    Boolean run_collect_covered_regions
-    Boolean run_collect_target_coverage
-    Boolean run_collect_allelic_coverage
+    Boolean run_collect_callable_loci
+    Boolean run_collect_total_read_counts
+    Boolean run_collect_allelic_read_counts
     Boolean run_contamination_model
     Boolean run_orientation_bias_mixture_model
     Boolean run_variant_calling
+    Boolean run_variant_calling_mutect1
     Boolean run_variant_filter
-    Boolean run_variant_hard_filter
     Boolean run_realignment_filter
-    Boolean run_realignment_filter_only_on_high_confidence_variants
     Boolean run_variant_annotation
     Boolean run_variant_annotation_scattered
     Boolean run_model_segments
-    Boolean run_filter_segments
     Boolean run_clonal_decomposition
 
     Boolean keep_germline
@@ -42,13 +40,16 @@ struct WorkflowArguments {
     Float min_snppanel_pop_af
     Float max_snppanel_pop_af
     Int min_snppanel_read_depth
+    Float genotype_variants_normal_to_tumor_weight
     Float genotype_variants_min_genotype_likelihood
     Float genotype_variants_outlier_prior
     Int genotype_variants_overdispersion
     Float genotype_variants_ref_bias
     Int harmonize_min_target_length
     Int het_to_interval_mapping_max_distance
+    Int model_segments_max_number_of_segments_per_chromosome
     Array[Int] model_segments_window_sizes
+    Int model_segments_kernel_approximation_dimension
     Float model_segments_smoothing_credible_interval_threshold
     Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound
     Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound
@@ -85,6 +86,7 @@ struct WorkflowArguments {
     Int filter_alignment_artifacts_max_reasonable_fragment_length
     Array[String] hard_filter_expressions
     Array[String] hard_filter_names
+    String somatic_filter_whitelist
     String germline_filter_whitelist
     String funcotator_reference_version
     String funcotator_output_format
@@ -105,7 +107,7 @@ struct WorkflowArguments {
     String? variant_filtration_extra_args
     String? left_align_and_trim_variants_extra_args
     String? select_variants_extra_args
-    String? select_low_conficence_variants_jexl_arg
+    String? select_high_conficence_variants_jexl_arg
     String? realignment_extra_args
     String? funcotate_extra_args
 }
@@ -115,26 +117,26 @@ workflow DefineWorkflowArguments {
     input {
         WorkflowResources resources
 
+        String analyst_id = "TIM"
+
         Int scatter_count = 10
         Int total_mean_read_depth = 500
         Int total_mean_read_depth_per_scatter = 500
         Int variants_per_scatter = 50
 
         # workflow options
-        Boolean run_collect_covered_regions = false
-        Boolean run_collect_target_coverage = true
-        Boolean run_collect_allelic_coverage = true
+        Boolean run_collect_callable_loci = false
+        Boolean run_collect_total_read_counts = true
+        Boolean run_collect_allelic_read_counts = true
         Boolean run_contamination_model = true
-        Boolean run_model_segments = true
-        Boolean run_filter_segments = false
         Boolean run_orientation_bias_mixture_model = true
         Boolean run_variant_calling = true
+        Boolean run_variant_calling_mutect1 = true
         Boolean run_variant_filter = true
-        Boolean run_variant_hard_filter = true
         Boolean run_realignment_filter = true
-        Boolean run_realignment_filter_only_on_high_confidence_variants = true
         Boolean run_variant_annotation = true
         Boolean run_variant_annotation_scattered = false
+        Boolean run_model_segments = true
         Boolean run_clonal_decomposition = true
 
         Boolean keep_germline = true
@@ -150,13 +152,16 @@ workflow DefineWorkflowArguments {
         Float min_snppanel_pop_af = 0.01
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
-        Float genotype_variants_min_genotype_likelihood = 0.999
-        Float genotype_variants_outlier_prior = 0.0002
-        Int genotype_variants_overdispersion = 50
+        Float genotype_variants_normal_to_tumor_weight = 10.0
+        Float genotype_variants_min_genotype_likelihood = 0.995
+        Float genotype_variants_outlier_prior = 0.0001
+        Int genotype_variants_overdispersion = 10
         Float genotype_variants_ref_bias = 1.05
-        Int harmonize_min_target_length = 100
+        Int harmonize_min_target_length = 20
         Int het_to_interval_mapping_max_distance = 250
+        Int model_segments_max_number_of_segments_per_chromosome = 10000
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
+        Int model_segments_kernel_approximation_dimension = 200
         Float model_segments_smoothing_credible_interval_threshold = 2.0
         Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
@@ -171,7 +176,7 @@ workflow DefineWorkflowArguments {
         String acs_conversion_script =           "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
 
         Int absolute_min_hets = 0
-        Int absolute_min_probes = 0
+        Int absolute_min_probes = 2
         Float absolute_maf90_threshold = 0.485
 
         # SNV WORKFLOW
@@ -214,6 +219,7 @@ workflow DefineWorkflowArguments {
             "lowROQ",
             "germline"
         ]
+        String somatic_filter_whitelist = "PASS,normal_artifact"
         String germline_filter_whitelist = "normal_artifact,panel_of_normals"
         String funcotator_reference_version = "hg19"
         String funcotator_output_format = "MAF"
@@ -234,7 +240,7 @@ workflow DefineWorkflowArguments {
         String? variant_filtration_extra_args
         String? left_align_and_trim_variants_extra_args
         String? select_variants_extra_args
-        String? select_low_conficence_variants_jexl_arg = "GERMQ < 30"
+        String? select_high_conficence_variants_jexl_arg = "GERMQ > 30"
         String? realignment_extra_args
         String? funcotate_extra_args
 
@@ -270,29 +276,33 @@ workflow DefineWorkflowArguments {
         }
     }
 
+    call wfres_update.UpdateWorkflowResources {
+        input:
+            resources = resources,
+            preprocessed_intervals = select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
+            scattered_intervals = select_first([resources.scattered_intervals, SplitIntervals.interval_files]),
+    }
+
     WorkflowArguments args = object {
-        files: resources,
+        files: UpdateWorkflowResources.updated_resources,
+
+        analyst_id: analyst_id,
 
         scatter_count: length(select_first([resources.scattered_intervals, SplitIntervals.interval_files])),
         variants_per_scatter: variants_per_scatter,
 
-        preprocessed_interval_list: select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
-        scattered_interval_list: select_first([resources.scattered_intervals, SplitIntervals.interval_files]),
-
-        run_collect_covered_regions: run_collect_covered_regions,
-        run_collect_target_coverage: run_collect_target_coverage,
-        run_collect_allelic_coverage: run_collect_allelic_coverage,
+        run_collect_callable_loci: run_collect_callable_loci,
+        run_collect_total_read_counts: run_collect_total_read_counts,
+        run_collect_allelic_read_counts: run_collect_allelic_read_counts,
         run_contamination_model: run_contamination_model,
-        run_model_segments: run_model_segments,
-        run_filter_segments: run_filter_segments,
         run_orientation_bias_mixture_model: run_orientation_bias_mixture_model,
         run_variant_calling: run_variant_calling,
+        run_variant_calling_mutect1: run_variant_calling_mutect1,
         run_variant_filter: run_variant_filter,
-        run_variant_hard_filter: run_variant_hard_filter,
         run_realignment_filter: run_realignment_filter,
-        run_realignment_filter_only_on_high_confidence_variants: run_realignment_filter_only_on_high_confidence_variants,
         run_variant_annotation: run_variant_annotation,
         run_variant_annotation_scattered: run_variant_annotation_scattered,
+        run_model_segments: run_model_segments,
         run_clonal_decomposition: run_clonal_decomposition,
 
         keep_germline: keep_germline,
@@ -305,13 +315,16 @@ workflow DefineWorkflowArguments {
         min_snppanel_pop_af: min_snppanel_pop_af,
         max_snppanel_pop_af: max_snppanel_pop_af,
         min_snppanel_read_depth: min_snppanel_read_depth,
+        genotype_variants_normal_to_tumor_weight: genotype_variants_normal_to_tumor_weight,
         genotype_variants_min_genotype_likelihood: genotype_variants_min_genotype_likelihood,
         genotype_variants_outlier_prior: genotype_variants_outlier_prior,
         genotype_variants_overdispersion: genotype_variants_overdispersion,
         genotype_variants_ref_bias: genotype_variants_ref_bias,
         harmonize_min_target_length: harmonize_min_target_length,
         het_to_interval_mapping_max_distance: het_to_interval_mapping_max_distance,
+        model_segments_max_number_of_segments_per_chromosome: model_segments_max_number_of_segments_per_chromosome,
         model_segments_window_sizes: model_segments_window_sizes,
+        model_segments_kernel_approximation_dimension: model_segments_kernel_approximation_dimension,
         model_segments_smoothing_credible_interval_threshold: model_segments_smoothing_credible_interval_threshold,
         call_copy_ratios_neutral_segment_copy_ratio_lower_bound: call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
         call_copy_ratios_neutral_segment_copy_ratio_upper_bound: call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
@@ -347,6 +360,7 @@ workflow DefineWorkflowArguments {
         filter_alignment_artifacts_max_reasonable_fragment_length: filter_alignment_artifacts_max_reasonable_fragment_length,
         hard_filter_expressions: hard_filter_expressions,
         hard_filter_names: hard_filter_names,
+        somatic_filter_whitelist: somatic_filter_whitelist,
         germline_filter_whitelist: germline_filter_whitelist,
         funcotator_reference_version: funcotator_reference_version,
         funcotator_output_format: funcotator_output_format,
@@ -366,7 +380,7 @@ workflow DefineWorkflowArguments {
         variant_filtration_extra_args: variant_filtration_extra_args,
         left_align_and_trim_variants_extra_args: left_align_and_trim_variants_extra_args,
         select_variants_extra_args: select_variants_extra_args,
-        select_low_conficence_variants_jexl_arg: select_low_conficence_variants_jexl_arg,
+        select_high_conficence_variants_jexl_arg: select_high_conficence_variants_jexl_arg,
         realignment_extra_args: realignment_extra_args,
         funcotate_extra_args: funcotate_extra_args
     }

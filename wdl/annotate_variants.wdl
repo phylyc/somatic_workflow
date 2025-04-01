@@ -48,11 +48,11 @@ workflow AnnotateVariants {
     WorkflowArguments this_args = select_first([args, Parameters.arguments])
 
     if (this_args.run_variant_annotation_scattered) {
-        # Due to its long runtime, we scatter the realignment task over intervals.
+        # Due to its long runtime, we scatter the annotation task over intervals.
         Int scatter_count = ceil((num_variants + 1) / this_args.variants_per_scatter)
         call tasks.SplitIntervals {
             input:
-                interval_list = this_args.preprocessed_interval_list,
+                interval_list = this_args.files.preprocessed_intervals,
                 ref_fasta = this_args.files.ref_fasta,
                 ref_fasta_index = this_args.files.ref_fasta_index,
                 ref_dict = this_args.files.ref_dict,
@@ -62,7 +62,7 @@ workflow AnnotateVariants {
         }
     }
 
-    scatter (intervals in select_first([SplitIntervals.interval_files, [this_args.preprocessed_interval_list]])) {
+    scatter (intervals in select_first([SplitIntervals.interval_files, [this_args.files.preprocessed_intervals]])) {
         call tasks.SelectVariants as SelectSampleVariants {
             input:
                 ref_fasta = this_args.files.ref_fasta,
@@ -186,11 +186,9 @@ task Funcotate {
     # ==============
     # Process input args:
     String output_maf = output_base_name + ".maf"
-    String output_maf_index = output_maf + ".idx"
     String output_vcf = output_base_name + if compress_output then ".vcf.gz" else ".vcf"
-    String output_vcf_idx = output_vcf +  if compress_output then ".tbi" else ".idx"
     String output_file = if output_format == "MAF" then output_maf else output_vcf
-    String output_file_index = if output_format == "MAF" then output_maf_index else output_vcf_idx
+    String output_file_index = output_file +  if compress_output then ".tbi" else ".idx"
 
     # Calculate disk size:
     Int funco_tar_sizeGB = if defined(data_sources_paths) then 0 else (if defined(data_sources_tar_gz) then 4 * ceil(size(data_sources_tar_gz, "GB")) else 100)
@@ -241,7 +239,8 @@ task Funcotate {
             fi
         fi
 
-        touch ~{output_file_index}
+        echo "Creating dummy index file."
+        touch '~{output_file_index}'
 
         echo ""
         # using a custom list of transcripts gives this INFO message:
@@ -318,23 +317,23 @@ task CreateEmptyAnnotation {
     Boolean is_compressed = (uncompressed_vcf != basename(selected_vcf))
 
     String output_file = if output_format == "VCF" then output_base_name + ".vcf" else output_base_name + ".maf"
-    String output_file_idx = if output_format == "VCF" && compress_output then output_base_name + ".vcf.gz.tbi" else output_base_name + ".vcf.idx"
+    String output_file_idx = output_file +  if compress_output then ".tbi" else ".idx"
 
     command <<<
         # Uncompress the selected_vcf if it is gzipped
         if [[ "~{is_compressed}" == "true" ]]; then
-            gunzip -c ~{selected_vcf} > ~{uncompressed_vcf}
+            gunzip -c '~{selected_vcf}' > '~{uncompressed_vcf}'
         else
-            mv ~{selected_vcf} ~{uncompressed_vcf}
+            mv '~{selected_vcf}' '~{uncompressed_vcf}'
         fi
 
         if [ "~{output_format}" == "VCF" ]; then
             # Copy all headers from selected_vcf to create an empty VCF
-            grep "^#" ~{uncompressed_vcf} > ~{output_base_name}.vcf
+            grep "^#" '~{uncompressed_vcf}' > '~{output_base_name}.vcf'
 
         elif [ "~{output_format}" == "MAF" ]; then
             # Copy header lines except VCF schema to create an empty MAF
-            grep "^##" ~{uncompressed_vcf} > ~{output_base_name}.maf
+            grep "^##" '~{uncompressed_vcf}' > '~{output_base_name}.maf'
 
             # Add MAF schema to the empty MAF
             echo -e "Hugo_Symbol\tEntrez_Gene_Id\tCenter\tNCBI_Build\tChromosome\tStart_Position\tEnd_Position\tStrand\t"\
@@ -344,11 +343,11 @@ task CreateEmptyAnnotation {
             "Match_Norm_Validation_Allele1\tMatch_Norm_Validation_Allele2\tVerification_Status\tValidation_Status\t"\
             "Mutation_Status\tSequencing_Phase\tSequence_Source\tValidation_Method\tScore\tBAM_File\tSequencer\t"\
             "Tumor_Sample_UUID\tMatched_Norm_Sample_UUID\tHGVSc\tHGVSp\tHGVSp_Short\tTranscript_ID\tExon_Number\t"\
-            "t_depth\tt_ref_count\tt_alt_count\tn_depth\tn_ref_count\tn_alt_count\tProtein_Change\tUniProt_AApos" >> ~{output_base_name}.maf
+            "t_depth\tt_ref_count\tt_alt_count\tn_depth\tn_ref_count\tn_alt_count\tProtein_Change\tUniProt_AApos" >> '~{output_base_name}.maf'
         fi
 
         # Create an empty index file for VCF based on compress_output
-        touch ~{output_file_idx}
+        touch '~{output_file_idx}'
     >>>
 
     output {

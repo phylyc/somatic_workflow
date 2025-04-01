@@ -8,12 +8,14 @@ workflow GenotypeVariants {
     input {
         String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
 
-        String individual_id
+        String patient_id
+        String? sex
         Array[String] sample_names
         Array[String]? normal_sample_names
         Array[File] pileups
         Array[File]? contamination_tables
         Array[File]? segmentation_tables
+        Array[File]? af_model_parameters
         File? common_germline_alleles  # SNP panel
         File? common_germline_alleles_idx
         File? rare_germline_alleles
@@ -21,9 +23,10 @@ workflow GenotypeVariants {
 
         Float min_allele_frequency = 0.0
         Int min_read_depth = 10
-        Float min_genotype_likelihood = 0.999
+        Float normal_to_tumor_weight = 10.0
+        Float min_genotype_likelihood = 0.995
         Float outlier_prior = 0.0001
-        Int overdispersion = 50
+        Int overdispersion = 10
         Float ref_bias = 1.05
         String format = "GT"
         Boolean select_hets = false
@@ -60,7 +63,8 @@ workflow GenotypeVariants {
     call GenotypeVariantsTask {
         input:
             script = script,
-            individual_id = individual_id,
+            patient_id = patient_id,
+            sex = sex,
             common_germline_alleles = common_germline_alleles,
             common_germline_alleles_idx = common_germline_alleles_idx,
             rare_germline_alleles = rare_germline_alleles,
@@ -70,8 +74,10 @@ workflow GenotypeVariants {
             pileups = pileups,
             contamination_tables = contamination_tables,
             segmentation_tables = segmentation_tables,
+            af_model_parameters = af_model_parameters,
             min_allele_frequency = min_allele_frequency,
             min_read_depth = min_read_depth,
+            normal_to_tumor_weight = normal_to_tumor_weight,
             min_genotype_likelihood = min_genotype_likelihood,
             outlier_prior = outlier_prior,
             overdispersion = overdispersion,
@@ -113,11 +119,13 @@ task GenotypeVariantsTask {
     input {
         String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
 
-        String individual_id
+        String patient_id
+        String? sex
         Array[String] sample_names
         Array[File] pileups
         Array[File]? contamination_tables
         Array[File]? segmentation_tables
+        Array[File]? af_model_parameters
         Array[String]? normal_sample_names
         File? common_germline_alleles  # SNP panel
         File? common_germline_alleles_idx
@@ -126,12 +134,11 @@ task GenotypeVariantsTask {
 
         Float min_allele_frequency = 0.0
         Int min_read_depth = 10
-        Float normal_to_tumor_weight = 2.0
-        Float min_genotype_likelihood = 0.999
+        Float normal_to_tumor_weight = 10.0
+        Float min_genotype_likelihood = 0.995
         Float outlier_prior = 0.0001
         Int overdispersion = 50
         Float ref_bias = 1.05
-        String model = "betabinom"
         String format = "GT"
         Boolean select_hets = false
         Boolean save_sample_genotype_likelihoods = false
@@ -143,11 +150,11 @@ task GenotypeVariantsTask {
 
     String output_dir = "."
 
-    String output_ref_counts = output_dir + "/" + individual_id + ".germline.ref_count.tsv" + (if compress_output then ".gz" else "")
-    String output_alt_counts = output_dir + "/" + individual_id + ".germline.alt_count.tsv" + (if compress_output then ".gz" else "")
-    String output_other_alt_counts = output_dir + "/" + individual_id + ".germline.other_alt_count.tsv" + (if compress_output then ".gz" else "")
-    String output_sample_correlation = output_dir + "/" + individual_id + ".sample_correlation.tsv" + (if compress_output then ".gz" else "")
-    String output_vcf = output_dir + "/" + individual_id + ".germline.vcf" + (if compress_output then ".gz" else "")
+    String output_ref_counts = output_dir + "/" + patient_id + ".germline.ref_count.tsv" + (if compress_output then ".gz" else "")
+    String output_alt_counts = output_dir + "/" + patient_id + ".germline.alt_count.tsv" + (if compress_output then ".gz" else "")
+    String output_other_alt_counts = output_dir + "/" + patient_id + ".germline.other_alt_count.tsv" + (if compress_output then ".gz" else "")
+    String output_sample_correlation = output_dir + "/" + patient_id + ".sample_correlation.tsv" + (if compress_output then ".gz" else "")
+    String output_vcf = output_dir + "/" + patient_id + ".germline.vcf" + (if compress_output then ".gz" else "")
     String output_vcf_idx = output_vcf + (if compress_output then ".tbi" else ".idx")
 
     # Once "suffix" is implemented, we can use this over glob:
@@ -162,11 +169,13 @@ task GenotypeVariantsTask {
             --output_dir '~{output_dir}' \
             ~{"--variant '" + rare_germline_alleles + "'"} \
             ~{"--variant '" + common_germline_alleles + "'"} \
-            --patient '~{individual_id}' \
+            --patient '~{patient_id}' \
+            ~{"--sex " + sex} \
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("-P '", pileups)}' \
             ~{true="-S '" false="" defined(segmentation_tables)}~{default="" sep="' -S '" segmentation_tables}~{true="'" false="" defined(segmentation_tables)} \
             ~{true="-C '" false="" defined(contamination_tables)}~{default="" sep="' -C '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
+            ~{true="-L '" false="" defined(af_model_parameters)}~{default="" sep="' -L '" af_model_parameters}~{true="'" false="" defined(af_model_parameters)} \
             ~{true="--normal_sample '" false="" defined(normal_sample_names)}~{default="" sep="' --normal_sample '" normal_sample_names}~{true="'" false="" defined(normal_sample_names)} \
             --normal_to_tumor_weight ~{normal_to_tumor_weight} \
             --min_allele_frequency ~{min_allele_frequency} \
@@ -175,7 +184,6 @@ task GenotypeVariantsTask {
             --outlier_prior ~{outlier_prior} \
             --overdispersion ~{overdispersion} \
             --ref_bias ~{ref_bias} \
-            --model ~{model} \
             --format ~{format} \
             --threads 1 \
             ~{if select_hets then "--select_hets" else ""} \

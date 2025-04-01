@@ -216,132 +216,132 @@ task SplitIntervals {
     }
 }
 
-task VariantFiltration {
-    input {
-        File? interval_list
-        File? ref_fasta
-        File? ref_fasta_index
-        File? ref_dict
-        File vcf
-        File vcf_idx
-
-        Boolean compress_output = false
-
-        Array[String] filter_expressions
-        Array[String] filter_names
-        String? variant_filtration_extra_args
-
-        Runtime runtime_params
-    }
-
-    String output_vcf = basename(basename(vcf, ".gz"), ".vcf") + ".hard_filtered.vcf" + if compress_output then ".gz" else ""
-    String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
-
-    command <<<
-        set -e
-        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
-
-        echo ""
-        # Some variants don't have certain INFO fields, so we suppress the warning messages.
-        echo "Suppressing the following warning message: 'WARN  JexlEngine - '"
-        echo ""
-
-        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-            VariantFiltration \
-            ~{"-R '" + ref_fasta + "'"} \
-            ~{"-L '" + interval_list + "'"} \
-            -V '~{vcf}' \
-            ~{if (length(filter_names) > 0) then " --filter-name '" else ""}~{default="" sep="' --filter-name '" filter_names}~{if (length(filter_names) > 0) then "'" else ""} \
-            ~{if (length(filter_expressions) > 0) then " --filter-expression '" else ""}~{default="" sep="' --filter-expression '" filter_expressions}~{if (length(filter_expressions) > 0) then "'" else ""} \
-            --output '~{output_vcf}' \
-            ~{variant_filtration_extra_args} \
-            2> >(grep -v "WARN  JexlEngine - " >&2)
-    >>>
-
-    output {
-        File filtered_vcf = output_vcf
-        File filtered_vcf_idx = output_vcf_idx
-    }
-
-    runtime {
-        docker: runtime_params.docker
-        bootDiskSizeGb: runtime_params.boot_disk_size
-        memory: runtime_params.machine_mem + " MB"
-        runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
-        preemptible: runtime_params.preemptible
-        maxRetries: runtime_params.max_retries
-        cpu: runtime_params.cpu
-    }
-
-    parameter_meta {
-        interval_list: {localization_optional: true}
-        ref_fasta: {localization_optional: true}
-        ref_fasta_index: {localization_optional: true}
-        ref_dict: {localization_optional: true}
-        vcf: {localization_optional: true}
-        vcf_idx: {localization_optional: true}
-    }
-}
-
-task LeftAlignAndTrimVariants {
-    input {
-        File? ref_fasta
-        File? ref_fasta_index
-        File? ref_dict
-        File vcf
-        File vcf_idx
-        Int max_indel_length = 200
-        Boolean dont_trim_alleles = false
-        Boolean split_multi_allelics = false
-
-        Boolean compress_output = false
-        String? left_align_and_trim_variants_extra_args
-
-        Runtime runtime_params
-    }
-
-    String output_vcf_ = basename(basename(vcf, ".gz"), ".vcf") + ".split.trimmed.vcf" + if compress_output then ".gz" else ""
-    String output_vcf_idx_ = output_vcf_ + if compress_output then ".tbi" else ".idx"
-
-    command <<<
-        set -e
-        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
-        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-            LeftAlignAndTrimVariants \
-            -R '~{ref_fasta}' \
-            -V '~{vcf}' \
-            --output '~{output_vcf_}' \
-            --max-indel-length ~{max_indel_length} \
-            ~{if (dont_trim_alleles) then " --dont-trim-alleles " else ""} \
-            ~{if (split_multi_allelics) then " --split-multi-allelics " else ""} \
-            ~{left_align_and_trim_variants_extra_args}
-    >>>
-
-    output {
-        File output_vcf = output_vcf_
-        File output_vcf_idx = output_vcf_idx_
-    }
-
-    runtime {
-        docker: runtime_params.docker
-        bootDiskSizeGb: runtime_params.boot_disk_size
-        memory: runtime_params.machine_mem + " MB"
-        runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
-        preemptible: runtime_params.preemptible
-        maxRetries: runtime_params.max_retries
-        cpu: runtime_params.cpu
-    }
-
-    parameter_meta {
-        ref_fasta: {localization_optional: true}
-        ref_fasta_index: {localization_optional: true}
-        ref_dict: {localization_optional: true}
-        vcf: {localization_optional: true}
-        vcf_idx: {localization_optional: true}
-    }
-}
+#task VariantFiltration {
+#    input {
+#        File? interval_list
+#        File? ref_fasta
+#        File? ref_fasta_index
+#        File? ref_dict
+#        File vcf
+#        File vcf_idx
+#
+#        Boolean compress_output = false
+#
+#        Array[String] filter_expressions
+#        Array[String] filter_names
+#        String? variant_filtration_extra_args
+#
+#        Runtime runtime_params
+#    }
+#
+#    String output_vcf = basename(basename(vcf, ".gz"), ".vcf") + ".hard_filtered.vcf" + if compress_output then ".gz" else ""
+#    String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
+#
+#    command <<<
+#        set -e
+#        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+#
+#        echo ""
+#        # Some variants don't have certain INFO fields, so we suppress the warning messages.
+#        echo "Suppressing the following warning message: 'WARN  JexlEngine - '"
+#        echo ""
+#
+#        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+#            VariantFiltration \
+#            ~{"-R '" + ref_fasta + "'"} \
+#            ~{"-L '" + interval_list + "'"} \
+#            -V '~{vcf}' \
+#            ~{if (length(filter_names) > 0) then " --filter-name '" else ""}~{default="" sep="' --filter-name '" filter_names}~{if (length(filter_names) > 0) then "'" else ""} \
+#            ~{if (length(filter_expressions) > 0) then " --filter-expression '" else ""}~{default="" sep="' --filter-expression '" filter_expressions}~{if (length(filter_expressions) > 0) then "'" else ""} \
+#            --output '~{output_vcf}' \
+#            ~{variant_filtration_extra_args} \
+#            2> >(grep -v "WARN  JexlEngine - " >&2)
+#    >>>
+#
+#    output {
+#        File filtered_vcf = output_vcf
+#        File filtered_vcf_idx = output_vcf_idx
+#    }
+#
+#    runtime {
+#        docker: runtime_params.docker
+#        bootDiskSizeGb: runtime_params.boot_disk_size
+#        memory: runtime_params.machine_mem + " MB"
+#        runtime_minutes: runtime_params.runtime_minutes
+#        disks: "local-disk " + runtime_params.disk + " HDD"
+#        preemptible: runtime_params.preemptible
+#        maxRetries: runtime_params.max_retries
+#        cpu: runtime_params.cpu
+#    }
+#
+#    parameter_meta {
+#        interval_list: {localization_optional: true}
+#        ref_fasta: {localization_optional: true}
+#        ref_fasta_index: {localization_optional: true}
+#        ref_dict: {localization_optional: true}
+#        vcf: {localization_optional: true}
+#        vcf_idx: {localization_optional: true}
+#    }
+#}
+#
+#task LeftAlignAndTrimVariants {
+#    input {
+#        File? ref_fasta
+#        File? ref_fasta_index
+#        File? ref_dict
+#        File vcf
+#        File vcf_idx
+#        Int max_indel_length = 200
+#        Boolean dont_trim_alleles = false
+#        Boolean split_multi_allelics = false
+#
+#        Boolean compress_output = false
+#        String? left_align_and_trim_variants_extra_args
+#
+#        Runtime runtime_params
+#    }
+#
+#    String output_vcf_ = basename(basename(vcf, ".gz"), ".vcf") + ".split.trimmed.vcf" + if compress_output then ".gz" else ""
+#    String output_vcf_idx_ = output_vcf_ + if compress_output then ".tbi" else ".idx"
+#
+#    command <<<
+#        set -e
+#        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+#        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+#            LeftAlignAndTrimVariants \
+#            -R '~{ref_fasta}' \
+#            -V '~{vcf}' \
+#            --output '~{output_vcf_}' \
+#            --max-indel-length ~{max_indel_length} \
+#            ~{if (dont_trim_alleles) then " --dont-trim-alleles " else ""} \
+#            ~{if (split_multi_allelics) then " --split-multi-allelics " else ""} \
+#            ~{left_align_and_trim_variants_extra_args}
+#    >>>
+#
+#    output {
+#        File output_vcf = output_vcf_
+#        File output_vcf_idx = output_vcf_idx_
+#    }
+#
+#    runtime {
+#        docker: runtime_params.docker
+#        bootDiskSizeGb: runtime_params.boot_disk_size
+#        memory: runtime_params.machine_mem + " MB"
+#        runtime_minutes: runtime_params.runtime_minutes
+#        disks: "local-disk " + runtime_params.disk + " HDD"
+#        preemptible: runtime_params.preemptible
+#        maxRetries: runtime_params.max_retries
+#        cpu: runtime_params.cpu
+#    }
+#
+#    parameter_meta {
+#        ref_fasta: {localization_optional: true}
+#        ref_fasta_index: {localization_optional: true}
+#        ref_dict: {localization_optional: true}
+#        vcf: {localization_optional: true}
+#        vcf_idx: {localization_optional: true}
+#    }
+#}
 
 task SelectVariants {
     input {
@@ -354,8 +354,9 @@ task SelectVariants {
         File vcf
         File vcf_idx
         Boolean compress_output = false
-        Boolean select_passing = false
-        Boolean keep_germline = false
+        Boolean select_somatic = false
+        Boolean select_germline = false
+        String somatic_filter_whitelist = "PASS,normal_artifact"
         String germline_filter_whitelist = "normal_artifact,panel_of_normals"
         String suffix = ""
         String? tumor_sample_name
@@ -376,6 +377,9 @@ task SelectVariants {
     String output_vcf = uncompressed_selected_vcf + if compress_output then ".gz" else ""
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
 
+    String output_not_selected_vcf = output_base_name + ".not_selected.vcf" + if compress_output then ".gz" else ""
+    String output_not_selected_vcf_idx = output_not_selected_vcf + if compress_output then ".tbi" else ".idx"
+
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
@@ -393,7 +397,7 @@ task SelectVariants {
 
         set -uo pipefail
         # =======================================
-        # We do the selection step using grep to also select germline variants.
+        # We do the selection step using grep|awk to also select germline variants.
         # ASSUMPTION: multi-allelic variants are split into one variant per row.
         # Otherwise passing variants that are accompanied by an artifactual other-allelic
         # variant will not be selected.
@@ -401,23 +405,51 @@ task SelectVariants {
         set +e  # grep returns 1 if no lines are found
         grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
         num_vars=$(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
+        echo ">> Selected $num_vars variants."
 
-        if [ "$num_vars" -eq 0 ] || [ "~{select_passing}" == "false" ] && [ "~{keep_germline}" == "false" ] ; then
-            echo ">> No variants selected."
+        if [ "$num_vars" -eq 0 ] || [ "~{select_somatic}" == "false" ] && [ "~{select_germline}" == "false" ] ; then
             cp '~{select_variants_output_vcf}' '~{uncompressed_selected_vcf}'
         else
-            if [ "~{select_passing}" == "true" ] ; then
-                echo ">> Selecting PASSing variants ... "
-                grep -v "^#" '~{select_variants_output_vcf}' | grep "PASS" >> '~{uncompressed_selected_vcf}'
+            if [ "~{select_somatic}" == "true" ] ; then
+                echo ">> Selecting PASSing/whitelisted variants ... "
+                # FilterMutectCalls assumes a normal sample with no tumor cell
+                # contamination. If there is contamination from tumor cells,
+                # somatic variants will be annotated as "normal_artifact", thus
+                # it is desirable to whitelist them.
+                grep -v "^#" '~{select_variants_output_vcf}' \
+                    | awk -F'\t' -v whitelist="~{somatic_filter_whitelist}" '
+                        BEGIN {
+                            n = split(whitelist, allowed_list, ",")
+                            for (i = 1; i <= n; i++) {
+                                allowed_tags[allowed_list[i]]
+                            }
+                        }
+                        {
+                            split($7, tags, ";")
+                            is_somatic = 1
+                            for (i in tags) {
+                                if (tags[i] in allowed_tags) {
+                                    continue
+                                } else {
+                                    is_somatic = 0
+                                    break
+                                }
+                            }
+                            if (is_somatic) {
+                                print $0
+                            }
+                        }' \
+                    >> '~{uncompressed_selected_vcf}'
                 num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
                 echo ">> Selected $num_selected_vars PASSing out of $num_vars variants."
             fi
-            if [ "~{keep_germline}" == "true" ] ; then
+            if [ "~{select_germline}" == "true" ] ; then
                 echo ">> Selecting germline variants ... "
                 # FilterMutectCalls does not distinguish well between germline
                 # and artifacts; it's calibrated towards somatic vs non-somatic.
                 # Thus, many good germline calls may also have an artifact flag.
                 # Additional filtering of those may be necessary.
+                mkdir -p tmp
                 grep -v "^#" '~{select_variants_output_vcf}' \
                     | awk -F'\t' -v whitelist="~{germline_filter_whitelist}" '
                         BEGIN {
@@ -444,8 +476,10 @@ task SelectVariants {
                                 print $0
                             }
                         }' \
-                    >> '~{uncompressed_selected_vcf}'
-                num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | grep -v "PASS" | wc -l)
+                    > tmp/germline.vcf
+                cat tmp/germline.vcf >> '~{uncompressed_selected_vcf}'
+                num_selected_vars=$(cat tmp/germline.vcf | wc -l)
+                rm -rf tmp
                 echo ">> Selected $num_selected_vars germline out of $num_vars variants."
             fi
         fi
@@ -496,12 +530,27 @@ task SelectVariants {
                 --output '~{output_vcf_idx}'
             rm -f '~{uncompressed_selected_vcf}' '~{uncompressed_selected_vcf_idx}'
         fi
+
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            SelectVariants \
+            ~{"-R '" + ref_fasta + "'"} \
+            -V '~{vcf}' \
+            --discordance '~{output_vcf}' \
+            --output '~{output_not_selected_vcf}'
+
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            CountVariants \
+            -V '~{output_not_selected_vcf}' \
+            -O 'num_not_selected_vars.txt'
     >>>
 
     output {
         File selected_vcf = output_vcf
         File selected_vcf_idx = output_vcf_idx
         Int num_selected_variants = read_int("num_selected_vars.txt")
+        File not_selected_vcf = output_not_selected_vcf
+        File not_selected_vcf_idx = output_not_selected_vcf_idx
+        Int num_not_selected_variants = read_int("num_not_selected_vars.txt")
     }
 
     runtime {
@@ -543,7 +592,7 @@ task MergeVCFs {
         Runtime runtime_params
     }
 
-    Int diskGB = runtime_params.disk + ceil(1.5 * size(vcfs, "GB"))
+    Int diskGB = runtime_params.disk + ceil(2 * size(vcfs, "GB"))
 
     String output_vcf = output_name + ".vcf" + if compress_output then ".gz" else ""
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
@@ -665,7 +714,7 @@ task PrintReads {
         File? ref_fasta_index
         File? ref_dict
 
-        String patient_name
+        String prefix
         Array[File] bams
         Array[File] bais
         File? interval_list
@@ -675,8 +724,12 @@ task PrintReads {
         Runtime runtime_params
     }
 
-    String output_file = patient_name + ".somatic.bam"
-    String output_index = patient_name + ".somatic.bai"
+    String output_file = prefix + ".bam"
+    String output_index = prefix + ".bai"
+
+    # Even if we subset the bams to the interval_list, this task is very short,
+    # so we won't spend a lot of money on it.
+    Int diskGB = runtime_params.disk + ceil(size(bams, "GB"))
 
     command <<<
         set -e
@@ -701,7 +754,7 @@ task PrintReads {
         bootDiskSizeGb: runtime_params.boot_disk_size
         memory: runtime_params.machine_mem + " MB"
         runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
+        disks: "local-disk " + diskGB + " HDD"
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu

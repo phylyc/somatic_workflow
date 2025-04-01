@@ -32,10 +32,7 @@ workflow AbsoluteExtractPatient {
     output {
         Array[File] absolute_maf = select_all(AbsoluteExtract.absolute_maf)
         Array[File] absolute_segtab = select_all(AbsoluteExtract.absolute_segtab)
-        Array[File] absolute_segtab_igv = select_all(AbsoluteExtract.absolute_segtab_igv)
-        Array[File] absolute_called_rdata = select_all(AbsoluteExtract.absolute_called_rdata)
         Array[File] absolute_table = select_all(AbsoluteExtract.absolute_table)
-        Array[File] absolute_gene_corrected_cn = select_all(AbsoluteExtract.absolute_gene_corrected_cn)
         Array[String] absolute_purity = select_all(AbsoluteExtract.absolute_purity)
         Array[String] absolute_ploidy = select_all(AbsoluteExtract.absolute_ploidy)
     }
