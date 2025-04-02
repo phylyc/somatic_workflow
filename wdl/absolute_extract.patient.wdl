@@ -23,7 +23,8 @@ workflow AbsoluteExtractPatient {
                     rdata = pair.left,
                     called_solution = pair.right,
                     analyst_id = analyst_id,
-    #                copy_ratio_type = copy_ratio_type,
+                    # copy_ratio_type = copy_ratio_type,
+                    # sample_name = sample_name,
                     runtime_collection = runtime_collection
             }
         }
