@@ -5,7 +5,7 @@ import "runtime_collection.wdl" as rtc
 
 workflow AbsoluteExtract {
     input {
-        String sample_name
+        String? sample_name
         String? sex
 
         File rdata
@@ -167,7 +167,7 @@ task Postprocess {
     input {
         String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
 
-        String sample_name
+        String? sample_name
         String? sex
         File? maf
         File seg
@@ -182,11 +182,13 @@ task Postprocess {
         Runtime runtime_params
     }
 
+    String this_sample_name = if defined(sample_name) then sample_name else basename(seg, ".segtab.txt")
+
     command <<<
         set -euxo pipefail
         wget -O map_to_absolute_copy_number.py ~{script}
         python map_to_absolute_copy_number.py \
-            --sample '~{sample_name}' \
+            --sample '~{this_sample_name}' \
             ~{"--sex  " + sex} \
             --absolute_seg '~{seg}' \
             --cr_seg '~{copy_ratio_segmentation}' \
@@ -198,9 +200,9 @@ task Postprocess {
 
     output {
         File abs_maf = maf
-        File segtab = sample_name + ".segtab.completed.txt"
-        File segtab_igv = sample_name + ".IGV.seg.completed.txt"
-        File rescued_intervals = sample_name + ".rescued_intervals.txt"
+        File segtab = this_sample_name + ".segtab.completed.txt"
+        File segtab_igv = this_sample_name + ".IGV.seg.completed.txt"
+        File rescued_intervals = this_sample_name + ".rescued_intervals.txt"
     }
 
     runtime {
