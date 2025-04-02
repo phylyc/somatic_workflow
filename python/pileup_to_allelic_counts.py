@@ -202,7 +202,7 @@ def convert_pileup_to_allelic_counts(args):
         df["depth"] = df[["ref_count", "alt_count"]].sum(axis=1)
         df = df.sort_values(by=["depth"], ascending=False).drop_duplicates(subset=["contig", "position"]).set_index(["contig", "position"], drop=True)
         df = df.reindex(sort_genomic_positions(index=df.index, contig_order=contig_order)).reset_index()
-    df[["contig", "position", "ref_count", "alt_count", "ref", "alt"]].to_csv(f"{args.output}", sep="\t", index=False, header=False, mode="a")
+        df[["contig", "position", "ref_count", "alt_count", "ref", "alt"]].to_csv(f"{args.output}", sep="\t", index=False, header=False, mode="a")
 
     if args.error_output is not None:
         other_alt_counts = pileup["other_alt_count"].sum()

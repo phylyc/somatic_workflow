@@ -26,6 +26,8 @@ def parse_args():
     parser.add_argument("--min_hets",       type=int,   default=0,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
     parser.add_argument("--min_probes",     type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
     parser.add_argument("--maf90_threshold",type=float, default=0.485,  help="Threshold of 90% quantile for setting minor allele fraction to 0.5.")
+    parser.add_argument("--merge_dropped_segments_with_nearest",        default=False,  action="store_true", help="Merge dropped segments with the nearest segment.")
+    parser.add_argument("--max_merging_distiance", type=int, default=0, help="Maximum distance to merge dropped segments with the nearest segment.")
     parser.add_argument("--verbose",        default=False,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
 
@@ -187,13 +189,18 @@ def convert_model_segments_to_alleliccapseg(args):
         model_segments_reference_bias = model_segments_af_param_pd[model_segments_af_param_pd['PARAMETER_NAME'] == 'MEAN_BIAS']['POSTERIOR_50']
         alleliccapseg_skew = 2. / (1. + model_segments_reference_bias)
 
-        # If a row has less than X (set by user) hets or number of target intervals (probes), remove:
+        # If a row has less than X (set by user) hets or number of target intervals (probes), remove / merge:
         good_rows = alleliccapseg_seg_pd["n_hets"] >= args.min_hets
         good_rows &= alleliccapseg_seg_pd["n_probes"] >= args.min_probes
         n = alleliccapseg_seg_pd.shape[0] - np.sum(good_rows)
         pct_drop = n / alleliccapseg_seg_pd.shape[0] * 100
-        print(f"Dropping {n}/{alleliccapseg_seg_pd.shape[0]} (-{pct_drop:.3f}%) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
-        alleliccapseg_seg_pd = alleliccapseg_seg_pd.loc[good_rows]
+        print(f"{'Merging' if args.merge_dropped_segments_with_nearest else 'Dropping'} {n}/{alleliccapseg_seg_pd.shape[0]} (-{pct_drop:.3f}%) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
+
+        if args.merge_dropped_segments_with_nearest:
+            # TODO: add merging logic
+            alleliccapseg_seg_pd = alleliccapseg_seg_pd.loc[good_rows]
+        else:
+            alleliccapseg_seg_pd = alleliccapseg_seg_pd.loc[good_rows]
 
         return alleliccapseg_seg_pd, alleliccapseg_skew
 

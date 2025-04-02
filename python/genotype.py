@@ -92,6 +92,7 @@ def main():
         pileup=args.pileup,
         contamination=args.contamination,
         segments=args.segments,
+        af_model_parameters=args.af_model_parameters,
         min_allele_frequency=args.min_allele_frequency,
         min_read_depth=args.min_read_depth,
         verbose=args.verbose
@@ -284,6 +285,43 @@ class Segments(object):
                     self.bam_sample_name = segments_header.removeprefix("#<METADATA>SAMPLE=")
                 elif segments_header.startswith("@RG"):
                     self.bam_sample_name = [c.removeprefix("SM:") for c in segments_header.split("\t") if c.startswith("SM:")][0]
+
+
+class AFParameters(object):
+    """
+    Represents contamination data from a specified file. (E.g. output of GATK ModelSegments.)
+
+    This class reads contamination data, including contamination levels and associated
+    errors, from a given file. It also extracts the sample name from the file.
+
+    Attributes:
+        file_path (str): Path to the contamination file.
+        keys (list of str): Keys representing the contamination data fields.
+        dict (dict): Dictionary containing contamination data.
+        value (float): Contamination value.
+        error (float): Error associated with the contamination value.
+        bam_sample_name (str): Extracted sample name.
+
+    Args:
+        file_path (str): Path to the contamination file.
+    """
+    def __init__(self, file_path: str = None):
+        self.file_path = file_path
+        self.keys = ["MEAN_BIAS", "BIAS_VARIANCE", "OUTLIER_PROBABILITY"]
+        default_dict = {key: default for key, default in zip(self.keys, [1, 0, 0])}
+        try:
+            self.dict = (
+                pd.read_csv(file_path, sep="\t", comment="@", low_memory=False).set_index("PARAMETER_NAME")["POSTERIOR_50"].to_dict()
+                if file_path is not None
+                else default_dict
+            )
+        except Exception as e:
+            warnings.warn(f"Exception reading contamination file {file_path}: {e}")
+            warnings.warn(f"Setting af model parameters to default dictionary.")
+            self.dict = default_dict
+        self.ref_bias = self.dict["MEAN_BIAS"]
+        self.ref_bias_var = self.dict["BIAS_VARIANCE"]
+        self.outlier_probability = self.dict["OUTLIER_PROBABILITY"]
 
 
 def cross_check_sample_name(*args) -> str:
@@ -606,7 +644,7 @@ class Genotyper(object):
         total = likelihoods[genotypes].sum(axis=1)
         return likelihoods.loc[likelihoods[genotypes].max(axis=1) >= self.min_genotype_likelihood * total]
 
-    def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, contamination: float = 0.001, segments: pd.DataFrame = None) -> pd.DataFrame:
+    def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, contamination: float = 0.001, segments: pd.DataFrame = None, ref_bias: float = 1) -> pd.DataFrame:
         """
         Calculates genotype likelihoods for given pileup data, and optional allelic copy ratio segmentation, and contamination estimate.
 
@@ -614,6 +652,7 @@ class Genotyper(object):
             pileup (pd.DataFrame): DataFrame containing pileup data.
             contamination (float, optional): Contamination level to consider in calculations.
             segments (pd.DataFrame, optional): DataFrame containing segmentation data.
+            ref_bias (float, optional): Bias for observing the reference allele over the alternate allele.
 
         Returns:
             pd.DataFrame: DataFrame with genotype likelihoods for each genomic position.
@@ -641,6 +680,7 @@ class Genotyper(object):
                         pileup=seg_pileup,
                         minor_af=seg["minor_allele_fraction"],
                         contamination=contamination,
+                        ref_bias=ref_bias,
                         error=error
                     )
                 )
@@ -650,6 +690,7 @@ class Genotyper(object):
                 self.calculate_genotype_likelihoods_per_segment(
                     pileup=seg_pileup,
                     contamination=contamination,
+                    ref_bias=ref_bias,
                     error=error
                 )
             )
@@ -669,7 +710,7 @@ class Genotyper(object):
         )
         return genotype_likelihoods
 
-    def calculate_genotype_likelihoods_per_segment(self, pileup: pd.DataFrame, minor_af: float = 0.47, contamination: float = 0.001, error: float = 0.01) -> pd.DataFrame:
+    def calculate_genotype_likelihoods_per_segment(self, pileup: pd.DataFrame, minor_af: float = 0.47, contamination: float = 0.001, ref_bias: float = 1, error: float = 0.01) -> pd.DataFrame:
         """
         Calculates genotype likelihoods for a specific segment of pileup data.
         https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3167057/
@@ -683,6 +724,7 @@ class Genotyper(object):
             pileup (pd.DataFrame): DataFrame containing pileup data for the segment.
             minor_af (float, optional): Minor allele fraction, default is 0.5.
             contamination (float, optional): Level of contamination to consider in the calculation.
+            ref_bias (float, optional): Bias for observing the reference allele over the alternate allele.
             error (float, optional): Error probability to be used in the calculation.
 
         Returns:
@@ -852,7 +894,7 @@ class GenotypeData(object):
         min_read_depth (int, optional): Minimum read depth threshold for filtering data.
     """
 
-    def __init__(self, individual_id: str, samples: list[str], variant: list[str] = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 0, min_allele_frequency: float = 0, verbose: bool = False):
+    def __init__(self, individual_id: str, samples: list[str], variant: list[str] = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, af_model_parameters: list[str] = None, min_read_depth: int = 0, min_allele_frequency: float = 0, verbose: bool = False):
         self.verbose = verbose
         message("Loading data:") if verbose else None
         self.individual_id = individual_id
@@ -877,6 +919,12 @@ class GenotypeData(object):
             [Segments()] * len(samples)
             if segments is None
             else [Segments(file_path=s) for s in segments]
+        )
+        print("  AF Model Parameters") if verbose else None
+        self.af_parameters = (
+            [AFParameters()] * len(samples)
+            if af_model_parameters is None
+            else [AFParameters(file_path=a) for a in af_model_parameters]
         )
         print() if verbose else None
 
@@ -940,12 +988,13 @@ class GenotypeData(object):
             p.df = p.df.loc[mask]
             message(f"Subset pileups for {s} to {p.df.shape[0]}/{n_loci}.")
 
-    def get_pileup_likelihood(self, genotyper: Genotyper, assigned_sample_name: str, pileup: Pileup, contamination: Contamination, segments: Segments) -> PileupLikelihood:
+    def get_pileup_likelihood(self, genotyper: Genotyper, assigned_sample_name: str, pileup: Pileup, contamination: Contamination, segments: Segments, af_parameters: AFParameters) -> PileupLikelihood:
         pileup_likelihood = PileupLikelihood(
             pileup_likelihood=genotyper.calculate_genotype_likelihoods(
                 pileup=pileup.df,
                 contamination=contamination.value,
                 segments=segments.df,
+                ref_bias=af_parameters.ref_bias
             ),
             assigned_sample_name=assigned_sample_name,
             bam_sample_name=cross_check_sample_name(pileup, contamination, segments)
@@ -962,8 +1011,8 @@ class GenotypeData(object):
                     pileup_likelihoods = pool.starmap(
                         func=self.get_pileup_likelihood,
                         iterable=[
-                            (genotyper, assigned_sample_name, pileup, contamination, segments)
-                            for assigned_sample_name, pileup, contamination, segments in zip(self.samples, self.pileups, self.contaminations, self.segments)
+                            (genotyper, assigned_sample_name, pileup, contamination, segments, af_parameters)
+                            for assigned_sample_name, pileup, contamination, segments, af_parameters in zip(self.samples, self.pileups, self.contaminations, self.segments, self.af_parameters)
                         ]
                     )
                 print() if self.verbose else None
@@ -973,8 +1022,8 @@ class GenotypeData(object):
                 print(f"Error in parallel execution: {e}")
         message("Serial execution over samples: ", end="", flush=True) if self.verbose else None
         pileup_likelihoods = [
-            self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, contamination, segments)
-            for assigned_sample_name, pileup, contamination, segments in zip(self.samples, self.pileups, self.contaminations, self.segments)
+            self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, contamination, segments, af_parameters)
+            for assigned_sample_name, pileup, contamination, segments, af_parameters in zip(self.samples, self.pileups, self.contaminations, self.segments, self.af_parameters)
         ]
         print("") if self.verbose else None
         return pileup_likelihoods

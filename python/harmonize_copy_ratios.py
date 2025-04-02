@@ -44,7 +44,6 @@ def parse_args():
     parser.add_argument("--contig_col",             type=str,   default="CONTIG",                           help="Name of the column containing the contig information.")
     parser.add_argument("--start_col",              type=str,   default="START",                            help="Name of the column containing the start position of the interval.")
     parser.add_argument("--end_col",                type=str,   default="END",                              help="Name of the column containing the end position of the interval.")
-    parser.add_argument("--copy_ratio_col",         type=str,   default="LOG2_COPY_RATIO",                  help="Name of the column containing the log2 copy ratio.")
     parser.add_argument("--sample_col",             type=str,   default="SAMPLE",                           help="Name of the column containing the sample name.")
     parser.add_argument("--comment_char",           type=str,   default="@",                                help="Character that starts a comment line in the input files.")
     parser.add_argument("--agg_col",                type=str,   default=None,       action="append",        help="Name of column to aggregate over. Can be listed more than once.")
