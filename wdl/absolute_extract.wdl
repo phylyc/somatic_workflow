@@ -102,7 +102,7 @@ task AbsoluteExtractTask {
 
         elif [[ "~{called_solution}" == "0" ]] ; then
             Rscript /library/scripts/run_absolute.R \
-                --results_dir ~{output_dir} \
+                --results_dir "~{output_dir}/~{sample_name}.force-call" \
                 --sample "~{sample_name}" \
                 --seg_dat_fn "~{acs_copy_ratio_segmentation}" \
                 ~{"--maf '" + snv_maf + "'"} \
