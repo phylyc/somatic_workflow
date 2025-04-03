@@ -13,8 +13,8 @@ workflow AbsoluteExtract {
         String analyst_id
         String? copy_ratio_type
 
-        File? acs_copy_ratio_segmentation
-        Float? acs_copy_ratio_skew
+        File acs_copy_ratio_segmentation
+        Float acs_copy_ratio_skew
         File? snv_maf
         File? indel_maf
         File? gvcf
@@ -46,9 +46,9 @@ workflow AbsoluteExtract {
                 maf = AbsoluteExtractTask.abs_maf,
                 seg = select_first([AbsoluteExtractTask.segtab]),
                 copy_ratio_segmentation = acs_copy_ratio_segmentation,
-                snv_maf = snv_maf,
-                indel_maf = indel_maf,
-                gvcf = gvcf,
+#                snv_maf = snv_maf,
+#                indel_maf = indel_maf,
+#                gvcf = gvcf,
                 purity = AbsoluteExtractTask.purity,
                 ploidy = AbsoluteExtractTask.ploidy,
                 runtime_params = runtime_collection.absolute_extract_postprocess
@@ -171,13 +171,13 @@ task Postprocess {
         String? sex
         File? maf
         File seg
-        File? copy_ratio_segmentation
-        File? annotated_variants
-        File? snv_maf
-        File? indel_maf
-        File? gvcf
-        Float? purity
-        Float? ploidy
+        File copy_ratio_segmentation
+#        File? annotated_variants
+#        File? snv_maf
+#        File? indel_maf
+#        File? gvcf
+        Float purity
+        Float ploidy
 
         Runtime runtime_params
     }
@@ -192,14 +192,13 @@ task Postprocess {
             ~{"--sex  " + sex} \
             --absolute_seg '~{seg}' \
             --cr_seg '~{copy_ratio_segmentation}' \
-            --gvcf '~{gvcf}' \
             --purity ~{purity} \
             --ploidy ~{ploidy} \
             --outdir "."
     >>>
 
     output {
-        File abs_maf = maf
+        File? abs_maf = maf
         File segtab = this_sample_name + ".segtab.completed.txt"
         File segtab_igv = this_sample_name + ".IGV.seg.completed.txt"
         File rescued_intervals = this_sample_name + ".rescued_intervals.txt"
