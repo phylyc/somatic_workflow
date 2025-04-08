@@ -66,6 +66,7 @@ struct WorkflowArguments {
     Int absolute_min_hets
     Int absolute_min_probes
     Float absolute_maf90_threshold
+    String absolute_genome_build
 
     # SNV WORKFLOW
     Int min_read_depth
@@ -178,6 +179,7 @@ workflow DefineWorkflowArguments {
         Int absolute_min_hets = 0
         Int absolute_min_probes = 2
         Float absolute_maf90_threshold = 0.485
+        String absolute_genome_build = "hg19"
 
         # SNV WORKFLOW
         Int min_read_depth = 4
@@ -341,6 +343,7 @@ workflow DefineWorkflowArguments {
         absolute_min_hets: absolute_min_hets,
         absolute_min_probes: absolute_min_probes,
         absolute_maf90_threshold: absolute_maf90_threshold,
+        absolute_genome_build: absolute_genome_build,
 
         min_read_depth: min_read_depth,
         mutect2_native_pair_hmm_use_double_precision: mutect2_native_pair_hmm_use_double_precision,

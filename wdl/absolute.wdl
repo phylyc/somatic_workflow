@@ -17,6 +17,7 @@ workflow Absolute {
         Int min_hets = 0
         Int min_probes = 2
         Float maf90_threshold = 0.485
+        String? genome_build
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -54,6 +55,7 @@ workflow Absolute {
             purity = purity,
             ploidy = ploidy,
             sex = sex,
+            genome_build = genome_build,
             runtime_params = runtime_collection.absolute
     }
 
@@ -207,6 +209,7 @@ task AbsoluteTask {
         String? sex
         String? platform
         String copy_ratio_type = "allelic"
+        String? genome_build
 
         Runtime runtime_params
     }
@@ -242,6 +245,7 @@ task AbsoluteTask {
                 ~{"--platform " + platform} \
                 --ssnv_skew ~{skew} \
                 --copy_num_type ~{copy_ratio_type} \
+                ~{"--genome_build '" + genome_build + "'"} \
                 --pkg_dir "/"
         else
             echo "No segments found in the input segmentation file. Exiting." >&2

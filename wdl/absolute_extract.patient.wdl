@@ -16,6 +16,7 @@ workflow AbsoluteExtractPatient {
         Array[File]? snv_maf
         Array[File]? indel_maf
         File? gvcf
+        String? genome_build
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -38,6 +39,7 @@ workflow AbsoluteExtractPatient {
                 snv_maf = this_snv_maf,
                 indel_maf = this_indel_maf,
                 analyst_id = analyst_id,
+                genome_build = genome_build,
                 # copy_ratio_type = copy_ratio_type,
                 # sample_name = sample_name,
                 runtime_collection = runtime_collection
