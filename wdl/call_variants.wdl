@@ -56,7 +56,7 @@ workflow CallVariants {
     # TODO: Estimate shard sizes based on bais and intervals
 
     scatter (shard in patient.shards) {
-        if (size(shard.raw_calls_mutect2_vcf) == 0) {
+        if (size(shard.raw_calls_mutect2_vcf) == 0 && !shard.skip) {
             if (args.run_variant_calling_mutect1) {
                 # Mutect1
                 # Old GATK does not stream input files, so we have to localize them.
