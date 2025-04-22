@@ -210,7 +210,7 @@ workflow DefineWorkflowArguments {
             "MFRL.0 < 18", "MFRL.1 < 18",
             "MPOS.0 < 6",
             "ROQ < 10",
-            "POPAF.0 < 3.0"
+            "POPAF < 2.0"
         ]
         Array[String] hard_filter_names = [
             "lowDP",
