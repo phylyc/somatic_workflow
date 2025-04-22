@@ -18,6 +18,7 @@ workflow AbsoluteExtract {
         File? snv_maf
         File? indel_maf
         File? gvcf
+        String? genome_build
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -35,6 +36,7 @@ workflow AbsoluteExtract {
             snv_maf = snv_maf,
             indel_maf = indel_maf,
             sex = sex,
+            genome_build = genome_build,
             runtime_params = runtime_collection.absolute_extract
     }
 
@@ -78,6 +80,7 @@ task AbsoluteExtractTask {
         File? indel_maf
         String? sex
         String? platform
+        String? genome_build
 
         Runtime runtime_params
     }
@@ -102,7 +105,7 @@ task AbsoluteExtractTask {
 
         elif [[ "~{called_solution}" == "0" ]] ; then
             Rscript /library/scripts/run_absolute.R \
-                --results_dir ~{output_dir} \
+                --results_dir "~{output_dir}/~{sample_name}.force-call" \
                 --sample "~{sample_name}" \
                 --seg_dat_fn "~{acs_copy_ratio_segmentation}" \
                 ~{"--maf '" + snv_maf + "'"} \
@@ -113,6 +116,7 @@ task AbsoluteExtractTask {
                 ~{"--platform " + platform} \
                 --ssnv_skew ~{acs_copy_ratio_skew} \
                 --copy_num_type ~{copy_ratio_type} \
+                ~{"--genome_build '" + genome_build + "'"} \
                 --pkg_dir "/"
 
             this_rdata="~{output_dir}/~{sample_name}.force-call/~{sample_name}.allelic.ABSOLUTE.RData"

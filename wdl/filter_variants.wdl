@@ -135,14 +135,14 @@ workflow FilterVariants {
 
                 call tasks.MergeVCFs as MergeLowConfidenceAndRealignmentFilteredVCFs {
                     input:
-                        vcfs = select_all(flatten([
+                        vcfs = flatten([
                             [SelectVariantsToRealign.not_selected_vcf],
-                            FilterAlignmentArtifacts.filtered_vcf
-                        ])),
-                        vcfs_idx = select_all(flatten([
+                            select_all(FilterAlignmentArtifacts.filtered_vcf)
+                        ]),
+                        vcfs_idx = flatten([
                             [SelectVariantsToRealign.not_selected_vcf_idx],
-                            FilterAlignmentArtifacts.filtered_vcf_idx
-                        ])),
+                            select_all(FilterAlignmentArtifacts.filtered_vcf_idx)
+                        ]),
                         output_name = patient.name + ".filtered.realignmentfiltered",
                         compress_output = args.compress_output,
                         runtime_params = runtime_collection.merge_vcfs

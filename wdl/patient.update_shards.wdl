@@ -7,6 +7,7 @@ import "patient.wdl" as p
 workflow UpdateShards {
     input {
         Patient patient
+        Array[Boolean]? skip
         Array[File]? raw_calls_mutect2_vcf_scattered
         Array[File]? raw_calls_mutect2_vcf_idx_scattered
         Array[File]? raw_mutect2_stats_scattered
@@ -15,8 +16,19 @@ workflow UpdateShards {
         Array[File]? raw_mutect2_artifact_priors_scattered
     }
 
+    if (defined(skip)) {
+        scatter (pair in zip(patient.shards, select_first([skip, []]))) {
+            call sh.UpdateShard as UpdateSkip {
+                input:
+                    shard = pair.left,
+                    skip = pair.right,
+            }
+        }
+    }
+    Array[Shard] shards_skip = select_first([UpdateSkip.updated_shard, patient.shards])
+
     if (defined(raw_calls_mutect2_vcf_scattered)) {
-        scatter (pair in zip(patient.shards, select_first([raw_calls_mutect2_vcf_scattered, []]))) {
+        scatter (pair in zip(shards_skip, select_first([raw_calls_mutect2_vcf_scattered, []]))) {
             call sh.UpdateShard as UpdateRawMutect2vcf {
                 input:
                     shard = pair.left,
@@ -24,7 +36,7 @@ workflow UpdateShards {
             }
         }
     }
-    Array[Shard] shards_m2_vcf = select_first([UpdateRawMutect2vcf.updated_shard, patient.shards])
+    Array[Shard] shards_m2_vcf = select_first([UpdateRawMutect2vcf.updated_shard, shards_skip])
 
     if (defined(raw_calls_mutect2_vcf_idx_scattered)) {
         scatter (pair in zip(shards_m2_vcf, select_first([raw_calls_mutect2_vcf_idx_scattered, []]))) {

@@ -64,6 +64,7 @@ workflow DefinePatient {
         # for the patient-level shards:
         # CACHE
         Array[File]? scattered_intervals
+        Array[Boolean]? skip
         Array[File]? raw_calls_mutect2_vcf_scattered
         Array[File]? raw_calls_mutect2_vcf_idx_scattered
         Array[File]? raw_mutect2_stats_scattered
@@ -246,6 +247,7 @@ workflow DefinePatient {
         scatter (intervals in select_first([scattered_intervals, []])) {
             Shard shards = object {
                 intervals: intervals,
+                skip: false  # set default; update below
             }
         }
     }
@@ -288,6 +290,7 @@ workflow DefinePatient {
     call p_update_sh.UpdateShards {
         input:
             patient = pat,
+            skip = skip,
             raw_calls_mutect2_vcf_scattered = raw_calls_mutect2_vcf_scattered,
             raw_calls_mutect2_vcf_idx_scattered = raw_calls_mutect2_vcf_idx_scattered,
             raw_mutect2_stats_scattered = raw_mutect2_stats_scattered,

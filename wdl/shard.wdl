@@ -3,6 +3,7 @@ version development
 
 struct Shard {
     File intervals
+    Boolean skip
     File? raw_calls_mutect2_vcf
     File? raw_calls_mutect2_vcf_idx
     File? raw_mutect2_stats
@@ -15,6 +16,7 @@ struct Shard {
 workflow UpdateShard {
     input {
         Shard shard
+        Boolean? skip
         File? intervals
         File? raw_calls_mutect2_vcf
         File? raw_calls_mutect2_vcf_idx
@@ -26,6 +28,7 @@ workflow UpdateShard {
 
     Shard s = object {
         intervals: if (defined(intervals)) then intervals else shard.intervals,
+        skip: if (defined(skip)) then skip else shard.skip,
         raw_calls_mutect2_vcf: if (defined(raw_calls_mutect2_vcf)) then raw_calls_mutect2_vcf else shard.raw_calls_mutect2_vcf,
         raw_calls_mutect2_vcf_idx: if (defined(raw_calls_mutect2_vcf_idx)) then raw_calls_mutect2_vcf_idx else shard.raw_calls_mutect2_vcf_idx,
         raw_mutect2_stats: if (defined(raw_mutect2_stats)) then raw_mutect2_stats else shard.raw_mutect2_stats,

@@ -56,7 +56,7 @@ workflow CallVariants {
     # TODO: Estimate shard sizes based on bais and intervals
 
     scatter (shard in patient.shards) {
-        if (size(shard.raw_calls_mutect2_vcf) == 0) {
+        if (size(shard.raw_calls_mutect2_vcf) == 0 && !shard.skip) {
             if (args.run_variant_calling_mutect1) {
                 # Mutect1
                 # Old GATK does not stream input files, so we have to localize them.
@@ -627,7 +627,7 @@ task Mutect2 {
             ~{if native_pair_hmm_use_double_precision then "--native-pair-hmm-use-double-precision true" else ""} \
             ~{"--downsampling-stride " + downsampling_stride} \
             ~{"--max-reads-per-alignment-start " + max_reads_per_alignment_start} \
-            --seconds-between-progress-updates 600 \
+            --seconds-between-progress-updates 60 \
             ~{m2_extra_args} \
             2> >( \
                 grep -v 'Dangling End recovery killed because of a loop (findPath)' | \
