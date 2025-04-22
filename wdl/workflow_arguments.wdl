@@ -70,6 +70,8 @@ struct WorkflowArguments {
 
     # SNV WORKFLOW
     Int min_read_depth
+    Float mutect_initial_tumor_lod
+    Float mutect_tumor_lod_to_emit
     Boolean mutect2_native_pair_hmm_use_double_precision
     Boolean mutect2_dont_use_soft_clipped_bases
     Boolean mutect2_use_linked_de_bruijn_graph
@@ -183,6 +185,8 @@ workflow DefineWorkflowArguments {
 
         # SNV WORKFLOW
         Int min_read_depth = 4
+        Float mutect_initial_tumor_lod = 2.0
+        Float mutect_tumor_lod_to_emit = 3.0
         # This is essentially a custom implementation of the mitochondiral model:
         Boolean mutect2_native_pair_hmm_use_double_precision = true
         Boolean mutect2_dont_use_soft_clipped_bases = false
@@ -346,6 +350,8 @@ workflow DefineWorkflowArguments {
         absolute_genome_build: absolute_genome_build,
 
         min_read_depth: min_read_depth,
+        mutect_initial_tumor_lod: mutect_initial_tumor_lod,
+        mutect_tumor_lod_to_emit: mutect_tumor_lod_to_emit,
         mutect2_native_pair_hmm_use_double_precision: mutect2_native_pair_hmm_use_double_precision,
         mutect2_dont_use_soft_clipped_bases: mutect2_dont_use_soft_clipped_bases,
         mutect2_use_linked_de_bruijn_graph: mutect2_use_linked_de_bruijn_graph,
