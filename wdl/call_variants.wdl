@@ -120,7 +120,7 @@ workflow CallVariants {
                                 normal_bam = matched_normal_bam,
                                 normal_bai = matched_normal_bai,
 
-                                initial_tumor_lod = args.initial_tumor_lod,
+                                initial_tumor_lod = args.mutect_initial_tumor_lod,
                                 tumor_lod = args.mutect_tumor_lod_to_emit,
 
                                 runtime_params = runtime_collection.mutect1,
