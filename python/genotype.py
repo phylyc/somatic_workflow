@@ -23,12 +23,12 @@ def parse_args():
         prog="Genotyper",
         description="""
             Genotyper is a script that calculates genotype likelihoods from allelic counts, 
-            while accounting for potential sample contamination and segment-specific minor 
-            allele fractions. It leverages allelic pileup data (from GATK GetPileupSummaries), 
-            allelic segmentation data (from GATK CalculateContamination), and contamination 
-            estimates (from GATK CalculateContamination), to compute genotype likelihoods 
-            under either a beta-binomial model. The script computes variant 
-            genotype correlations across samples as a consistency check.
+            while accounting for potential sample contamination, reference bias, and  
+            segment-specific minor allele fractions. It leverages allelic pileup data 
+            (from GATK GetPileupSummaries), allelic segmentation data (from GATK CalculateContamination
+            or GATK ModelSegments), and contamination estimates (from GATK CalculateContamination), 
+            to compute genotype likelihoods under a beta-binomial model. The script 
+            computes variant genotype correlations across samples as a consistency check.
 
             Outputs include:
                 1) A VCF with genotype information for each patient,
@@ -95,6 +95,7 @@ def main():
         af_model_parameters=args.af_model_parameters,
         min_allele_frequency=args.min_allele_frequency,
         min_read_depth=args.min_read_depth,
+        default_ref_bias=args.ref_bias,
         verbose=args.verbose
     )
     data.deduplicate_samples()
@@ -289,26 +290,23 @@ class Segments(object):
 
 class AFParameters(object):
     """
-    Represents contamination data from a specified file. (E.g. output of GATK ModelSegments.)
-
-    This class reads contamination data, including contamination levels and associated
-    errors, from a given file. It also extracts the sample name from the file.
+    Represents allelic fraction data from a specified file. (E.g. output of GATK ModelSegments.)
 
     Attributes:
         file_path (str): Path to the contamination file.
         keys (list of str): Keys representing the contamination data fields.
         dict (dict): Dictionary containing contamination data.
-        value (float): Contamination value.
-        error (float): Error associated with the contamination value.
-        bam_sample_name (str): Extracted sample name.
+        ref_bias (float): reference bias value lambda in f_obs = f / (f + (1 - f) * lambda)
+        ref_bias_var (float): variance of reference bias posterior distribution
+        outlier_probability (float): prior likelihood that a given locus is an outlier.
 
     Args:
-        file_path (str): Path to the contamination file.
+        file_path (str): Path to the allelic fraction parameters file.
     """
-    def __init__(self, file_path: str = None):
+    def __init__(self, file_path: str = None, default_ref_bias: float = 1):
         self.file_path = file_path
         self.keys = ["MEAN_BIAS", "BIAS_VARIANCE", "OUTLIER_PROBABILITY"]
-        default_dict = {key: default for key, default in zip(self.keys, [1, 0, 0])}
+        default_dict = {key: default for key, default in zip(self.keys, [default_ref_bias, 0, 0])}
         try:
             self.dict = (
                 pd.read_csv(file_path, sep="\t", comment="@", low_memory=False).set_index("PARAMETER_NAME")["POSTERIOR_50"].to_dict()
@@ -321,6 +319,9 @@ class AFParameters(object):
             self.dict = default_dict
         self.ref_bias = self.dict["MEAN_BIAS"]
         self.ref_bias_var = self.dict["BIAS_VARIANCE"]
+        # The outlier probability is not used for this model since the outlier
+        # emissions and their priors are fundamentally different. The model here
+        # uses population allele frequency priors per locus.
         self.outlier_probability = self.dict["OUTLIER_PROBABILITY"]
 
 
@@ -597,7 +598,7 @@ class Genotyper(object):
             ploidy["Y"] = 1
 
         # Handle cases with XXY, etc. We only need to count up to ploidy 2 as this
-        # differentiates the existence or absence of HETs.
+        # differentiates the presence or absence of HETs.
         if "XX" in sex:
             ploidy["X"] = 2
         elif "X" in sex:
@@ -734,15 +735,15 @@ class Genotyper(object):
         contig = pileup["contig"]
         n = pileup[["ref_count", "alt_count"]].sum(axis=1)
         alt = pileup["alt_count"]
-        f = pileup["allele_frequency"]  # population allele frequency from SNP panel
+        popaf = pileup["allele_frequency"]  # population allele frequency from SNP panel
 
         def bias(_f):
             return _f / (_f + (1 - _f) * self.ref_bias)
 
-        f_aa = contamination * f + (1 - contamination) * error / 3
-        f_bb = contamination * f + (1 - contamination) * (1 - error)
-        f_ab = bias(contamination * f + (1 - contamination) * minor_af)
-        f_ba = bias(contamination * f + (1 - contamination) * (1 - minor_af))
+        f_aa = contamination * popaf + (1 - contamination) * error / 3
+        f_bb = contamination * popaf + (1 - contamination) * (1 - error)
+        f_ab = bias(contamination * popaf + (1 - contamination) * minor_af)
+        f_ba = bias(contamination * popaf + (1 - contamination) * (1 - minor_af))
 
         # include probability from seq error assuming error rate for alt>ref == ref>alt
         f_ab = f_ab * (1 - error) + (1 - f_ab) * error
@@ -764,8 +765,8 @@ class Genotyper(object):
         # Prior probabilities of genotypes:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
-            log1f = np.log1p(-f)
-            logf = np.log(f)
+            log1f = np.log1p(-popaf)
+            logf = np.log(popaf)
 
             outlier = logo + 2 * log1f + st.betabinom(n, 1, 1).logpmf(alt)  # max entropy
             aa = log_p0_prior + log1o + 2 * log1f + st.binom(n, f_aa).logpmf(alt)
@@ -894,7 +895,7 @@ class GenotypeData(object):
         min_read_depth (int, optional): Minimum read depth threshold for filtering data.
     """
 
-    def __init__(self, individual_id: str, samples: list[str], variant: list[str] = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, af_model_parameters: list[str] = None, min_read_depth: int = 0, min_allele_frequency: float = 0, verbose: bool = False):
+    def __init__(self, individual_id: str, samples: list[str], variant: list[str] = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, af_model_parameters: list[str] = None, min_read_depth: int = 0, min_allele_frequency: float = 0, default_ref_bias: float = 1, verbose: bool = False):
         self.verbose = verbose
         message("Loading data:") if verbose else None
         self.individual_id = individual_id
@@ -922,9 +923,9 @@ class GenotypeData(object):
         )
         print("  AF Model Parameters") if verbose else None
         self.af_parameters = (
-            [AFParameters()] * len(samples)
+            [AFParameters(default_ref_bias=default_ref_bias)] * len(samples)
             if af_model_parameters is None
-            else [AFParameters(file_path=a) for a in af_model_parameters]
+            else [AFParameters(file_path=a, default_ref_bias=default_ref_bias) for a in af_model_parameters]
         )
         print() if verbose else None
 
