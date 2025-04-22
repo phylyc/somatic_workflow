@@ -120,6 +120,9 @@ workflow CallVariants {
                                 normal_bam = matched_normal_bam,
                                 normal_bai = matched_normal_bai,
 
+                                initial_tumor_lod = args.mutect_initial_tumor_lod,
+                                tumor_lod = args.mutect_tumor_lod_to_emit,
+
                                 runtime_params = runtime_collection.mutect1,
                         }
                     }
@@ -189,6 +192,8 @@ workflow CallVariants {
                     downsampling_stride = args.mutect2_downsampling_stride,
                     pcr_snv_qual = args.mutect2_pcr_snv_qual,
                     pcr_indel_qual = args.mutect2_pcr_indel_qual,
+                    initial_tumor_lod = args.mutect_initial_tumor_lod,
+                    tumor_lod_to_emit = args.mutect_tumor_lod_to_emit,
                     max_reads_per_alignment_start = args.mutect2_max_reads_per_alignment_start,
                     m2_extra_args = args.mutect2_extra_args,
                     diskGB = m2_diskGB,
@@ -261,6 +266,7 @@ workflow CallVariants {
 }
 
 task Mutect1 {
+    # Documentation at https://gist.github.com/sbamin/041a4bdb7c5b184321b1468345bd2aa8
     input {
         File interval_list
         File ref_fasta
@@ -284,8 +290,8 @@ task Mutect1 {
         Int max_alt_alleles_in_normal_qscore_sum = 10000
         File? contamination_table
         Int tumor_f_pretest = 0
-        Float initial_tumor_lod = 0.5
-        Int tumor_lod = 0
+        Float? initial_tumor_lod
+        Float? tumor_lod
 
         Boolean only_passing_calls = true
 
@@ -351,9 +357,9 @@ task Mutect1 {
             --max_alt_alleles_in_normal_count ~{max_alt_alleles_in_normal_count} \
             --max_alt_alleles_in_normal_qscore_sum ~{max_alt_alleles_in_normal_qscore_sum} \
             --fraction_contamination $fraction_contamination \
-            --tumor_f_pretest ~{tumor_f_pretest} \
-            --initial_tumor_lod ~{initial_tumor_lod} \
-            --tumor_lod ~{tumor_lod} \
+            ~{"--tumor_f_pretest " + tumor_f_pretest} \
+            ~{"--initial_tumor_lod " + initial_tumor_lod} \
+            ~{"--tumor_lod " + tumor_lod} \
             --out '~{call_stats}' \
             --coverage_file '~{coverage_wig}' \
             --power_file '~{power_wig}' \
@@ -534,14 +540,17 @@ task Mutect2 {
         # in complex regions, even when recovering all dangling branches.
         # Reducing the downsampling by increasing the following parameters might
         # solve the issue. It increases compute cost though.
-        Int downsampling_stride = 1
-        Int max_reads_per_alignment_start = 50
+        Int? downsampling_stride
+        Int? max_reads_per_alignment_start
 
         # Increase for high quality panel sequencing data
         # 40 = 1e-2 error rate (standard WES)
         # 80 = 1e-4 error rate (duplex sequencing)
         Int pcr_snv_qual = 40
         Int pcr_indel_qual = 40
+
+        Float? initial_tumor_lod
+        Float? tumor_lod_to_emit
 
         String? m2_extra_args
 
@@ -627,6 +636,8 @@ task Mutect2 {
             ~{if native_pair_hmm_use_double_precision then "--native-pair-hmm-use-double-precision true" else ""} \
             ~{"--downsampling-stride " + downsampling_stride} \
             ~{"--max-reads-per-alignment-start " + max_reads_per_alignment_start} \
+            ~{"--initial-tumor-lod " + initial_tumor_lod} \
+            ~{"--tumor-lod-to-emit " + tumor_lod_to_emit} \
             --seconds-between-progress-updates 60 \
             ~{m2_extra_args} \
             2> >( \
