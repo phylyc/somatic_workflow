@@ -109,7 +109,7 @@ workflow GenotypeVariants {
         File alt_counts = GenotypeVariantsTask.alt_counts
         File other_alt_counts = GenotypeVariantsTask.other_alt_counts
         File sample_correlation = GenotypeVariantsTask.sample_correlation
-        Boolean samples_are_from_same_patient = GenotypeVariantsTask.samples_are_from_same_patient
+        Float sample_correlation_min = GenotypeVariantsTask.sample_correlation_min
         Array[File]? sample_genotype_likelihoods = sample_genotype_likelihoods_
     }
 }
@@ -152,6 +152,7 @@ task GenotypeVariantsTask {
     String output_alt_counts = output_dir + "/" + patient_id + ".germline.alt_count.tsv" + (if compress_output then ".gz" else "")
     String output_other_alt_counts = output_dir + "/" + patient_id + ".germline.other_alt_count.tsv" + (if compress_output then ".gz" else "")
     String output_sample_correlation = output_dir + "/" + patient_id + ".sample_correlation.tsv" + (if compress_output then ".gz" else "")
+    String output_sample_correlation_min = output_dir + "/" + patient_id + ".sample_correlation.min.txt"
     String output_vcf = output_dir + "/" + patient_id + ".germline.vcf" + (if compress_output then ".gz" else "")
     String output_vcf_idx = output_vcf + (if compress_output then ".tbi" else ".idx")
 
@@ -205,7 +206,7 @@ task GenotypeVariantsTask {
         File alt_counts = output_alt_counts
         File other_alt_counts = output_other_alt_counts
         File sample_correlation = output_sample_correlation
-        Boolean samples_are_from_same_patient = read_boolean("samples_are_from_same_patient.txt")
+        Float sample_correlation_min = read_float(output_sample_correlation_min)
         Array[File]? sample_genotype_likelihoods = glob(output_dir + "/*.likelihoods.pileup" + (if compress_output then ".gz" else ""))
     }
 

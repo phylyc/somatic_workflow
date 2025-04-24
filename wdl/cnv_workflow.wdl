@@ -91,7 +91,7 @@ workflow CNVWorkflow {
                 snp_alt_counts = GenotypeVariants.alt_counts,
                 snp_other_alt_counts = GenotypeVariants.other_alt_counts,
                 snp_sample_correlation = GenotypeVariants.sample_correlation,
-                samples_are_from_same_patient = GenotypeVariants.samples_are_from_same_patient
+                snp_sample_correlation_min = GenotypeVariants.sample_correlation_min
         }
     }
 

@@ -113,7 +113,7 @@ workflow GenotypeSNPPanel {
         File alt_counts = GenotypeSNPPanelVariants.alt_counts
         File other_alt_counts = GenotypeSNPPanelVariants.other_alt_counts
         File sample_correlation = GenotypeSNPPanelVariants.sample_correlation
-        Boolean samples_are_from_same_patient = GenotypeSNPPanelVariants.samples_are_from_same_patient
+        Float sample_correlation_min = GenotypeSNPPanelVariants.sample_correlation_min
         Array[File]? sample_genotype_likelihoods = GenotypeSNPPanelVariants.sample_genotype_likelihoods
     }
 }

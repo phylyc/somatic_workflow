@@ -1157,6 +1157,9 @@ class GenotypeData(object):
         file = f"{output_dir}/{self.individual_id}.sample_correlation.tsv" + (".gz" if args.compress_output else "")
         self.sample_correlation.to_csv(file, sep="\t")
         print(f"  {file}") if args.verbose else None
+        file = f"{output_dir}/{self.individual_id}.sample_correlation.min.txt"
+        np.savetxt(file, np.min(self.sample_correlation))
+        print(f"  {file}") if args.verbose else None
 
     def write_sample_likelihoods(self, output_dir: str, args: argparse.Namespace = None):
         if args.save_sample_genotype_likelihoods:
