@@ -159,7 +159,7 @@ workflow DefineWorkflowArguments {
         Int min_snppanel_read_depth = 10
         Float genotype_variants_normal_to_tumor_weight = 10.0
         Float genotype_variants_min_genotype_likelihood = 0.995
-        Float genotype_variants_outlier_prior = 0.0001
+        Float genotype_variants_outlier_prior = 0.00001
         Int genotype_variants_overdispersion = 10
         Float genotype_variants_ref_bias = 1.05
         Int harmonize_min_target_length = 20
@@ -167,7 +167,7 @@ workflow DefineWorkflowArguments {
         Int model_segments_max_number_of_segments_per_chromosome = 10000
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
         Int model_segments_kernel_approximation_dimension = 200
-        Float model_segments_smoothing_credible_interval_threshold = 2.0
+        Float model_segments_smoothing_credible_interval_threshold = 3.0
         Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
         Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold = 2.0

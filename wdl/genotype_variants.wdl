@@ -31,7 +31,6 @@ workflow GenotypeVariants {
         String format = "GT"
         Boolean select_hets = false
         Boolean save_sample_genotype_likelihoods = false
-        Boolean verbose = true
 
         Boolean compress_output = false
 
@@ -85,7 +84,6 @@ workflow GenotypeVariants {
             format = format,
             select_hets = select_hets,
             save_sample_genotype_likelihoods = save_sample_genotype_likelihoods,
-            verbose = verbose,
             compress_output = compress_output,
             runtime_params = runtime_collection.genotype_variants
     }
@@ -111,6 +109,7 @@ workflow GenotypeVariants {
         File alt_counts = GenotypeVariantsTask.alt_counts
         File other_alt_counts = GenotypeVariantsTask.other_alt_counts
         File sample_correlation = GenotypeVariantsTask.sample_correlation
+        Boolean samples_are_from_same_patient = GenotypeVariantsTask.samples_are_from_same_patient
         Array[File]? sample_genotype_likelihoods = sample_genotype_likelihoods_
     }
 }
@@ -136,14 +135,13 @@ task GenotypeVariantsTask {
         Int min_read_depth = 10
         Float normal_to_tumor_weight = 10.0
         Float min_genotype_likelihood = 0.995
-        Float outlier_prior = 0.0001
-        Int overdispersion = 50
+        Float outlier_prior = 0.00001
+        Int overdispersion = 10
         Float ref_bias = 1.05
         String format = "GT"
         Boolean select_hets = false
         Boolean save_sample_genotype_likelihoods = false
         Boolean compress_output = false
-        Boolean verbose = true
 
         Runtime runtime_params
     }
@@ -163,7 +161,6 @@ task GenotypeVariantsTask {
 
     command <<<
         set -euxo pipefail
-        # n_threads=$(nproc)
         wget -O genotype.py ~{script}
         python genotype.py \
             --output_dir '~{output_dir}' \
@@ -189,7 +186,13 @@ task GenotypeVariantsTask {
             ~{if select_hets then "--select_hets" else ""} \
             ~{if save_sample_genotype_likelihoods then "--save_sample_genotype_likelihoods" else ""} \
             ~{if compress_output then "--compress_output" else ""} \
-            ~{if verbose then "--verbose" else ""}
+            --verbose
+
+        if grep -q "Genotypes between samples are not well correlated" GenotypeVariantsTask.log ; then
+            echo "false" > samples_are_from_same_patient.txt
+        else
+            echo "true" > samples_are_from_same_patient.txt
+        fi
 
         # tabix not in docker
         touch '~{output_vcf_idx}'
@@ -202,6 +205,7 @@ task GenotypeVariantsTask {
         File alt_counts = output_alt_counts
         File other_alt_counts = output_other_alt_counts
         File sample_correlation = output_sample_correlation
+        Boolean samples_are_from_same_patient = read_boolean("samples_are_from_same_patient.txt")
         Array[File]? sample_genotype_likelihoods = glob(output_dir + "/*.likelihoods.pileup" + (if compress_output then ".gz" else ""))
     }
 

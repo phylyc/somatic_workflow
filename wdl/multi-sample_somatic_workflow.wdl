@@ -211,6 +211,7 @@ workflow MultiSampleSomaticWorkflow {
         File? snp_alt_counts = out_patient.snp_alt_counts
         File? snp_other_alt_counts = out_patient.snp_other_alt_counts
         File? snp_sample_correlation = out_patient.snp_sample_correlation
+        Boolean? samples_are_from_same_patient = out_patient.samples_are_from_same_patient
         File? modeled_segments = out_patient.modeled_segments
     }
 }

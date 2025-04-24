@@ -61,13 +61,13 @@ def parse_args():
     parser.add_argument("-l", "--ref_bias",                     type=float, default=1.05,   help="")
     parser.add_argument("--min_error_rate",                     type=float, default=1e-3,   help="")
     parser.add_argument("--max_error_rate",                     type=float, default=1e-2,   help="")
-    parser.add_argument("--outlier_prior",                      type=float, default=1e-4,   help="Prior probability for a variant to be an outlier.")
+    parser.add_argument("--outlier_prior",                      type=float, default=1e-5,   help="Prior probability for a variant to be an outlier.")
     parser.add_argument("-F", "--format",                       type=str,   default="GT",   help="VCF format field. (GT: genotype; AD: allele depth; DP: total depth; PL: phred-scaled genotype likelihoods.)")
     parser.add_argument("--threads",                            type=int,   default=1,      help="Number of threads to use for parallelization over samples.")
     parser.add_argument("--select_hets",                                    default=False,  action="store_true", help="Keep only heterozygous sites.")
     parser.add_argument("--save_sample_genotype_likelihoods",               default=False,  action="store_true", help="Save genotype likelihoods to file for each sample.")
     parser.add_argument("--compress_output",                                default=False,  action="store_true", help="Compress output files.")
-    parser.add_argument("--verbose",                                        default=False,  action="store_true", help="Print information to stdout during execution.")
+    parser.add_argument("--verbose",                                        default=True,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
 
 
@@ -1105,7 +1105,7 @@ class GenotypeData(object):
             warning_message = (
                 f"\n\n"
                 f"\tGenotypes between samples are not well correlated (< {correlation_threshold})!\n"
-                f"\tIt is likely that not all samples are from the same individual.\n"
+                f"\tIt is likely that not all samples are from the same patient.\n"
                 f"\tPlease check your inputs!\n"
             )
             warnings.warn(warning_message)

@@ -40,6 +40,7 @@ struct Patient {
     File? snp_alt_counts
     File? snp_other_alt_counts
     File? snp_sample_correlation
+    Boolean? samples_are_from_same_patient
     File? modeled_segments
 }
 
@@ -81,6 +82,7 @@ workflow UpdatePatient {
         File? snp_alt_counts
         File? snp_other_alt_counts
         File? snp_sample_correlation
+        Boolean? samples_are_from_same_patient
         File? modeled_segments
     }
 
@@ -118,6 +120,7 @@ workflow UpdatePatient {
         snp_alt_counts: if defined(snp_alt_counts) then snp_alt_counts else patient.snp_alt_counts,
         snp_other_alt_counts: if defined(snp_other_alt_counts) then snp_other_alt_counts else patient.snp_other_alt_counts,
         snp_sample_correlation: if defined(snp_sample_correlation) then snp_sample_correlation else patient.snp_sample_correlation,
+        samples_are_from_same_patient: if defined(samples_are_from_same_patient) then samples_are_from_same_patient else patient.samples_are_from_same_patient,
         modeled_segments: if defined(modeled_segments) then modeled_segments else patient.modeled_segments
     }
 
