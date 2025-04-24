@@ -189,12 +189,6 @@ task GenotypeVariantsTask {
             ~{if compress_output then "--compress_output" else ""} \
             --verbose
 
-        if grep -q "Genotypes between samples are not well correlated" GenotypeVariantsTask.log ; then
-            echo "false" > samples_are_from_same_patient.txt
-        else
-            echo "true" > samples_are_from_same_patient.txt
-        fi
-
         # tabix not in docker
         touch '~{output_vcf_idx}'
     >>>
