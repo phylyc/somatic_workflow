@@ -57,6 +57,7 @@ workflow FilterVariants {
         }
 
         # TODO: add DeTiN
+        # (not needed because we also collect variants flagged as normal_artifact)
 
         if (args.run_realignment_filter) {
             # Realigning reads for variants can be expensive if many variants have been
