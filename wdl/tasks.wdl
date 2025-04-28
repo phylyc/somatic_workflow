@@ -367,6 +367,7 @@ task SelectVariants {
     }
 
     String uncompressed_input_vcf = basename(vcf, ".gz")
+    Boolean is_compressed = uncompressed_input_vcf != basename(vcf)
     String base_name = if defined(tumor_sample_name) then sub(select_first([tumor_sample_name, ""]), " ", "+") else basename(uncompressed_input_vcf, ".vcf")
     String output_base_name = base_name + ".selected" + suffix
     
@@ -403,7 +404,18 @@ task SelectVariants {
         # variant will not be selected.
 
         set +e  # grep returns 1 if no lines are found
-        grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
+        # Take
+        if [ "~{defined(tumor_sample_name)}" == "true" ]; then
+            # Use SelectVariants header output bug, described below.
+            grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
+        else
+            # Propagate full header.
+            if [ "~{is_compressed}" == "true" ]; then
+                zcat '~{vcf}' | grep "^#" > '~{uncompressed_selected_vcf}'
+            else
+                grep "^#" '~{vcf}' > '~{uncompressed_selected_vcf}'
+            fi
+        fi
         num_vars=$(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
         echo ">> Selected $num_vars variants."
 
@@ -576,9 +588,7 @@ task SelectVariants {
     }
 }
 
-task MergeVCFs {
-    # Consider replacing MergeVcfs with GatherVcfsCloud once the latter is out of beta.
-
+task GatherVCFs {
 	input {
         File? ref_fasta
         File? ref_fasta_index
@@ -601,10 +611,10 @@ task MergeVCFs {
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-            MergeVcfs \
+            GatherVcfs \
             ~{sep="' " prefix("-I '", vcfs)}' \
             ~{"-R '" + ref_fasta + "'"} \
-            ~{"-D '" + ref_dict + "'"} \
+            --REORDER_INPUT_BY_FIRST_VARIANT true \
             -O 'tmp.~{output_vcf}'
 
         if [ "~{drop_duplicate_sites}" == "true" ]; then

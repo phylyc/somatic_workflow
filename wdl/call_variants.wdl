@@ -231,13 +231,13 @@ workflow CallVariants {
 	}
 
     if (!defined(patient.raw_snv_calls_vcf)) {
-        call tasks.MergeVCFs {
+        call tasks.GatherVCFs {
             input:
                 vcfs = select_all(raw_mutect2_vcf),
                 vcfs_idx = select_all(raw_mutect2_vcf_idx),
                 output_name = patient.name,
                 compress_output = args.compress_output,
-                runtime_params = runtime_collection.merge_vcfs
+                runtime_params = runtime_collection.gather_vcfs
         }
     }
 
@@ -263,8 +263,8 @@ workflow CallVariants {
         input:
             patient = patient,
             shards = updated_shard,
-            raw_snv_calls_vcf = MergeVCFs.merged_vcf,
-            raw_snv_calls_vcf_idx = MergeVCFs.merged_vcf_idx,
+            raw_snv_calls_vcf = GatherVCFs.merged_vcf,
+            raw_snv_calls_vcf_idx = GatherVCFs.merged_vcf_idx,
             mutect2_stats = MergeMutectStats.merged_stats,
             orientation_bias = LearnReadOrientationModel.orientation_bias,
     }
