@@ -123,9 +123,9 @@ workflow DefineWorkflowArguments {
     input {
         WorkflowResources resources
 
-        String analyst_id = "TIM"
+        String analyst_id = "PH"
 
-        Int scatter_count = 10
+        Int scatter_count = 25
         Int total_mean_read_depth = 500
         Int total_mean_read_depth_per_scatter = 500
         Int variants_per_scatter = 50
