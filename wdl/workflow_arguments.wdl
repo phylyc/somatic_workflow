@@ -74,6 +74,7 @@ struct WorkflowArguments {
     Float mutect1_tumor_lod_to_emit
     Float mutect2_initial_tumor_lod
     Float mutect2_tumor_lod_to_emit
+    Float mutect2_high_mem_factor
     Boolean mutect2_native_pair_hmm_use_double_precision
     Boolean mutect2_dont_use_soft_clipped_bases
     Boolean mutect2_use_linked_de_bruijn_graph
@@ -158,7 +159,7 @@ workflow DefineWorkflowArguments {
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
         Float genotype_variants_normal_to_tumor_weight = 10.0
-        Float genotype_variants_min_genotype_likelihood = 0.995
+        Float genotype_variants_min_genotype_likelihood = 0.995  # = LOD threshold 5.3
         Float genotype_variants_outlier_prior = 0.00001
         Int genotype_variants_overdispersion = 10
         Float genotype_variants_ref_bias = 1.05
@@ -191,6 +192,7 @@ workflow DefineWorkflowArguments {
         Float mutect1_tumor_lod_to_emit = 6.0
         Float mutect2_initial_tumor_lod = 2.0
         Float mutect2_tumor_lod_to_emit = 3.0
+        Float mutect2_high_mem_factor = 1.5
         # This is essentially a custom implementation of the mitochondiral model:
         Boolean mutect2_native_pair_hmm_use_double_precision = true
         Boolean mutect2_dont_use_soft_clipped_bases = false
@@ -358,6 +360,7 @@ workflow DefineWorkflowArguments {
         mutect1_tumor_lod_to_emit: mutect1_tumor_lod_to_emit,
         mutect2_initial_tumor_lod: mutect2_initial_tumor_lod,
         mutect2_tumor_lod_to_emit: mutect2_tumor_lod_to_emit,
+        mutect2_high_mem_factor: mutect2_high_mem_factor,
         mutect2_native_pair_hmm_use_double_precision: mutect2_native_pair_hmm_use_double_precision,
         mutect2_dont_use_soft_clipped_bases: mutect2_dont_use_soft_clipped_bases,
         mutect2_use_linked_de_bruijn_graph: mutect2_use_linked_de_bruijn_graph,
