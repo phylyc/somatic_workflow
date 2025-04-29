@@ -611,11 +611,15 @@ task GatherVCFs {
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-            MergeVcfs \
+            GatherVcfs \
             ~{sep="' " prefix("-I '", vcfs)}' \
             ~{"-R '" + ref_fasta + "'"} \
             --REORDER_INPUT_BY_FIRST_VARIANT true \
             -O 'tmp.~{output_vcf}'
+
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            IndexFeatureFile \
+            -I 'tmp.~{output_vcf}'
 
         if [ "~{drop_duplicate_sites}" == "true" ]; then
             bcftools norm \
