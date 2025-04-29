@@ -152,7 +152,7 @@ task GenotypeVariantsTask {
     String output_alt_counts = output_dir + "/" + patient_id + ".germline.alt_count.tsv" + (if compress_output then ".gz" else "")
     String output_other_alt_counts = output_dir + "/" + patient_id + ".germline.other_alt_count.tsv" + (if compress_output then ".gz" else "")
     String output_sample_correlation = output_dir + "/" + patient_id + ".sample_correlation.tsv" + (if compress_output then ".gz" else "")
-    String output_sample_correlation_min = output_dir + "/" + patient_id + ".sample_correlation.min.txt"
+    String output_sample_correlation_min = patient_id + ".sample_correlation.min.txt" # read_float cannot have outdir appended
     String output_vcf = output_dir + "/" + patient_id + ".germline.vcf" + (if compress_output then ".gz" else "")
     String output_vcf_idx = output_vcf + (if compress_output then ".tbi" else ".idx")
 
