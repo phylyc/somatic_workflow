@@ -405,17 +405,18 @@ task SelectVariants {
 
         set +e  # grep returns 1 if no lines are found
         # HEADER
-        if [ "~{defined(tumor_sample_name)}" == "true" ]; then
-            # Use SelectVariants header output bug, described below.
-            grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
-        else
-            # Propagate full header.
-            if [ "~{is_compressed}" == "true" ]; then
-                zcat '~{vcf}' | grep "^#" > '~{uncompressed_selected_vcf}'
-            else
-                grep "^#" '~{vcf}' > '~{uncompressed_selected_vcf}'
-            fi
-        fi
+#        if [ "~{defined(tumor_sample_name)}" == "true" ]; then
+#            # Use SelectVariants header output bug, described below.
+#            grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
+#        else
+#            # Propagate full header.
+#            if [ "~{is_compressed}" == "true" ]; then
+#                zcat '~{vcf}' | grep "^#" > '~{uncompressed_selected_vcf}'
+#            else
+#                grep "^#" '~{vcf}' > '~{uncompressed_selected_vcf}'
+#            fi
+#        fi
+        grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
         num_vars=$(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
         echo ">> Selected $num_vars variants."
 
@@ -583,8 +584,8 @@ task SelectVariants {
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
         # ref_dict: {localization_optional: true}  # needs to be localized for SortVcf
-        vcf: {localization_optional: true}
-        vcf_idx: {localization_optional: true}
+        # vcf: {localization_optional: true}
+        # vcf_idx: {localization_optional: true}
     }
 }
 
