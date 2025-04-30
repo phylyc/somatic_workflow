@@ -618,9 +618,9 @@ task GatherVCFs {
             --REORDER_INPUT_BY_FIRST_VARIANT true \
             -O 'tmp.~{output_vcf}'
 
-        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-            IndexFeatureFile \
-            -I 'tmp.~{output_vcf}'
+#        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+#            IndexFeatureFile \
+#            -I 'tmp.~{output_vcf}'
 
         if [ "~{drop_duplicate_sites}" == "true" ]; then
             bcftools norm \
