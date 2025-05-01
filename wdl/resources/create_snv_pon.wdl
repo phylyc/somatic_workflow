@@ -142,7 +142,7 @@ workflow CreateSNVPanelOfNormals {
         }
     }
 
-    call tasks.MergeVCFs {
+    call tasks.GatherVCFs {
         input:
             ref_fasta = args.files.ref_fasta,
             ref_fasta_index = args.files.ref_fasta_index,
@@ -151,12 +151,12 @@ workflow CreateSNVPanelOfNormals {
             vcfs_idx = CreateSNVPanel.output_vcf_index,
             output_name = pon_name,
             compress_output = args.compress_output,
-            runtime_params = runtime_collection.merge_vcfs
+            runtime_params = runtime_collection.gather_vcfs
     }
 
     output {
-        File pon = MergeVCFs.merged_vcf
-        File pon_idx = MergeVCFs.merged_vcf_idx
+        File pon = GatherVCFs.merged_vcf
+        File pon_idx = GatherVCFs.merged_vcf_idx
         Array[File] normal_calls = select_all(MultiSampleSomaticWorkflow.raw_snv_calls_vcf)
         Array[File] normal_calls_idx = select_all(MultiSampleSomaticWorkflow.raw_snv_calls_vcf_idx)
     }

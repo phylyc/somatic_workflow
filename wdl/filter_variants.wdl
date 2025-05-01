@@ -57,6 +57,7 @@ workflow FilterVariants {
         }
 
         # TODO: add DeTiN
+        # (not needed because we also collect variants flagged as normal_artifact)
 
         if (args.run_realignment_filter) {
             # Realigning reads for variants can be expensive if many variants have been
@@ -133,7 +134,7 @@ workflow FilterVariants {
                     }
                 }
 
-                call tasks.MergeVCFs as MergeLowConfidenceAndRealignmentFilteredVCFs {
+                call tasks.GatherVCFs as MergeLowConfidenceAndRealignmentFilteredVCFs {
                     input:
                         vcfs = flatten([
                             [SelectVariantsToRealign.not_selected_vcf],
@@ -145,7 +146,7 @@ workflow FilterVariants {
                         ]),
                         output_name = patient.name + ".filtered.realignmentfiltered",
                         compress_output = args.compress_output,
-                        runtime_params = runtime_collection.merge_vcfs
+                        runtime_params = runtime_collection.gather_vcfs
                 }
             }
         }

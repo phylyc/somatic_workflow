@@ -70,8 +70,11 @@ struct WorkflowArguments {
 
     # SNV WORKFLOW
     Int min_read_depth
-    Float mutect_initial_tumor_lod
-    Float mutect_tumor_lod_to_emit
+    Float mutect1_initial_tumor_lod
+    Float mutect1_tumor_lod_to_emit
+    Float mutect2_initial_tumor_lod
+    Float mutect2_tumor_lod_to_emit
+    Float mutect2_high_mem_factor
     Boolean mutect2_native_pair_hmm_use_double_precision
     Boolean mutect2_dont_use_soft_clipped_bases
     Boolean mutect2_use_linked_de_bruijn_graph
@@ -120,9 +123,9 @@ workflow DefineWorkflowArguments {
     input {
         WorkflowResources resources
 
-        String analyst_id = "TIM"
+        String analyst_id = "PH"
 
-        Int scatter_count = 10
+        Int scatter_count = 25
         Int total_mean_read_depth = 500
         Int total_mean_read_depth_per_scatter = 500
         Int variants_per_scatter = 50
@@ -156,8 +159,8 @@ workflow DefineWorkflowArguments {
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
         Float genotype_variants_normal_to_tumor_weight = 10.0
-        Float genotype_variants_min_genotype_likelihood = 0.995
-        Float genotype_variants_outlier_prior = 0.0001
+        Float genotype_variants_min_genotype_likelihood = 0.995  # = LOD threshold 5.3
+        Float genotype_variants_outlier_prior = 0.00001
         Int genotype_variants_overdispersion = 10
         Float genotype_variants_ref_bias = 1.05
         Int harmonize_min_target_length = 20
@@ -165,7 +168,7 @@ workflow DefineWorkflowArguments {
         Int model_segments_max_number_of_segments_per_chromosome = 10000
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
         Int model_segments_kernel_approximation_dimension = 200
-        Float model_segments_smoothing_credible_interval_threshold = 2.0
+        Float model_segments_smoothing_credible_interval_threshold = 3.0
         Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
         Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold = 2.0
@@ -185,8 +188,11 @@ workflow DefineWorkflowArguments {
 
         # SNV WORKFLOW
         Int min_read_depth = 4
-        Float mutect_initial_tumor_lod = 2.0
-        Float mutect_tumor_lod_to_emit = 3.0
+        Float mutect1_initial_tumor_lod = 4.0
+        Float mutect1_tumor_lod_to_emit = 6.0
+        Float mutect2_initial_tumor_lod = 2.0
+        Float mutect2_tumor_lod_to_emit = 3.0
+        Float mutect2_high_mem_factor = 1.5
         # This is essentially a custom implementation of the mitochondiral model:
         Boolean mutect2_native_pair_hmm_use_double_precision = true
         Boolean mutect2_dont_use_soft_clipped_bases = false
@@ -214,7 +220,7 @@ workflow DefineWorkflowArguments {
             "MFRL.0 < 18", "MFRL.1 < 18",
             "MPOS.0 < 6",
             "ROQ < 10",
-            "POPAF < 2.0"
+            "POPAF < 3.0"
         ]
         Array[String] hard_filter_names = [
             "lowDP",
@@ -350,8 +356,11 @@ workflow DefineWorkflowArguments {
         absolute_genome_build: absolute_genome_build,
 
         min_read_depth: min_read_depth,
-        mutect_initial_tumor_lod: mutect_initial_tumor_lod,
-        mutect_tumor_lod_to_emit: mutect_tumor_lod_to_emit,
+        mutect1_initial_tumor_lod: mutect1_initial_tumor_lod,
+        mutect1_tumor_lod_to_emit: mutect1_tumor_lod_to_emit,
+        mutect2_initial_tumor_lod: mutect2_initial_tumor_lod,
+        mutect2_tumor_lod_to_emit: mutect2_tumor_lod_to_emit,
+        mutect2_high_mem_factor: mutect2_high_mem_factor,
         mutect2_native_pair_hmm_use_double_precision: mutect2_native_pair_hmm_use_double_precision,
         mutect2_dont_use_soft_clipped_bases: mutect2_dont_use_soft_clipped_bases,
         mutect2_use_linked_de_bruijn_graph: mutect2_use_linked_de_bruijn_graph,

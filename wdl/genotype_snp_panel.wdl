@@ -28,7 +28,7 @@ workflow GenotypeSNPPanel {
 
         Int genotype_variants_min_read_depth = 10
         Float genotype_variants_min_genotype_likelihood = 0.995
-        Float genotype_variants_outlier_prior = 0.0001
+        Float genotype_variants_outlier_prior = 0.00001
         Int genotype_variants_overdispersion = 10
         Float genotype_variants_ref_bias = 1.05
 
@@ -99,7 +99,6 @@ workflow GenotypeSNPPanel {
             ref_bias = genotype_variants_ref_bias,
             select_hets = false,
             save_sample_genotype_likelihoods = genotype_variants_save_sample_genotype_likelihoods,
-            verbose = true,
             runtime_collection = runtime_collection,
     }
 
@@ -114,6 +113,7 @@ workflow GenotypeSNPPanel {
         File alt_counts = GenotypeSNPPanelVariants.alt_counts
         File other_alt_counts = GenotypeSNPPanelVariants.other_alt_counts
         File sample_correlation = GenotypeSNPPanelVariants.sample_correlation
+        Float sample_correlation_min = GenotypeSNPPanelVariants.sample_correlation_min
         Array[File]? sample_genotype_likelihoods = GenotypeSNPPanelVariants.sample_genotype_likelihoods
     }
 }

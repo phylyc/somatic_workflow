@@ -36,7 +36,7 @@ struct RuntimeCollection {
     Runtime merge_mutect1_forcecall_vcfs
     Runtime mutect2
     Runtime learn_read_orientation_model
-    Runtime merge_vcfs
+    Runtime gather_vcfs
     Runtime merge_mafs
     Runtime merge_mutect_stats
     Runtime print_reads
@@ -214,7 +214,7 @@ workflow DefineRuntimeCollection {
         Int max_retries_mutect2 = 1
         # disk size is dynamically inferred.
 
-        # gatk: MergeVCFs
+        # gatk: GatherVCFs
         Int mem_merge_vcfs = 2048
         Int time_merge_vcfs = 10
 
@@ -717,7 +717,7 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime merge_vcfs = {
+    Runtime gather_vcfs = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
         "preemptible": preemptible,
@@ -908,7 +908,7 @@ workflow DefineRuntimeCollection {
         "merge_mutect1_forcecall_vcfs": merge_mutect1_forcecall_vcfs,
         "mutect2": mutect2,
         "learn_read_orientation_model": learn_read_orientation_model,
-        "merge_vcfs": merge_vcfs,
+        "gather_vcfs": gather_vcfs,
         "merge_mafs": merge_mafs,
         "merge_mutect_stats": merge_mutect_stats,
         "print_reads": print_reads,

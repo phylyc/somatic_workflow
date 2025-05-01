@@ -71,7 +71,6 @@ workflow CNVWorkflow {
                 ref_bias = args.genotype_variants_ref_bias,
                 select_hets = false,
                 save_sample_genotype_likelihoods = true,
-                verbose = true,
                 runtime_collection = runtime_collection,
         }
 
@@ -92,6 +91,7 @@ workflow CNVWorkflow {
                 snp_alt_counts = GenotypeVariants.alt_counts,
                 snp_other_alt_counts = GenotypeVariants.other_alt_counts,
                 snp_sample_correlation = GenotypeVariants.sample_correlation,
+                snp_sample_correlation_min = GenotypeVariants.sample_correlation_min
         }
     }
 

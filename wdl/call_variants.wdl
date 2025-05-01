@@ -120,8 +120,8 @@ workflow CallVariants {
                                 normal_bam = matched_normal_bam,
                                 normal_bai = matched_normal_bai,
 
-                                initial_tumor_lod = args.mutect_initial_tumor_lod,
-                                tumor_lod = args.mutect_tumor_lod_to_emit,
+                                initial_tumor_lod = args.mutect1_initial_tumor_lod,
+                                tumor_lod = args.mutect1_tumor_lod_to_emit,
 
                                 runtime_params = runtime_collection.mutect1,
                         }
@@ -162,6 +162,15 @@ workflow CallVariants {
                 + if args.make_bamout then ceil(1.2 * select_first([shard_bams_size, full_bams_size / length(patient.shards)])) else 0
             )
 
+            if (shard.is_high_mem) {
+                call rt.UpdateRuntimeParameters as Mutect2Runtime {
+                    input:
+                        runtime_params = runtime_collection.mutect2,
+                        machine_mem = ceil(args.mutect2_high_mem_factor * runtime_collection.mutect2.machine_mem),
+                        command_mem = ceil(args.mutect2_high_mem_factor * runtime_collection.mutect2.command_mem),
+                }
+            }
+
             call Mutect2 {
                 input:
                     interval_list = shard.intervals,
@@ -192,12 +201,12 @@ workflow CallVariants {
                     downsampling_stride = args.mutect2_downsampling_stride,
                     pcr_snv_qual = args.mutect2_pcr_snv_qual,
                     pcr_indel_qual = args.mutect2_pcr_indel_qual,
-                    initial_tumor_lod = args.mutect_initial_tumor_lod,
-                    tumor_lod_to_emit = args.mutect_tumor_lod_to_emit,
+                    initial_tumor_lod = args.mutect2_initial_tumor_lod,
+                    tumor_lod_to_emit = args.mutect2_tumor_lod_to_emit,
                     max_reads_per_alignment_start = args.mutect2_max_reads_per_alignment_start,
                     m2_extra_args = args.mutect2_extra_args,
                     diskGB = m2_diskGB,
-                    runtime_params = runtime_collection.mutect2,
+                    runtime_params = select_first([Mutect2Runtime.params, runtime_collection.mutect2]),
             }
 
             call sh.UpdateShard as AddMutect2Calls {
@@ -222,13 +231,13 @@ workflow CallVariants {
 	}
 
     if (!defined(patient.raw_snv_calls_vcf)) {
-        call tasks.MergeVCFs {
+        call tasks.GatherVCFs {
             input:
                 vcfs = select_all(raw_mutect2_vcf),
                 vcfs_idx = select_all(raw_mutect2_vcf_idx),
                 output_name = patient.name,
                 compress_output = args.compress_output,
-                runtime_params = runtime_collection.merge_vcfs
+                runtime_params = runtime_collection.gather_vcfs
         }
     }
 
@@ -254,8 +263,8 @@ workflow CallVariants {
         input:
             patient = patient,
             shards = updated_shard,
-            raw_snv_calls_vcf = MergeVCFs.merged_vcf,
-            raw_snv_calls_vcf_idx = MergeVCFs.merged_vcf_idx,
+            raw_snv_calls_vcf = GatherVCFs.merged_vcf,
+            raw_snv_calls_vcf_idx = GatherVCFs.merged_vcf_idx,
             mutect2_stats = MergeMutectStats.merged_stats,
             orientation_bias = LearnReadOrientationModel.orientation_bias,
     }
@@ -267,6 +276,32 @@ workflow CallVariants {
 
 task Mutect1 {
     # Documentation at https://gist.github.com/sbamin/041a4bdb7c5b184321b1468345bd2aa8
+    # Tool defaults:
+    #    downsample_to_coverage=1000
+    #    baqGapOpenPenalty=40.0
+    #    quantize_quals=0
+    #    preserve_qscores_less_than=6
+    #    globalQScorePrior=-1.0
+    #    initial_tumor_lod=4.0
+    #    tumor_lod=6.3
+    #    minimum_mutation_cell_fraction=0.0
+    #    normal_lod=2.2
+    #    normal_artifact_lod=1.0
+    #    strand_artifact_lod=2.0
+    #    strand_artifact_power_threshold=0.9
+    #    dbsnp_normal_lod=5.5
+    #    minimum_normal_allele_fraction=0.0
+    #    tumor_f_pretest=0.005
+    #    min_qscore=5
+    #    ap_events_threshold=3
+    #    heavily_clipped_read_fraction=0.3
+    #    fraction_mapq0_threshold=0.5
+    #    pir_median_threshold=10.0
+    #    pir_mad_threshold=3.0
+    #    required_maximum_alt_allele_mapping_quality_score=20
+    #    max_alt_alleles_in_normal_count=2
+    #    max_alt_alleles_in_normal_qscore_sum=20
+    #    max_alt_allele_in_normal_fraction=0.03
     input {
         File interval_list
         File ref_fasta
@@ -286,8 +321,6 @@ task Mutect1 {
         File? normal_bai
 
         Int downsample_to_coverage = 99999
-        Int max_alt_alleles_in_normal_count = 10000
-        Int max_alt_alleles_in_normal_qscore_sum = 10000
         File? contamination_table
         Int tumor_f_pretest = 0
         Float? initial_tumor_lod
@@ -354,8 +387,6 @@ task Mutect1 {
             ~{"--normal_panel '" + panel_of_normals + "'"} \
             ~{"--dbsnp '" + germline_resource + "'"} \
             --downsample_to_coverage ~{downsample_to_coverage} \
-            --max_alt_alleles_in_normal_count ~{max_alt_alleles_in_normal_count} \
-            --max_alt_alleles_in_normal_qscore_sum ~{max_alt_alleles_in_normal_qscore_sum} \
             --fraction_contamination $fraction_contamination \
             ~{"--tumor_f_pretest " + tumor_f_pretest} \
             ~{"--initial_tumor_lod " + initial_tumor_lod} \
@@ -365,7 +396,6 @@ task Mutect1 {
             --power_file '~{power_wig}' \
             ~{if only_passing_calls then "--only_passing_calls" else ""} \
             --vcf '~{mutect1_vcf}' \
-            --required_maximum_alt_allele_mapping_quality_score 10 \
             --filter_reads_with_N_cigar \
             --filter_mismatching_base_and_quals \
             --filter_bases_not_stored

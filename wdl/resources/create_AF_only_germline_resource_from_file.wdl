@@ -52,29 +52,29 @@ workflow CreateAFonlyVCFfromFile {
         }
     }
 
-    call tasks.MergeVCFs as MergeAFonlyVCFs {
+    call tasks.GatherVCFs as GatherAFonlyVCFs {
         input:
             vcfs = CreateAFonlyVCF.af_only_vcf,
             vcfs_idx = CreateAFonlyVCF.af_only_vcf_idx,
             output_name = af_only_output_name,
             compress_output = compress_output,
-            runtime_params = runtime_collection.merge_vcfs
+            runtime_params = runtime_collection.gather_vcfs
     }
 
-    call tasks.MergeVCFs as MergeCommonAFonlyVCFs {
+    call tasks.GatherVCFs as GatherCommonAFonlyVCFs {
         input:
             vcfs = CreateAFonlyVCF.common_af_only_vcf,
             vcfs_idx = CreateAFonlyVCF.common_af_only_vcf_idx,
             output_name = af_only_common_output_name,
             compress_output = compress_output,
             drop_duplicate_sites = true,
-            runtime_params = runtime_collection.merge_vcfs
+            runtime_params = runtime_collection.gather_vcfs
     }
 
     output {
-        File af_only_vcf = MergeAFonlyVCFs.merged_vcf
-        File af_only_vcf_idx = MergeAFonlyVCFs.merged_vcf_idx
-        File common_af_only_vcf = MergeCommonAFonlyVCFs.merged_vcf
-        File common_af_only_vcf_idx = MergeCommonAFonlyVCFs.merged_vcf_idx
+        File af_only_vcf = GatherAFonlyVCFs.merged_vcf
+        File af_only_vcf_idx = GatherAFonlyVCFs.merged_vcf_idx
+        File common_af_only_vcf = GatherCommonAFonlyVCFs.merged_vcf
+        File common_af_only_vcf_idx = GatherCommonAFonlyVCFs.merged_vcf_idx
     }
 }

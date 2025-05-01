@@ -124,13 +124,13 @@ workflow AnnotateVariants {
     }
 
     if (this_args.funcotator_output_format == "VCF") {
-        call tasks.MergeVCFs {
+        call tasks.GatherVCFs {
             input:
                 vcfs = this_annotation,
                 vcfs_idx = this_annotation_idx,
                 output_name = tumor_sample_name + ".annotated",
                 compress_output = this_args.compress_output,
-                runtime_params = runtime_collection.merge_vcfs
+                runtime_params = runtime_collection.gather_vcfs
         }
     }
     if (this_args.funcotator_output_format == "MAF") {
@@ -144,8 +144,8 @@ workflow AnnotateVariants {
     }
 
     output {
-        File annotated_variants = select_first(select_all([MergeVCFs.merged_vcf, MergeMAFs.merged_maf]))
-        File? annotated_variants_idx = MergeVCFs.merged_vcf_idx
+        File annotated_variants = select_first(select_all([GatherVCFs.merged_vcf, MergeMAFs.merged_maf]))
+        File? annotated_variants_idx = GatherVCFs.merged_vcf_idx
     }
 }
 

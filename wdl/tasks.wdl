@@ -367,6 +367,7 @@ task SelectVariants {
     }
 
     String uncompressed_input_vcf = basename(vcf, ".gz")
+    Boolean is_compressed = uncompressed_input_vcf != basename(vcf)
     String base_name = if defined(tumor_sample_name) then sub(select_first([tumor_sample_name, ""]), " ", "+") else basename(uncompressed_input_vcf, ".vcf")
     String output_base_name = base_name + ".selected" + suffix
     
@@ -403,6 +404,18 @@ task SelectVariants {
         # variant will not be selected.
 
         set +e  # grep returns 1 if no lines are found
+        # HEADER
+#        if [ "~{defined(tumor_sample_name)}" == "true" ]; then
+#            # Use SelectVariants header output bug, described below.
+#            grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
+#        else
+#            # Propagate full header.
+#            if [ "~{is_compressed}" == "true" ]; then
+#                zcat '~{vcf}' | grep "^#" > '~{uncompressed_selected_vcf}'
+#            else
+#                grep "^#" '~{vcf}' > '~{uncompressed_selected_vcf}'
+#            fi
+#        fi
         grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
         num_vars=$(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
         echo ">> Selected $num_vars variants."
@@ -571,14 +584,12 @@ task SelectVariants {
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
         # ref_dict: {localization_optional: true}  # needs to be localized for SortVcf
-        vcf: {localization_optional: true}
-        vcf_idx: {localization_optional: true}
+         vcf: {localization_optional: true}
+         vcf_idx: {localization_optional: true}
     }
 }
 
-task MergeVCFs {
-    # Consider replacing MergeVcfs with GatherVcfsCloud once the latter is out of beta.
-
+task GatherVCFs {
 	input {
         File? ref_fasta
         File? ref_fasta_index
@@ -606,6 +617,16 @@ task MergeVCFs {
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-D '" + ref_dict + "'"} \
             -O 'tmp.~{output_vcf}'
+#        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+#            GatherVcfs \
+#            ~{sep="' " prefix("-I '", vcfs)}' \
+#            ~{"-R '" + ref_fasta + "'"} \
+#            --REORDER_INPUT_BY_FIRST_VARIANT true \
+#            -O 'tmp.~{output_vcf}'
+
+#        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+#            IndexFeatureFile \
+#            -I 'tmp.~{output_vcf}'
 
         if [ "~{drop_duplicate_sites}" == "true" ]; then
             bcftools norm \
