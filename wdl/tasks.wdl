@@ -615,8 +615,14 @@ task GatherVCFs {
             MergeVcfs \
             ~{sep="' " prefix("-I '", vcfs)}' \
             ~{"-R '" + ref_fasta + "'"} \
-            --REORDER_INPUT_BY_FIRST_VARIANT true \
+            ~{"-D '" + ref_dict + "'"} \
             -O 'tmp.~{output_vcf}'
+#        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+#            GatherVcfs \
+#            ~{sep="' " prefix("-I '", vcfs)}' \
+#            ~{"-R '" + ref_fasta + "'"} \
+#            --REORDER_INPUT_BY_FIRST_VARIANT true \
+#            -O 'tmp.~{output_vcf}'
 
 #        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
 #            IndexFeatureFile \
