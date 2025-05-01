@@ -584,8 +584,8 @@ task SelectVariants {
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
         # ref_dict: {localization_optional: true}  # needs to be localized for SortVcf
-        # vcf: {localization_optional: true}
-        # vcf_idx: {localization_optional: true}
+         vcf: {localization_optional: true}
+         vcf_idx: {localization_optional: true}
     }
 }
 
