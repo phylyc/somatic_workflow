@@ -397,28 +397,15 @@ task SelectVariants {
             ~{select_variants_extra_args}
 
         set -uo pipefail
+        set +e  # grep returns 1 if no lines are found
+        num_vars=$(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
+        echo ">> Selected $num_vars variants."
+
         # =======================================
         # We do the selection step using grep|awk to also select germline variants.
         # ASSUMPTION: multi-allelic variants are split into one variant per row.
         # Otherwise passing variants that are accompanied by an artifactual other-allelic
         # variant will not be selected.
-
-        set +e  # grep returns 1 if no lines are found
-        # HEADER
-#        if [ "~{defined(tumor_sample_name)}" == "true" ]; then
-#            # Use SelectVariants header output bug, described below.
-#            grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
-#        else
-#            # Propagate full header.
-#            if [ "~{is_compressed}" == "true" ]; then
-#                zcat '~{vcf}' | grep "^#" > '~{uncompressed_selected_vcf}'
-#            else
-#                grep "^#" '~{vcf}' > '~{uncompressed_selected_vcf}'
-#            fi
-#        fi
-        grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
-        num_vars=$(grep -v "^#" '~{select_variants_output_vcf}' | wc -l)
-        echo ">> Selected $num_vars variants."
 
         if [ "$num_vars" -eq 0 ] || [ "~{select_somatic}" == "false" ] && [ "~{select_germline}" == "false" ] ; then
             cp '~{select_variants_output_vcf}' '~{uncompressed_selected_vcf}'
@@ -584,8 +571,8 @@ task SelectVariants {
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
         # ref_dict: {localization_optional: true}  # needs to be localized for SortVcf
-         vcf: {localization_optional: true}
-         vcf_idx: {localization_optional: true}
+        vcf: {localization_optional: true}
+        vcf_idx: {localization_optional: true}
     }
 }
 
@@ -617,16 +604,6 @@ task GatherVCFs {
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-D '" + ref_dict + "'"} \
             -O 'tmp.~{output_vcf}'
-#        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-#            GatherVcfs \
-#            ~{sep="' " prefix("-I '", vcfs)}' \
-#            ~{"-R '" + ref_fasta + "'"} \
-#            --REORDER_INPUT_BY_FIRST_VARIANT true \
-#            -O 'tmp.~{output_vcf}'
-
-#        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-#            IndexFeatureFile \
-#            -I 'tmp.~{output_vcf}'
 
         if [ "~{drop_duplicate_sites}" == "true" ]; then
             bcftools norm \
