@@ -139,11 +139,22 @@ def map_to_cn(args):
     # seg.loc[new_segs, "hscr.a1"] = seg.loc[new_segs, "tau"] * seg.loc[new_segs, "f"]
     # seg.loc[new_segs, "hscr.a2"] = seg.loc[new_segs, "tau"] * (1 - seg.loc[new_segs, "f"])
     seg.loc[new_segs, "rescaled_total_cn"] = seg.loc[new_segs, "CN"]
+    seg.loc[new_segs, "expected_total_cn"] = seg.loc[new_segs, "CN"]
     seg.loc[new_segs, "corrected_total_cn"] = seg.loc[new_segs, "corrected_CN"]
     seg.loc[new_segs, "modal_total_cn"] = seg.loc[new_segs, "corrected_CN"].round()
-    seg.loc[new_segs, "LOH"] = 1
+    seg.loc[new_segs, "total_HZ"] = (seg.loc[new_segs, "rescaled_total_cn"] == 0).astype(int)
+    # extracted from default settings in the ABSOLUTE package
+    seg.loc[new_segs, "total_amp"] = (seg.loc[new_segs, "rescaled_total_cn"] >= 7).astype(int)
     seg.loc[new_segs, "rescaled.cn.a1"] = 0
     seg.loc[new_segs, "rescaled.cn.a2"] = seg.loc[new_segs, "CN"]
+    seg.loc[new_segs, "LOH"] = (
+            (seg.loc[new_segs, "rescaled.cn.a1"] == 0) | (seg.loc[new_segs, "rescaled.cn.a1"] == 0)
+    ).astype(int)
+    seg.loc[new_segs, "HZ"] = (
+            (seg.loc[new_segs, "rescaled.cn.a1"] == 0) & (seg.loc[new_segs, "rescaled.cn.a1"] == 0)
+    ).astype(int)
+
+    seg["W"] = seg["length"] / seg["length"].sum()
 
 
     # sample	Chromosome	Start.bp	End.bp	n_probes	length	seg_sigma	W	total_copy_ratio	modal_total_cn	expected_total_cn	total_HZ	total_amp	corrected_total_cn	rescaled_total_cn	bi.allelic	copy.ratio	hscr.a1	hscr.a2	modal.a1	modal.a2	expected.a1	expected.a2	subclonal.a1	subclonal.a2	cancer.cell.frac.a1	ccf.ci95.low.a1	ccf.ci95.high.a1	cancer.cell.frac.a2	ccf.ci95.low.a2	ccf.ci95.high.a2	LOH	HZ	SC_HZ	amp.a1	amp.a2	rescaled.cn.a1	rescaled.cn.a2
@@ -171,7 +182,7 @@ def map_to_cn(args):
 
     seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(args.ploidy)
     if args.sex in ["XY", "Male"]:
-        seg.loc[seg["Chromosome"].isin(["X", "Y"]), "Segment_Mean"] += 1
+        seg.loc[seg["Chromosome"].isin(["X", "Y", "chrX", "chrY"]), "Segment_Mean"] += 1
 
     seg[abs_seg_cols].to_csv(f"{args.outdir}/{args.sample}.segtab.completed.txt", sep="\t", index=False)
     seg[["sample", "Chromosome", "Start.bp", "End.bp", "Segment_Mean", "rescaled_total_cn"]].to_csv(f"{args.outdir}/{args.sample}.IGV.seg.completed.txt", sep="\t", index=False)
