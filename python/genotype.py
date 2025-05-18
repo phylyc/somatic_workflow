@@ -268,7 +268,7 @@ class Segments(object):
                     1 / (2 * 2 ** self.df["LOG2_COPY_RATIO_POSTERIOR_50"]),
                 )
                 self.df["minor_allele_fraction"] = self.df["minor_allele_fraction"].where(
-                    self.df["minor_allele_fraction"] > 0.5,
+                    self.df["minor_allele_fraction"] < 0.5,
                     1 - self.df["minor_allele_fraction"]
                 )
                 self.df = self.df[self.columns]
