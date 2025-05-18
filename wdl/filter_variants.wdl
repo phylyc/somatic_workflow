@@ -43,9 +43,14 @@ workflow FilterVariants {
                 tumor_segmentation = segmentation_tables,
                 mutect_stats = patient.mutect2_stats,
                 max_median_fragment_length_difference = args.filter_mutect2_max_median_fragment_length_difference,
-                min_alt_median_base_quality = args.filter_mutect2_min_alt_median_base_quality,
-                min_alt_median_mapping_quality = args.filter_mutect2_min_alt_median_mapping_quality,
-                min_median_read_position = args.filter_mutect2_min_median_read_position,
+                min_base_quality = args.hard_filter_min_base_quality,
+                min_mapping_quality = args.hard_filter_min_mapping_quality,
+                min_fragment_length = args.hard_filter_min_fragment_length,
+                min_total_depth = args.hard_filter_min_total_depth,
+                min_total_alt_count = args.hard_filter_min_total_alt_count,
+                min_position_from_end_of_read = args.hard_filter_min_position_from_end_of_read,
+                min_read_orientation_quality = args.hard_filter_min_read_orientation_quality,
+                germline_min_population_af = args.hard_filter_germline_min_population_af,
                 split_multi_allelics = true,  # necessary for current SelectVariants implementation
                 filter_expressions = args.hard_filter_expressions,
                 filter_names = args.hard_filter_names,
@@ -255,10 +260,15 @@ task FilterVariantCalls {
         Array[File]? tumor_segmentation
         File? mutect_stats
 
+        Int min_base_quality = 20
+        Int min_mapping_quality = 20
+        Int min_fragment_length = 18
+        Int min_total_depth = 10
+        Int min_total_alt_count = 4
+        Int min_position_from_end_of_read = 6
+        Int min_read_orientation_quality = 10
+        Float germline_min_population_af = 3
         Int max_median_fragment_length_difference = 10000  # default: 10000
-        Int min_alt_median_base_quality = 20  # default: 20
-        Int min_alt_median_mapping_quality = 20  # default: -1
-        Int min_median_read_position = 5  # default: 1
         Int max_indel_length = 1000  # default: 200
         Boolean dont_trim_alleles = false
         Boolean split_multi_allelics = false
@@ -286,6 +296,7 @@ task FilterVariantCalls {
     String output_base_name = basename(basename(vcf, ".gz"), ".vcf") + ".filtered"
     String output_vcf = output_base_name + if compress_output then ".vcf.gz" else ".vcf"
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
+    String output_stats = output_base_name + ".stats"
 
     command <<<
         set -e
@@ -294,28 +305,68 @@ task FilterVariantCalls {
             FilterMutectCalls \
             --reference '~{ref_fasta}' \
             --variant '~{vcf}' \
-            --output 'filtered.~{output_vcf}' \
+            --output 'filtered.vcf.gz' \
             ~{"--orientation-bias-artifact-priors '" + orientation_bias + "'"} \
             ~{true="--contamination-table '" false="" defined(contamination_tables)}~{default="" sep="' --contamination-table '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
             ~{true="--tumor-segmentation '" false="" defined(tumor_segmentation)}~{default="" sep="' --tumor-segmentation '" tumor_segmentation}~{true="'" false="" defined(tumor_segmentation)} \
             ~{"--stats '" + mutect_stats + "'"} \
             ~{"--max-median-fragment-length-difference " + max_median_fragment_length_difference} \
-            ~{"--min-median-base-quality " + min_alt_median_base_quality} \
-            ~{"--min-median-mapping-quality " + min_alt_median_mapping_quality} \
-            ~{"--min-median-read-position " + min_median_read_position} \
-            --filtering-stats '~{output_base_name}.stats' \
+            ~{"--min-median-base-quality " + min_base_quality} \
+            ~{"--min-median-mapping-quality " + min_mapping_quality} \
+            ~{"--min-median-read-position " + min_position_from_end_of_read} \
+            --filtering-stats '~{output_stats}' \
             --seconds-between-progress-updates 60 \
             ~{m2_filter_extra_args}
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             LeftAlignAndTrimVariants \
             -R '~{ref_fasta}' \
-            -V 'filtered.~{output_vcf}' \
-            --output 'left_aligned_and_trimmed.~{output_vcf}' \
+            -V 'filtered.vcf.gz' \
+            --output 'filtered.left_aligned_and_trimmed.vcf.gz' \
             --max-indel-length ~{max_indel_length} \
             ~{if (dont_trim_alleles) then " --dont-trim-alleles " else ""} \
             ~{if (split_multi_allelics) then " --split-multi-allelics " else ""} \
             ~{left_align_and_trim_variants_extra_args}
+
+        rm -f 'filtered.vcf.gz' 'filtered.vcf.gz.tbi'
+
+        #####
+        # Add ALT_AD field to INFO field that contains the sum of ALT allele counts
+        # across samples to filter on.
+        ####
+
+        echo -e '##fileformat=VCFv4.2' > alt_ad.vcf
+        echo -e '##INFO=<ID=ALT_AD,Number=1,Type=Integer,Description="Sum of ALT allele counts across samples">' >> alt_ad.vcf
+        echo -e '#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO' >> alt_ad.vcf
+
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT[\t%AD]\n' \
+            'filtered.left_aligned_and_trimmed.vcf.gz' \
+            | awk 'BEGIN{OFS="\t"} {
+                sum = 0
+                for (i = 5; i <= NF; i++) {
+                    n = split($i, ad, ",")
+                    for (j = 2; j <= n; j++) {
+                        sum += ad[j]  # sum only ALT counts
+                    }
+                }
+                print $1, $2, ".", $3, $4, ".", ".", "ALT_AD=" sum
+            }' >> alt_ad.vcf
+
+        bgzip -f alt_ad.vcf
+        bcftools index alt_ad.vcf.gz
+
+        bcftools annotate \
+            -o 'filtered.left_aligned_and_trimmed.ALT_AD.vcf.gz' \
+            -O z \
+            -c CHROM,POS,INFO/ALT_AD \
+            -a alt_ad.vcf.gz \
+            'filtered.left_aligned_and_trimmed.vcf.gz'
+        gatk IndexFeatureFile \
+            -I 'filtered.left_aligned_and_trimmed.ALT_AD.vcf.gz'
+
+        rm -f alt_ad.vcf.gz alt_ad.vcf.gz.tbi alt_ad.vcf.csi
+        rm -f 'filtered.left_aligned_and_trimmed.vcf.gz' 'filtered.left_aligned_and_trimmed.vcf.gz.tbi'
 
         echo ""
         # Some variants don't have certain INFO fields, so we suppress the warning messages.
@@ -326,20 +377,42 @@ task FilterVariantCalls {
             VariantFiltration \
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-L '" + interval_list + "'"} \
-            -V 'left_aligned_and_trimmed.~{output_vcf}' \
+            -V 'filtered.left_aligned_and_trimmed.ALT_AD.vcf.gz' \
+            --filter-name "lowDP" \
+            --filter-expression 'DP < ~{min_total_depth}' \
+            --filter-name "lowALT_AD" \
+            --filter-expression 'ALT_AD < ~{min_total_alt_count}' \
+            --filter-name "lowMBQ.0" \
+            --filter-expression 'MBQ.0 < ~{min_base_quality}' \
+            --filter-name "lowMBQ.1" \
+            --filter-expression 'MBQ.1 < ~{min_base_quality}' \
+            --filter-name "lowMMQ.0" \
+            --filter-expression 'MMQ.0 < ~{min_mapping_quality}' \
+            --filter-name "lowMMQ.1" \
+            --filter-expression 'MMQ.1 < ~{min_mapping_quality}' \
+            --filter-name "lowMFRL.0" \
+            --filter-expression 'MFRL.0 < ~{min_fragment_length}' \
+            --filter-name "lowMFRL.1" \
+            --filter-expression 'MFRL.1 < ~{min_fragment_length}' \
+            --filter-name "lowMPOS" \
+            --filter-expression 'MPOS.0 < ~{min_position_from_end_of_read}' \
+            --filter-name "lowROQ" \
+            --filter-expression 'ROQ < ~{min_read_orientation_quality}' \
+            --filter-name "germline" \
+            --filter-expression 'POPAF < ~{germline_min_population_af}' \
             ~{if (length(filter_names) > 0) then " --filter-name '" else ""}~{default="" sep="' --filter-name '" filter_names}~{if (length(filter_names) > 0) then "'" else ""} \
             ~{if (length(filter_expressions) > 0) then " --filter-expression '" else ""}~{default="" sep="' --filter-expression '" filter_expressions}~{if (length(filter_expressions) > 0) then "'" else ""} \
             --output '~{output_vcf}' \
             ~{variant_filtration_extra_args} \
             2> >(grep -v "WARN  JexlEngine - " >&2)
 
-        rm -f 'filtered.~{output_vcf}' 'left_aligned_and_trimmed.~{output_vcf}'
+        rm -f 'filtered.left_aligned_and_trimmed.ALT_AD.vcf.gz' 'filtered.left_aligned_and_trimmed.ALT_AD.vcf.gz.tbi'
     >>>
 
     output {
         File filtered_vcf = output_vcf
         File filtered_vcf_idx = output_vcf_idx
-        File filtering_stats = output_base_name + ".stats"
+        File filtering_stats = output_stats
     }
 
     runtime {
