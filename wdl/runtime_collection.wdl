@@ -58,7 +58,7 @@ workflow DefineRuntimeCollection {
         Int num_bams = 1
 
         Int scatter_count = 10
-        String gatk_docker = "broadinstitute/gatk:4.6.1.0"
+        String gatk_docker = "broadinstitute/gatk:4.6.2.0"
         String mutect1_docker = "vanallenlab/mutect:1.1.6"
         # Needs docker image with bedtools, samtools, and gatk
         String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
