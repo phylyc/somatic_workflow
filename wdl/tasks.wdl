@@ -410,12 +410,14 @@ task SelectVariants {
         if [ "$num_vars" -eq 0 ] || [ "~{select_somatic}" == "false" ] && [ "~{select_germline}" == "false" ] ; then
             cp '~{select_variants_output_vcf}' '~{uncompressed_selected_vcf}'
         else
+            grep "^#" '~{select_variants_output_vcf}' > '~{uncompressed_selected_vcf}'
             if [ "~{select_somatic}" == "true" ] ; then
                 echo ">> Selecting PASSing/whitelisted variants ... "
                 # FilterMutectCalls assumes a normal sample with no tumor cell
                 # contamination. If there is contamination from tumor cells,
                 # somatic variants will be annotated as "normal_artifact", thus
                 # it is desirable to whitelist them.
+                mkdir -p tmp
                 grep -v "^#" '~{select_variants_output_vcf}' \
                     | awk -F'\t' -v whitelist="~{somatic_filter_whitelist}" '
                         BEGIN {
@@ -439,8 +441,10 @@ task SelectVariants {
                                 print $0
                             }
                         }' \
-                    >> '~{uncompressed_selected_vcf}'
-                num_selected_vars=$(grep -v "^#" '~{uncompressed_selected_vcf}' | wc -l)
+                    > tmp/somatic.vcf
+                cat tmp/somatic.vcf >> '~{uncompressed_selected_vcf}'
+                num_selected_vars=$(cat tmp/somatic.vcf | wc -l)
+                rm -rf tmp
                 echo ">> Selected $num_selected_vars PASSing out of $num_vars variants."
             fi
             if [ "~{select_germline}" == "true" ] ; then
