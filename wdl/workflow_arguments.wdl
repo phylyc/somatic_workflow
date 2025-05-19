@@ -57,11 +57,12 @@ struct WorkflowArguments {
     Float call_copy_ratios_z_score_threshold
     Int filter_germline_cnvs_min_segment_length
 
-    String genotype_variants_script
-    String harmonize_copy_ratios_script
-    String merge_pileups_script
-    String pileup_to_allelic_counts_script
-    String acs_conversion_script
+    String script_acs_conversion
+    String script_genotype_variants
+    String script_harmonize_copy_ratios
+    String script_map_to_absolute_copy_number
+    String script_merge_pileups
+    String script_pileup_to_allelic_counts
 
     Int absolute_min_hets
     Int absolute_min_probes
@@ -180,11 +181,12 @@ workflow DefineWorkflowArguments {
         Float call_copy_ratios_z_score_threshold = 2.0
         Int filter_germline_cnvs_min_segment_length = 100
 
-        String genotype_variants_script =        "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
-        String harmonize_copy_ratios_script =    "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
-        String merge_pileups_script =            "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
-        String pileup_to_allelic_counts_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
-        String acs_conversion_script =           "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
+        String script_acs_conversion =              "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
+        String script_genotype_variants =           "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
+        String script_harmonize_copy_ratios =       "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
+        String script_map_to_absolute_copy_number = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
+        String script_merge_pileups =               "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
+        String script_pileup_to_allelic_counts =    "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
 
         Int absolute_min_hets = 0
         Int absolute_min_probes = 2
@@ -338,11 +340,12 @@ workflow DefineWorkflowArguments {
         call_copy_ratios_z_score_threshold: call_copy_ratios_z_score_threshold,
         filter_germline_cnvs_min_segment_length: filter_germline_cnvs_min_segment_length,
 
-        genotype_variants_script: genotype_variants_script,
-        harmonize_copy_ratios_script: harmonize_copy_ratios_script,
-        merge_pileups_script: merge_pileups_script,
-        pileup_to_allelic_counts_script: pileup_to_allelic_counts_script,
-        acs_conversion_script: acs_conversion_script,
+        script_acs_conversion: script_acs_conversion,
+        script_genotype_variants: script_genotype_variants,
+        script_harmonize_copy_ratios: script_harmonize_copy_ratios,
+        script_map_to_absolute_copy_number: script_map_to_absolute_copy_number,
+        script_merge_pileups: script_merge_pileups,
+        script_pileup_to_allelic_counts: script_pileup_to_allelic_counts,
 
         absolute_min_hets: absolute_min_hets,
         absolute_min_probes: absolute_min_probes,

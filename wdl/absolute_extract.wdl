@@ -19,6 +19,7 @@ workflow AbsoluteExtract {
         File? indel_maf
         File? gvcf
         String? genome_build
+        String map_to_absolute_copy_number_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -43,6 +44,7 @@ workflow AbsoluteExtract {
     if (defined(AbsoluteExtractTask.segtab)) {
         call Postprocess {
             input:
+                script = map_to_absolute_copy_number_script,
                 sample_name = sample_name,
                 sex = sex,
                 maf = AbsoluteExtractTask.abs_maf,

@@ -99,8 +99,8 @@ workflow CoverageWorkflow {
     call hs.HarmonizeSamples {
         input:
             ref_dict = args.files.ref_dict,
-            harmonize_copy_ratios_script = args.harmonize_copy_ratios_script,
-            merge_pileups_script = args.merge_pileups_script,
+            harmonize_copy_ratios_script = args.script_harmonize_copy_ratios,
+            merge_pileups_script = args.script_merge_pileups,
             samples = PatientAddCoverage.updated_patient.samples,
             harmonize_min_target_length = args.harmonize_min_target_length,
             pileups_min_read_depth = args.min_snppanel_read_depth,

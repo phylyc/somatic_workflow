@@ -28,7 +28,7 @@ workflow ModelSegments {
         if (defined(sample.allelic_pileup_summaries)) {
             call PileupToAllelicCounts {
                 input:
-                    script = args.pileup_to_allelic_counts_script,
+                    script = args.script_pileup_to_allelic_counts,
                     ref_dict = args.files.ref_dict,
                     pileup = sample.allelic_pileup_summaries,
                     gvcf = gvcf,

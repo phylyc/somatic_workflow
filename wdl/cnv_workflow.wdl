@@ -49,7 +49,7 @@ workflow CNVWorkflow {
     if (length(gt_pileups) > 0) {
         call gv.GenotypeVariants {
             input:
-                script = args.genotype_variants_script,
+                script = args.script_genotype_variants,
                 patient_id = patient.name,
                 sex = patient.sex,
                 sample_names = sample_names,
