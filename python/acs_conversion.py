@@ -26,6 +26,7 @@ def parse_args():
     parser.add_argument("--min_hets",       type=int,   default=0,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
     parser.add_argument("--min_probes",     type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
     parser.add_argument("--maf90_threshold",type=float, default=0.485,  help="Threshold of 90% quantile for setting minor allele fraction to 0.5.")
+    parser.add_argument("--sex",            type=str,   default="XXY",  help="Genotype sex of the patient for ploidy priors on X and Y chromosomes: {Female, Male, female, male, XX, XY, XXY, XYY, XXX, etc.}")
     parser.add_argument("--verbose",        default=False,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
 
@@ -59,30 +60,30 @@ def convert_model_segments_to_alleliccapseg(args):
     output_skew_filename = output_filename + ".skew"
 
     # read the input files
-    model_segments_seg_pd = pd.read_csv(model_seg, sep='\t', comment='@', na_values='NA')
-    model_segments_af_param_pd = pd.read_csv(af_param, sep='\t', comment='@')
+    model_segments_seg_pd = pd.read_csv(model_seg, sep="\t", comment="@", na_values="NA")
+    model_segments_af_param_pd = pd.read_csv(af_param, sep="\t", comment="@")
 
     # define AllelicCapSeg columns
     alleliccapseg_seg_columns = [
-        'Chromosome',
-        'Start.bp',
-        'End.bp',
-        'n_probes',
-        'length',
-        'n_hets',
-        'f',
-        'tau',
-        'sigma.tau',
-        'mu.minor',
-        'sigma.minor',
-        'mu.major',
-        'sigma.major',
-        'SegLabelCNLOH'
+        "Chromosome",
+        "Start.bp",
+        "End.bp",
+        "n_probes",
+        "length",
+        "n_hets",
+        "f",
+        "tau",
+        "sigma.tau",
+        "mu.minor",
+        "sigma.minor",
+        "mu.major",
+        "sigma.major",
+        "SegLabelCNLOH"
     ]
 
     def simple_determine_allelic_fraction(model_segments_seg_pd):
-        result = model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_50'].copy()
-        result.loc[model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_90'] > args.maf90_threshold] = 0.5
+        result = model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_50"].copy()
+        result.loc[model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_90"] > args.maf90_threshold] = 0.5
         return result
 
     # Main function to assign CNLOH (copy-neutral loss of heterozygosity) labels
@@ -111,32 +112,32 @@ def convert_model_segments_to_alleliccapseg(args):
 
         # Pass 1: Assign label 1 based on CNLOH conditions between adjacent segments
         for i in range(n_seg - 1):
-            if data['Chromosome'][i] != data['Chromosome'][i + 1]:
+            if data["Chromosome"][i] != data["Chromosome"][i + 1]:
                 continue
-            if pd.isna(data['f'][i]) or pd.isna(data['f'][i + 1]):
+            if pd.isna(data["f"][i]) or pd.isna(data["f"][i + 1]):
                 continue
-            if pass_t(data['tau'], data['sigma.tau'], i, i + 1) and not pass_f(data['f'], i, i + 1):
-                if data['f'][i] > data['f'][i + 1]:
+            if pass_t(data["tau"], data["sigma.tau"], i, i + 1) and not pass_f(data["f"], i, i + 1):
+                if data["f"][i] > data["f"][i + 1]:
                     labels[i + 1] = 1
                 else:
                     labels[i] = 1
 
         # Pass 2: Assign label 0 based on stricter CNLOH conditions for triplets
         for j in range(n_seg - 2):
-            if (data['Chromosome'][j] != data['Chromosome'][j + 1] or
-                data['Chromosome'][j + 1] != data['Chromosome'][j + 2]
+            if (data["Chromosome"][j] != data["Chromosome"][j + 1] or
+                data["Chromosome"][j + 1] != data["Chromosome"][j + 2]
             ):
                 continue
-            if pd.isna(data['f'][j]) or pd.isna(data['f'][j + 1]) or pd.isna(data['f'][j + 2]):
+            if pd.isna(data["f"][j]) or pd.isna(data["f"][j + 1]) or pd.isna(data["f"][j + 2]):
                 continue
-            if (pass_t(data['tau'], data['sigma.tau'], j, j + 2) and
-                pass_t(data['tau'], data['sigma.tau'], j, j + 1) and
-                pass_t(data['tau'], data['sigma.tau'], j + 1, j + 2) and
-                not pass_f(data['f'], j, j + 1, 0.1) and
-                not pass_f(data['f'], j + 1, j + 2, 0.1) and
-                # pass_pair(data['alt'], data['ref'], data['outlier_prob'], j + 1) and
-                data['f'][j + 1] < data['f'][j] and
-                data['f'][j + 1] < data['f'][j + 2]
+            if (pass_t(data["tau"], data["sigma.tau"], j, j + 2) and
+                pass_t(data["tau"], data["sigma.tau"], j, j + 1) and
+                pass_t(data["tau"], data["sigma.tau"], j + 1, j + 2) and
+                not pass_f(data["f"], j, j + 1, 0.1) and
+                not pass_f(data["f"], j + 1, j + 2, 0.1) and
+                # pass_pair(data["alt"], data["ref"], data["outlier_prob"], j + 1) and
+                data["f"][j + 1] < data["f"][j] and
+                data["f"][j + 1] < data["f"][j + 2]
             ):
                 labels[j + 1] = 0
 
@@ -146,31 +147,38 @@ def convert_model_segments_to_alleliccapseg(args):
         alleliccapseg_seg_pd = pd.DataFrame(columns=alleliccapseg_seg_columns)
 
         # The following conversions are trivial.
-        alleliccapseg_seg_pd['Chromosome'] = model_segments_seg_pd['CONTIG']
-        alleliccapseg_seg_pd['Start.bp'] = model_segments_seg_pd['START']
-        alleliccapseg_seg_pd['End.bp'] = model_segments_seg_pd['END']
-        alleliccapseg_seg_pd['n_probes'] = model_segments_seg_pd['NUM_POINTS_COPY_RATIO']
-        alleliccapseg_seg_pd['length'] = alleliccapseg_seg_pd['End.bp'] - alleliccapseg_seg_pd['Start.bp']
-        alleliccapseg_seg_pd['n_hets'] = model_segments_seg_pd['NUM_POINTS_ALLELE_FRACTION']
+        alleliccapseg_seg_pd["Chromosome"] = model_segments_seg_pd["CONTIG"]
+        alleliccapseg_seg_pd["Start.bp"] = model_segments_seg_pd["START"]
+        alleliccapseg_seg_pd["End.bp"] = model_segments_seg_pd["END"]
+        alleliccapseg_seg_pd["n_probes"] = model_segments_seg_pd["NUM_POINTS_COPY_RATIO"]
+        alleliccapseg_seg_pd["length"] = alleliccapseg_seg_pd["End.bp"] - alleliccapseg_seg_pd["Start.bp"]
+        alleliccapseg_seg_pd["n_hets"] = model_segments_seg_pd["NUM_POINTS_ALLELE_FRACTION"]
 
         # ModelSegments estimates posterior credible intervals, while AllelicCapSeg performs maximum a posteriori (MAP) estimation.
         # The copy-ratio and allele-fraction models fit by both also differ.
         # We will attempt a rough translation of the model fits here.
 
-        alleliccapseg_seg_pd['f'] = simple_determine_allelic_fraction(model_segments_seg_pd)
+        alleliccapseg_seg_pd["f"] = simple_determine_allelic_fraction(model_segments_seg_pd)
 
-        alleliccapseg_seg_pd['tau'] = 2. * 2 ** model_segments_seg_pd['LOG2_COPY_RATIO_POSTERIOR_50']
-        alleliccapseg_seg_pd['sigma.tau'] = 2 ** model_segments_seg_pd['LOG2_COPY_RATIO_POSTERIOR_90'] - 2 ** model_segments_seg_pd['LOG2_COPY_RATIO_POSTERIOR_10']
-        sigma_f = (model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_90'].to_numpy() - model_segments_seg_pd['MINOR_ALLELE_FRACTION_POSTERIOR_10'].to_numpy()) / 2.
-        sigma_mu = np.sqrt(sigma_f ** 2 + alleliccapseg_seg_pd['sigma.tau'] ** 2)  # we propagate errors in the products f * tau and (1 - f) * tau in the usual way
-        alleliccapseg_seg_pd['mu.minor'] = alleliccapseg_seg_pd['f'] * alleliccapseg_seg_pd['tau']
-        alleliccapseg_seg_pd['sigma.minor'] = sigma_mu
-        alleliccapseg_seg_pd['mu.major'] = (1. - alleliccapseg_seg_pd['f']) * alleliccapseg_seg_pd['tau']
-        alleliccapseg_seg_pd['sigma.major'] = sigma_mu
+        alleliccapseg_seg_pd["tau"] = 2. * 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_50"]
+        alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["f"].isna(), "f"] = 1 / alleliccapseg_seg_pd["tau"]
+        alleliccapseg_seg_pd["f"] = alleliccapseg_seg_pd["f"].where(alleliccapseg_seg_pd["f"] < 0.5, 1 - alleliccapseg_seg_pd["f"]).clip(lower=0)
+        if args.sex in ["XY", "Male"]:
+            alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "Y", "chrX", "chrY"]), "tau"] /= 2
+            alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "Y", "chrX", "chrY"]), "f"] = np.nan
+
+        alleliccapseg_seg_pd["sigma.tau"] = 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_90"] - 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_10"]
+        sigma_f = (model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_90"].to_numpy() - model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_10"].to_numpy()) / 2.
+        sigma_f = np.where(np.isnan(sigma_f), 1e-3, sigma_f)
+        sigma_mu = np.sqrt(sigma_f ** 2 + alleliccapseg_seg_pd["sigma.tau"] ** 2)  # we propagate errors in the products f * tau and (1 - f) * tau in the usual way
+        alleliccapseg_seg_pd["mu.minor"] = alleliccapseg_seg_pd["f"] * alleliccapseg_seg_pd["tau"]
+        alleliccapseg_seg_pd["sigma.minor"] = sigma_mu
+        alleliccapseg_seg_pd["mu.major"] = (1. - alleliccapseg_seg_pd["f"]) * alleliccapseg_seg_pd["tau"]
+        alleliccapseg_seg_pd["sigma.major"] = sigma_mu
 
         # AllelicCapSeg attempts to call CNLOH.  It attempts to distinguish between
         # three states ("0 is flanked on both sides, 1 is one side, 2 is no cn.loh").
-        alleliccapseg_seg_pd['SegLabelCNLOH'] = label_cnloh(alleliccapseg_seg_pd)
+        alleliccapseg_seg_pd["SegLabelCNLOH"] = label_cnloh(alleliccapseg_seg_pd)
 
         # One important caveat: for segments with less than 10 hets, AllelicCapSeg also tries to call whether a segment is "split" or not.
         # This script will attempt to call "split" on all segments.
@@ -184,7 +192,7 @@ def convert_model_segments_to_alleliccapseg(args):
         # allele-fraction model.  This parameter allows the model to account for reference bias.
         # We try to transform the relevant parameter in the corrected model back to a "skew",
         # but this operation is ill-defined.  Luckily, for WGS, the reference bias is typically negligible.
-        model_segments_reference_bias = model_segments_af_param_pd[model_segments_af_param_pd['PARAMETER_NAME'] == 'MEAN_BIAS']['POSTERIOR_50']
+        model_segments_reference_bias = model_segments_af_param_pd[model_segments_af_param_pd["PARAMETER_NAME"] == "MEAN_BIAS"]["POSTERIOR_50"]
         alleliccapseg_skew = 2. / (1. + model_segments_reference_bias)
 
         # If a row has less than X (set by user) hets or number of target intervals (probes), remove / merge:
@@ -200,7 +208,7 @@ def convert_model_segments_to_alleliccapseg(args):
 
     alleliccapseg_seg_pd, alleliccapseg_skew = convert(model_segments_seg_pd, model_segments_af_param_pd)
 
-    alleliccapseg_seg_pd.to_csv(output_filename, sep='\t', index=False, na_rep='NaN')
+    alleliccapseg_seg_pd.to_csv(output_filename, sep="\t", index=False, na_rep="NaN")
     np.savetxt(output_skew_filename, alleliccapseg_skew)
 
 

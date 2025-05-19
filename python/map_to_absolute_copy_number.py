@@ -136,6 +136,9 @@ def map_to_cn(args):
     seg.loc[new_segs, "sample"] = args.sample
     seg.loc[new_segs, "total_copy_ratio"] = seg.loc[new_segs, "tau"] / 2
     seg.loc[new_segs, "copy.ratio"] = seg.loc[new_segs, "tau"] / 2
+    if args.sex in ["XY", "Male"]:
+        seg.loc[new_segs & seg["Chromosome"].isin(["X", "Y", "chrX", "chrY"]), "total_copy_ratio"] *= 2
+        seg.loc[new_segs & seg["Chromosome"].isin(["X", "Y", "chrX", "chrY"]), "copy.ratio"] *= 2
     # seg.loc[new_segs, "hscr.a1"] = seg.loc[new_segs, "tau"] * seg.loc[new_segs, "f"]
     # seg.loc[new_segs, "hscr.a2"] = seg.loc[new_segs, "tau"] * (1 - seg.loc[new_segs, "f"])
     seg.loc[new_segs, "rescaled_total_cn"] = seg.loc[new_segs, "CN"]
