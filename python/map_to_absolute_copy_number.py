@@ -15,7 +15,7 @@ def parse_args():
     )
     parser.usage = "map_to_absolute_copy_number.py [--sample <sample>] --absolute_seg <absolute_seg> --cr_seg <cr_seg> --gvcf <gvcf> --purity <purity> --ploidy <ploidy> --output <output>"
     parser.add_argument("--sample",         type=str,   required=False, help="Sample name.")
-    parser.add_argument("--sex",            type=str,   required=False, help="Patient's sex genotype.")
+    parser.add_argument("--sex",            type=str,   default="XXY",  help="Patient's sex genotype.")
     parser.add_argument("--absolute_seg",   type=str,   required=True,  help="Path to a ABSOLUTE segtab output file.")
     parser.add_argument("--cr_seg",         type=str,   required=True,  help="Path to a ACS segmentation output file.")
     parser.add_argument("--gvcf",           type=str,   required=False, help="Path to a genotyped germline vcf that contains ref and alt allele information for each pileup locus and contains the GT field.")
@@ -31,6 +31,11 @@ def main():
 
 
 def map_to_cn(args):
+    if args.sex in ["Female", "female"]:
+        args.sex = "XX"
+    if args.sex in ["Male", "male"]:
+        args.sex = "XY"
+
     abs_dtypes = {
         "sample": str,
         "Chromosome": str, "Start.bp": int, "End.bp": int,
@@ -136,9 +141,16 @@ def map_to_cn(args):
     seg.loc[new_segs, "sample"] = args.sample
     seg.loc[new_segs, "total_copy_ratio"] = seg.loc[new_segs, "tau"] / 2
     seg.loc[new_segs, "copy.ratio"] = seg.loc[new_segs, "tau"] / 2
-    if args.sex in ["XY", "Male"]:
-        seg.loc[new_segs & seg["Chromosome"].isin(["X", "Y", "chrX", "chrY"]), "total_copy_ratio"] *= 2
-        seg.loc[new_segs & seg["Chromosome"].isin(["X", "Y", "chrX", "chrY"]), "copy.ratio"] *= 2
+
+    if "XX" in args.sex:
+        pass
+    elif "X" in args.sex:
+        seg.loc[seg["Chromosome"].isin(["X", "chrX"]), "total_copy_ratio"] *= 2
+        seg.loc[seg["Chromosome"].isin(["X", "chrX"]), "copy.ratio"] *= 2
+    if "Y" in args.sex:
+        seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), "total_copy_ratio"] *= 2
+        seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), "copy.ratio"] *= 2
+
     # seg.loc[new_segs, "hscr.a1"] = seg.loc[new_segs, "tau"] * seg.loc[new_segs, "f"]
     # seg.loc[new_segs, "hscr.a2"] = seg.loc[new_segs, "tau"] * (1 - seg.loc[new_segs, "f"])
     seg.loc[new_segs, "rescaled_total_cn"] = seg.loc[new_segs, "CN"]
@@ -184,8 +196,13 @@ def map_to_cn(args):
     seg = seg.reset_index()
 
     seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(args.ploidy)
-    if args.sex in ["XY", "Male"]:
-        seg.loc[seg["Chromosome"].isin(["X", "Y", "chrX", "chrY"]), "Segment_Mean"] += 1
+
+    if "XX" in args.sex:
+        pass
+    elif "X" in args.sex:
+        seg.loc[seg["Chromosome"].isin(["X", "chrX"]), "Segment_Mean"] += 1
+    if "Y" in args.sex:
+        seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), "Segment_Mean"] += 1
 
     seg[abs_seg_cols].to_csv(f"{args.outdir}/{args.sample}.segtab.completed.txt", sep="\t", index=False)
     seg[["sample", "Chromosome", "Start.bp", "End.bp", "Segment_Mean", "rescaled_total_cn"]].to_csv(f"{args.outdir}/{args.sample}.IGV.seg.completed.txt", sep="\t", index=False)

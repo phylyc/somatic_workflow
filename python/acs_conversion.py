@@ -49,6 +49,10 @@ def print_args(args):
 def convert_model_segments_to_alleliccapseg(args):
     """ Adapted from https://portal.firecloud.org/?return=terra#methods/lichtens/Model_Segments_PostProcessing/3
     """
+    if args.sex in ["Female", "female"]:
+        args.sex = "XX"
+    if args.sex in ["Male", "male"]:
+        args.sex = "XY"
 
     # get the input file names
     model_seg = args.seg
@@ -163,9 +167,14 @@ def convert_model_segments_to_alleliccapseg(args):
         alleliccapseg_seg_pd["tau"] = 2. * 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_50"]
         alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["f"].isna(), "f"] = 1 / alleliccapseg_seg_pd["tau"]
         alleliccapseg_seg_pd["f"] = alleliccapseg_seg_pd["f"].where(alleliccapseg_seg_pd["f"] < 0.5, 1 - alleliccapseg_seg_pd["f"]).clip(lower=0)
-        if args.sex in ["XY", "Male"]:
-            alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "Y", "chrX", "chrY"]), "tau"] /= 2
-            alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "Y", "chrX", "chrY"]), "f"] = np.nan
+        if "XX" in args.sex:
+            pass
+        elif "X" in args.sex:
+            alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "chrX"]), "tau"] /= 2
+            alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "chrX"]), "f"] = np.nan
+        if "Y" in args.sex:
+            alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["Y", "chrY"]), "tau"] /= 2
+            alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["Y", "chrY"]), "f"] = np.nan
 
         alleliccapseg_seg_pd["sigma.tau"] = 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_90"] - 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_10"]
         sigma_f = (model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_90"].to_numpy() - model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_10"].to_numpy()) / 2.
