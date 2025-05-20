@@ -178,7 +178,7 @@ def convert_model_segments_to_alleliccapseg(args):
     # supported over a bimodal distribution peaked at f and 1 - f. If the former is
     # supported, then AllelicCapSeg ignores the MAP estimate of f and simply sets it to 0.5.
     # For now, we replace the statistical test with a simple threshold test.
-    alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["f"] > args.maf90_threshold] = 0.5
+    alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["f"] > args.maf90_threshold, "f"] = 0.5
 
     alleliccapseg_seg_pd["sigma.tau"] = 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_90"] - 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_10"]
     sigma_f = (model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_90"].to_numpy() - model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_10"].to_numpy()) / 2.
@@ -207,7 +207,7 @@ def convert_model_segments_to_alleliccapseg(args):
     good_rows &= alleliccapseg_seg_pd["n_probes"] >= args.min_probes
     n = alleliccapseg_seg_pd.shape[0] - np.sum(good_rows)
     pct_genomic_drop = W.loc[~good_rows].sum() * 100
-    print(f"Dropping {n}/{alleliccapseg_seg_pd.shape[0]} (-{pct_genomic_drop:.6f}% genome) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
+    print(f"Dropping {n}/{alleliccapseg_seg_pd.shape[0]} (-{pct_genomic_drop:.6f}% of genome) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
 
     alleliccapseg_seg_pd = alleliccapseg_seg_pd.loc[good_rows]
 
