@@ -86,6 +86,13 @@ def map_to_cn(args):
 
     seg = pd.concat([abs_seg.drop(columns=["n_probes", "length"]), cr_seg], axis=1).sort_index()
 
+    nX = args.sex.count("X")
+    nY = args.sex.count("Y")
+
+    def correct_diploid_assumtion(col):
+        seg.loc[seg["Chromosome"].isin(["X", "chrX"]), col] *= 2 / nX
+        seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), col] *= 2 / nY if nY > 0 else 0
+
     if args.sample is None:
         args.sample = seg["Sample"].dropna().unique()[0]
 
@@ -93,13 +100,15 @@ def map_to_cn(args):
     b = (1 - args.purity) * 2 / D
     delta = args.purity / D
 
-    # rescale copy number
+    # rescale copy number, assuming diploidy
     seg["CN"] = (seg["tau"] - b).clip(lower=0) / delta / 2
+    correct_diploid_assumtion(col="CN")
     # correct offset
     diff = seg["CN"].median() - seg["rescaled_total_cn"].median()
     seg["CN"] -= diff
     seg["CN"] = seg["CN"].clip(lower=0)
     seg["CN.sigma"] = seg["sigma.tau"] / delta / 2
+    correct_diploid_assumtion(col="CN.sigma")
 
     r_corr = seg[["CN", "rescaled_total_cn"]].corr().loc["CN", "rescaled_total_cn"]
     print(f"Correlation between rescaled total copy number and ABSOLUTE output: {r_corr}")
@@ -141,15 +150,8 @@ def map_to_cn(args):
     seg.loc[new_segs, "sample"] = args.sample
     seg.loc[new_segs, "total_copy_ratio"] = seg.loc[new_segs, "tau"] / 2
     seg.loc[new_segs, "copy.ratio"] = seg.loc[new_segs, "tau"] / 2
-
-    if "XX" in args.sex:
-        pass
-    elif "X" in args.sex:
-        seg.loc[seg["Chromosome"].isin(["X", "chrX"]), "total_copy_ratio"] *= 2
-        seg.loc[seg["Chromosome"].isin(["X", "chrX"]), "copy.ratio"] *= 2
-    if "Y" in args.sex:
-        seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), "total_copy_ratio"] *= 2
-        seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), "copy.ratio"] *= 2
+    correct_diploid_assumtion(col="total_copy_ratio")
+    correct_diploid_assumtion(col="copy.ratio")
 
     # seg.loc[new_segs, "hscr.a1"] = seg.loc[new_segs, "tau"] * seg.loc[new_segs, "f"]
     # seg.loc[new_segs, "hscr.a2"] = seg.loc[new_segs, "tau"] * (1 - seg.loc[new_segs, "f"])
@@ -162,12 +164,8 @@ def map_to_cn(args):
     seg.loc[new_segs, "total_amp"] = (seg.loc[new_segs, "rescaled_total_cn"] >= 7).astype(int)
     seg.loc[new_segs, "rescaled.cn.a1"] = 0
     seg.loc[new_segs, "rescaled.cn.a2"] = seg.loc[new_segs, "CN"]
-    seg.loc[new_segs, "LOH"] = (
-            (seg.loc[new_segs, "rescaled.cn.a1"] == 0) | (seg.loc[new_segs, "rescaled.cn.a1"] == 0)
-    ).astype(int)
-    seg.loc[new_segs, "HZ"] = (
-            (seg.loc[new_segs, "rescaled.cn.a1"] == 0) & (seg.loc[new_segs, "rescaled.cn.a1"] == 0)
-    ).astype(int)
+    seg.loc[new_segs, "LOH"] = ((seg.loc[new_segs, "rescaled.cn.a1"] == 0) | (seg.loc[new_segs, "rescaled.cn.a1"] == 0)).astype(int)
+    seg.loc[new_segs, "HZ"] = ((seg.loc[new_segs, "rescaled.cn.a1"] == 0) & (seg.loc[new_segs, "rescaled.cn.a1"] == 0)).astype(int)
 
     seg["W"] = seg["length"] / seg["length"].sum()
 
@@ -194,16 +192,7 @@ def map_to_cn(args):
     seg.loc[new_segs].reset_index()[["Chromosome", "Start.bp", "End.bp"]].to_csv(f"{args.outdir}/{args.sample}.rescued_intervals.txt", sep="\t", index=False)
 
     seg = seg.reset_index()
-
     seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(args.ploidy)
-
-    if "XX" in args.sex:
-        pass
-    elif "X" in args.sex:
-        seg.loc[seg["Chromosome"].isin(["X", "chrX"]), "Segment_Mean"] += 1
-    if "Y" in args.sex:
-        seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), "Segment_Mean"] += 1
-
     seg[abs_seg_cols].to_csv(f"{args.outdir}/{args.sample}.segtab.completed.txt", sep="\t", index=False)
     seg[["sample", "Chromosome", "Start.bp", "End.bp", "Segment_Mean", "rescaled_total_cn"]].to_csv(f"{args.outdir}/{args.sample}.IGV.seg.completed.txt", sep="\t", index=False)
 

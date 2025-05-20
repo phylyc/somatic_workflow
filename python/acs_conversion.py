@@ -54,6 +54,9 @@ def convert_model_segments_to_alleliccapseg(args):
     if args.sex in ["Male", "male"]:
         args.sex = "XY"
 
+    nX = args.sex.count("X")
+    nY = args.sex.count("Y")
+
     # get the input file names
     model_seg = args.seg
     af_param = args.af_parameters
@@ -162,19 +165,19 @@ def convert_model_segments_to_alleliccapseg(args):
         # The copy-ratio and allele-fraction models fit by both also differ.
         # We will attempt a rough translation of the model fits here.
 
-        alleliccapseg_seg_pd["f"] = simple_determine_allelic_fraction(model_segments_seg_pd)
-
         alleliccapseg_seg_pd["tau"] = 2. * 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_50"]
+        # Correct diploid assumption
+        alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "chrX"]), "tau"] *= nX / 2
+        alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["Y", "chrY"]), "tau"] *= nY / 2
+
+        alleliccapseg_seg_pd["f"] = simple_determine_allelic_fraction(model_segments_seg_pd)
         alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["f"].isna(), "f"] = 1 / alleliccapseg_seg_pd["tau"]
         alleliccapseg_seg_pd["f"] = alleliccapseg_seg_pd["f"].where(alleliccapseg_seg_pd["f"] < 0.5, 1 - alleliccapseg_seg_pd["f"]).clip(lower=0)
-        if "XX" in args.sex:
-            pass
-        elif "X" in args.sex:
-            alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "chrX"]), "tau"] /= 2
+        if nX < 2:
             alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "chrX"]), "f"] = np.nan
-        if "Y" in args.sex:
-            alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["Y", "chrY"]), "tau"] /= 2
-            alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["Y", "chrY"]), "f"] = np.nan
+        # Assume that Y never has heterozygous germline SNPs (technically not true, but those that arise
+        # e.g. during S-phase before meiosis II are not enough to allow for stable aCR signal).
+        alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["Y", "chrY"]), "f"] = np.nan
 
         alleliccapseg_seg_pd["sigma.tau"] = 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_90"] - 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_10"]
         sigma_f = (model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_90"].to_numpy() - model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_10"].to_numpy()) / 2.
@@ -204,12 +207,14 @@ def convert_model_segments_to_alleliccapseg(args):
         model_segments_reference_bias = model_segments_af_param_pd[model_segments_af_param_pd["PARAMETER_NAME"] == "MEAN_BIAS"]["POSTERIOR_50"]
         alleliccapseg_skew = 2. / (1. + model_segments_reference_bias)
 
+        W = alleliccapseg_seg_pd["length"] / alleliccapseg_seg_pd["length"].sum()
+
         # If a row has less than X (set by user) hets or number of target intervals (probes), remove / merge:
         good_rows = alleliccapseg_seg_pd["n_hets"] >= args.min_hets
         good_rows &= alleliccapseg_seg_pd["n_probes"] >= args.min_probes
         n = alleliccapseg_seg_pd.shape[0] - np.sum(good_rows)
-        pct_drop = n / alleliccapseg_seg_pd.shape[0] * 100
-        print(f"Dropping {n}/{alleliccapseg_seg_pd.shape[0]} (-{pct_drop:.3f}%) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
+        pct_genomic_drop = W.loc[~good_rows].sum() * 100
+        print(f"Dropping {n}/{alleliccapseg_seg_pd.shape[0]} (-{pct_genomic_drop:.6f}% genome) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
 
         alleliccapseg_seg_pd = alleliccapseg_seg_pd.loc[good_rows]
 
