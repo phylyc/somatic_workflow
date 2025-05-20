@@ -331,13 +331,13 @@ task FilterVariantCalls {
         rm -f 'filtered.vcf.gz' 'filtered.vcf.gz.tbi'
 
         #####
-        # Add TOTAL_ALT_AD field to INFO field that contains the sum of ALT allele counts
+        # Add TAC field to INFO field that contains the sum of ALT allele counts
         # across samples to filter on.
         ####
 
-        echo -e '##fileformat=VCFv4.2' > alt_ad.vcf
-        echo -e '##INFO=<ID=TOTAL_ALT_AD,Number=1,Type=Integer,Description="Sum of ALT allele counts across samples">' >> alt_ad.vcf
-        echo -e '#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO' >> alt_ad.vcf
+        echo -e '##fileformat=VCFv4.2' > total_alt_count.vcf
+        echo -e '##INFO=<ID=TAC,Number=1,Type=Integer,Description="Sum of ALT allele counts across samples">' >> total_alt_count.vcf
+        echo -e '#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO' >> total_alt_count.vcf
 
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT[\t%AD]\n' \
@@ -350,22 +350,22 @@ task FilterVariantCalls {
                         sum += ad[j]  # sum only ALT counts
                     }
                 }
-                print $1, $2, ".", $3, $4, ".", ".", "TOTAL_ALT_AD=" sum
-            }' >> alt_ad.vcf
+                print $1, $2, ".", $3, $4, ".", ".", "TAC=" sum
+            }' >> total_alt_count.vcf
 
-        bgzip -f alt_ad.vcf
-        bcftools index alt_ad.vcf.gz
+        bgzip -f total_alt_count.vcf
+        bcftools index total_alt_count.vcf.gz
 
         bcftools annotate \
-            -o 'filtered.left_aligned_and_trimmed.TOTAL_ALT_AD.vcf.gz' \
+            -o 'filtered.left_aligned_and_trimmed.TAC.vcf.gz' \
             -O z \
-            -c CHROM,POS,INFO/TOTAL_ALT_AD \
-            -a alt_ad.vcf.gz \
+            -c CHROM,POS,INFO/TAC \
+            -a total_alt_count.vcf.gz \
             'filtered.left_aligned_and_trimmed.vcf.gz'
         gatk IndexFeatureFile \
-            -I 'filtered.left_aligned_and_trimmed.TOTAL_ALT_AD.vcf.gz'
+            -I 'filtered.left_aligned_and_trimmed.TAC.vcf.gz'
 
-        rm -f alt_ad.vcf.gz alt_ad.vcf.gz.tbi alt_ad.vcf.csi
+        rm -f total_alt_count.vcf.gz total_alt_count.vcf.gz.tbi total_alt_count.vcf.csi
         rm -f 'filtered.left_aligned_and_trimmed.vcf.gz' 'filtered.left_aligned_and_trimmed.vcf.gz.tbi'
 
         echo ""
@@ -377,11 +377,11 @@ task FilterVariantCalls {
             VariantFiltration \
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-L '" + interval_list + "'"} \
-            -V 'filtered.left_aligned_and_trimmed.TOTAL_ALT_AD.vcf.gz' \
+            -V 'filtered.left_aligned_and_trimmed.TAC.vcf.gz' \
             --filter-name "lowDP" \
             --filter-expression 'DP < ~{min_total_depth}' \
             --filter-name "lowTOTAL_ALT_AD" \
-            --filter-expression 'TOTAL_ALT_AD < ~{min_total_alt_count}' \
+            --filter-expression 'TAC < ~{min_total_alt_count}' \
             --filter-name "lowMBQ.0" \
             --filter-expression 'MBQ.0 < ~{min_base_quality}' \
             --filter-name "lowMBQ.1" \
@@ -406,7 +406,7 @@ task FilterVariantCalls {
             ~{variant_filtration_extra_args} \
             2> >(grep -v "WARN  JexlEngine - " >&2)
 
-        rm -f 'filtered.left_aligned_and_trimmed.TOTAL_ALT_AD.vcf.gz' 'filtered.left_aligned_and_trimmed.TOTAL_ALT_AD.vcf.gz.tbi'
+        rm -f 'filtered.left_aligned_and_trimmed.TAC.vcf.gz' 'filtered.left_aligned_and_trimmed.TAC.vcf.gz.tbi'
     >>>
 
     output {
