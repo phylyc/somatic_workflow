@@ -37,7 +37,7 @@ workflow UpdateSamples {
     }
 
     # Update samples:
-    Array[File] sr = select_first([sequencing_runs, []])
+    Array[Array[SequencingRun]] sr = select_first([sequencing_runs, [[]]])
     if (length(sr) > 0) {
         scatter (pair in zip(patient.samples, sr)) {
             call s.UpdateSample as UpdateSequencingRuns {
