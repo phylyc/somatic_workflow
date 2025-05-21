@@ -110,7 +110,7 @@ workflow CoverageWorkflow {
 
     call p_update_s.UpdateSamples as ConsensusPatient {
         input:
-            patient = patient,
+            patient = PatientAddCoverage.updated_patient,
             harmonized_callable_loci = HarmonizeSamples.harmonized_callable_loci,
             harmonized_denoised_total_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios,
             harmonized_snppanel_allelic_pileup_summaries = HarmonizeSamples.merged_allelic_counts,
