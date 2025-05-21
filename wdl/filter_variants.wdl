@@ -380,7 +380,7 @@ task FilterVariantCalls {
             -V 'filtered.left_aligned_and_trimmed.TAC.vcf.gz' \
             --filter-name "lowDP" \
             --filter-expression 'DP < ~{min_total_depth}' \
-            --filter-name "lowTOTAL_ALT_AD" \
+            --filter-name "lowTAC" \
             --filter-expression 'TAC < ~{min_total_alt_count}' \
             --filter-name "lowMBQ.0" \
             --filter-expression 'MBQ.0 < ~{min_base_quality}' \
