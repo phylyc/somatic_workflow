@@ -241,7 +241,7 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_asvi = select_first([UpdateAnnotatedSomaticVariantsIdx.updated_sample, samples_asv])
 
-    Array[File] ard = select_first([aggregated_allelic_read_counts, []])
+    Array[File] ard = select_first([absolute_acr_rdata, []])
     if (length(ard) > 0) {
         scatter (pair in zip(samples_asvi, ard)) {
             call s.UpdateSample as UpdateAbsoluteRData {
