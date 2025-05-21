@@ -164,8 +164,12 @@ def convert_model_segments_to_alleliccapseg(args):
     alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["Y", "chrY"]), "tau"] *= nY / 2
 
     alleliccapseg_seg_pd["f"] = model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_50"].copy()
-    alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["f"].isna(), "f"] = 1 / alleliccapseg_seg_pd["tau"]
-    alleliccapseg_seg_pd["f"] = alleliccapseg_seg_pd["f"].where(alleliccapseg_seg_pd["f"] < 0.5, 1 - alleliccapseg_seg_pd["f"]).clip(lower=0)
+
+    # Some segments may not have HETs called due to LOH or approximate LOH.
+    # alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["f"].isna(), "f"] = 1 / alleliccapseg_seg_pd["tau"]
+    # alleliccapseg_seg_pd["f"] = alleliccapseg_seg_pd["f"].where(alleliccapseg_seg_pd["f"] < 0.5, 1 - alleliccapseg_seg_pd["f"]).clip(lower=0)
+
+    # Correct the diploid assumption
     if nX < 2:
         alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "chrX"]), "f"] = np.nan
     # Assume that Y never has heterozygous germline SNPs (technically not true, but those that arise
