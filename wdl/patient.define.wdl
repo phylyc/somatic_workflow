@@ -331,7 +331,7 @@ workflow DefinePatient {
     }
 
     Array[Array[File]] cl = select_first([callable_loci, [[]]])
-    if (length(cl) > 0) {
+    if (length(flatten(cl)) > 0) {
         scatter (sample_pair in zip(seqruns, cl)) {
             scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
                 call seq_run.UpdateSequencingRun as UpdateCallableLoci {
@@ -345,7 +345,7 @@ workflow DefinePatient {
     Array[Array[SequencingRun]] cl_seqrun = select_first([UpdateCallableLoci.updated_sequencing_run, seqruns])
 
     Array[Array[File]] trc = select_first([total_read_counts, [[]]])
-    if (length(trc) > 0) {
+    if (length(flatten(trc)) > 0) {
         scatter (sample_pair in zip(cl_seqrun, trc)) {
             scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
                 call seq_run.UpdateSequencingRun as UpdateTotalReadCounts {
@@ -359,7 +359,7 @@ workflow DefinePatient {
     Array[Array[SequencingRun]] trc_seqrun = select_first([UpdateTotalReadCounts.updated_sequencing_run, cl_seqrun])
 
     Array[Array[File]] dtcr = select_first([denoised_total_copy_ratios, [[]]])
-    if (length(dtcr) > 0) {
+    if (length(flatten(dtcr)) > 0) {
         scatter (sample_pair in zip(trc_seqrun, dtcr)) {
             scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
                 call seq_run.UpdateSequencingRun as UpdateDenoisedTotalCopyRatios {
@@ -373,7 +373,7 @@ workflow DefinePatient {
     Array[Array[SequencingRun]] dtcr_seqrun = select_first([UpdateDenoisedTotalCopyRatios.updated_sequencing_run, trc_seqrun])
 
     Array[Array[File]] sap = select_first([snppanel_allelic_pileup_summaries, [[]]])
-    if (length(sap) > 0) {
+    if (length(flatten(sap)) > 0) {
         scatter (sample_pair in zip(dtcr_seqrun, sap)) {
             scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
                 call seq_run.UpdateSequencingRun as UpdateSnppanelAllelicPileupSummaries {
