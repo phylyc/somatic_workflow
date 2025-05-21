@@ -148,7 +148,7 @@ workflow MultiSampleSomaticWorkflow {
 
         # for each sample:
         # CACHE (as returned by the workflow)
-        Array[String]? sample_names_orderes = Output.sample_names_ordered
+        Array[String]? sample_names_ordered = Output.sample_names_ordered
         Array[File]? harmonized_callable_loci = Output.harmonized_callable_loci
         Array[File]? harmonized_denoised_total_copy_ratios = Output.harmonized_denoised_total_copy_ratios
         Array[File]? harmonized_snppanel_allelic_pileup_summaries = Output.harmonized_snppanel_allelic_pileup_summaries
