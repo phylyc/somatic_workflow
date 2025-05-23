@@ -221,7 +221,7 @@ workflow DefineWorkflowArguments {
         Int hard_filter_min_mapping_quality = 20
         Int hard_filter_min_fragment_length = 18
         Int hard_filter_min_total_depth = 10
-        Int hard_filter_min_total_alt_count = 4
+        Int hard_filter_min_total_alt_count = 3
         Int hard_filter_min_position_from_end_of_read = 6
         Int hard_filter_min_read_orientation_quality = 10
         Float hard_filter_germline_min_population_af = 3
