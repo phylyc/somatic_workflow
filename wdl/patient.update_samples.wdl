@@ -85,7 +85,7 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_hsap = select_first([UpdateHarmonizedSnpPanelAllelicPileupSummaries.updated_sample, samples_hdtcr])
 
-    Array[File] ct = select_first([harmonized_snppanel_allelic_pileup_summaries, []])
+    Array[File] ct = select_first([contamination_table, []])
     if (length(ct) > 0) {
         scatter (pair in zip(samples_hsap, ct)) {
             call s.UpdateSample as UpdateContamination {
