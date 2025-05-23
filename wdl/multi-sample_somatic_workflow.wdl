@@ -200,6 +200,7 @@ workflow MultiSampleSomaticWorkflow {
         File? filtering_stats = out_patient.filtering_stats
         File? somatic_vcf = out_patient.somatic_vcf
         File? somatic_vcf_idx = out_patient.somatic_vcf_idx
+        Int? num_somatic_variants = out_patient.num_somatic_variants
         File? germline_vcf = out_patient.germline_vcf
         File? germline_vcf_idx = out_patient.germline_vcf_idx
         File? rare_germline_alleles = out_patient.rare_germline_alleles
