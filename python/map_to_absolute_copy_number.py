@@ -89,9 +89,13 @@ def map_to_cn(args):
     nX = args.sex.count("X")
     nY = args.sex.count("Y")
 
-    def correct_diploid_assumtion(col):
-        seg.loc[seg["Chromosome"].isin(["X", "chrX"]), col] *= 2 / nX
-        seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), col] *= 2 / nY if nY > 0 else 0
+    def correct_diploid_assumption(col, log=False):
+        if log:
+            seg.loc[seg["Chromosome"].isin(["X", "chrX"]), col] += np.log2(2 / nX) if nX > 0 else 0
+            seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), col] += np.log2(2 / nY) if nY > 0 else 0
+        else:
+            seg.loc[seg["Chromosome"].isin(["X", "chrX"]), col] *= 2 / nX if nX > 0 else 0
+            seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), col] *= 2 / nY if nY > 0 else 0
 
     if args.sample is None:
         args.sample = seg["Sample"].dropna().unique()[0]
@@ -102,13 +106,13 @@ def map_to_cn(args):
 
     # rescale copy number, assuming diploidy
     seg["CN"] = (seg["tau"] - b).clip(lower=0) / delta / 2
-    correct_diploid_assumtion(col="CN")
+    correct_diploid_assumption(col="CN")
     # correct offset
     diff = seg["CN"].median() - seg["rescaled_total_cn"].median()
     seg["CN"] -= diff
     seg["CN"] = seg["CN"].clip(lower=0)
     seg["CN.sigma"] = seg["sigma.tau"] / delta / 2
-    correct_diploid_assumtion(col="CN.sigma")
+    correct_diploid_assumption(col="CN.sigma")
 
     r_corr = seg[["CN", "rescaled_total_cn"]].corr().loc["CN", "rescaled_total_cn"]
     print(f"Correlation between rescaled total copy number and ABSOLUTE output: {r_corr}")
@@ -146,12 +150,14 @@ def map_to_cn(args):
     c_corr = seg[["corrected_CN", "corrected_total_cn"]].corr().loc["corrected_CN", "corrected_total_cn"]
     print(f"Correlation between corrected total copy number and ABSOLUTE output: {c_corr}")
 
+    # RESCUE SEGMENTS
+
     new_segs = seg[["corrected_total_cn", "rescaled_total_cn"]].isna().any(axis=1)
     seg.loc[new_segs, "sample"] = args.sample
     seg.loc[new_segs, "total_copy_ratio"] = seg.loc[new_segs, "tau"] / 2
     seg.loc[new_segs, "copy.ratio"] = seg.loc[new_segs, "tau"] / 2
-    correct_diploid_assumtion(col="total_copy_ratio")
-    correct_diploid_assumtion(col="copy.ratio")
+    correct_diploid_assumption(col="total_copy_ratio")
+    correct_diploid_assumption(col="copy.ratio")
 
     # seg.loc[new_segs, "hscr.a1"] = seg.loc[new_segs, "tau"] * seg.loc[new_segs, "f"]
     # seg.loc[new_segs, "hscr.a2"] = seg.loc[new_segs, "tau"] * (1 - seg.loc[new_segs, "f"])
@@ -188,11 +194,11 @@ def map_to_cn(args):
         return pd.MultiIndex.from_frame(temp_df[index.names])
 
     seg = seg.reindex(sort_genomic_positions(index=seg.index))
-
-    seg.loc[new_segs].reset_index()[["Chromosome", "Start.bp", "End.bp"]].to_csv(f"{args.outdir}/{args.sample}.rescued_intervals.txt", sep="\t", index=False)
-
     seg = seg.reset_index()
     seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(args.ploidy)
+    correct_diploid_assumption(col="Segment_Mean", log=True)
+
+    seg.loc[new_segs].reset_index()[["Chromosome", "Start.bp", "End.bp"]].to_csv(f"{args.outdir}/{args.sample}.rescued_intervals.txt", sep="\t", index=False)
     seg[abs_seg_cols].to_csv(f"{args.outdir}/{args.sample}.segtab.completed.txt", sep="\t", index=False)
     seg[["sample", "Chromosome", "Start.bp", "End.bp", "Segment_Mean", "rescaled_total_cn"]].to_csv(f"{args.outdir}/{args.sample}.IGV.seg.completed.txt", sep="\t", index=False)
 
