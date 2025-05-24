@@ -84,7 +84,7 @@ def map_to_cn(args):
             f"{args.gvcf}", sep="\t", comment="#", header=None, low_memory=False, names=vcf_columns
         ).astype({"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str})
 
-    seg = pd.concat([abs_seg.drop(columns=["n_probes", "length"]), cr_seg], axis=1).sort_index()
+    seg = pd.concat([abs_seg.drop(columns=["n_probes", "length"]), cr_seg], axis=1).sort_index().reset_index()
 
     nX = args.sex.count("X")
     nY = args.sex.count("Y")
@@ -151,6 +151,9 @@ def map_to_cn(args):
     print(f"Correlation between corrected total copy number and ABSOLUTE output: {c_corr}")
 
     # RESCUE SEGMENTS
+    # NOTE: This may (very likely) also "rescue" artifactual homozygous deletions.
+    # If you have a cohort of samples, check for recurrent segment boundaries and
+    # un-rescue segments within boundaries that are shared for >10% of the cohort.
 
     new_segs = seg[["corrected_total_cn", "rescaled_total_cn"]].isna().any(axis=1)
     seg.loc[new_segs, "sample"] = args.sample
@@ -193,6 +196,7 @@ def map_to_cn(args):
         temp_df = temp_df.astype({c: t for c, t in abs_dtypes.items() if c in temp_df.columns})
         return pd.MultiIndex.from_frame(temp_df[index.names])
 
+    seg = seg.set_index(["Chromosome", "Start.bp", "End.bp"])
     seg = seg.reindex(sort_genomic_positions(index=seg.index))
     seg = seg.reset_index()
     seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(args.ploidy)
