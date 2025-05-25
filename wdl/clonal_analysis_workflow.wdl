@@ -21,7 +21,7 @@ workflow ClonalAnalysisWorkflow {
             if (defined(sample.called_copy_ratio_segmentation) && defined(sample.af_model_parameters) && !defined(sample.absolute_acr_rdata) && !defined(sample.absolute_acr_plot)) {
                 call abs.Absolute {
                     input:
-                        acs_conversion_script = args.acs_conversion_script,
+                        acs_conversion_script = args.script_acs_conversion,
                         sample_name = sample.name,
                         copy_ratio_segmentation = select_first([sample.called_copy_ratio_segmentation]),
                         af_model_parameters = select_first([sample.af_model_parameters]),
@@ -47,6 +47,7 @@ workflow ClonalAnalysisWorkflow {
             if (defined(sample.absolute_solution)) {
                 call abs_extract.AbsoluteExtract {
                     input:
+                        map_to_absolute_copy_number_script = args.script_map_to_absolute_copy_number,
                         sample_name = sample.name,
                         sex = patient.sex,
                         rdata = acr_rdata,

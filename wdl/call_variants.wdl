@@ -686,7 +686,7 @@ task Mutect2 {
         # Create string to inset into header
         header=""
         for i in "~{dollar}{!bam_names[@]}"; do
-            header+="##bam_to_sample_name_map=~{dollar}{bam_names[i]}:~{dollar}{sample_names[i]}\n"
+            header+="##BAM_NAME:~{dollar}{bam_names[i]}=SAMPLE_NAME:~{dollar}{sample_names[i]}\n"
         done
         header="~{dollar}{header%??}"  # Trim the trailing newline
         # Insert string

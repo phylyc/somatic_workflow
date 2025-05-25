@@ -57,11 +57,12 @@ struct WorkflowArguments {
     Float call_copy_ratios_z_score_threshold
     Int filter_germline_cnvs_min_segment_length
 
-    String genotype_variants_script
-    String harmonize_copy_ratios_script
-    String merge_pileups_script
-    String pileup_to_allelic_counts_script
-    String acs_conversion_script
+    String script_acs_conversion
+    String script_genotype_variants
+    String script_harmonize_copy_ratios
+    String script_map_to_absolute_copy_number
+    String script_merge_pileups
+    String script_pileup_to_allelic_counts
 
     Int absolute_min_hets
     Int absolute_min_probes
@@ -86,10 +87,15 @@ struct WorkflowArguments {
     Int mutect2_pcr_snv_qual
     Int mutect2_pcr_indel_qual
     Int filter_mutect2_max_median_fragment_length_difference
-    Int filter_mutect2_min_alt_median_base_quality
-    Int filter_mutect2_min_alt_median_mapping_quality
-    Int filter_mutect2_min_median_read_position
     Int filter_alignment_artifacts_max_reasonable_fragment_length
+    Int hard_filter_min_base_quality
+    Int hard_filter_min_mapping_quality
+    Int hard_filter_min_fragment_length
+    Int hard_filter_min_total_depth
+    Int hard_filter_min_total_alt_count
+    Int hard_filter_min_position_from_end_of_read
+    Int hard_filter_min_read_orientation_quality
+    Float hard_filter_germline_min_population_af
     Array[String] hard_filter_expressions
     Array[String] hard_filter_names
     String somatic_filter_whitelist
@@ -175,11 +181,12 @@ workflow DefineWorkflowArguments {
         Float call_copy_ratios_z_score_threshold = 2.0
         Int filter_germline_cnvs_min_segment_length = 100
 
-        String genotype_variants_script =        "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
-        String harmonize_copy_ratios_script =    "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
-        String merge_pileups_script =            "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
-        String pileup_to_allelic_counts_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
-        String acs_conversion_script =           "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
+        String script_acs_conversion =              "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
+        String script_genotype_variants =           "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
+        String script_harmonize_copy_ratios =       "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
+        String script_map_to_absolute_copy_number = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
+        String script_merge_pileups =               "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
+        String script_pileup_to_allelic_counts =    "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
 
         Int absolute_min_hets = 0
         Int absolute_min_probes = 2
@@ -209,28 +216,17 @@ workflow DefineWorkflowArguments {
         Int mutect2_pcr_snv_qual = 40 # default: 40
         Int mutect2_pcr_indel_qual = 40  # default: 40
         Int filter_mutect2_max_median_fragment_length_difference = 10000  # default: 10000
-        Int filter_mutect2_min_alt_median_base_quality = 20  # default: 20
-        Int filter_mutect2_min_alt_median_mapping_quality = 20  # default: -1
-        Int filter_mutect2_min_median_read_position = 5  # default: 1
         Int filter_alignment_artifacts_max_reasonable_fragment_length = 10000 # default: 100000
-        Array[String] hard_filter_expressions = [
-            "DP < 10",
-            "MBQ.0 < 20", "MBQ.1 < 20",
-            "MMQ.0 < 20", "MMQ.1 < 20",
-            "MFRL.0 < 18", "MFRL.1 < 18",
-            "MPOS.0 < 6",
-            "ROQ < 10",
-            "POPAF < 3.0"
-        ]
-        Array[String] hard_filter_names = [
-            "lowDP",
-            "lowMBQ.0", "lowMBQ.1",
-            "lowMMQ.0", "lowMMQ.1",
-            "lowMFRL.0", "lowMFRL.1",
-            "lowMPOS",
-            "lowROQ",
-            "germline"
-        ]
+        Int hard_filter_min_base_quality = 20
+        Int hard_filter_min_mapping_quality = 20
+        Int hard_filter_min_fragment_length = 18
+        Int hard_filter_min_total_depth = 10
+        Int hard_filter_min_total_alt_count = 3
+        Int hard_filter_min_position_from_end_of_read = 6
+        Int hard_filter_min_read_orientation_quality = 10
+        Float hard_filter_germline_min_population_af = 3
+        Array[String] hard_filter_expressions = []
+        Array[String] hard_filter_names = []
         String somatic_filter_whitelist = "PASS,normal_artifact"
         String germline_filter_whitelist = "normal_artifact,panel_of_normals"
         String funcotator_reference_version = "hg19"
@@ -344,11 +340,12 @@ workflow DefineWorkflowArguments {
         call_copy_ratios_z_score_threshold: call_copy_ratios_z_score_threshold,
         filter_germline_cnvs_min_segment_length: filter_germline_cnvs_min_segment_length,
 
-        genotype_variants_script: genotype_variants_script,
-        harmonize_copy_ratios_script: harmonize_copy_ratios_script,
-        merge_pileups_script: merge_pileups_script,
-        pileup_to_allelic_counts_script: pileup_to_allelic_counts_script,
-        acs_conversion_script: acs_conversion_script,
+        script_acs_conversion: script_acs_conversion,
+        script_genotype_variants: script_genotype_variants,
+        script_harmonize_copy_ratios: script_harmonize_copy_ratios,
+        script_map_to_absolute_copy_number: script_map_to_absolute_copy_number,
+        script_merge_pileups: script_merge_pileups,
+        script_pileup_to_allelic_counts: script_pileup_to_allelic_counts,
 
         absolute_min_hets: absolute_min_hets,
         absolute_min_probes: absolute_min_probes,
@@ -372,10 +369,15 @@ workflow DefineWorkflowArguments {
         mutect2_pcr_snv_qual: mutect2_pcr_snv_qual,
         mutect2_pcr_indel_qual: mutect2_pcr_indel_qual,
         filter_mutect2_max_median_fragment_length_difference: filter_mutect2_max_median_fragment_length_difference,
-        filter_mutect2_min_alt_median_base_quality: filter_mutect2_min_alt_median_base_quality,
-        filter_mutect2_min_alt_median_mapping_quality: filter_mutect2_min_alt_median_mapping_quality,
-        filter_mutect2_min_median_read_position: filter_mutect2_min_median_read_position,
         filter_alignment_artifacts_max_reasonable_fragment_length: filter_alignment_artifacts_max_reasonable_fragment_length,
+        hard_filter_min_base_quality: hard_filter_min_base_quality,
+        hard_filter_min_mapping_quality: hard_filter_min_mapping_quality,
+        hard_filter_min_fragment_length: hard_filter_min_fragment_length,
+        hard_filter_min_total_depth: hard_filter_min_total_depth,
+        hard_filter_min_total_alt_count: hard_filter_min_total_alt_count,
+        hard_filter_min_position_from_end_of_read: hard_filter_min_position_from_end_of_read,
+        hard_filter_min_read_orientation_quality: hard_filter_min_read_orientation_quality,
+        hard_filter_germline_min_population_af: hard_filter_germline_min_population_af,
         hard_filter_expressions: hard_filter_expressions,
         hard_filter_names: hard_filter_names,
         somatic_filter_whitelist: somatic_filter_whitelist,

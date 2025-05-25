@@ -28,7 +28,7 @@ workflow ModelSegments {
         if (defined(sample.allelic_pileup_summaries)) {
             call PileupToAllelicCounts {
                 input:
-                    script = args.pileup_to_allelic_counts_script,
+                    script = args.script_pileup_to_allelic_counts,
                     ref_dict = args.files.ref_dict,
                     pileup = sample.allelic_pileup_summaries,
                     gvcf = gvcf,
@@ -288,8 +288,9 @@ task ModelSegmentsTask {
     command <<<
         set -e
 
-        # The cost function should scale with the number of samples, though it
-        # doesn't. This empirical scaling seems to be good.
+        # The cost function should scale linearly with the number of samples.
+        # To avoid under-segmentation for low sample numbers, we provide a slight
+        # sub-linear scaling.
         penalty_factor=$(awk 'BEGIN { print ~{num_samples} - log(~{num_samples}) / ~{num_samples}  }')
 
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}

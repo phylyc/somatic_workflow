@@ -119,8 +119,9 @@ workflow DefinePatient {
     }
     Array[SequencingRun] seqruns_dsr = DefineSequencingRun.sequencing_run
 
-    if (defined(annotated_target_intervals)) {
-        scatter (pair in zip(seqruns_dsr, select_first([annotated_target_intervals, []]))) {
+    Array[File] ati = select_first([annotated_target_intervals, []])
+    if (length(ati) > 0) {
+        scatter (pair in zip(seqruns_dsr, ati)) {
             call seq_run.UpdateSequencingRun as UpdateAnnotatedTargetIntervals {
                 input:
                     sequencing_run = pair.left,
@@ -130,8 +131,9 @@ workflow DefinePatient {
     }
     Array[SequencingRun] seqruns_ati = select_first([UpdateAnnotatedTargetIntervals.updated_sequencing_run, seqruns_dsr])
 
-    if (defined(cnv_panel_of_normals)) {
-        scatter (pair in zip(seqruns_ati, select_first([cnv_panel_of_normals, []]))) {
+    Array[File] cpon = select_first([cnv_panel_of_normals, []])
+    if (length(cpon) > 0) {
+        scatter (pair in zip(seqruns_ati, cpon)) {
             if (size(pair.right) > 0) {
                 # For some sequencing platforms a panel of normals may not be available.
                 # The denoise read counts task will then just use the anntated target
@@ -148,8 +150,9 @@ workflow DefinePatient {
     }
     Array[SequencingRun] seqruns_cpn = select_first([UpdateCnvPanelOfNormals.updated_sequencing_run, seqruns_ati])
 
-    if (defined(is_paired_end)) {
-        scatter (pair in zip(seqruns_cpn, select_first([is_paired_end, []]))) {
+    Array[Boolean] ipe = select_first([is_paired_end, []])
+    if (length(ipe) > 0) {
+        scatter (pair in zip(seqruns_cpn, ipe)) {
             call seq_run.UpdateSequencingRun as UpdateIsPairedEnd {
                 input:
                     sequencing_run = pair.left,
@@ -159,8 +162,9 @@ workflow DefinePatient {
     }
     Array[SequencingRun] seqruns_ipe = select_first([UpdateIsPairedEnd.updated_sequencing_run, seqruns_cpn])
 
-    if (defined(use_for_tCR)) {
-        scatter (pair in zip(seqruns_ipe, select_first([use_for_tCR, []]))) {
+    Array[Boolean] utcr = select_first([use_for_tCR, []])
+    if (length(utcr) > 0) {
+        scatter (pair in zip(seqruns_ipe, utcr)) {
             call seq_run.UpdateSequencingRun as UpdateUseForDCR {
                 input:
                     sequencing_run = pair.left,
@@ -168,10 +172,11 @@ workflow DefinePatient {
             }
         }
     }
-    Array[SequencingRun] seqruns_udcr = select_first([UpdateUseForDCR.updated_sequencing_run, seqruns_ipe])
+    Array[SequencingRun] seqruns_utcr = select_first([UpdateUseForDCR.updated_sequencing_run, seqruns_ipe])
 
-    if (defined(use_for_aCR)) {
-        scatter (pair in zip(seqruns_udcr, select_first([use_for_aCR, []]))) {
+    Array[Boolean] uacr = select_first([use_for_aCR, []])
+    if (length(uacr) > 0) {
+        scatter (pair in zip(seqruns_utcr, uacr)) {
             call seq_run.UpdateSequencingRun as UpdateUseForACR {
                 input:
                     sequencing_run = pair.left,
@@ -179,10 +184,11 @@ workflow DefinePatient {
             }
         }
     }
-    Array[SequencingRun] seqruns_uacr = select_first([UpdateUseForACR.updated_sequencing_run, seqruns_udcr])
+    Array[SequencingRun] seqruns_uacr = select_first([UpdateUseForACR.updated_sequencing_run, seqruns_utcr])
 
-    if (defined(sample_names)) {
-        scatter (pair in zip(seqruns_uacr, select_first([sample_names, []]))) {
+    Array[String] sn = select_first([sample_names, []])
+    if (length(sn) > 0) {
+        scatter (pair in zip(seqruns_uacr, sn)) {
             call seq_run.UpdateSequencingRun as UpdateSampleName {
                 input:
                     sequencing_run = pair.left,
@@ -324,8 +330,9 @@ workflow DefinePatient {
         Array[SequencingRun] seqruns = sample.sequencing_runs
     }
 
-    if (defined(callable_loci)) {
-        scatter (sample_pair in zip(seqruns, select_first([callable_loci, []]))) {
+    Array[Array[File]] cl = select_first([callable_loci, [[]]])
+    if (length(flatten(cl)) > 0) {
+        scatter (sample_pair in zip(seqruns, cl)) {
             scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
                 call seq_run.UpdateSequencingRun as UpdateCallableLoci {
                     input:
@@ -337,8 +344,9 @@ workflow DefinePatient {
     }
     Array[Array[SequencingRun]] cl_seqrun = select_first([UpdateCallableLoci.updated_sequencing_run, seqruns])
 
-    if (defined(total_read_counts)) {
-        scatter (sample_pair in zip(cl_seqrun, select_first([total_read_counts, []]))) {
+    Array[Array[File]] trc = select_first([total_read_counts, [[]]])
+    if (length(flatten(trc)) > 0) {
+        scatter (sample_pair in zip(cl_seqrun, trc)) {
             scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
                 call seq_run.UpdateSequencingRun as UpdateTotalReadCounts {
                     input:
@@ -350,8 +358,9 @@ workflow DefinePatient {
     }
     Array[Array[SequencingRun]] trc_seqrun = select_first([UpdateTotalReadCounts.updated_sequencing_run, cl_seqrun])
 
-    if (defined(denoised_total_copy_ratios)) {
-        scatter (sample_pair in zip(trc_seqrun, select_first([denoised_total_copy_ratios, []]))) {
+    Array[Array[File]] dtcr = select_first([denoised_total_copy_ratios, [[]]])
+    if (length(flatten(dtcr)) > 0) {
+        scatter (sample_pair in zip(trc_seqrun, dtcr)) {
             scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
                 call seq_run.UpdateSequencingRun as UpdateDenoisedTotalCopyRatios {
                     input:
@@ -363,8 +372,9 @@ workflow DefinePatient {
     }
     Array[Array[SequencingRun]] dtcr_seqrun = select_first([UpdateDenoisedTotalCopyRatios.updated_sequencing_run, trc_seqrun])
 
-    if (defined(snppanel_allelic_pileup_summaries)) {
-        scatter (sample_pair in zip(dtcr_seqrun, select_first([snppanel_allelic_pileup_summaries, []]))) {
+    Array[Array[File]] sap = select_first([snppanel_allelic_pileup_summaries, [[]]])
+    if (length(flatten(sap)) > 0) {
+        scatter (sample_pair in zip(dtcr_seqrun, sap)) {
             scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
                 call seq_run.UpdateSequencingRun as UpdateSnppanelAllelicPileupSummaries {
                     input:

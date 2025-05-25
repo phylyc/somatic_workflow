@@ -75,7 +75,7 @@ workflow SNVWorkflow {
                 call hs.MergeAllelicCounts as MergeGermlineAllelicCounts {
                     input:
                         ref_dict = args.files.ref_dict,
-                        script = args.merge_pileups_script,
+                        script = args.script_merge_pileups,
                         sample_names = flatten([sample_names, sample_names]),
                         allelic_counts = select_all(flatten([allelic_pileup_summaries, GermlineVariantsNotInResource.pileups])),
                         compress_output = args.compress_output,

@@ -25,7 +25,7 @@ workflow FilterSegments {
         Sample matched_normal_sample = select_first([patient.matched_normal_sample])
         call FilterGermlineCNVs {
             input:
-                script = args.harmonize_copy_ratios_script,
+                script = args.script_harmonize_copy_ratios,
                 sample_names = sample_names,
                 normal_sample = matched_normal_sample.name,
                 copy_ratios = copy_ratios,

@@ -19,6 +19,7 @@ workflow Output {
         Array[File] out_total_read_counts = select_all(trc)
         Array[File] out_denoised_total_copy_ratios = select_all(dtcr)
         Array[File] out_snppanel_allelic_pileup_summaries = select_all(saps)
+        String sample_name = sample.name
         File? out_harmonized_callable_loci = sample.harmonized_callable_loci
         File? out_harmonized_denoised_total_copy_ratios = sample.harmonized_denoised_total_copy_ratios
         File? out_harmonized_snppanel_allelic_pileup_summaries = sample.harmonized_snppanel_allelic_pileup_summaries
@@ -177,6 +178,7 @@ workflow Output {
 
         # for each sample:
         # CACHE (as returned by the workflow)
+        Array[String]? sample_names_ordered = sample_name
         Array[File]? harmonized_callable_loci = hcl_out
         Array[File]? harmonized_denoised_total_copy_ratios = hdtrc_out
         Array[File]? harmonized_snppanel_allelic_pileup_summaries = haps_out

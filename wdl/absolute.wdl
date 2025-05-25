@@ -29,6 +29,7 @@ workflow Absolute {
             script = acs_conversion_script,
             seg_final = copy_ratio_segmentation,
             af_model_parameters = af_model_parameters,
+            sex = sex,
             min_hets = min_hets,
             min_probes = min_probes,
             maf90_threshold = maf90_threshold,
@@ -90,6 +91,7 @@ task ModelSegmentsToACSConversion {
 
         File seg_final
         File af_model_parameters
+        String? sex
 
         Int min_hets = 10
         Int min_probes = 4
@@ -113,6 +115,7 @@ task ModelSegmentsToACSConversion {
             --min_hets ~{min_hets} \
             --min_probes ~{min_probes} \
             --maf90_threshold ~{maf90_threshold} \
+            ~{"--sex " + sex} \
             --verbose
     >>>
 

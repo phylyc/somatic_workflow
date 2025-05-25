@@ -23,12 +23,12 @@ def parse_args():
         prog="Genotyper",
         description="""
             Genotyper is a script that calculates genotype likelihoods from allelic counts, 
-            while accounting for potential sample contamination and segment-specific minor 
-            allele fractions. It leverages allelic pileup data (from GATK GetPileupSummaries), 
-            allelic segmentation data (from GATK CalculateContamination), and contamination 
-            estimates (from GATK CalculateContamination), to compute genotype likelihoods 
-            under either a beta-binomial model. The script computes variant 
-            genotype correlations across samples as a consistency check.
+            while accounting for potential sample contamination, reference bias, and  
+            segment-specific minor allele fractions. It leverages allelic pileup data 
+            (from GATK GetPileupSummaries), allelic segmentation data (from GATK CalculateContamination
+            or GATK ModelSegments), and contamination estimates (from GATK CalculateContamination), 
+            to compute genotype likelihoods under a beta-binomial model. The script 
+            computes variant genotype correlations across samples as a consistency check.
 
             Outputs include:
                 1) A VCF with genotype information for each patient,
@@ -92,8 +92,10 @@ def main():
         pileup=args.pileup,
         contamination=args.contamination,
         segments=args.segments,
+        af_model_parameters=args.af_model_parameters,
         min_allele_frequency=args.min_allele_frequency,
         min_read_depth=args.min_read_depth,
+        default_ref_bias=args.ref_bias,
         verbose=args.verbose
     )
     data.deduplicate_samples()
@@ -266,7 +268,7 @@ class Segments(object):
                     1 / (2 * 2 ** self.df["LOG2_COPY_RATIO_POSTERIOR_50"]),
                 )
                 self.df["minor_allele_fraction"] = self.df["minor_allele_fraction"].where(
-                    self.df["minor_allele_fraction"] > 0.5,
+                    self.df["minor_allele_fraction"] < 0.5,
                     1 - self.df["minor_allele_fraction"]
                 )
                 self.df = self.df[self.columns]
@@ -284,6 +286,43 @@ class Segments(object):
                     self.bam_sample_name = segments_header.removeprefix("#<METADATA>SAMPLE=")
                 elif segments_header.startswith("@RG"):
                     self.bam_sample_name = [c.removeprefix("SM:") for c in segments_header.split("\t") if c.startswith("SM:")][0]
+
+
+class AFParameters(object):
+    """
+    Represents allelic fraction data from a specified file. (E.g. output of GATK ModelSegments.)
+
+    Attributes:
+        file_path (str): Path to the contamination file.
+        keys (list of str): Keys representing the contamination data fields.
+        dict (dict): Dictionary containing contamination data.
+        ref_bias (float): reference bias value lambda in f_obs = f / (f + (1 - f) * lambda)
+        ref_bias_var (float): variance of reference bias posterior distribution
+        outlier_probability (float): prior likelihood that a given locus is an outlier.
+
+    Args:
+        file_path (str): Path to the allelic fraction parameters file.
+    """
+    def __init__(self, file_path: str = None, default_ref_bias: float = 1):
+        self.file_path = file_path
+        self.keys = ["MEAN_BIAS", "BIAS_VARIANCE", "OUTLIER_PROBABILITY"]
+        default_dict = {key: default for key, default in zip(self.keys, [default_ref_bias, 0, 0])}
+        try:
+            self.dict = (
+                pd.read_csv(file_path, sep="\t", comment="@", low_memory=False).set_index("PARAMETER_NAME")["POSTERIOR_50"].to_dict()
+                if file_path is not None
+                else default_dict
+            )
+        except Exception as e:
+            warnings.warn(f"Exception reading contamination file {file_path}: {e}")
+            warnings.warn(f"Setting af model parameters to default dictionary.")
+            self.dict = default_dict
+        self.ref_bias = self.dict["MEAN_BIAS"]
+        self.ref_bias_var = self.dict["BIAS_VARIANCE"]
+        # The outlier probability is not used for this model since the outlier
+        # emissions and their priors are fundamentally different. The model here
+        # uses population allele frequency priors per locus.
+        self.outlier_probability = self.dict["OUTLIER_PROBABILITY"]
 
 
 def cross_check_sample_name(*args) -> str:
@@ -559,7 +598,7 @@ class Genotyper(object):
             ploidy["Y"] = 1
 
         # Handle cases with XXY, etc. We only need to count up to ploidy 2 as this
-        # differentiates the existence or absence of HETs.
+        # differentiates the presence or absence of HETs.
         if "XX" in sex:
             ploidy["X"] = 2
         elif "X" in sex:
@@ -606,7 +645,7 @@ class Genotyper(object):
         total = likelihoods[genotypes].sum(axis=1)
         return likelihoods.loc[likelihoods[genotypes].max(axis=1) >= self.min_genotype_likelihood * total]
 
-    def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, contamination: float = 0.001, segments: pd.DataFrame = None) -> pd.DataFrame:
+    def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, contamination: float = 0.001, segments: pd.DataFrame = None, ref_bias: float = 1) -> pd.DataFrame:
         """
         Calculates genotype likelihoods for given pileup data, and optional allelic copy ratio segmentation, and contamination estimate.
 
@@ -614,6 +653,7 @@ class Genotyper(object):
             pileup (pd.DataFrame): DataFrame containing pileup data.
             contamination (float, optional): Contamination level to consider in calculations.
             segments (pd.DataFrame, optional): DataFrame containing segmentation data.
+            ref_bias (float, optional): Bias for observing the reference allele over the alternate allele.
 
         Returns:
             pd.DataFrame: DataFrame with genotype likelihoods for each genomic position.
@@ -641,6 +681,7 @@ class Genotyper(object):
                         pileup=seg_pileup,
                         minor_af=seg["minor_allele_fraction"],
                         contamination=contamination,
+                        ref_bias=ref_bias,
                         error=error
                     )
                 )
@@ -650,6 +691,7 @@ class Genotyper(object):
                 self.calculate_genotype_likelihoods_per_segment(
                     pileup=seg_pileup,
                     contamination=contamination,
+                    ref_bias=ref_bias,
                     error=error
                 )
             )
@@ -669,7 +711,7 @@ class Genotyper(object):
         )
         return genotype_likelihoods
 
-    def calculate_genotype_likelihoods_per_segment(self, pileup: pd.DataFrame, minor_af: float = 0.47, contamination: float = 0.001, error: float = 0.01) -> pd.DataFrame:
+    def calculate_genotype_likelihoods_per_segment(self, pileup: pd.DataFrame, minor_af: float = 0.47, contamination: float = 0.001, ref_bias: float = 1, error: float = 0.01) -> pd.DataFrame:
         """
         Calculates genotype likelihoods for a specific segment of pileup data.
         https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3167057/
@@ -683,6 +725,7 @@ class Genotyper(object):
             pileup (pd.DataFrame): DataFrame containing pileup data for the segment.
             minor_af (float, optional): Minor allele fraction, default is 0.5.
             contamination (float, optional): Level of contamination to consider in the calculation.
+            ref_bias (float, optional): Bias for observing the reference allele over the alternate allele.
             error (float, optional): Error probability to be used in the calculation.
 
         Returns:
@@ -692,15 +735,15 @@ class Genotyper(object):
         contig = pileup["contig"]
         n = pileup[["ref_count", "alt_count"]].sum(axis=1)
         alt = pileup["alt_count"]
-        f = pileup["allele_frequency"]  # population allele frequency from SNP panel
+        popaf = pileup["allele_frequency"]  # population allele frequency from SNP panel
 
         def bias(_f):
             return _f / (_f + (1 - _f) * self.ref_bias)
 
-        f_aa = contamination * f + (1 - contamination) * error / 3
-        f_bb = contamination * f + (1 - contamination) * (1 - error)
-        f_ab = bias(contamination * f + (1 - contamination) * minor_af)
-        f_ba = bias(contamination * f + (1 - contamination) * (1 - minor_af))
+        f_aa = contamination * popaf + (1 - contamination) * error / 3
+        f_bb = contamination * popaf + (1 - contamination) * (1 - error)
+        f_ab = bias(contamination * popaf + (1 - contamination) * minor_af)
+        f_ba = bias(contamination * popaf + (1 - contamination) * (1 - minor_af))
 
         # include probability from seq error assuming error rate for alt>ref == ref>alt
         f_ab = f_ab * (1 - error) + (1 - f_ab) * error
@@ -722,8 +765,8 @@ class Genotyper(object):
         # Prior probabilities of genotypes:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
-            log1f = np.log1p(-f)
-            logf = np.log(f)
+            log1f = np.log1p(-popaf)
+            logf = np.log(popaf)
 
             outlier = logo + 2 * log1f + st.betabinom(n, 1, 1).logpmf(alt)  # max entropy
             aa = log_p0_prior + log1o + 2 * log1f + st.binom(n, f_aa).logpmf(alt)
@@ -852,7 +895,7 @@ class GenotypeData(object):
         min_read_depth (int, optional): Minimum read depth threshold for filtering data.
     """
 
-    def __init__(self, individual_id: str, samples: list[str], variant: list[str] = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, min_read_depth: int = 0, min_allele_frequency: float = 0, verbose: bool = False):
+    def __init__(self, individual_id: str, samples: list[str], variant: list[str] = None, pileup: list[str] = None, contamination: list[str] = None, segments: list[str] = None, af_model_parameters: list[str] = None, min_read_depth: int = 0, min_allele_frequency: float = 0, default_ref_bias: float = 1, verbose: bool = False):
         self.verbose = verbose
         message("Loading data:") if verbose else None
         self.individual_id = individual_id
@@ -877,6 +920,12 @@ class GenotypeData(object):
             [Segments()] * len(samples)
             if segments is None
             else [Segments(file_path=s) for s in segments]
+        )
+        print("  AF Model Parameters") if verbose else None
+        self.af_parameters = (
+            [AFParameters(default_ref_bias=default_ref_bias)] * len(samples)
+            if af_model_parameters is None
+            else [AFParameters(file_path=a, default_ref_bias=default_ref_bias) for a in af_model_parameters]
         )
         print() if verbose else None
 
@@ -940,12 +989,13 @@ class GenotypeData(object):
             p.df = p.df.loc[mask]
             message(f"Subset pileups for {s} to {p.df.shape[0]}/{n_loci}.")
 
-    def get_pileup_likelihood(self, genotyper: Genotyper, assigned_sample_name: str, pileup: Pileup, contamination: Contamination, segments: Segments) -> PileupLikelihood:
+    def get_pileup_likelihood(self, genotyper: Genotyper, assigned_sample_name: str, pileup: Pileup, contamination: Contamination, segments: Segments, af_parameters: AFParameters) -> PileupLikelihood:
         pileup_likelihood = PileupLikelihood(
             pileup_likelihood=genotyper.calculate_genotype_likelihoods(
                 pileup=pileup.df,
                 contamination=contamination.value,
                 segments=segments.df,
+                ref_bias=af_parameters.ref_bias
             ),
             assigned_sample_name=assigned_sample_name,
             bam_sample_name=cross_check_sample_name(pileup, contamination, segments)
@@ -962,8 +1012,8 @@ class GenotypeData(object):
                     pileup_likelihoods = pool.starmap(
                         func=self.get_pileup_likelihood,
                         iterable=[
-                            (genotyper, assigned_sample_name, pileup, contamination, segments)
-                            for assigned_sample_name, pileup, contamination, segments in zip(self.samples, self.pileups, self.contaminations, self.segments)
+                            (genotyper, assigned_sample_name, pileup, contamination, segments, af_parameters)
+                            for assigned_sample_name, pileup, contamination, segments, af_parameters in zip(self.samples, self.pileups, self.contaminations, self.segments, self.af_parameters)
                         ]
                     )
                 print() if self.verbose else None
@@ -973,8 +1023,8 @@ class GenotypeData(object):
                 print(f"Error in parallel execution: {e}")
         message("Serial execution over samples: ", end="", flush=True) if self.verbose else None
         pileup_likelihoods = [
-            self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, contamination, segments)
-            for assigned_sample_name, pileup, contamination, segments in zip(self.samples, self.pileups, self.contaminations, self.segments)
+            self.get_pileup_likelihood(genotyper, assigned_sample_name, pileup, contamination, segments, af_parameters)
+            for assigned_sample_name, pileup, contamination, segments, af_parameters in zip(self.samples, self.pileups, self.contaminations, self.segments, self.af_parameters)
         ]
         print("") if self.verbose else None
         return pileup_likelihoods

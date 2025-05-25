@@ -15,7 +15,7 @@ def parse_args():
     )
     parser.usage = "map_to_absolute_copy_number.py [--sample <sample>] --absolute_seg <absolute_seg> --cr_seg <cr_seg> --gvcf <gvcf> --purity <purity> --ploidy <ploidy> --output <output>"
     parser.add_argument("--sample",         type=str,   required=False, help="Sample name.")
-    parser.add_argument("--sex",            type=str,   required=False, help="Patient's sex genotype.")
+    parser.add_argument("--sex",            type=str,   default="XXY",  help="Patient's sex genotype.")
     parser.add_argument("--absolute_seg",   type=str,   required=True,  help="Path to a ABSOLUTE segtab output file.")
     parser.add_argument("--cr_seg",         type=str,   required=True,  help="Path to a ACS segmentation output file.")
     parser.add_argument("--gvcf",           type=str,   required=False, help="Path to a genotyped germline vcf that contains ref and alt allele information for each pileup locus and contains the GT field.")
@@ -31,6 +31,11 @@ def main():
 
 
 def map_to_cn(args):
+    if args.sex in ["Female", "female"]:
+        args.sex = "XX"
+    if args.sex in ["Male", "male"]:
+        args.sex = "XY"
+
     abs_dtypes = {
         "sample": str,
         "Chromosome": str, "Start.bp": int, "End.bp": int,
@@ -79,7 +84,18 @@ def map_to_cn(args):
             f"{args.gvcf}", sep="\t", comment="#", header=None, low_memory=False, names=vcf_columns
         ).astype({"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str})
 
-    seg = pd.concat([abs_seg.drop(columns=["n_probes", "length"]), cr_seg], axis=1).sort_index()
+    seg = pd.concat([abs_seg.drop(columns=["n_probes", "length"]), cr_seg], axis=1).sort_index().reset_index()
+
+    nX = args.sex.count("X")
+    nY = args.sex.count("Y")
+
+    def correct_diploid_assumption(col, log=False):
+        if log:
+            seg.loc[seg["Chromosome"].isin(["X", "chrX"]), col] += np.log2(2 / nX) if nX > 0 else 0
+            seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), col] += np.log2(2 / nY) if nY > 0 else 0
+        else:
+            seg.loc[seg["Chromosome"].isin(["X", "chrX"]), col] *= 2 / nX if nX > 0 else 0
+            seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), col] *= 2 / nY if nY > 0 else 0
 
     if args.sample is None:
         args.sample = seg["Sample"].dropna().unique()[0]
@@ -88,13 +104,15 @@ def map_to_cn(args):
     b = (1 - args.purity) * 2 / D
     delta = args.purity / D
 
-    # rescale copy number
+    # rescale copy number, assuming diploidy
     seg["CN"] = (seg["tau"] - b).clip(lower=0) / delta / 2
+    correct_diploid_assumption(col="CN")
     # correct offset
     diff = seg["CN"].median() - seg["rescaled_total_cn"].median()
     seg["CN"] -= diff
     seg["CN"] = seg["CN"].clip(lower=0)
     seg["CN.sigma"] = seg["sigma.tau"] / delta / 2
+    correct_diploid_assumption(col="CN.sigma")
 
     r_corr = seg[["CN", "rescaled_total_cn"]].corr().loc["CN", "rescaled_total_cn"]
     print(f"Correlation between rescaled total copy number and ABSOLUTE output: {r_corr}")
@@ -132,18 +150,33 @@ def map_to_cn(args):
     c_corr = seg[["corrected_CN", "corrected_total_cn"]].corr().loc["corrected_CN", "corrected_total_cn"]
     print(f"Correlation between corrected total copy number and ABSOLUTE output: {c_corr}")
 
+    # RESCUE SEGMENTS
+    # NOTE: This may (very likely) also "rescue" artifactual homozygous deletions.
+    # If you have a cohort of samples, check for recurrent segment boundaries and
+    # un-rescue segments within boundaries that are shared for >10% of the cohort.
+
     new_segs = seg[["corrected_total_cn", "rescaled_total_cn"]].isna().any(axis=1)
     seg.loc[new_segs, "sample"] = args.sample
     seg.loc[new_segs, "total_copy_ratio"] = seg.loc[new_segs, "tau"] / 2
     seg.loc[new_segs, "copy.ratio"] = seg.loc[new_segs, "tau"] / 2
+    correct_diploid_assumption(col="total_copy_ratio")
+    correct_diploid_assumption(col="copy.ratio")
+
     # seg.loc[new_segs, "hscr.a1"] = seg.loc[new_segs, "tau"] * seg.loc[new_segs, "f"]
     # seg.loc[new_segs, "hscr.a2"] = seg.loc[new_segs, "tau"] * (1 - seg.loc[new_segs, "f"])
     seg.loc[new_segs, "rescaled_total_cn"] = seg.loc[new_segs, "CN"]
+    seg.loc[new_segs, "expected_total_cn"] = seg.loc[new_segs, "CN"]
     seg.loc[new_segs, "corrected_total_cn"] = seg.loc[new_segs, "corrected_CN"]
     seg.loc[new_segs, "modal_total_cn"] = seg.loc[new_segs, "corrected_CN"].round()
-    seg.loc[new_segs, "LOH"] = 1
+    seg.loc[new_segs, "total_HZ"] = (seg.loc[new_segs, "rescaled_total_cn"] == 0).astype(int)
+    # extracted from default settings in the ABSOLUTE package
+    seg.loc[new_segs, "total_amp"] = (seg.loc[new_segs, "rescaled_total_cn"] >= 7).astype(int)
     seg.loc[new_segs, "rescaled.cn.a1"] = 0
     seg.loc[new_segs, "rescaled.cn.a2"] = seg.loc[new_segs, "CN"]
+    seg.loc[new_segs, "LOH"] = ((seg.loc[new_segs, "rescaled.cn.a1"] == 0) | (seg.loc[new_segs, "rescaled.cn.a1"] == 0)).astype(int)
+    seg.loc[new_segs, "HZ"] = ((seg.loc[new_segs, "rescaled.cn.a1"] == 0) & (seg.loc[new_segs, "rescaled.cn.a1"] == 0)).astype(int)
+
+    seg["W"] = seg["length"] / seg["length"].sum()
 
 
     # sample	Chromosome	Start.bp	End.bp	n_probes	length	seg_sigma	W	total_copy_ratio	modal_total_cn	expected_total_cn	total_HZ	total_amp	corrected_total_cn	rescaled_total_cn	bi.allelic	copy.ratio	hscr.a1	hscr.a2	modal.a1	modal.a2	expected.a1	expected.a2	subclonal.a1	subclonal.a2	cancer.cell.frac.a1	ccf.ci95.low.a1	ccf.ci95.high.a1	cancer.cell.frac.a2	ccf.ci95.low.a2	ccf.ci95.high.a2	LOH	HZ	SC_HZ	amp.a1	amp.a2	rescaled.cn.a1	rescaled.cn.a2
@@ -163,16 +196,13 @@ def map_to_cn(args):
         temp_df = temp_df.astype({c: t for c, t in abs_dtypes.items() if c in temp_df.columns})
         return pd.MultiIndex.from_frame(temp_df[index.names])
 
+    seg = seg.set_index(["Chromosome", "Start.bp", "End.bp"])
     seg = seg.reindex(sort_genomic_positions(index=seg.index))
+    seg = seg.reset_index()
+    seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(args.ploidy)
+    correct_diploid_assumption(col="Segment_Mean", log=True)
 
     seg.loc[new_segs].reset_index()[["Chromosome", "Start.bp", "End.bp"]].to_csv(f"{args.outdir}/{args.sample}.rescued_intervals.txt", sep="\t", index=False)
-
-    seg = seg.reset_index()
-
-    seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(args.ploidy)
-    if args.sex in ["XY", "Male"]:
-        seg.loc[seg["Chromosome"].isin(["X", "Y"]), "Segment_Mean"] += 1
-
     seg[abs_seg_cols].to_csv(f"{args.outdir}/{args.sample}.segtab.completed.txt", sep="\t", index=False)
     seg[["sample", "Chromosome", "Start.bp", "End.bp", "Segment_Mean", "rescaled_total_cn"]].to_csv(f"{args.outdir}/{args.sample}.IGV.seg.completed.txt", sep="\t", index=False)
 
