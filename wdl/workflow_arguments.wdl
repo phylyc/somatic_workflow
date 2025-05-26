@@ -234,7 +234,7 @@ workflow DefineWorkflowArguments {
         String funcotator_variant_type = "somatic"  # alternative: germline
         String funcotator_transcript_selection_mode = "CANONICAL"  # GATK default: "CANONICAL"
         Boolean funcotator_prefer_mane_transcripts = true
-        Boolean funcotator_use_gnomad = true
+        Boolean funcotator_use_gnomad = false
         Array[String]? funcotator_data_sources_paths
         Array[String]? funcotator_annotation_defaults
         Array[String]? funcotator_annotation_overrides
