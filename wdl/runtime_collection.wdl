@@ -57,7 +57,7 @@ workflow DefineRuntimeCollection {
     input {
         Int num_bams = 1
 
-        Int scatter_count = 10
+        Int scatter_count = 25
         String gatk_docker = "broadinstitute/gatk:4.6.2.0"
         String mutect1_docker = "vanallenlab/mutect:1.1.6"
         # Needs docker image with bedtools, samtools, and gatk

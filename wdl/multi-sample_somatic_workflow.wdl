@@ -48,7 +48,7 @@ workflow MultiSampleSomaticWorkflow {
         # tumor samples.
         Array[String]? normal_sample_names
 
-        Int scatter_count = 10
+        Int scatter_count = 25
 
         Patient? patient
         WorkflowArguments? args
