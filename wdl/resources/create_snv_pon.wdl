@@ -98,9 +98,9 @@ workflow CreateSNVPanelOfNormals {
                 bais = [normal.right],
                 target_intervals = select_all([args.files.preprocessed_intervals]),
                 scatter_count = scatter_count,
-                args = args,
-                resources = resources,
-                runtime_collection = runtime_collection,
+                input_args = args,
+                input_resources = resources,
+                input_runtime_collection = runtime_collection,
         }
     }
 

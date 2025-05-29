@@ -14,7 +14,7 @@ The workflow is organized into the following main tasks:
 - **1.2 Define Patients**: Define a patient as a set of samples, and each sample as a set of sequencing runs. Sequencing runs are grouped by sample name.
 
 ### 2. Coverage Aggregation
-- **2.1 Callable Loci Collection**: (Coming Soon) 
+- **2.1 Callable Loci Collection**: Collect genomic regions per sample with sufficient coverage for SNV discovery.
 - **2.2 Total Read Count Collection**: Collect total read counts in target intervals and perform denoising of total copy ratios via tangent-normalization.
 - **2.3 Allelic Read Count Collection**: Collect allelic read counts at common germline sites (SNP panel: `common_germline_alleles`).
 - **2.4 Harmonization of Target Intervals and Allelic Counts**: Harmonize target intervals across samples, subset to intersection; merge read count data from multiple sequencing runs per sample.
@@ -43,7 +43,7 @@ Tasks involved in the detection and analysis of copy number variations:
 ### 5. Clonal Analysis
 - **5.1 ABSOLUTE**: Perform per-sample clonal analysis of the identified somatic variants and estimate tumor purity and ploidy.
 - **5.2 ABSOLUTE extraction**: Extract results for one chosen solution (needs manual input).
-  - **5.2a**: Rescue dropped somatic variants.
+  - **5.2a**: Rescue dropped segments.
 - **5.3 PhylogicNDT**: (Coming soon)
 
 Please remember to always review the intermediate results to ensure that the final results are as expected. Inappropriate filtering or parameter settings can lead to misleading output.
@@ -97,9 +97,6 @@ Array[Boolean]? use_sample_for_aCR  # Boolean inputs, ensure correct format!
 # tumor samples. The first sample in this list will be used as the "matched" normal
 # sample. If known, it is recommended to choose the one with the highest coverage.
 Array[String]? normal_sample_names
-
-# 
-Int scatter_count
 ```
 Reference data (Files):
 ```wdl
@@ -121,9 +118,15 @@ File? force_call_alleles_idx
 # sequencing platform(s) of the samples.
 File? snv_panel_of_normals
 File? snv_panel_of_normals_idx
+# Same VCF files in vcf v4.1 format for Mutect1
+File? snv_panel_of_normals_v4_1
+File? snv_panel_of_normals_v4_1_idx
 # VCF file with AF field for annotating / filtering germline alleles (gnomAD).
 File? germline_resource
 File? germline_resource_idx
+# Same VCF files in vcf v4.1 format for Mutect1
+File? germline_resource_v4_1
+File? germline_resource_v4_1_idx
 # VCF file of common biallelic germline alleles (e.g. population allele frequency > 5%) to
 # collect allelic counts at for allelic copy ratio (aCR) and contamination estimation.
 File? common_germline_alleles
@@ -151,6 +154,7 @@ Array[Array[File]]? snppanel_allelic_pileup_summaries = Output.snppanel_allelic_
 
 # for each sample:
 # CACHE (as returned by the workflow)
+Array[String]? sample_names_ordered = Output.sample_names_ordered
 Array[File]? harmonized_callable_loci = Output.harmonized_callable_loci
 Array[File]? harmonized_denoised_total_copy_ratios = Output.harmonized_denoised_total_copy_ratios
 Array[File]? harmonized_snppanel_allelic_pileup_summaries = Output.harmonized_snppanel_allelic_pileup_summaries
@@ -219,12 +223,11 @@ File? modeled_segments = out_patient.modeled_segments
 
 
 ## Important Notes:
-- Up until GATK v4.5.0.0, force-calling alleles led to mis-classification of filtered variants in the same way as [the flag `--genotype-germline-sites` does](https://github.com/broadinstitute/gatk/issues/7391). Use GATK v4.6.0.0 or higher.
-- `use_linked_de_bruijn_graph`, while increasing sensitivity, has trouble calling variants in complex regions. It is strongly recommended (necessary) to use it together with `recover_all_dangling_branches` (both turned on by default).
-- Runtime parameters are optimized for implementations on Google Cloud Platform (GCP) and HPC cluster with SLURM scheduler.
+- Mutect2 `use_linked_de_bruijn_graph`, while increasing sensitivity, has trouble calling variants in complex regions. It is strongly recommended (necessary) to use it together with `recover_all_dangling_branches` (both turned on by default).
+- Runtime parameters are optimized for implementations on Google Cloud Platform (GCP) and HPC cluster with SLURM scheduler and for applications to whole exome sequencing data.
 - For assistance running workflows on GCP or locally, refer to the [GATK tutorial](https://gatk.broadinstitute.org/hc/en-us/articles/360035530952).
 - Access necessary reference and resources bundles via the [GATK Resource Bundle](https://gatk.broadinstitute.org/hc/en-us/articles/360036212652).
 
 ## Software version requirements :
-- **GATK**: Version 4.6.1.0. 
+- **GATK**: Version 4.6.2.0. 
 - **Cromwell**: Tested successfully on version 86.
