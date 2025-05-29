@@ -56,7 +56,8 @@ workflow DefineRuntimeCollection {
     input {
         Int num_bams = 1
 
-        Int scatter_count = 25
+        Int scatter_count_for_variant_calling = 25
+        Int scatter_count_for_pileups = 25
         String gatk_docker = "broadinstitute/gatk:4.6.2.0"
         String mutect1_docker = "vanallenlab/mutect:1.1.6"
         # Needs docker image with bedtools, samtools, and gatk
@@ -131,7 +132,7 @@ workflow DefineRuntimeCollection {
 
         # gatk: GetPileupSummaries
         Int mem_get_pileup_summaries = 2560  # needs at least 2G
-        Int time_get_pileup_summaries = 4500  # 3 d / scatter_count
+        Int time_get_pileup_summaries = 4500  # 3 d / scatter_count_for_pileups
 
         # gatk: GatherPileupSummaries
         Int mem_gather_pileup_summaries = 512  # 64
@@ -208,7 +209,7 @@ workflow DefineRuntimeCollection {
         Int mem_mutect2_base = 3072
         Int mem_mutect2_additional_per_sample = 512
         Int mem_mutect2_overhead = 1024  # needs to be at least 1GB to run decently
-        Int time_mutect2_total = 10000  # 6 d / scatter_count
+        Int time_mutect2_total = 10000  # 6 d / scatter_count_for_variant_calling
         Int preemptible_mutect2 = 1
         Int max_retries_mutect2 = 1
         # disk size is dynamically inferred.
@@ -246,7 +247,7 @@ workflow DefineRuntimeCollection {
         Int cpu_filter_alignment_artifacts = 1
         Int mem_filter_alignment_artifacts_base = 1024
         Int mem_filter_alignment_artifacts_additional_per_sample = 192
-        Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count
+        Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count_for_variant_calling
 
         # gatk: SelectVariants
         Int mem_select_variants = 3072
@@ -444,7 +445,7 @@ workflow DefineRuntimeCollection {
         "cpu": cpu,
         "machine_mem": mem_get_pileup_summaries + mem_machine_overhead,
         "command_mem": mem_get_pileup_summaries,
-        "runtime_minutes": time_startup + ceil(time_get_pileup_summaries / scatter_count),
+        "runtime_minutes": time_startup + ceil(time_get_pileup_summaries / scatter_count_for_pileups),
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -667,7 +668,7 @@ workflow DefineRuntimeCollection {
         "cpu": cpu_mutect1,
         "machine_mem": mem_mutect1_base + mem_mutect1_overhead,
         "command_mem": mem_mutect1_base,
-        "runtime_minutes": time_startup + ceil(time_mutect1_total / scatter_count),
+        "runtime_minutes": time_startup + ceil(time_mutect1_total / scatter_count_for_variant_calling),
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -693,7 +694,7 @@ workflow DefineRuntimeCollection {
         "cpu": cpu_mutect2,
         "machine_mem": mem_mutect2 + mem_mutect2_overhead,
         "command_mem": mem_mutect2,
-        "runtime_minutes": time_startup + ceil(time_mutect2_total / scatter_count),
+        "runtime_minutes": time_startup + ceil(time_mutect2_total / scatter_count_for_variant_calling),
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -798,7 +799,7 @@ workflow DefineRuntimeCollection {
         "cpu": cpu_filter_alignment_artifacts,
         "machine_mem": mem_filter_alignment_artifacts + mem_machine_overhead,
         "command_mem": mem_filter_alignment_artifacts,
-        "runtime_minutes": time_startup + ceil(time_filter_alignment_artifacts_total / scatter_count),
+        "runtime_minutes": time_startup + ceil(time_filter_alignment_artifacts_total / scatter_count_for_variant_calling),
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -824,7 +825,7 @@ workflow DefineRuntimeCollection {
         "cpu": cpu,
         "machine_mem": mem_funcotate + mem_machine_overhead,
         "command_mem": mem_funcotate,
-#        "runtime_minutes": time_startup + if run_variant_anntation_scattered then ceil(time_funcotate / scatter_count) else time_funcotate,
+#        "runtime_minutes": time_startup + if run_variant_anntation_scattered then ceil(time_funcotate / scatter_count_for_variant_calling) else time_funcotate,
         "runtime_minutes": time_startup + time_funcotate,
         "disk": disk,
         "boot_disk_size": boot_disk_size

@@ -39,7 +39,7 @@ workflow CreateSNVPanelOfNormals {
 
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
-            scatter_count = scatter_count,
+            scatter_count_for_variant_calling = scatter_count,
     }
 
     call wfres.DefineWorkflowResources as Files {
@@ -54,7 +54,7 @@ workflow CreateSNVPanelOfNormals {
 
     call wfargs.DefineWorkflowArguments as Parameters {
         input:
-            scatter_count = scatter_count,
+            scatter_count_base_for_variant_calling = scatter_count,
             resources = resources,
 
             run_collect_callable_loci = false,
@@ -97,7 +97,6 @@ workflow CreateSNVPanelOfNormals {
                 bams = [normal.left],
                 bais = [normal.right],
                 target_intervals = select_all([args.files.preprocessed_intervals]),
-                scatter_count = scatter_count,
                 input_args = args,
                 input_resources = resources,
                 input_runtime_collection = runtime_collection,

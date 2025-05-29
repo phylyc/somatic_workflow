@@ -63,8 +63,6 @@ workflow MultiSampleSomaticWorkflow {
         # tumor samples.
         Array[String]? normal_sample_names
 
-        Int scatter_count = 25
-
         Patient? input_patient
         WorkflowArguments? input_args
         WorkflowResources? input_resources
@@ -82,7 +80,6 @@ workflow MultiSampleSomaticWorkflow {
         call rtc.DefineRuntimeCollection as RuntimeParameters {
             input:
                 num_bams = length(bams),
-                scatter_count = scatter_count,
         }
     }
     RuntimeCollection runtime_collection = select_first([input_runtime_collection, RuntimeParameters.rtc])
@@ -95,7 +92,6 @@ workflow MultiSampleSomaticWorkflow {
     if (!defined(input_args)) {
         call wfargs.DefineWorkflowArguments as Parameters {
             input:
-                scatter_count = scatter_count,
                 resources = resources,
                 runtime_collection = runtime_collection,
         }
@@ -117,7 +113,7 @@ workflow MultiSampleSomaticWorkflow {
                 use_for_tCR = use_sample_for_tCR,
                 use_for_aCR = use_sample_for_aCR,
                 normal_sample_names = normal_sample_names,
-                scattered_intervals = args.files.scattered_intervals,
+                scattered_intervals_for_variant_calling = args.files.scattered_intervals_for_variant_calling,
                 runtime_collection = runtime_collection,
         }
     }
@@ -179,7 +175,7 @@ workflow MultiSampleSomaticWorkflow {
                         is_paired_end = sequencing_run.is_paired_end,
                         sample_name = sample.name + ".snppanel",
                         interval_list = sequencing_run.target_intervals,
-                        scattered_interval_list = args.files.scattered_intervals,
+                        scattered_interval_list = args.files.scattered_intervals_for_pileups,
                         variants = args.files.common_germline_alleles,
                         variants_idx = args.files.common_germline_alleles_idx,
                         getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,

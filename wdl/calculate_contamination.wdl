@@ -77,7 +77,7 @@ workflow CalculateContamination {
 
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
-            scatter_count = scatter_count,
+            scatter_count_for_pileups = scatter_count,
             bcftools_docker = bcftools_docker,
             gatk_docker = gatk_docker,
             ubuntu_docker = ubuntu_docker,

@@ -11,7 +11,8 @@ workflow UpdateWorkflowResources {
         File? interval_blacklist
         Array[File]? interval_lists
         File? preprocessed_intervals
-        Array[File]? scattered_intervals
+        Array[File]? scattered_intervals_for_variant_calling
+        Array[File]? scattered_intervals_for_pileups
         File? ref_fasta
         File? ref_fasta_index
         File? ref_dict
@@ -33,7 +34,8 @@ workflow UpdateWorkflowResources {
         interval_blacklist: if (defined(interval_blacklist)) then interval_blacklist else resources.interval_blacklist,
         interval_lists: if (defined(interval_lists)) then interval_lists else resources.interval_lists,
         preprocessed_intervals: if (defined(preprocessed_intervals)) then preprocessed_intervals else resources.preprocessed_intervals,
-        scattered_intervals: if (defined(scattered_intervals)) then scattered_intervals else resources.scattered_intervals,
+        scattered_intervals_for_variant_calling: if (defined(scattered_intervals_for_variant_calling)) then scattered_intervals_for_variant_calling else resources.scattered_intervals_for_variant_calling,
+        scattered_intervals_for_pileups: if (defined(scattered_intervals_for_pileups)) then scattered_intervals_for_pileups else resources.scattered_intervals_for_pileups,
         ref_fasta: if (defined(ref_fasta)) then select_first([ref_fasta]) else resources.ref_fasta,
         ref_fasta_index: if (defined(ref_fasta_index)) then select_first([ref_fasta_index]) else resources.ref_fasta_index,
         ref_dict: if (defined(ref_dict)) then select_first([ref_dict]) else resources.ref_dict,

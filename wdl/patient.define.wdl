@@ -63,7 +63,7 @@ workflow DefinePatient {
 
         # for the patient-level shards:
         # CACHE
-        Array[File]? scattered_intervals
+        Array[File]? scattered_intervals_for_variant_calling
         Array[Int]? skip_shards
         Array[Int]? high_mem_shards
         Array[File]? raw_calls_mutect2_vcf_scattered
@@ -250,8 +250,8 @@ workflow DefinePatient {
     # TODO: This technically has the potential to fail since the Patient object
     # requires Array[Shard] shards to be non-optional! In this workflow this will
     # always be defined though.
-    if (defined(scattered_intervals)) {
-        Array[File] this_scattered_intervals = select_first([scattered_intervals, []])
+    if (defined(scattered_intervals_for_variant_calling)) {
+        Array[File] this_scattered_intervals = select_first([scattered_intervals_for_variant_calling, []])
         scatter (pair in zip(range(length(this_scattered_intervals)), this_scattered_intervals)) {
             # replace by "contain(skip_shards, pair.left)" in future WDL versions
             Array[Int] this_skip_shards = select_first([skip_shards, []])

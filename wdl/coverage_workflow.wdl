@@ -65,7 +65,7 @@ workflow CoverageWorkflow {
                         is_paired_end = sequencing_run.is_paired_end,
                         sample_name = sample.name + ".snppanel",
                         interval_list = sequencing_run.target_intervals,
-                        scattered_interval_list = args.files.scattered_intervals,
+                        scattered_interval_list = args.files.scattered_intervals_for_pileups,
                         variants = args.files.common_germline_alleles,
                         variants_idx = args.files.common_germline_alleles_idx,
                         getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,

@@ -8,7 +8,8 @@ struct WorkflowResources {
     File? interval_blacklist
     Array[File]? interval_lists
     File? preprocessed_intervals
-    Array[File]? scattered_intervals
+    Array[File]? scattered_intervals_for_variant_calling
+    Array[File]? scattered_intervals_for_pileups
 
     # Reference fasta, index, and dictionary files.
     File ref_fasta
@@ -50,7 +51,8 @@ workflow DefineWorkflowResources {
         File? interval_blacklist
         Array[File]? interval_lists
         File? preprocessed_intervals
-        Array[File]? scattered_intervals
+        Array[File]? scattered_intervals_for_variant_calling
+        Array[File]? scattered_intervals_for_pileups
         File? ref_fasta
         File? ref_fasta_index
         File? ref_dict
@@ -78,7 +80,8 @@ workflow DefineWorkflowResources {
         interval_blacklist: interval_blacklist,
         interval_lists: interval_lists,
         preprocessed_intervals: preprocessed_intervals,
-        scattered_intervals: scattered_intervals,
+        scattered_intervals_for_variant_calling: scattered_intervals_for_variant_calling,
+        scattered_intervals_for_pileups: scattered_intervals_for_pileups,
         ref_fasta: select_first([ref_fasta]),
         ref_fasta_index: select_first([ref_fasta_index]),
         ref_dict: select_first([ref_dict]),
