@@ -126,7 +126,7 @@ workflow SNVWorkflow {
                             vcf = select_first([pat.somatic_vcf]),
                             vcf_idx = select_first([pat.somatic_vcf_idx]),
                             num_variants = pat.num_somatic_variants,
-                            individual_id = patient.name,
+                            individual_id = pat.name,
                             tumor_sample_name = sample.name,
                             tumor_bam_name = sample.bam_name,
                             normal_sample_name = matched_normal_sample_name,
