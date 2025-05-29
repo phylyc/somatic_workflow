@@ -73,7 +73,7 @@ workflow CallVariants {
                                 prefix = seq_run.sample_name,
                                 bams = [seq_run.bam],
                                 bais = [seq_run.bai],
-                                runtime_params = runtime_collection.print_reads
+                                runtime_params = runtime_collection.subset_bam_to_shard
                         }
                         call seqrun.UpdateSequencingRun as SeqRunShard {
                             input:

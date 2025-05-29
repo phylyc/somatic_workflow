@@ -32,6 +32,7 @@ struct RuntimeCollection {
     Runtime absolute
     Runtime absolute_extract
     Runtime absolute_extract_postprocess
+    Runtime subset_bam_to_shard
     Runtime mutect1
     Runtime merge_mutect1_forcecall_vcfs
     Runtime mutect2
@@ -41,8 +42,6 @@ struct RuntimeCollection {
     Runtime merge_mutect_stats
     Runtime print_reads
     Runtime filter_variant_calls
-#    Runtime variant_filtration
-#    Runtime left_align_and_trim_variants
     Runtime filter_alignment_artifacts
     Runtime select_variants
     Runtime funcotate
@@ -227,6 +226,10 @@ workflow DefineRuntimeCollection {
         Int time_merge_mutect_stats = 1
 
         # gatk: PrintReads
+        Int mem_subset_bam_to_shard = 2048
+        Int time_subset_bam_to_shard = 60
+
+        # gatk: PrintReads
         Int mem_print_reads = 32768
         Int time_print_reads = 60
 
@@ -238,14 +241,6 @@ workflow DefineRuntimeCollection {
         # gatk: FilterVariantCalls
         Int mem_filter_variant_calls = 1024
         Int time_filter_variant_calls = 800  # 13 h
-
-#        # gatk: VariantFiltration
-#        Int mem_variant_filtration = 512
-#        Int time_variant_filtration = 5
-#
-#        # gatk: LeftAlignAndTrimVariants
-#        Int mem_left_align_and_trim_variants = 1024
-#        Int time_left_align_and_trim_variants = 60
 
         # gatk: FilterAlignmentArtifacts
         Int cpu_filter_alignment_artifacts = 1
@@ -755,6 +750,19 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime subset_bam_to_shard = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_subset_bam_to_shard + mem_machine_overhead,
+        "command_mem": mem_subset_bam_to_shard,
+        "runtime_minutes": time_startup + time_subset_bam_to_shard,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Runtime print_reads = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
@@ -904,6 +912,7 @@ workflow DefineRuntimeCollection {
         "absolute_extract": absolute_extract,
         "absolute_extract_postprocess": absolute_extract_postprocess,
 
+        "subset_bam_to_shard": subset_bam_to_shard,
         "mutect1": mutect1,
         "merge_mutect1_forcecall_vcfs": merge_mutect1_forcecall_vcfs,
         "mutect2": mutect2,
@@ -913,8 +922,6 @@ workflow DefineRuntimeCollection {
         "merge_mutect_stats": merge_mutect_stats,
         "print_reads": print_reads,
         "filter_variant_calls": filter_variant_calls,
-#        "variant_filtration": variant_filtration,
-#        "left_align_and_trim_variants": left_align_and_trim_variants,
         "filter_alignment_artifacts": filter_alignment_artifacts,
         "select_variants": select_variants,
         "funcotate": funcotate,
