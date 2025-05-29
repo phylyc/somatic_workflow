@@ -120,8 +120,8 @@ workflow CoverageWorkflow {
     if (defined(HarmonizeSamples.merged_allelic_counts) && args.run_contamination_model) {
         scatter (sample in ConsensusPatient.updated_patient.samples) {
             if (size(sample.contamination_table) == 0) {
-                if (sample.is_tumor && defined(patient.matched_normal_sample)) {
-                    Sample matched_normal_sample = select_first([patient.matched_normal_sample])
+                if (sample.is_tumor && defined(ConsensusPatient.updated_patient.matched_normal_sample)) {
+                    Sample matched_normal_sample = select_first([ConsensusPatient.updated_patient.matched_normal_sample])
                     File? matched_normal_pileups = matched_normal_sample.harmonized_snppanel_allelic_pileup_summaries
                 }
 
