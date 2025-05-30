@@ -133,7 +133,7 @@ workflow DefineWorkflowArguments {
         String analyst_id = "PH"
 
         Int scatter_count_base_for_variant_calling = 25
-        Int scatter_count_for_pileups = 25
+        Int scatter_count_for_pileups = 1
         Int total_mean_read_depth = 500
         Int total_mean_read_depth_per_scatter = 500
         Int variants_per_scatter = 50
@@ -272,6 +272,7 @@ workflow DefineWorkflowArguments {
         }
     }
 
+    # The shards for variant calling always need to be defined.
     if (!defined(resources.scattered_intervals_for_variant_calling)) {
         Int good_scatter_count = ceil(scatter_count_base_for_variant_calling * (total_mean_read_depth + 1) / (total_mean_read_depth_per_scatter + 1))
         call tasks.SplitIntervals as VariantCallingSplitIntervals {
@@ -286,7 +287,7 @@ workflow DefineWorkflowArguments {
         }
     }
 
-    if (!defined(resources.scattered_intervals_for_pileups) && run_collect_allelic_read_counts) {
+    if (!defined(resources.scattered_intervals_for_pileups) && run_collect_allelic_read_counts && (scatter_count_for_pileups > 1)) {
         call tasks.SplitIntervals as CollectAllelicCountsSplitIntervals {
             input:
                 interval_list = select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),

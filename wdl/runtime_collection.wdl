@@ -57,7 +57,7 @@ workflow DefineRuntimeCollection {
         Int num_bams = 1
 
         Int scatter_count_for_variant_calling = 25
-        Int scatter_count_for_pileups = 25
+        Int scatter_count_for_pileups = 1
         String gatk_docker = "broadinstitute/gatk:4.6.2.0"
         String mutect1_docker = "vanallenlab/mutect:1.1.6"
         # Needs docker image with bedtools, samtools, and gatk
@@ -196,7 +196,7 @@ workflow DefineRuntimeCollection {
         Int mem_mutect1_overhead = 1024
         Int time_mutect1_total = 2880                # 2d
         Int preemptible_mutect1 = 1
-        Int max_retries_mutect1 = 1
+        Int max_retries_mutect1 = 0
         # disk size is dynamically inferred.
 
         # MergeMutect1ForceCallVCFs
@@ -211,7 +211,7 @@ workflow DefineRuntimeCollection {
         Int mem_mutect2_overhead = 1024  # needs to be at least 1GB to run decently
         Int time_mutect2_total = 10000  # 6 d / scatter_count_for_variant_calling
         Int preemptible_mutect2 = 1
-        Int max_retries_mutect2 = 1
+        Int max_retries_mutect2 = 0
         # disk size is dynamically inferred.
 
         # gatk: GatherVCFs
@@ -227,7 +227,10 @@ workflow DefineRuntimeCollection {
         Int time_merge_mutect_stats = 1
 
         # gatk: PrintReads
-        Int mem_subset_bam_to_shard = 2048
+        # This task is highly scattered. 98% of jobs succeed with that mem; for the
+        # rest, use the Retry with more memory feature. If that's not available,
+        # set mem to 2000.
+        Int mem_subset_bam_to_shard = 1024
         Int time_subset_bam_to_shard = 60
 
         # gatk: PrintReads
