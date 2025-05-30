@@ -365,24 +365,25 @@ workflow MultiSampleSomaticWorkflow {
             }
         }
 
+        Patient filtered_snv_patient = select_first([AddGermlineAlleles.updated_patient, FilterVariants.updated_patient])
+
         if (args.run_variant_annotation) {
             # The sample scatter needs to be outside of the call to AnnotateVariants
             # since cromwell shits the bed for piping optional inputs into a nested scatter.
-            Patient pat = select_first([AddGermlineAlleles.updated_patient, FilterVariants.updated_patient])
-            scatter (sample in pat.samples) {
+            scatter (sample in filtered_snv_patient.samples) {
                 if (size(sample.annotated_somatic_variants) == 0) {
-                    if (sample.is_tumor && defined(pat.matched_normal_sample)) {
-                        Sample cnv_matched_normal_sample = select_first([pat.matched_normal_sample])
+                    if (sample.is_tumor && defined(filtered_snv_patient.matched_normal_sample)) {
+                        Sample cnv_matched_normal_sample = select_first([filtered_snv_patient.matched_normal_sample])
                         String? matched_normal_sample_name = cnv_matched_normal_sample.name
                         String? matched_normal_bam_name = cnv_matched_normal_sample.bam_name
                     }
 
                     call av.AnnotateVariants {
                         input:
-                            vcf = select_first([pat.somatic_vcf]),
-                            vcf_idx = select_first([pat.somatic_vcf_idx]),
-                            num_variants = pat.num_somatic_variants,
-                            individual_id = pat.name,
+                            vcf = select_first([filtered_snv_patient.somatic_vcf]),
+                            vcf_idx = select_first([filtered_snv_patient.somatic_vcf_idx]),
+                            num_variants = filtered_snv_patient.num_somatic_variants,
+                            individual_id = filtered_snv_patient.name,
                             tumor_sample_name = sample.name,
                             tumor_bam_name = sample.bam_name,
                             normal_sample_name = matched_normal_sample_name,
@@ -400,7 +401,7 @@ workflow MultiSampleSomaticWorkflow {
 
             call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
                 input:
-                    patient = pat,
+                    patient = filtered_snv_patient,
                     annotated_somatic_variants = annot_som_var,
                     annotated_somatic_variants_idx = annotated_variants_idx,
             }
@@ -580,6 +581,7 @@ workflow MultiSampleSomaticWorkflow {
                         indel_maf = indel_maf,
                         gvcf = clonal_patient.gvcf,
                         genome_build = args.absolute_genome_build,
+                        runtime_collection = runtime_collection
                 }
             }
         }
