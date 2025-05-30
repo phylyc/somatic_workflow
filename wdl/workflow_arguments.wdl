@@ -314,7 +314,7 @@ workflow DefineWorkflowArguments {
         analyst_id: analyst_id,
 
         scatter_count_for_variant_calling: length(select_first([resources.scattered_intervals_for_variant_calling, VariantCallingSplitIntervals.interval_files])),
-        scatter_count_for_pileups: length(select_first([resources.scattered_intervals_for_pileups, CollectAllelicCountsSplitIntervals.interval_files])),
+        scatter_count_for_pileups: length(select_first([resources.scattered_intervals_for_pileups, CollectAllelicCountsSplitIntervals.interval_files, ["ONE"]])),
         variants_per_scatter: variants_per_scatter,
 
         run_collect_callable_loci: run_collect_callable_loci,
