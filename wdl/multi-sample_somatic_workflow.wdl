@@ -4,6 +4,7 @@ import "sequencing_run.wdl" as seqrun
 import "sample.wdl" as s
 import "patient.wdl" as p
 import "patient.define.wdl" as p_def
+import "patient.merge.wdl" as p_merge
 import "patient.update_samples.wdl" as p_update_s
 import "patient.out.wdl" as p_out
 import "workflow_arguments.wdl" as wfargs
@@ -280,16 +281,23 @@ workflow MultiSampleSomaticWorkflow {
     if (args.run_variant_calling) {
         call cv.CallVariants {
             input:
-                patient = snv_patient,
+                patient = patient,
                 args = args,
                 runtime_collection = runtime_collection,
+        }
+
+        # So that the coverage workflow can run in parallel to calling SNVs
+        call p_merge.MergePatients as AddSNVCallsToPatient {
+            input:
+                patient = snv_patient,
+                other = CallVariants.updated_patient
         }
     }
 
     if (args.run_variant_filter) {
         call fv.FilterVariants {
             input:
-                patient = select_first([CallVariants.updated_patient, snv_patient]),
+                patient = select_first([AddSNVCallsToPatient.updated_patient, snv_patient]),
                 args = args,
                 runtime_collection = runtime_collection,
         }
@@ -399,20 +407,20 @@ workflow MultiSampleSomaticWorkflow {
                 Array[File] annotated_variants_idx = select_all(annot_som_var_idx)
             }
 
-            call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
-                input:
-                    patient = filtered_snv_patient,
-                    annotated_somatic_variants = annot_som_var,
-                    annotated_somatic_variants_idx = annotated_variants_idx,
-            }
+            ## Postpone to below, so CNV workflow can run in parallel to Funcotator.
+            #call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
+            #    input:
+            #        patient = filtered_snv_patient,
+            #        annotated_somatic_variants = annot_som_var,
+            #        annotated_somatic_variants_idx = annotated_variants_idx,
+            #}
         }
     }
 
     Patient snv_upated_patient = select_first([
-        AddAnnotatedVariantsToSamples.updated_patient,
-        AddGermlineAlleles.updated_patient,
-        FilterVariants.updated_patient,
-        CallVariants.updated_patient,
+        # AddAnnotatedVariantsToSamples.updated_patient,
+        filtered_snv_patient,
+        AddSNVCallsToPatient.updated_patient,
         snv_patient
     ])
 
@@ -525,7 +533,15 @@ workflow MultiSampleSomaticWorkflow {
 
     # todo: FuncotateSegments
 
-    Patient cnv_updated_patient = select_first([ModelSegments.updated_patient, AddGVCFtoPatient.updated_patient, cnv_patient])
+    # Only update here so Funcotator can run in parallel to CNV workflow.
+    call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
+        input:
+            patient = select_first([ModelSegments.updated_patient, AddGVCFtoPatient.updated_patient, cnv_patient]),
+            annotated_somatic_variants = annot_som_var,
+            annotated_somatic_variants_idx = annotated_variants_idx,
+    }
+
+    Patient cnv_updated_patient = AddAnnotatedVariantsToSamples.updated_patient
 
 
 ###############################################################################
