@@ -227,10 +227,7 @@ workflow DefineRuntimeCollection {
         Int time_merge_mutect_stats = 1
 
         # gatk: PrintReads
-        # This task is highly scattered. 98% of jobs succeed with that mem; for the
-        # rest, use the Retry with more memory feature. If that's not available,
-        # set mem to 2000.
-        Int mem_subset_bam_to_shard = 1024
+        Int mem_subset_bam_to_shard = 512
         Int time_subset_bam_to_shard = 60
 
         # gatk: PrintReads
