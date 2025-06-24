@@ -751,7 +751,7 @@ task PrintReads {
             ~{"-L '" + vcf + "'"}
         
         # ReorderSam: Subset bam contigs to match reference ordering
-        if [ "~{ref_dict}" == "true" ] ; then
+        if [ "~{defined(ref_dict)}" == "true" ] ; then
             gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
                 ReorderSam \
                 -I '~{subset_bam}' \
