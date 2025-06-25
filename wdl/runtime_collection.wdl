@@ -32,6 +32,8 @@ struct RuntimeCollection {
     Runtime absolute
     Runtime absolute_extract
     Runtime absolute_extract_postprocess
+    Runtime create_patient_sif
+    Runtime phylogicndt_task
     Runtime subset_bam_to_shard
     Runtime mutect1
     Runtime merge_mutect1_forcecall_vcfs
@@ -66,6 +68,7 @@ workflow DefineRuntimeCollection {
         String ubuntu_docker = "ubuntu"
         String bcftools_docker = "staphb/bcftools:1.21"  # @sha256:176f4c7c10e57c8c3e2d26f0f105bd680e9ddff65c9e20dd4d3ebff228f17188
         String python_docker = "civisanalytics/datascience-python:8.0.1"  # @sha256:3482b19792546214a6952b369472c9d4d50d60b3a38300127ce346b7bab5fd51
+        String phylogicndt_docker = "" # TODO
         File? gatk_override
         Int preemptible = 1
         Int max_retries = 1
@@ -285,6 +288,14 @@ workflow DefineRuntimeCollection {
         # AbsoluteExtractPostprocess
         Int mem_absolute_extract_postprocess = 2048
         Int time_absolute_extract_postprocess = 10
+        
+        # CreatePatientSIF
+        Int mem_create_patient_sif = 1024
+        Int time_create_patient_sif = 10
+
+        # PhylogicNDTTask
+        Int mem_phylogicndt_task = 2048
+        Int time_phylogicndt_task = 720  # 12 h
 
         #######################################################################
         ### Assorted
@@ -661,6 +672,30 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime create_patient_sif = {
+        "docker": python_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_create_patient_sif + mem_machine_overhead,
+        "command_mem": mem_create_patient_sif,
+        "runtime_minutes": time_startup + time_create_patient_sif,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime phylogicndt_task = {
+        "docker": phylogicndt_docker, # TODO:
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_phylogicndt_task + mem_machine_overhead,
+        "command_mem": mem_phylogicndt_task,
+        "runtime_minutes": time_startup + time_phylogicndt_task,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Runtime mutect1 = {
         "docker": mutect1_docker,
         "preemptible": preemptible_mutect1,
@@ -912,6 +947,8 @@ workflow DefineRuntimeCollection {
         "absolute": absolute,
         "absolute_extract": absolute_extract,
         "absolute_extract_postprocess": absolute_extract_postprocess,
+        "create_patient_sif": create_patient_sif,
+        "phylogicndt_task": phylogicndt_task,
 
         "subset_bam_to_shard": subset_bam_to_shard,
         "mutect1": mutect1,
