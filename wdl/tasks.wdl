@@ -758,6 +758,10 @@ task PrintReads {
                 -O '~{output_file}' \
                 -SD '~{ref_dict}' \
                 --CREATE_INDEX true
+        else
+            mv '~{subset_bam}' '~{output_file}'
+            mv '~{subset_bai}' '~{output_index}'
+        fi
     >>>
 
     output {
