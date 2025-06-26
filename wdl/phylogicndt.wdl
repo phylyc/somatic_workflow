@@ -69,13 +69,13 @@ task PhylogicNDTTask {
         set -e
         wget -O create_patient_sif.py ~{script}
 
-        # python3?
-        python create_patient_sif.py \
+        # python3
+        python3 create_patient_sif.py \
             --patient_id '~{patient_id}' \
             --absolute_maf ~{sep=" " squote(absolute_maf)} \
-            ~{if defined(absolute_segtab) then "--absolute_segtab " + sep=" " + squote(absolute_segtab) else ""} \
+            ~{if defined(absolute_segtab) then "--absolute_segtab '" else ""}~{default="" sep="' '" absolute_segtab}~{if defined(absolute_segtab) then "'" else ""} \
             --absolute_purity ~{sep=" " absolute_purity} \
-            ~{if defined(timepoints) then "--timepoints " + sep=" " timepoints else ""} \
+            ~{if defined(timepoints) then "--timepoints " else ""}~{default="" sep=" " timepoints} \
             --outfile '~{sif_file}'
 
         # python2
