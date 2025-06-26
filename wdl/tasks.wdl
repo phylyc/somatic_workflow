@@ -726,6 +726,9 @@ task PrintReads {
         Runtime runtime_params
     }
 
+    String subset_bam = prefix + ".subset.bam"
+    String subset_bai = prefix + ".subset.bai"
+
     String output_file = prefix + ".bam"
     String output_index = prefix + ".bai"
 
@@ -736,14 +739,29 @@ task PrintReads {
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+
+        # PrintReads: to subset bam to interval_list
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             PrintReads \
             ~{sep="' " prefix("-I '", bams)}' \
             ~{sep="' " prefix("--read-index '", bais)}' \
-            -O '~{output_file}' \
+            -O '~{subset_bam}' \
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-L '" + interval_list + "'"} \
             ~{"-L '" + vcf + "'"}
+        
+        # ReorderSam: Subset bam contigs to match reference ordering
+        if [ "~{defined(ref_dict)}" == "true" ] ; then
+            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+                ReorderSam \
+                -I '~{subset_bam}' \
+                -O '~{output_file}' \
+                -SD '~{ref_dict}' \
+                --CREATE_INDEX true
+        else
+            mv '~{subset_bam}' '~{output_file}'
+            mv '~{subset_bai}' '~{output_index}'
+        fi
     >>>
 
     output {
