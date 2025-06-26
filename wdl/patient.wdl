@@ -42,6 +42,16 @@ struct Patient {
     File? snp_sample_correlation
     Float? snp_sample_correlation_min
     File? modeled_segments
+
+    # File? phylogic_cnvs
+    # File? phylogic_mut_ccfs
+    # File? phylogic_unclustered
+    # File? phylogic_cluster_ccfs
+    # File? phylogic_report
+    # File? phylogic_cell_population_abundances
+    # File? phylogic_cell_population_mcmc_trace
+    # File? phylogic_constrained_ccf
+    # File? phylogic_build_tree_posteriors
 }
 
 
@@ -84,6 +94,16 @@ workflow UpdatePatient {
         File? snp_sample_correlation
         Float? snp_sample_correlation_min
         File? modeled_segments
+
+        # File? phylogic_cnvs
+        # File? phylogic_mut_ccfs
+        # File? phylogic_unclustered
+        # File? phylogic_cluster_ccfs
+        # File? phylogic_report
+        # File? phylogic_cell_population_abundances
+        # File? phylogic_cell_population_mcmc_trace
+        # File? phylogic_constrained_ccf
+        # File? phylogic_build_tree_posteriors
     }
 
     Patient pat = object {
@@ -121,7 +141,17 @@ workflow UpdatePatient {
         snp_other_alt_counts: if defined(snp_other_alt_counts) then snp_other_alt_counts else patient.snp_other_alt_counts,
         snp_sample_correlation: if defined(snp_sample_correlation) then snp_sample_correlation else patient.snp_sample_correlation,
         snp_sample_correlation_min: if defined(snp_sample_correlation_min) then snp_sample_correlation_min else patient.snp_sample_correlation_min,
-        modeled_segments: if defined(modeled_segments) then modeled_segments else patient.modeled_segments
+        modeled_segments: if defined(modeled_segments) then modeled_segments else patient.modeled_segments,
+
+        # phylogic_cnvs: if defined(phylogic_cnvs) then phylogic_cnvs else patient.phylogic_cnvs,
+        # phylogic_mut_ccfs: if defined(phylogic_mut_ccfs) then phylogic_mut_ccfs else patient.phylogic_mut_ccfs,
+        # phylogic_unclustered: if defined(phylogic_unclustered) then phylogic_unclustered else patient.phylogic_unclustered,
+        # phylogic_cluster_ccfs: if defined(phylogic_cluster_ccfs) then phylogic_cluster_ccfs else patient.phylogic_cluster_ccfs,
+        # phylogic_report: if defined(phylogic_report) then phylogic_report else patient.phylogic_report,
+        # phylogic_cell_population_abundances: if defined(phylogic_cell_population_abundances) then phylogic_cell_population_abundances else patient.phylogic_cell_population_abundances,
+        # phylogic_cell_population_mcmc_trace: if defined(phylogic_cell_population_mcmc_trace) then phylogic_cell_population_mcmc_trace else patient.phylogic_cell_population_mcmc_trace,
+        # phylogic_constrained_ccf: if defined(phylogic_constrained_ccf) then phylogic_constrained_ccf else patient.phylogic_constrained_ccf,
+        # phylogic_build_tree_posteriors: if defined(phylogic_build_tree_posteriors) then phylogic_build_tree_posteriors else patient.phylogic_build_tree_posteriors
     }
 
     output {

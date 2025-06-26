@@ -41,6 +41,7 @@ workflow Output {
         File? out_absolute_snv_maf = sample.absolute_snv_maf
         File? out_absolute_indel_maf = sample.absolute_indel_maf
         Int? out_absolute_solution = sample.absolute_solution
+        Int? out_absolute_timepoint = sample.absolute_timepoint
         File? out_absolute_maf = sample.absolute_maf
         File? out_absolute_segtab = sample.absolute_segtab
         File? out_absolute_table = sample.absolute_table
@@ -124,6 +125,9 @@ workflow Output {
     if (length(select_all(out_absolute_solution)) > 0) {
         Array[Int] as_out = select_all(out_absolute_solution)
     }
+    if (length(select_all(out_absolute_timepoint)) > 0) {
+        Array[Int] atp_out = select_all(out_absolute_timepoint)
+    }
     if (length(select_all(out_absolute_maf)) > 0) {
         Array[File] am_out = select_all(out_absolute_maf)
     }
@@ -200,6 +204,7 @@ workflow Output {
         Array[File]? absolute_snv_maf = asm_out
         Array[File]? absolute_indel_maf = aim_out
         Array[Int]? absolute_solution = as_out
+        Array[Int]? absolute_timepoint = atp_out
         Array[File]? absolute_maf = am_out
         Array[File]? absolute_segtab = ast_out
         Array[File]? absolute_table = at_out
