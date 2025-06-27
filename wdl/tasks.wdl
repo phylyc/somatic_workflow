@@ -783,7 +783,7 @@ task PrintReads {
     parameter_meta {
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
-        ref_dict: {localization_optional: true}
+        #ref_dict: {localization_optional: true} # ReorderSam is picard and needs ref_dict to be localized
         interval_list: {localization_optional: true}
         bams: {localization_optional: true}
         bais: {localization_optional: true}
