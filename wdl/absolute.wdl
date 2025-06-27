@@ -224,6 +224,7 @@ task AbsoluteTask {
     String output_mode_tab = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_mode.tab.Rds"
     String output_ssnv_mode_tab = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_SSNV.mode.res.Rds"
 
+    # TODO: deal with -1 purity/ploidy
     command <<<
         # ABSOLUTE may fail for various edge cases, but we still want to capture
         # the output files for all other samples if run within the somatic workflow.
