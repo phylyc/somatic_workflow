@@ -35,6 +35,7 @@ workflow UpdateSamples {
         Array[File]? absolute_table
         Array[Float]? purity
         Array[Float]? ploidy
+        Array[Int]? timepoint
     }
 
     # Update samples:
@@ -374,7 +375,19 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_ploidy = select_first([UpdatePloidy.updated_sample, samples_purity])
 
-    Array[Sample] samples = samples_ploidy
+    Array[Int] timepoint_ = select_first([timepoint, []])
+    if (length(timepoint_) > 0) {
+        scatter (pair in zip(samples_ploidy, timepoint_)) {
+            call s.UpdateSample as UpdateTimepoint {
+                input:
+                    sample = pair.left,
+                    timepoint = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_timepoint = select_first([UpdateTimepoint.updated_sample, samples_ploidy])
+
+    Array[Sample] samples = samples_timepoint
 
     # Select tumor and normal samples:
 

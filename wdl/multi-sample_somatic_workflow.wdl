@@ -40,6 +40,8 @@ workflow MultiSampleSomaticWorkflow {
         # grouped based on the sample name. If the sample name is not provided, it will
         # be inferred from the bam.
         Array[String]? sample_names
+        # Ordinal timepoints of sample collection for phylogenetic inference.
+        Array[Int]? timepoints
         Array[File]+ bams
         Array[File]+ bais
         # For targeted sequencing, the (possibly padded and ideally blacklist-removed)
@@ -106,6 +108,7 @@ workflow MultiSampleSomaticWorkflow {
                 name = patient_id,
                 sex = sex,
                 sample_names = sample_names,
+                timepoints = timepoints,
                 bams = bams,
                 bais = bais,
                 target_intervals = target_intervals,

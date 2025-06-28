@@ -41,12 +41,12 @@ workflow Output {
         File? out_absolute_snv_maf = sample.absolute_snv_maf
         File? out_absolute_indel_maf = sample.absolute_indel_maf
         Int? out_absolute_solution = sample.absolute_solution
-        Int? out_absolute_timepoint = sample.absolute_timepoint
         File? out_absolute_maf = sample.absolute_maf
         File? out_absolute_segtab = sample.absolute_segtab
         File? out_absolute_table = sample.absolute_table
         Float? out_purity = sample.purity
         Float? out_ploidy = sample.ploidy
+        Int? out_timepoint = sample.timepoint
     }
 
     if (length(flatten(out_callable_loci)) > 0) {
@@ -125,9 +125,6 @@ workflow Output {
     if (length(select_all(out_absolute_solution)) > 0) {
         Array[Int] as_out = select_all(out_absolute_solution)
     }
-    if (length(select_all(out_absolute_timepoint)) > 0) {
-        Array[Int] atp_out = select_all(out_absolute_timepoint)
-    }
     if (length(select_all(out_absolute_maf)) > 0) {
         Array[File] am_out = select_all(out_absolute_maf)
     }
@@ -142,6 +139,9 @@ workflow Output {
     }
     if (length(select_all(out_ploidy)) > 0) {
         Array[Float] ploidy_out = select_all(out_ploidy)
+    }
+    if (length(select_all(out_timepoint)) > 0) {
+        Array[Int] timepoint_out = select_all(out_timepoint)
     }
 
     scatter (shard in patient.shards) {
@@ -204,12 +204,12 @@ workflow Output {
         Array[File]? absolute_snv_maf = asm_out
         Array[File]? absolute_indel_maf = aim_out
         Array[Int]? absolute_solution = as_out
-        Array[Int]? absolute_timepoint = atp_out
         Array[File]? absolute_maf = am_out
         Array[File]? absolute_segtab = ast_out
         Array[File]? absolute_table = at_out
         Array[Float]? purity = purity_out
         Array[Float]? ploidy = ploidy_out
+        Array[Int]? timepoint = timepoint_out
 
         # for each shard:
         # CACHE (as returned by the workflow)

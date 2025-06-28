@@ -27,15 +27,15 @@ struct Sample {
     File? annotated_somatic_variants_idx                # GATK Funcotator
     File? absolute_acr_rdata                            # ABSOLUTE
     File? absolute_acr_plot                             # ABSOLUTE
-    File? absolute_snv_maf                             # ABSOLUTE
+    File? absolute_snv_maf                              # ABSOLUTE
     File? absolute_indel_maf                            # ABSOLUTE
     Int? absolute_solution                              # manual
-    Int? absolute_timepoint                             # manual
     File? absolute_maf                                  # ABSOLUTE + Postprocess
     File? absolute_segtab                               # ABSOLUTE + Postprocess
     File? absolute_table                                # ABSOLUTE
     Float? purity                                       # ABSOLUTE
     Float? ploidy                                       # ABSOLUTE
+    Int? timepoint                                      # manual
 }
 
 
@@ -74,6 +74,7 @@ workflow UpdateSample {
         File? absolute_table
         Float? purity
         Float? ploidy
+        Int? timepoint
     }
 
     Sample s = object {
@@ -108,7 +109,8 @@ workflow UpdateSample {
         absolute_segtab: if defined(absolute_segtab) then absolute_segtab else sample.absolute_segtab,
         absolute_table: if defined(absolute_table) then absolute_table else sample.absolute_table,
         purity: if defined(purity) then purity else sample.purity,
-        ploidy: if defined(ploidy) then ploidy else sample.ploidy
+        ploidy: if defined(ploidy) then ploidy else sample.ploidy,
+        timepoint: if defined(timepoint) then timepoint else sample.timepoint
     }
 
     output {

@@ -4,6 +4,7 @@ version development
 struct SequencingRun {
     String name
     String sample_name
+    Int? timepoint
     File bam
     File bai
     File target_intervals
@@ -26,6 +27,7 @@ workflow UpdateSequencingRun {
         SequencingRun sequencing_run
         String? name
         String? sample_name
+        Int? timepoint
         File? bam
         File? bai
         File? target_intervals
@@ -48,6 +50,7 @@ workflow UpdateSequencingRun {
         bai: select_first([bai, sequencing_run.bai]),
         target_intervals: select_first([target_intervals, sequencing_run.target_intervals]),
         # cannot use select_first for optional fields:
+        timepoint: if defined(timepoint) then timepoint else sequencing_run.timepoint,
         annotated_target_intervals: if defined(annotated_target_intervals) then annotated_target_intervals else sequencing_run.annotated_target_intervals,
         cnv_panel_of_normals: if defined(cnv_panel_of_normals) then cnv_panel_of_normals else sequencing_run.cnv_panel_of_normals,
         is_paired_end: if defined(is_paired_end) then is_paired_end else sequencing_run.is_paired_end,
