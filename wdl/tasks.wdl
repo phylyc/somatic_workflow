@@ -823,5 +823,7 @@ task ReorderSam {
         ref_fasta_index: {localization_optional: true}
         # Picard ReorderSam requires ref_dict to be localized
         #ref_dict: {localization_optional: true} 
+        bam: {localization_optional: true}
+        bai: {localization_optional: true}
     }
 }
