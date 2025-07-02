@@ -726,9 +726,6 @@ task PrintReads {
         Runtime runtime_params
     }
 
-    String subset_bam = prefix + ".subset.bam"
-    String subset_bai = prefix + ".subset.bai"
-
     String output_file = prefix + ".bam"
     String output_index = prefix + ".bai"
 
@@ -739,29 +736,14 @@ task PrintReads {
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
-
-        # PrintReads: to subset bam to interval_list
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             PrintReads \
             ~{sep="' " prefix("-I '", bams)}' \
             ~{sep="' " prefix("--read-index '", bais)}' \
-            -O '~{subset_bam}' \
+            -O '~{output_file}' \
             ~{"-R '" + ref_fasta + "'"} \
             ~{"-L '" + interval_list + "'"} \
             ~{"-L '" + vcf + "'"}
-        
-        # ReorderSam: Subset bam contigs to match reference ordering
-        if [ "~{defined(ref_dict)}" == "true" ] ; then
-            gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-                ReorderSam \
-                -I '~{subset_bam}' \
-                -O '~{output_file}' \
-                -SD '~{ref_dict}' \
-                --CREATE_INDEX true
-        else
-            mv '~{subset_bam}' '~{output_file}'
-            mv '~{subset_bai}' '~{output_index}'
-        fi
     >>>
 
     output {
@@ -789,5 +771,57 @@ task PrintReads {
         bais: {localization_optional: true}
         vcf: {localization_optional: true}
         vcf_idx: {localization_optional: true}
+    }
+}
+
+# Ensure ordering of bam contigs are in the same order as ref_dict
+task ReorderSam {
+    input {
+        File? ref_fasta
+        File? ref_fasta_index
+        File ref_dict
+
+        String prefix
+        File bam
+        File bai
+
+        Runtime runtime_params
+    }
+    String reordered_bam = prefix + ".reordered.bam"
+    String reordered_bai = prefix + ".reordered.bai"
+    Int diskGB = runtime_params.disk + ceil(size(bam, "GB") * 2) + ceil(size(ref_dict, "GB"))
+
+    command <<<
+        set -e
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            ReorderSam \
+            -I '~{bam}' \
+            -O '~{reordered_bam}' \
+            -SD '~{ref_dict}' \
+            --CREATE_INDEX true
+    >>>
+
+    output {
+        File reordered_bam = reordered_bam
+        File reordered_bai = reordered_bai
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + diskGB + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        # Picard ReorderSam requires ref_dict to be localized
+        #ref_dict: {localization_optional: true} 
     }
 }

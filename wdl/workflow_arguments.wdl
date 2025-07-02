@@ -15,6 +15,7 @@ struct WorkflowArguments {
     Int scatter_count_for_pileups
     Int variants_per_scatter
 
+    Boolean run_reorder_bam_contigs
     Boolean run_collect_callable_loci
     Boolean run_collect_total_read_counts
     Boolean run_collect_allelic_read_counts
@@ -139,6 +140,7 @@ workflow DefineWorkflowArguments {
         Int variants_per_scatter = 50
 
         # workflow options
+        Boolean run_reorder_bam_contigs = false
         Boolean run_collect_callable_loci = false
         Boolean run_collect_total_read_counts = true
         Boolean run_collect_allelic_read_counts = true
@@ -317,6 +319,7 @@ workflow DefineWorkflowArguments {
         scatter_count_for_pileups: length(select_first([resources.scattered_intervals_for_pileups, CollectAllelicCountsSplitIntervals.interval_files, ["ONE"]])),
         variants_per_scatter: variants_per_scatter,
 
+        run_reorder_bam_contigs: run_reorder_bam_contigs,
         run_collect_callable_loci: run_collect_callable_loci,
         run_collect_total_read_counts: run_collect_total_read_counts,
         run_collect_allelic_read_counts: run_collect_allelic_read_counts,
