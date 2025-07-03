@@ -67,7 +67,7 @@ workflow DefineRuntimeCollection {
         String ubuntu_docker = "ubuntu"
         String bcftools_docker = "staphb/bcftools:1.21"  # @sha256:176f4c7c10e57c8c3e2d26f0f105bd680e9ddff65c9e20dd4d3ebff228f17188
         String python_docker = "civisanalytics/datascience-python:8.0.1"  # @sha256:3482b19792546214a6952b369472c9d4d50d60b3a38300127ce346b7bab5fd51
-        String phylogicndt_docker = "" # TODO
+        String phylogicndt_docker = "gcr.io/broad-getzlab-workflows/phylogicndt:v30" # @sha256:1140b8fef6e5198008b57b5577e4a119fe96bfb0c681b17bcd1716359d4ce346
         File? gatk_override
         Int preemptible = 1
         Int max_retries = 1
@@ -668,7 +668,7 @@ workflow DefineRuntimeCollection {
     }
 
     Runtime phylogicndt_task = {
-        "docker": phylogicndt_docker, # TODO:
+        "docker": phylogicndt_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,

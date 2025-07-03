@@ -73,8 +73,8 @@ task PhylogicNDTTask {
         set -e
         wget -O create_patient_sif.py ~{script}
 
-        # python3
-        python3 create_patient_sif.py \
+        # phylogicndt_docker uses python for Python 3.8.5 
+        python create_patient_sif.py \
             --patient_id '~{patient_id}' \
             ~{if defined(sample_names) then "--sample_names '" else ""}~{default="" sep="' '" sample_names}~{if defined(sample_names) then "'" else ""} \
             --absolute_maf ~{sep=" " squote(absolute_mafs)} \
@@ -83,8 +83,8 @@ task PhylogicNDTTask {
             ~{if defined(timepoints) then "--timepoints " else ""}~{default="" sep=" " timepoints} \
             --outfile '~{sif}'
 
-        # python2
-        python PhylogicNDT.py Cluster \
+        # phylogicndt_docker uses python2 for Python 2.7.18 
+        python2 PhylogicNDT.py Cluster \
             -i '~{patient_id}' \
             -sif '~{sif}' \
             ~{if run_with_BuildTree then "--run_with_BuildTree" else ""}
