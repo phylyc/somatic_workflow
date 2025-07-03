@@ -5,20 +5,25 @@ import os
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--patient_id", required=True)
-    parser.add_argument("--absolute_maf", nargs="+", required=True)
-    parser.add_argument("--absolute_segtab", nargs="*", required=False)
-    parser.add_argument("--absolute_purity", nargs="+", required=True, type=float)
+    parser.add_argument("--sample_names", nargs="*", required=False)
+    parser.add_argument("--absolute_mafs", nargs="+", required=True)
+    parser.add_argument("--absolute_segtabs", nargs="*", required=False)
+    parser.add_argument("--absolute_purities", nargs="+", required=True, type=float)
     parser.add_argument("--timepoints", nargs='*', type=int, required=False, help="Optional explicit timepoint ordering (one per sample)")
     parser.add_argument("--outfile", required=True)
     args = parser.parse_args()
 
-    # Assume sample_id is just the MAF filename minus ".ABS_MAF.txt"
-    sample_ids = [os.path.basename(x).replace(".ABS_MAF.txt", "") for x in args.absolute_maf]
+    # If args.sample_names not provided, assume sample_ids is just the MAF filename minus ".ABS_MAF.txt"
+    # if not args.sample_names:
+    #     sample_ids = [os.path.basename(x).replace(".ABS_MAF.txt", "") for x in args.absolute_mafs]
+    # else:
+    #     sample_ids = args.sample_names
+    sample_ids = [os.path.basename(x).replace(".ABS_MAF.txt", "") for x in args.absolute_mafs] if not args.sample_names else args.sample_names
     n = len(sample_ids)
 
-    maf_fns = args.absolute_maf
-    seg_fns = args.absolute_segtab if args.absolute_segtab else [""] * n
-    purities = args.absolute_purity
+    maf_fns = args.absolute_mafs
+    seg_fns = args.absolute_segtabs if args.absolute_segtabs else [""] * n # Ignore segtabs as our mafs already have local_cn information annotated
+    purities = args.absolute_purities
     timepoints = args.timepoints if args.timepoints else list(range(1, n+1)) # Simple sequential timepoint assignment (can be changed)
 
     if len(maf_fns) != n:

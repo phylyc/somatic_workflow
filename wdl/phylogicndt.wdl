@@ -6,9 +6,10 @@ workflow PhylogicNDT {
     input {
         String patient_id
 
-        Array[File] absolute_maf
-        Array[File]? absolute_segtab
-        Array[Float] absolute_purity
+        Array[String]? sample_names
+        Array[File] absolute_mafs
+        Array[File]? absolute_segtabs
+        Array[Float] absolute_purities
         Array[Int]? timepoints
         Boolean run_with_BuildTree = true
 
@@ -21,16 +22,17 @@ workflow PhylogicNDT {
     call PhylogicNDTTask {
         input:
             patient_id = patient_id,
-            absolute_maf = absolute_maf,
-            absolute_segtab = absolute_segtab,
-            absolute_purity = absolute_purity,
+            sample_names = sample_names,
+            absolute_mafs = absolute_mafs,
+            absolute_segtabs = absolute_segtabs,
+            absolute_purities = absolute_purities,
             timepoints = timepoints,
             run_with_BuildTree = run_with_BuildTree,
             runtime_params = runtime_collection.phylogicndt_task
     }
 
     output {
-        File sif_file = PhylogicNDTTask.sif_file
+        File phylogic_sif_file = PhylogicNDTTask.sif_file
         
         # Outputs from PhylogicNDT Cluster
         Array[File] phylogic_pie_plots = PhylogicNDTTask.pie_plots
@@ -55,15 +57,17 @@ task PhylogicNDTTask {
     input {
         String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/create_patient_sif.py"
         String patient_id
-        Array[File] absolute_maf
-        Array[File]? absolute_segtab
-        Array[Float] absolute_purity
+
+        Array[String]? sample_names
+        Array[File] absolute_mafs
+        Array[File]? absolute_segtabs
+        Array[Float] absolute_purities
         Array[Int]? timepoints
         Boolean run_with_BuildTree = true
         Runtime runtime_params
     }
 
-    String sif_file = patient_id + ".sif"
+    String sif = patient_id + ".sif"
 
     command <<<
         set -e
@@ -72,21 +76,22 @@ task PhylogicNDTTask {
         # python3
         python3 create_patient_sif.py \
             --patient_id '~{patient_id}' \
-            --absolute_maf ~{sep=" " squote(absolute_maf)} \
-            ~{if defined(absolute_segtab) then "--absolute_segtab '" else ""}~{default="" sep="' '" absolute_segtab}~{if defined(absolute_segtab) then "'" else ""} \
-            --absolute_purity ~{sep=" " absolute_purity} \
+            ~{if defined(sample_names) then "--sample_names '" else ""}~{default="" sep="' '" sample_names}~{if defined(sample_names) then "'" else ""} \
+            --absolute_maf ~{sep=" " squote(absolute_mafs)} \
+            ~{if defined(absolute_segtabs) then "--absolute_segtab '" else ""}~{default="" sep="' '" absolute_segtabs}~{if defined(absolute_segtabs) then "'" else ""} \
+            --absolute_purity ~{sep=" " absolute_purities} \
             ~{if defined(timepoints) then "--timepoints " else ""}~{default="" sep=" " timepoints} \
-            --outfile '~{sif_file}'
+            --outfile '~{sif}'
 
         # python2
         python PhylogicNDT.py Cluster \
             -i '~{patient_id}' \
-            -sif '~{sif_file}' \
+            -sif '~{sif}' \
             ~{if run_with_BuildTree then "--run_with_BuildTree" else ""}
     >>>
 
     output {
-        File sif_file = "~{patient_id}.sif"
+        File sif_file = sif
 
         # PhylogicNDT Cluster outputs
         Array[File] pie_plots = glob("~{patient_id}_pie_plots/*.pieplot.svg")

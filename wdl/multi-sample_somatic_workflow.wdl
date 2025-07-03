@@ -643,47 +643,33 @@ workflow MultiSampleSomaticWorkflow {
                 purity = abs_purity,
                 ploidy = abs_ploidy,
         }
+
+        # Only run PhylogicNDT if there are absolute MAFs
+        if (length(select_all(AbsoluteExtract.absolute_maf)) > 0) {
+        #if (args.run_phylogicndt) {
+            scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
+                String? sample_name = sample.name
+                File? sample_absolute_maf = sample.absolute_maf
+                File? sample_absolute_segtab = sample.absolute_segtab
+                Float? sample_purity = sample.purity
+                Int? sample_timepoint = sample.timepoint
+            }
+        
+            call phylogicndt.PhylogicNDT as PhylogicNDT {
+                input:
+                    patient_id = AddAbsoluteResultsToSamples.updated_patient.name,
+                    sample_names = select_all(sample_name),
+                    absolute_mafs = select_all(sample_absolute_maf),
+                    absolute_segtabs = select_all(sample_absolute_segtab),
+                    absolute_purities = select_all(sample_purity),
+                    timepoints = select_all(sample_timepoint),
+                    runtime_collection = runtime_collection
+            }
+        }
     }
     
     Patient clonal_updated_patient = select_first([AddAbsoluteResultsToSamples.updated_patient, clonal_patient])
 
-    # todo: add phylogicNDT
-    if (args.run_phylogicndt) {
-        scatter (t_sample in clonal_updated_patient.tumor_samples){
-            File? t_sample_absolute_maf = t_sample.absolute_maf
-            File? t_sample_absolute_segtab = t_sample.absolute_segtab
-            Float? t_sample_absolute_purity = t_sample.purity
-            Int? t_sample_absolute_timepoint = t_sample.absolute_timepoint
-        }
-
-        Array[File] phylogic_absolute_maf = select_all(t_sample_absolute_maf)
-        Array[File]? phylogic_absolute_segtab = select_all(t_sample_absolute_segtab)
-        Array[Float] phylogic_absolute_purity = select_all(t_sample_absolute_purity)
-        Array[Int]? phylogic_absolute_timepoint = select_all(t_sample_absolute_timepoint)
-
-        call phylogicndt.PhylogicNDT {
-            input:
-                patient_id = clonal_updated_patient.name,
-                absolute_maf = phylogic_absolute_maf,
-                absolute_segtab = phylogic_absolute_segtab,
-                absolute_purity = phylogic_absolute_purity,
-                timepoints = phylogic_absolute_timepoint,
-                runtime_collection = runtime_collection
-        }
-
-        # if (length(select_all(PhylogicNDT.phylogic_pie_plots)) > 0) {
-        #     Array[File] phylogic_pie_plots = select_all(PhylogicNDT.phylogic_pie_plots)
-        # }
-        # if (length(select_all(PhylogicNDT.phylogic_mutation_plots)) > 0) {
-        #     Array[File] phylogic_mutation_plots = select_all(PhylogicNDT.phylogic_mutation_plots)
-        # }
-        # if (length(select_all(PhylogicNDT.phylogic_cluster_plots)) > 0) {
-        #     Array[File] phylogic_cluster_plots = select_all(PhylogicNDT.phylogic_cluster_plots)
-        # }
-
-        # File phylogic_cnvs = if defined(PhylogicNDT.phylogic_cnvs) then PhylogicNDT.phylogic_cnvs else clonal_updated_patient.phylogic_cnvs
-
-    }
 
 ###############################################################################
 #                                                                             #
@@ -730,25 +716,14 @@ workflow MultiSampleSomaticWorkflow {
         Array[File]? absolute_snv_maf = Output.absolute_snv_maf
         Array[File]? absolute_indel_maf = Output.absolute_indel_maf
         Array[Int]? absolute_solution = Output.absolute_solution
-        Array[Int]? absolute_timepoint = Output.absolute_timepoint
         Array[File]? absolute_maf = Output.absolute_maf
         Array[File]? absolute_segtab = Output.absolute_segtab
         Array[File]? absolute_table = Output.absolute_table
         Array[Float]? purity = Output.purity
         Array[Float]? ploidy = Output.ploidy
 
-        # Array[File]? phylogic_pie_plots = PhylogicNDT.phylogic_pie_plots
-        # Array[File]? phylogic_mutation_plots = PhylogicNDT.phylogic_mutation_plots
-        # Array[File]? phylogic_cluster_plots = PhylogicNDT.phylogic_cluster_plots
-        # File? phylogic_cnvs = PhylogicNDT.phylogic_cnvs
-        # File? phylogic_mut_ccfs = PhylogicNDT.phylogic_mut_ccfs
-        # File? phylogic_unclustered = PhylogicNDT.phylogic_unclustered
-        # File? phylogic_cluster_ccfs = PhylogicNDT.phylogic_cluster_ccfs
-        # File? phylogic_report = PhylogicNDT.phylogic_report
-        # File? phylogic_cell_population_abundances = PhylogicNDT.phylogic_cell_population_abundances
-        # File? phylogic_cell_population_mcmc_trace = PhylogicNDT.phylogic_cell_population_mcmc_trace
-        # File? phylogic_constrained_ccf = PhylogicNDT.phylogic_constrained_ccf
-        # File? phylogic_build_tree_posteriors = PhylogicNDT.phylogic_build_tree_posteriors
+        File? phylogic_sif_file = PhylogicNDT.phylogic_sif_file
+        File? phylogic_report = PhylogicNDT.phylogic_report
 
         Array[File]? first_pass_cr_segmentations = FirstPassSegmentation.called_copy_ratio_segmentations
         Array[File]? first_pass_cr_plots = FirstPassSegmentation.cr_plots

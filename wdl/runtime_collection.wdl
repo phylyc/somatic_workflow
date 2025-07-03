@@ -290,7 +290,7 @@ workflow DefineRuntimeCollection {
         
         # PhylogicNDTTask
         Int mem_phylogicndt_task = 2048
-        Int time_phylogicndt_task = 720  # 12 h
+        Int time_phylogicndt_task = 480  # 8 h
 
         #######################################################################
         ### Assorted
