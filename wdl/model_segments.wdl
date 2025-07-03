@@ -17,8 +17,8 @@ workflow ModelSegments {
         # If the gvcf does not contain GT information, we can not pre-select HETs.
         Boolean pre_select_hets = true
         # If GT information is available, args.files.common_germline_alleles can be provided.
-        File? gvcf = patient.gvcf
-        File? gvcf_idx = patient.gvcf_idx
+        File? gvcf
+        File? gvcf_idx
     }
 
     # todo: add option to downsample HETs to e.g. 1 / 1kb
@@ -31,8 +31,8 @@ workflow ModelSegments {
                     script = args.script_pileup_to_allelic_counts,
                     ref_dict = args.files.ref_dict,
                     pileup = sample.allelic_pileup_summaries,
-                    gvcf = gvcf,
-                    gvcf_idx = gvcf_idx,
+                    gvcf = select_first([gvcf, patient.gvcf]),
+                    gvcf_idx = select_first([gvcf_idx, patient.gvcf_idx]),
                     intervals = sample.harmonized_denoised_total_copy_ratios,
                     het_to_interval_mapping_max_distance = args.het_to_interval_mapping_max_distance,
                     select_hets = pre_select_hets,
