@@ -102,14 +102,14 @@ workflow MultiSampleSomaticWorkflow {
     if (!defined(input_patient)) {
         # Only necessary if bams contig order does not match reference contig 
         if (args.run_reorder_bam_contigs) {
-            scatter (i in range(length(bams))) {
+            scatter (pair in zip(bams, bais)) {
                 call tasks.ReorderSam as ReorderSam {
                     input:
                         ref_fasta = args.files.ref_fasta,
                         ref_fasta_index = args.files.ref_fasta_index,
                         ref_dict = args.files.ref_dict,
-                        bam = bams[i],
-                        bai = bais[i],
+                        bam = pair.left,
+                        bai = pair.right,
                         runtime_params = runtime_collection.reorder_sam
                 }
             }
