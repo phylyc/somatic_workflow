@@ -109,7 +109,7 @@ workflow DefineRuntimeCollection {
 
         # gatk (picard): ReorderSam
         Int mem_reorder_sam = 512
-        Int time_reorder_sam = 15
+        Int time_reorder_sam = 30
 
         #######################################################################
         # CNV workflow

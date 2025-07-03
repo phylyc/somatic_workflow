@@ -781,14 +781,14 @@ task ReorderSam {
         File? ref_fasta_index
         File ref_dict
 
-        String prefix
         File bam
         File bai
-
         Runtime runtime_params
     }
-    String reordered_bam = prefix + ".reordered.bam"
-    String reordered_bai = prefix + ".reordered.bai"
+    
+    String prefix = basename(bam, ".bam")
+    String output_bam = prefix + ".reordered.bam"
+    String output_bai = prefix + ".reordered.bai"
     Int diskGB = runtime_params.disk + ceil(size(bam, "GB") * 2) + ceil(size(ref_dict, "GB"))
 
     command <<<
@@ -797,14 +797,14 @@ task ReorderSam {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             ReorderSam \
             -I '~{bam}' \
-            -O '~{reordered_bam}' \
+            -O '~{output_bam}' \
             -SD '~{ref_dict}' \
             --CREATE_INDEX true
     >>>
 
     output {
-        File reordered_bam = reordered_bam
-        File reordered_bai = reordered_bai
+        File reordered_bam = output_bam
+        File reordered_bai = output_bai
     }
 
     runtime {
@@ -822,8 +822,8 @@ task ReorderSam {
         ref_fasta: {localization_optional: true}
         ref_fasta_index: {localization_optional: true}
         # Picard ReorderSam requires ref_dict to be localized
-        #ref_dict: {localization_optional: true} 
-        bam: {localization_optional: true}
-        bai: {localization_optional: true}
+        # ref_dict: {localization_optional: true} 
+        # bam: {localization_optional: true}
+        # bai: {localization_optional: true}
     }
 }

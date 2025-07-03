@@ -100,13 +100,29 @@ workflow MultiSampleSomaticWorkflow {
     WorkflowArguments args = select_first([input_args, Parameters.arguments])
 
     if (!defined(input_patient)) {
+        # Only necessary if bams contig order does not match reference contig 
+        if (args.run_reorder_bam_contigs) {
+            scatter (i in range(length(bams))) {
+                call tasks.ReorderSam as ReorderSam {
+                    input:
+                        ref_fasta = args.files.ref_fasta,
+                        ref_fasta_index = args.files.ref_fasta_index,
+                        ref_dict = args.files.ref_dict,
+                        bam = bams[i],
+                        bai = bais[i],
+                        runtime_params = runtime_collection.reorder_sam
+                }
+            }
+            Array[File] reordered_bams = select_all(ReorderSam.reordered_bam)
+            Array[File] reordered_bais = select_all(ReorderSam.reordered_bai)
+        }
         call p_def.DefinePatient as Cache {
             input:
                 name = patient_id,
                 sex = sex,
                 sample_names = sample_names,
-                bams = bams,
-                bais = bais,
+                bams = select_first([reordered_bams, bams]),
+                bais = select_first([reordered_bais, bais]),
                 target_intervals = target_intervals,
                 annotated_target_intervals = annotated_target_intervals,
                 cnv_panel_of_normals = cnv_panel_of_normals,
@@ -122,39 +138,7 @@ workflow MultiSampleSomaticWorkflow {
     # TODO: add parse_input task to check for validity, then add "after parse_input" to all calls
 
     Patient patient = select_first([input_patient, Cache.patient])
-
-    # Only necessary if bams contig order does not match reference contig order
-    if (args.run_reorder_bam_contigs) {
-        scatter (sample in patient.samples) {
-            scatter (seq_run in sample.sequencing_runs) {
-                call tasks.ReorderSam as ReorderSam{
-                    input:
-                        ref_fasta = args.files.ref_fasta,
-                        ref_fasta_index = args.files.ref_fasta_index,
-                        ref_dict = args.files.ref_dict,
-                        prefix = seq_run.sample_name,
-                        bam = seq_run.bam,
-                        bai = seq_run.bai,
-                        runtime_params = runtime_collection.reorder_sam
-                }
-
-                call seqrun.UpdateSequencingRun as SeqUpdateBams {
-                    input:
-                        sequencing_run = seq_run,
-                        bam = ReorderSam.reordered_bam,
-                        bai = ReorderSam.reordered_bai,
-                }
-            }
-        }
-
-        call p_update_s.UpdateSamples as PatientAddUpdatedBams {
-            input:
-                patient = patient,
-                sequencing_runs = SeqUpdateBams.updated_sequencing_run,
-        }
-    }
-
-    Patient updated_patient = select_first([PatientAddUpdatedBams.updated_patient, patient])
+    # Patient updated_patient = select_first([PatientAddUpdatedBams.updated_patient, patient])
 
 ###############################################################################
 #                                                                             #
@@ -163,7 +147,7 @@ workflow MultiSampleSomaticWorkflow {
 ###############################################################################
 
 
-    Patient coverage_workflow_patient = updated_patient
+    Patient coverage_workflow_patient = patient
 
     scatter (sample in coverage_workflow_patient.samples) {
         scatter (sequencing_run in sample.sequencing_runs) {
