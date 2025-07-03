@@ -645,7 +645,7 @@ workflow MultiSampleSomaticWorkflow {
         }
 
         # Only run PhylogicNDT if there are absolute MAFs
-        if (length(select_all(AbsoluteExtract.absolute_maf)) > 0) {
+        if (defined(abs_maf)) {
         #if (args.run_phylogicndt) {
             scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
                 String? sample_name = sample.name
