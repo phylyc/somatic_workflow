@@ -445,7 +445,7 @@ task GetUniqueSampleNameSets {
         # Loop through all names
         for name in "~{dollar}{all_names[@]}"; do
             # Check if name is in the normal names list
-            if [[ " ~{dollar}{normal_names[*]} " =~ " ${name} " ]]; then
+            if [[ " ~{dollar}{normal_names[*]} " =~ " ~{dollar}{name} " ]]; then
                 unique_normal_names["$name"]=1
             else
                 unique_tumor_names["$name"]=1

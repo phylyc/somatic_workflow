@@ -443,7 +443,9 @@ workflow MultiSampleSomaticWorkflow {
         String gt_sample_names = sample.name
         File? pileups = sample.allelic_pileup_summaries
         File? contaminations = sample.contamination_table
-        File? af_segmentations = select_first([sample.called_copy_ratio_segmentation, sample.af_segmentation_table])
+        if (length(select_all([sample.called_copy_ratio_segmentation, sample.af_segmentation_table])) > 1) {
+            File? af_segmentations = select_first([sample.called_copy_ratio_segmentation, sample.af_segmentation_table])
+        }
         File? af_model_params = sample.af_model_parameters
     }
     Array[File] gt_pileups = select_all(pileups)
@@ -737,5 +739,11 @@ workflow MultiSampleSomaticWorkflow {
         File? snp_sample_correlation = out_patient.snp_sample_correlation
         Float? snp_sample_correlation_min = out_patient.snp_sample_correlation_min
         File? modeled_segments = out_patient.modeled_segments
+
+        # composite cache
+        Patient output_patient = out_patient
+        WorkflowArguments output_args = args
+        WorkflowResources output_resources = resources
+        RuntimeCollection output_runtime_collection = runtime_collection
     }
 }
