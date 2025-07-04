@@ -145,7 +145,6 @@ workflow MultiSampleSomaticWorkflow {
                         bam = sequencing_run.bam,
                         bai = sequencing_run.bai,
                         is_paired_end = sequencing_run.is_paired_end,
-                        sex_genotype = coverage_workflow_patient.sex,
                         runtime_collection = runtime_collection,
                 }
             }
@@ -163,6 +162,7 @@ workflow MultiSampleSomaticWorkflow {
                         annotated_interval_list = sequencing_run.annotated_target_intervals,
                         read_count_panel_of_normals = sequencing_run.cnv_panel_of_normals,
                         is_paired_end = sequencing_run.is_paired_end,
+                        sex_genotype = coverage_workflow_patient.sex,
                         max_soft_clipped_bases = args.collect_read_counts_max_soft_clipped_bases,
                         runtime_collection = runtime_collection,
                 }
