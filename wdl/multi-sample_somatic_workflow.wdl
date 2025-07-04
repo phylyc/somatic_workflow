@@ -145,6 +145,7 @@ workflow MultiSampleSomaticWorkflow {
                         bam = sequencing_run.bam,
                         bai = sequencing_run.bai,
                         is_paired_end = sequencing_run.is_paired_end,
+                        sex_genotype = coverage_workflow_patient.sex,
                         runtime_collection = runtime_collection,
                 }
             }

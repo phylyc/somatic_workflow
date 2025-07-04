@@ -18,6 +18,7 @@ workflow CollectReadCounts {
         File interval_list
         File? annotated_interval_list
         File? read_count_panel_of_normals
+        String? sex_genotype
         Boolean is_paired_end = false
         Int max_soft_clipped_bases = 0
 
@@ -70,6 +71,7 @@ workflow CollectReadCounts {
                 sample_name = sample_name,
                 annotated_interval_list = annotated_interval_list,
                 count_panel_of_normals = read_count_panel_of_normals,
+                sex_genotype = sex_genotype,
                 compress_output = compress_output,
                 runtime_params = runtime_collection.denoise_read_counts
         }
@@ -122,7 +124,7 @@ task CollectReadCountsTask {
                 --max-clipped-bases ~{max_soft_clipped_bases} \
             --seconds-between-progress-updates 60
 
-        if [ "~{compress_output}" == "true" ] ; then
+        if [ "~{compress_output}" = "true" ] ; then
             bgzip -c '~{tsv_output}' > '~{output_name}'
         fi
 	>>>
@@ -159,6 +161,7 @@ task DenoiseReadCounts {
         File? annotated_interval_list
         File? count_panel_of_normals
         Int? number_of_eigensamples
+        String? sex_genotype
 
         Boolean compress_output = false
 
@@ -177,7 +180,7 @@ task DenoiseReadCounts {
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
 
-        if [ "~{is_compressed}" == "true" ] ; then
+        if [ "~{is_compressed}" = "true" ] ; then
             bgzip -cd '~{read_counts}' > '~{uncompressed_read_counts}'
         else
             mv '~{read_counts}' '~{uncompressed_read_counts}'
@@ -196,6 +199,33 @@ task DenoiseReadCounts {
             ~{"--annotated-intervals '" + annotated_interval_list + "'"} \
             ~{"--count-panel-of-normals '" + count_panel_of_normals + "'"}
         set -e
+
+        # DenoiseReadCounts normalizes the copy ratios by the genome-wide median.
+        # Since most chromosomes are normal ploidy 2, we need to correct the ploidy
+        # assumption for chromosomes X and Y. If a panel of normal was used,
+        # it is assumed that the panel was sex-specific, thus already capturing
+        # the ploidy-assumption for X and Y.
+        #
+        if [ "~{defined(count_panel_of_normals)}" = "false" ] && [ "~{defined(sex_genotype)}" = "true" ] ; then
+            # correct ploidy assumption for X/Y contigs
+            nX=$(echo "~{sex_genotype}" | grep -o "X" | wc -l)
+            nY=$(echo "~{sex_genotype}" | grep -o "Y" | wc -l)
+            log2_2_over_nX=0
+            log2_2_over_nY=0
+            if (( nX > 0 )); then
+                log2_2_over_nX=$(awk -v n="$nX" 'BEGIN { print log(2/n)/log(2) }')
+            fi
+            if (( nY > 0 )); then
+                log2_2_over_nY=$(awk -v n="$nY" 'BEGIN { print log(2/n)/log(2) }')
+            fi
+            awk -v log2X="$log2_2_over_nX" -v log2Y="$log2_2_over_nY" 'BEGIN { OFS="\t" }
+                /^@/ || NR==1 { print; next }
+                $1 == "X" || $1 == "chrX" { $4 += log2X; print; next }
+                $1 == "Y" || $1 == "chrY" { $4 += log2Y; print; next }
+                { print }
+            ' "~{tsv_denoised_copy_ratios}" > "tmp.~{tsv_denoised_copy_ratios}"
+            mv "tmp.~{tsv_denoised_copy_ratios}" "~{tsv_denoised_copy_ratios}"
+        fi
 
         if [ "~{compress_output}" == "true" ] ; then
             bgzip -c '~{tsv_denoised_copy_ratios}' > '~{output_denoised_copy_ratios}'
