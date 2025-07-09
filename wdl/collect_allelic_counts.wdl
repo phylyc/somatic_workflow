@@ -275,7 +275,7 @@ task VcfToPileupVariants {
 
         # Generate pileup tables for each sample
         if [ "~{defined(sample_names)}" == "true" ]; then
-            for sample in ~{sep=" " sample_names}; do
+            for sample in ~{sep="' " prefix("'", sample_names)}'; do
                 printf "#<METADATA>SAMPLE=$sample\n" > "$sample.pileup"
                 bcftools query -s "$sample" -f '%CHROM\t%POS\t%INFO/POPAF\t[%DP\t%AD]\n' "~{vcf}" \
                     | awk -v default_AF='~{AF}' '
