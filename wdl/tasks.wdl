@@ -789,7 +789,7 @@ task ReorderSam {
     String prefix = basename(bam, ".bam")
     String output_bam = prefix + ".reordered.bam"
     String output_bai = prefix + ".reordered.bai"
-    Int diskGB = runtime_params.disk + ceil(size(bam, "GB") * 2.5) + ceil(size(ref_dict, "GB"))
+    Int diskGB = runtime_params.disk + ceil(size(bam, "GB") * 3.5) + ceil(size(ref_dict, "GB"))
 
     command <<<
         set -e
