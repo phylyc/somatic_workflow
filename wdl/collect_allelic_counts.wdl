@@ -199,6 +199,8 @@ task VcfToPileupVariants {
     String af_only_vcf = sample_name + ".af_only.vcf.gz"
     String af_only_vcf_idx = af_only_vcf + ".tbi"
 
+    Array[String] safe_samples = select_first([sample_names, []])
+
     String dollar = "$"
 
     command <<<
@@ -274,8 +276,8 @@ task VcfToPileupVariants {
         bcftools index -t -o '~{af_only_vcf_idx}' '~{af_only_vcf}'
 
         # Generate pileup tables for each sample
-        if [ "~{defined(sample_names)}" == "true" ]; then
-            for sample in ~{sep="' " prefix("'", sample_names)}'; do
+        if [ ~{length(safe_samples)} -gt 0 ]; then
+            for sample in ~{sep="' " prefix("'", safe_samples)}'; do
                 printf "#<METADATA>SAMPLE=$sample\n" > "$sample.pileup"
                 bcftools query -s "$sample" -f '%CHROM\t%POS\t%INFO/POPAF\t[%DP\t%AD]\n' "~{vcf}" \
                     | awk -v default_AF='~{AF}' '
