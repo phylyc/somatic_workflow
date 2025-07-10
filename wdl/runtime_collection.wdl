@@ -9,6 +9,7 @@ struct RuntimeCollection {
     Runtime annotate_intervals
     Runtime preprocess_intervals
     Runtime split_intervals
+    Runtime reorder_sam
     Runtime collect_callable_loci
     Runtime collect_covered_regions
     Runtime collect_read_counts
@@ -105,6 +106,10 @@ workflow DefineRuntimeCollection {
         # gatk: SplitIntervals
         Int mem_split_intervals = 1024
         Int time_split_intervals = 1
+
+        # gatk (picard): ReorderSam
+        Int mem_reorder_sam = 2048
+        Int time_reorder_sam = 60
 
         #######################################################################
         # CNV workflow
@@ -369,6 +374,19 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_split_intervals + mem_machine_overhead,
         "command_mem": mem_split_intervals,
         "runtime_minutes": time_startup + time_split_intervals,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime reorder_sam = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_reorder_sam + mem_machine_overhead,
+        "command_mem": mem_reorder_sam,
+        "runtime_minutes": time_startup + time_reorder_sam,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -887,6 +905,7 @@ workflow DefineRuntimeCollection {
         "annotate_intervals": annotate_intervals,
         "preprocess_intervals": preprocess_intervals,
         "split_intervals": split_intervals,
+        "reorder_sam": reorder_sam,
 
         "collect_callable_loci": collect_callable_loci,
         "collect_covered_regions": collect_covered_regions,

@@ -773,3 +773,57 @@ task PrintReads {
         vcf_idx: {localization_optional: true}
     }
 }
+
+# Ensure ordering of bam contigs are in the same order as ref_dict
+task ReorderSam {
+    input {
+        File? ref_fasta
+        File? ref_fasta_index
+        File ref_dict
+
+        File bam
+        File bai
+        Runtime runtime_params
+    }
+    
+    String prefix = basename(bam, ".bam")
+    String output_bam = prefix + ".reordered.bam"
+    String output_bai = prefix + ".reordered.bai"
+    Int diskGB = runtime_params.disk + ceil(size(bam, "GB") * 5) + ceil(size(ref_dict, "GB"))
+
+    command <<<
+        set -e
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            ReorderSam \
+            -I '~{bam}' \
+            -O '~{output_bam}' \
+            -SD '~{ref_dict}' \
+            --CREATE_INDEX true
+    >>>
+
+    output {
+        File reordered_bam = output_bam
+        File reordered_bai = output_bai
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + diskGB + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+
+    parameter_meta {
+        ref_fasta: {localization_optional: true}
+        ref_fasta_index: {localization_optional: true}
+        # Picard ReorderSam requires ref_dict to be localized
+        # ref_dict: {localization_optional: true} 
+        # bam: {localization_optional: true}
+        # bai: {localization_optional: true}
+    }
+}
