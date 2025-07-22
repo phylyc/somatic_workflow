@@ -255,7 +255,7 @@ workflow DefinePatient {
         scatter (pair in zip(range(length(this_scattered_intervals)), this_scattered_intervals)) {
             # replace by "contain(skip_shards, pair.left)" in future WDL versions
             Array[Int] this_skip_shards = select_first([skip_shards, []])
-            if (length(this_skip_shards) > 1) {
+            if (length(this_skip_shards) > 0) {
                 scatter (skip in this_skip_shards) {
                     if (pair.left == skip) {
                         Boolean this_skip_shard = true
@@ -264,7 +264,7 @@ workflow DefinePatient {
             }
             # replace by "contain(high_mem_shards, pair.left)" in future WDL versions
             Array[Int] this_high_mem_shards = select_first([high_mem_shards, []])
-            if (length(this_high_mem_shards) > 1) {
+            if (length(this_high_mem_shards) > 0) {
                 scatter (high_mem_shard in this_high_mem_shards) {
                     if (pair.left == high_mem_shard) {
                         Boolean this_high_mem_shard = true
@@ -274,8 +274,8 @@ workflow DefinePatient {
             Shard shards = object {
                 id: pair.left,
                 intervals: pair.right,
-                skip: length(select_all(select_first([this_skip_shard, []]))) > 1,
-                is_high_mem: length(select_all(select_first([this_high_mem_shard, []]))) > 1,
+                skip: length(select_all(select_first([this_skip_shard, []]))) > 0,
+                is_high_mem: length(select_all(select_first([this_high_mem_shard, []]))) > 0,
             }
         }
     }
