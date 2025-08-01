@@ -65,6 +65,7 @@ struct WorkflowArguments {
     String script_map_to_absolute_copy_number
     String script_merge_pileups
     String script_pileup_to_allelic_counts
+    String script_phylogicndt_create_sif
 
     Int absolute_min_hets
     Int absolute_min_probes
@@ -191,6 +192,7 @@ workflow DefineWorkflowArguments {
         String script_map_to_absolute_copy_number = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
         String script_merge_pileups =               "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
         String script_pileup_to_allelic_counts =    "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
+        String script_phylogicndt_create_sif =      "https://github.com/phylyc/somatic_workflow/raw/master/python/create_patient_sif.py"
 
         Int absolute_min_hets = 0
         Int absolute_min_probes = 2
@@ -367,6 +369,7 @@ workflow DefineWorkflowArguments {
         script_map_to_absolute_copy_number: script_map_to_absolute_copy_number,
         script_merge_pileups: script_merge_pileups,
         script_pileup_to_allelic_counts: script_pileup_to_allelic_counts,
+        script_phylogicndt_create_sif: script_phylogicndt_create_sif,
 
         absolute_min_hets: absolute_min_hets,
         absolute_min_probes: absolute_min_probes,

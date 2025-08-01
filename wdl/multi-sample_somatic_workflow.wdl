@@ -681,6 +681,7 @@ workflow MultiSampleSomaticWorkflow {
                     absolute_segtabs = select_all(sample_absolute_segtab),
                     absolute_purities = select_all(sample_purity),
                     timepoints = select_all(sample_timepoint),
+                    phylogicndt_create_sif_script = args.script_phylogicndt_create_sif,
                     runtime_collection = runtime_collection
             }
         }

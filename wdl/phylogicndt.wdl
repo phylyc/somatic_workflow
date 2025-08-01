@@ -12,6 +12,7 @@ workflow PhylogicNDT {
         Array[Float] absolute_purities
         Array[Int]? timepoints
         Boolean run_with_BuildTree = true
+        String phylogicndt_create_sif_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/create_patient_sif.py"
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -21,6 +22,7 @@ workflow PhylogicNDT {
     # Create patient SIF and runs PhylogicNDT
     call PhylogicNDTTask {
         input:
+            script = phylogicndt_create_sif_script,
             patient_id = patient_id,
             sample_names = sample_names,
             absolute_mafs = absolute_mafs,
