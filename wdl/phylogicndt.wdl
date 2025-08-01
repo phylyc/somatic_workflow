@@ -86,7 +86,7 @@ task PhylogicNDTTask {
             --outfile '~{sif}'
 
         # phylogicndt_docker uses python2 for Python 2.7.18 
-        python2 PhylogicNDT.py Cluster \
+        python2 /build/PhylogicNDT/PhylogicNDT.py Cluster \
             -i '~{patient_id}' \
             -sif '~{sif}' \
             ~{if run_with_BuildTree then "--run_with_BuildTree" else ""}
