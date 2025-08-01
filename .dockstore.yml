@@ -107,7 +107,7 @@ workflows:
   - name: PhylogicNDT
     subclass: WDL
     publish: true
-    primaryDescriptorPath: /wdl/phylogic_ndt.wdl
+    primaryDescriptorPath: /wdl/phylogicndt.wdl
     authors:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
