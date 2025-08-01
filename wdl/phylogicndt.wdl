@@ -79,9 +79,9 @@ task PhylogicNDTTask {
         python create_patient_sif.py \
             --patient_id '~{patient_id}' \
             ~{if defined(sample_names) then "--sample_names '" else ""}~{default="" sep="' '" sample_names}~{if defined(sample_names) then "'" else ""} \
-            --absolute_maf '~{sep="' '" absolute_mafs}' \
-            ~{if defined(absolute_segtabs) then "--absolute_segtab '" else ""}~{default="" sep="' '" absolute_segtabs}~{if defined(absolute_segtabs) then "'" else ""} \
-            --absolute_purity ~{sep=" " absolute_purities} \
+            --absolute_mafs '~{sep="' '" absolute_mafs}' \
+            ~{if defined(absolute_segtabs) then "--absolute_segtabs '" else ""}~{default="" sep="' '" absolute_segtabs}~{if defined(absolute_segtabs) then "'" else ""} \
+            --absolute_purities ~{sep=" " absolute_purities} \
             ~{if defined(timepoints) then "--timepoints " else ""}~{default="" sep=" " timepoints} \
             --outfile '~{sif}'
 
