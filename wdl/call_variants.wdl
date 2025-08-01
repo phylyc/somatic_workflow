@@ -671,8 +671,8 @@ task Mutect2 {
             --seconds-between-progress-updates 60 \
             ~{m2_extra_args} \
             2> >( \
-                grep -v 'Dangling End recovery killed because of a loop (findPath)' | \
-                grep -v 'More than two reads with the same name found' \
+                stdbuf -oL grep -v 'Dangling End recovery killed because of a loop (findPath)' | \
+                stdbuf -oL grep -v 'More than two reads with the same name found' \
                 >&2 \
             )
 

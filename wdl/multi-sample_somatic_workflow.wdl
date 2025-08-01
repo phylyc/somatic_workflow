@@ -103,14 +103,30 @@ workflow MultiSampleSomaticWorkflow {
     WorkflowArguments args = select_first([input_args, Parameters.arguments])
 
     if (!defined(input_patient)) {
+        # Only necessary if bams contig order does not match reference contig 
+        if (args.run_reorder_bam_contigs) {
+            scatter (pair in zip(bams, bais)) {
+                call tasks.ReorderSam as ReorderSam {
+                    input:
+                        ref_fasta = args.files.ref_fasta,
+                        ref_fasta_index = args.files.ref_fasta_index,
+                        ref_dict = args.files.ref_dict,
+                        bam = pair.left,
+                        bai = pair.right,
+                        runtime_params = runtime_collection.reorder_sam
+                }
+            }
+            Array[File] reordered_bams = select_all(ReorderSam.reordered_bam)
+            Array[File] reordered_bais = select_all(ReorderSam.reordered_bai)
+        }
         call p_def.DefinePatient as Cache {
             input:
                 name = patient_id,
                 sex = sex,
                 sample_names = sample_names,
                 timepoints = timepoints,
-                bams = bams,
-                bais = bais,
+                bams = select_first([reordered_bams, bams]),
+                bais = select_first([reordered_bais, bais]),
                 target_intervals = target_intervals,
                 annotated_target_intervals = annotated_target_intervals,
                 cnv_panel_of_normals = cnv_panel_of_normals,
@@ -126,7 +142,7 @@ workflow MultiSampleSomaticWorkflow {
     # TODO: add parse_input task to check for validity, then add "after parse_input" to all calls
 
     Patient patient = select_first([input_patient, Cache.patient])
-
+    # Patient updated_patient = select_first([PatientAddUpdatedBams.updated_patient, patient])
 
 ###############################################################################
 #                                                                             #
@@ -166,6 +182,7 @@ workflow MultiSampleSomaticWorkflow {
                         annotated_interval_list = sequencing_run.annotated_target_intervals,
                         read_count_panel_of_normals = sequencing_run.cnv_panel_of_normals,
                         is_paired_end = sequencing_run.is_paired_end,
+                        sex_genotype = coverage_workflow_patient.sex,
                         max_soft_clipped_bases = args.collect_read_counts_max_soft_clipped_bases,
                         runtime_collection = runtime_collection,
                 }
@@ -447,7 +464,9 @@ workflow MultiSampleSomaticWorkflow {
         String gt_sample_names = sample.name
         File? pileups = sample.allelic_pileup_summaries
         File? contaminations = sample.contamination_table
-        File? af_segmentations = select_first([sample.called_copy_ratio_segmentation, sample.af_segmentation_table])
+        if (length(select_all([sample.called_copy_ratio_segmentation, sample.af_segmentation_table])) > 1) {
+            File? af_segmentations = select_first([sample.called_copy_ratio_segmentation, sample.af_segmentation_table])
+        }
         File? af_model_params = sample.af_model_parameters
     }
     Array[File] gt_pileups = select_all(pileups)
@@ -764,5 +783,11 @@ workflow MultiSampleSomaticWorkflow {
         File? snp_sample_correlation = out_patient.snp_sample_correlation
         Float? snp_sample_correlation_min = out_patient.snp_sample_correlation_min
         File? modeled_segments = out_patient.modeled_segments
+
+        # composite cache
+        Patient output_patient = out_patient
+        WorkflowArguments output_args = args
+        WorkflowResources output_resources = resources
+        RuntimeCollection output_runtime_collection = runtime_collection
     }
 }
