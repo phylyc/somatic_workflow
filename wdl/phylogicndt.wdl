@@ -37,13 +37,13 @@ workflow PhylogicNDT {
         File phylogic_sif_file = PhylogicNDTTask.sif_file
         
         # Outputs from PhylogicNDT Cluster
-        Array[File] phylogic_pie_plots = PhylogicNDTTask.pie_plots
-        Array[File] phylogic_mutation_plots = PhylogicNDTTask.one_d_mutation_plots
-        Array[File] phylogic_cluster_plots = PhylogicNDTTask.one_d_cluster_plots
         File phylogic_cnvs = PhylogicNDTTask.cnvs
         File phylogic_mut_ccfs = PhylogicNDTTask.mut_ccfs
         File phylogic_unclustered = PhylogicNDTTask.unclustered
         File phylogic_cluster_ccfs = PhylogicNDTTask.cluster_ccfs
+        # Array[File] phylogic_pie_plots = PhylogicNDTTask.pie_plots
+        Array[File] phylogic_mutation_plots = PhylogicNDTTask.one_d_mutation_plots
+        Array[File] phylogic_cluster_plots = PhylogicNDTTask.one_d_cluster_plots
 
         # Outputs from PhylogicNDT BuildTree
         # Note: these are optional and may not be present if run_with_BuildTree is false
@@ -96,20 +96,20 @@ task PhylogicNDTTask {
         File sif_file = sif
 
         # PhylogicNDT Cluster outputs
-        Array[File] pie_plots = glob("~{patient_id}_pie_plots/*.pieplot.svg")
-        Array[File] one_d_mutation_plots = glob("~{patient_id}_1d_mutation_plots/*.mutations_ccfs.svg")
-        Array[File] one_d_cluster_plots = glob("~{patient_id}_1d_cluster_plots/*.cluster_ccfs.svg")
         File cnvs = '~{patient_id}.cnvs.txt'
         File mut_ccfs = '~{patient_id}.mut_ccfs.txt'
         File unclustered = '~{patient_id}.unclustered.txt'
         File cluster_ccfs = '~{patient_id}.cluster_ccfs.txt'
+        # Array[File] pie_plots = glob("~{patient_id}_pie_plots/*.pieplot.svg") # Pie plots already in HTML report
+        Array[File] one_d_mutation_plots = glob("~{patient_id}_1d_mutation_plots/*.mutations_ccfs.svg")
+        Array[File] one_d_cluster_plots = glob("~{patient_id}_1d_cluster_plots/*.cluster_ccfs.svg")
 
         # PhylogicNDT BuildTree outputs
-        File? phylogic_report = select_first([glob("~{patient_id}.phylogic_report.html"), []])
-        File? cell_population_abundances = select_first([glob("~{patient_id}_cell_population_abundances.tsv"), []])
-        File? cell_population_mcmc_trace = select_first([glob("~{patient_id}_cell_population_mcmc_trace.tsv"), []])
-        File? constrained_ccf = select_first([glob("~{patient_id}_constrained_ccf.tsv"), []])
-        File? build_tree_posteriors = select_first([glob("~{patient_id}_build_tree_posteriors.tsv"), []])
+        File? phylogic_report ="~{patient_id}.phylogic_report.html"
+        File? cell_population_abundances = "~{patient_id}_cell_population_abundances.tsv"
+        File? cell_population_mcmc_trace = "~{patient_id}_cell_population_mcmc_trace.tsv"
+        File? constrained_ccf = "~{patient_id}_constrained_ccf.tsv"
+        File? build_tree_posteriors = "~{patient_id}_build_tree_posteriors.tsv"
     }
 
     # Need docker with PhylogicNDT !!
