@@ -175,6 +175,7 @@ def map_to_cn(args):
     seg.loc[new_segs, "rescaled.cn.a2"] = seg.loc[new_segs, "CN"]
     seg.loc[new_segs, "LOH"] = ((seg.loc[new_segs, "rescaled.cn.a1"] == 0) | (seg.loc[new_segs, "rescaled.cn.a1"] == 0)).astype(int)
     seg.loc[new_segs, "HZ"] = ((seg.loc[new_segs, "rescaled.cn.a1"] == 0) & (seg.loc[new_segs, "rescaled.cn.a1"] == 0)).astype(int)
+    # seg.loc[new_segs, "SC_HZ"] = ((seg.loc[new_segs, "subclonal.a1"] == 0) & (seg.loc[new_segs, "subclonal.a2"] == 0)).astype(int)
 
     seg["W"] = seg["length"] / seg["length"].sum()
 
