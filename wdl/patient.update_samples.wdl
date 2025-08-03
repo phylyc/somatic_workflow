@@ -29,7 +29,6 @@ workflow UpdateSamples {
         Array[File]? absolute_snv_maf
         Array[File]? absolute_indel_maf
         Array[Int]? absolute_solution
-        Array[Int]? absolute_timepoint
         Array[File]? absolute_maf
         Array[File]? absolute_segtab
         Array[File]? absolute_table
@@ -303,21 +302,9 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_asol = select_first([UpdateAbsoluteSolution.updated_sample, samples_asim])
 
-    Array[Int] atp = select_first([absolute_timepoint, []])
-    if (length(atp) > 0) {
-        scatter (pair in zip(samples_asol, atp)) {
-            call s.UpdateSample as UpdateAbsoluteTimepoint {
-                input:
-                    sample = pair.left,
-                    absolute_timepoint = pair.right,
-            }
-        }
-    }
-    Array[Sample] samples_atp = select_first([UpdateAbsoluteTimepoint.updated_sample, samples_asol])
-
     Array[File] am = select_first([absolute_maf, []])
     if (length(am) > 0) {
-        scatter (pair in zip(samples_atp, am)) {
+        scatter (pair in zip(samples_asol, am)) {
             call s.UpdateSample as UpdateAbsoluteMaf {
                 input:
                     sample = pair.left,

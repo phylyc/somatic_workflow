@@ -176,12 +176,12 @@ Array[File]? absolute_acr_plot = Output.absolute_acr_plot
 Array[File]? absolute_snv_maf = Output.absolute_snv_maf
 Array[File]? absolute_indel_maf = Output.absolute_indel_maf
 Array[Int]? absolute_solution = Output.absolute_solution
-Array[Int]? absolute_timepoint = Output.absolute_timepoint
 Array[File]? absolute_maf = Output.absolute_maf
 Array[File]? absolute_segtab = Output.absolute_segtab
 Array[File]? absolute_table = Output.absolute_table
 Array[Float]? purity = Output.purity
 Array[Float]? ploidy = Output.ploidy
+Array[Int]? timepoint = Output.timepoint
 
 Array[File]? first_pass_cr_segmentations = CoverageWorkflow.first_pass_cr_segmentations
 Array[File]? first_pass_cr_plots = CoverageWorkflow.first_pass_cr_plots

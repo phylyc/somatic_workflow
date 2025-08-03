@@ -209,7 +209,7 @@ workflow DefinePatient {
             }
         }
     }
-    Array[SequencingRun] seqruns_t = select_first([UpdateSampleName.updated_sequencing_run, seqruns_sn])
+    Array[SequencingRun] seqruns_t = select_first([UpdateTimepoints.updated_sequencing_run, seqruns_sn])
 
     # GroupBy sample name:
     # We assume that sample_names and bam_names share the same uniqueness,

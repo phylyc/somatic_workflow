@@ -68,7 +68,6 @@ workflow UpdateSample {
         File? absolute_snv_maf
         File? absolute_indel_maf
         Int? absolute_solution
-        Int? absolute_timepoint
         File? absolute_maf
         File? absolute_segtab
         File? absolute_table
@@ -104,7 +103,6 @@ workflow UpdateSample {
         absolute_snv_maf: if defined(absolute_snv_maf) then absolute_snv_maf else sample.absolute_snv_maf,
         absolute_indel_maf: if defined(absolute_indel_maf) then absolute_indel_maf else sample.absolute_indel_maf,
         absolute_solution: if defined(absolute_solution) then absolute_solution else sample.absolute_solution,
-        absolute_timepoint: if defined(absolute_timepoint) then absolute_timepoint else sample.absolute_timepoint,
         absolute_maf: if defined(absolute_maf) then absolute_maf else sample.absolute_maf,
         absolute_segtab: if defined(absolute_segtab) then absolute_segtab else sample.absolute_segtab,
         absolute_table: if defined(absolute_table) then absolute_table else sample.absolute_table,
