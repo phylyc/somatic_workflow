@@ -666,14 +666,16 @@ workflow MultiSampleSomaticWorkflow {
         # Only run PhylogicNDT if there are absolute MAFs
         if (defined(abs_maf)) {
             scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
-                String? sample_name = sample.name
-                File? sample_absolute_maf = sample.absolute_maf
-                File? sample_absolute_segtab = sample.absolute_segtab
-                Float? sample_purity = sample.purity
-                Int? sample_timepoint = sample.timepoint
+                if (defined(sample.absolute_maf) && defined(sample.purity) && (sample.purity > 0)) {
+                    String? sample_name = sample.name
+                    File? sample_absolute_maf = sample.absolute_maf
+                    File? sample_absolute_segtab = sample.absolute_segtab
+                    Float? sample_purity = sample.purity
+                    Int? sample_timepoint = sample.timepoint
+                }
             }
         
-            call phylogicndt.PhylogicNDT as PhylogicNDT {
+            call phylogicndt.PhylogicNDT {
                 input:
                     patient_id = AddAbsoluteResultsToSamples.updated_patient.name,
                     sample_names = select_all(sample_name),
@@ -741,9 +743,6 @@ workflow MultiSampleSomaticWorkflow {
         Array[Float]? purity = Output.purity
         Array[Float]? ploidy = Output.ploidy
 
-        File? phylogic_sif_file = PhylogicNDT.phylogic_sif_file
-        File? phylogic_report = PhylogicNDT.phylogic_report
-
         Array[File]? first_pass_cr_segmentations = FirstPassSegmentation.called_copy_ratio_segmentations
         Array[File]? first_pass_cr_plots = FirstPassSegmentation.cr_plots
         Array[File]? first_pass_af_model_parameters = FirstPassSegmentation.af_model_final_parameters
@@ -783,6 +782,8 @@ workflow MultiSampleSomaticWorkflow {
         File? snp_sample_correlation = out_patient.snp_sample_correlation
         Float? snp_sample_correlation_min = out_patient.snp_sample_correlation_min
         File? modeled_segments = out_patient.modeled_segments
+        File? phylogic_sif_file = PhylogicNDT.phylogic_sif_file
+        File? phylogic_report = PhylogicNDT.phylogic_report
 
         # composite cache
         Patient output_patient = out_patient
