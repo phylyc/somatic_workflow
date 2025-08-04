@@ -16,17 +16,13 @@ def main():
     args = parser.parse_args()
 
     # If args.sample_names not provided, assume sample_ids is just the MAF filename minus ".ABS_MAF.txt"
-    # if not args.sample_names:
-    #     sample_ids = [os.path.basename(x).replace(".ABS_MAF.txt", "") for x in args.absolute_mafs]
-    # else:
-    #     sample_ids = args.sample_names
     sample_ids = [os.path.basename(x).replace(".ABS_MAF.txt", "") for x in args.absolute_mafs] if not args.sample_names else args.sample_names
     n = len(sample_ids)
 
     maf_fns = args.absolute_mafs
     seg_fns = args.absolute_segtabs if args.absolute_segtabs else [""] * n # Ignore segtabs as our mafs already have local_cn information annotated
     purities = args.absolute_purities
-    timepoints = (np.argsort(args.timepoints) + 1) if args.timepoints else list(range(1, n+1)) # Simple sequential timepoint assignment (can be changed)
+    timepoints = (np.argsort(np.argsort(args.timepoints)) + 1) if args.timepoints else list(range(1, n+1)) # Simple sequential timepoint assignment (can be changed)
 
     if len(maf_fns) != n:
         raise ValueError(f"Number of maf_fns ({len(maf_fns)}) does not match number of samples ({n}).")
