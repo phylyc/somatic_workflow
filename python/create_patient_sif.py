@@ -1,6 +1,8 @@
 import argparse
+import numpy as np
 import pandas as pd
 import os
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -24,7 +26,7 @@ def main():
     maf_fns = args.absolute_mafs
     seg_fns = args.absolute_segtabs if args.absolute_segtabs else [""] * n # Ignore segtabs as our mafs already have local_cn information annotated
     purities = args.absolute_purities
-    timepoints = args.timepoints if args.timepoints else list(range(1, n+1)) # Simple sequential timepoint assignment (can be changed)
+    timepoints = (np.argsort(args.timepoints) + 1) if args.timepoints else list(range(1, n+1)) # Simple sequential timepoint assignment (can be changed)
 
     if len(maf_fns) != n:
         raise ValueError(f"Number of maf_fns ({len(maf_fns)}) does not match number of samples ({n}).")
@@ -44,6 +46,7 @@ def main():
     })
 
     df.to_csv(args.outfile, sep="\t", index=False)
+
 
 if __name__ == "__main__":
     main()
