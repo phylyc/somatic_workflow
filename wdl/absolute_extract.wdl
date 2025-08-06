@@ -98,7 +98,7 @@ task AbsoluteExtractTask {
     command <<<
         set -euxo pipefail
 
-        mkdir -p "~{output_dir}/reviewed/"
+        mkdir -p "~{output_dir}/reviewed/samples/"
         mkdir -p "~{output_dir}/reviewed/SEG_MAF/"
 
         # Create dummy files to guarantee output files
