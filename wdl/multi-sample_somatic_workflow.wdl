@@ -684,17 +684,8 @@ workflow MultiSampleSomaticWorkflow {
                     Int? sample_timepoint = sample.timepoint
                 }
             }
-            if (length(select_all(phylogic_sample_name)) > 0) {
-                Array[String]? phylogic_sample_names = select_all(phylogic_sample_name)
-            }
-            if (length(select_all(sample_absolute_maf)) > 0) {
-                Array[File]? phylogic_absolute_mafs = select_all(sample_absolute_maf)
-            }
             if (args.phylogic_use_segtab && length(select_all(sample_absolute_segtab)) > 0) {
                 Array[File]? phylogic_absolute_segtabs = select_all(sample_absolute_segtab)
-            }
-            if (length(select_all(sample_purity)) > 0) {
-                Array[Float]? phylogic_absolute_purities = select_all(sample_purity)
             }
             if (length(select_all(sample_timepoint)) > 0) {
                 Array[Int]? phylogic_timepoints = select_all(sample_timepoint)
@@ -703,10 +694,10 @@ workflow MultiSampleSomaticWorkflow {
             call phylogicndt.PhylogicNDT {
                 input:
                     patient_id = AddAbsoluteResultsToSamples.updated_patient.name,
-                    sample_names = phylogic_sample_names,
-                    absolute_mafs = phylogic_absolute_mafs,
+                    sample_names = select_all(phylogic_sample_name),
+                    absolute_mafs = select_all(sample_absolute_maf),
                     absolute_segtabs = phylogic_absolute_segtabs,
-                    absolute_purities = phylogic_absolute_purities,
+                    absolute_purities = select_all(sample_purity),
                     timepoints = phylogic_timepoints,
                     phylogicndt_create_sif_script = args.script_phylogicndt_create_sif,
                     runtime_collection = runtime_collection
