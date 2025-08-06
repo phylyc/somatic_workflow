@@ -72,6 +72,8 @@ struct WorkflowArguments {
     Float absolute_maf90_threshold
     String absolute_genome_build
 
+    Boolean phylogic_use_segtab
+
     # SNV WORKFLOW
     Int min_read_depth
     Float mutect1_initial_tumor_lod
@@ -198,6 +200,8 @@ workflow DefineWorkflowArguments {
         Int absolute_min_probes = 2
         Float absolute_maf90_threshold = 0.485
         String absolute_genome_build = "hg19"
+
+        Boolean phylogic_use_segtab = true
 
         # SNV WORKFLOW
         Int min_read_depth = 4
@@ -375,6 +379,8 @@ workflow DefineWorkflowArguments {
         absolute_min_probes: absolute_min_probes,
         absolute_maf90_threshold: absolute_maf90_threshold,
         absolute_genome_build: absolute_genome_build,
+
+        phylogic_use_segtab: phylogic_use_segtab,
 
         min_read_depth: min_read_depth,
         mutect1_initial_tumor_lod: mutect1_initial_tumor_lod,

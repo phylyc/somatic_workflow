@@ -62,8 +62,10 @@ workflow AbsoluteExtract {
         File absolute_table = AbsoluteExtractTask.table
         Float absolute_purity = AbsoluteExtractTask.purity
         Float absolute_ploidy = AbsoluteExtractTask.ploidy
-        File absolute_maf = Postprocess.abs_maf
-        File absolute_segtab = Postprocess.segtab
+        File absolute_maf = AbsoluteExtractTask.abs_maf
+        File absolute_segtab = AbsoluteExtractTask.segtab
+        File absolute_maf_postprocessed = Postprocess.abs_maf
+        File absolute_segtab_postprocessed = Postprocess.segtab
     }
 }
 

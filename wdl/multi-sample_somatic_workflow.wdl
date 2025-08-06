@@ -637,6 +637,12 @@ workflow MultiSampleSomaticWorkflow {
         if (length(select_all(AbsoluteExtract.absolute_segtab)) > 0) {
             Array[File] abs_segtab = select_all(AbsoluteExtract.absolute_segtab)
         }
+        if (length(select_all(AbsoluteExtract.absolute_maf)) > 0) {
+            Array[File] abs_maf_postprocessed = select_all(AbsoluteExtract.absolute_maf_postprocessed)
+        }
+        if (length(select_all(AbsoluteExtract.absolute_segtab)) > 0) {
+            Array[File] abs_segtab_postprocessed = select_all(AbsoluteExtract.absolute_segtab_postprocessed)
+        }
         if (length(select_all(AbsoluteExtract.absolute_table)) > 0) {
             Array[File] abs_table = select_all(AbsoluteExtract.absolute_table)
         }
@@ -656,6 +662,8 @@ workflow MultiSampleSomaticWorkflow {
                 absolute_acr_plot = acr_plot,
                 absolute_snv_maf = abs_snv_maf,
                 absolute_indel_maf = abs_indel_maf,
+                absolute_maf_postprocessed = abs_maf_postprocessed,
+                absolute_segtab_postprocessed = abs_segtab_postprocessed,
                 absolute_maf = abs_maf,
                 absolute_segtab = abs_segtab,
                 absolute_table = abs_table,
@@ -667,22 +675,39 @@ workflow MultiSampleSomaticWorkflow {
         if (length(select_first([abs_maf, []])) > 0) {
             scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
                 if (defined(sample.absolute_maf) && defined(sample.purity) && (sample.purity > 0)) {
-                    String? sample_name = sample.name
+                    String? phylogic_sample_name = sample.name
+                    # Use the un-postprocessed MAFs and segtabs for PhylogicNDT.
+                    # TODO: fix CCF annotation in postprocessed segtabs and MAFs.
                     File? sample_absolute_maf = sample.absolute_maf
                     File? sample_absolute_segtab = sample.absolute_segtab
                     Float? sample_purity = sample.purity
                     Int? sample_timepoint = sample.timepoint
                 }
             }
+            if (length(select_all(phylogic_sample_name)) > 0) {
+                Array[String]? phylogic_sample_names = select_all(phylogic_sample_name)
+            }
+            if (length(select_all(sample_absolute_maf)) > 0) {
+                Array[File]? phylogic_absolute_mafs = select_all(sample_absolute_maf)
+            }
+            if (args.phylogic_use_segtab && length(select_all(sample_absolute_segtab)) > 0) {
+                Array[File]? phylogic_absolute_segtabs = select_all(sample_absolute_segtab)
+            }
+            if (length(select_all(sample_purity)) > 0) {
+                Array[Float]? phylogic_absolute_purities = select_all(sample_purity)
+            }
+            if (length(select_all(sample_timepoint)) > 0) {
+                Array[Int]? phylogic_timepoints = select_all(sample_timepoint)
+            }
         
             call phylogicndt.PhylogicNDT {
                 input:
                     patient_id = AddAbsoluteResultsToSamples.updated_patient.name,
-                    sample_names = select_all(sample_name),
-                    absolute_mafs = select_all(sample_absolute_maf),
-                    absolute_segtabs = select_all(sample_absolute_segtab),
-                    absolute_purities = select_all(sample_purity),
-                    timepoints = select_all(sample_timepoint),
+                    sample_names = phylogic_sample_names,
+                    absolute_mafs = phylogic_absolute_mafs,
+                    absolute_segtabs = phylogic_absolute_segtabs,
+                    absolute_purities = phylogic_absolute_purities,
+                    timepoints = phylogic_timepoints,
                     phylogicndt_create_sif_script = args.script_phylogicndt_create_sif,
                     runtime_collection = runtime_collection
             }

@@ -41,8 +41,8 @@ workflow Output {
         File? out_absolute_snv_maf = sample.absolute_snv_maf
         File? out_absolute_indel_maf = sample.absolute_indel_maf
         Int? out_absolute_solution = sample.absolute_solution
-        File? out_absolute_maf = sample.absolute_maf
-        File? out_absolute_segtab = sample.absolute_segtab
+        File? out_absolute_maf = sample.absolute_maf_postprocessed
+        File? out_absolute_segtab = sample.absolute_segtab_postprocessed
         File? out_absolute_table = sample.absolute_table
         Float? out_purity = sample.purity
         Float? out_ploidy = sample.ploidy

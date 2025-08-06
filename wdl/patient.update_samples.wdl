@@ -31,6 +31,8 @@ workflow UpdateSamples {
         Array[Int]? absolute_solution
         Array[File]? absolute_maf
         Array[File]? absolute_segtab
+        Array[File]? absolute_maf_postprocessed
+        Array[File]? absolute_segtab_postprocessed
         Array[File]? absolute_table
         Array[Float]? purity
         Array[Float]? ploidy
@@ -326,9 +328,33 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_asg = select_first([UpdateAbsoluteSegtab.updated_sample, samples_am])
 
+    Array[File] amp = select_first([absolute_maf_postprocessed, []])
+    if (length(amp) > 0) {
+        scatter (pair in zip(samples_asg, amp)) {
+            call s.UpdateSample as UpdateAbsoluteMafPostprocessed {
+                input:
+                    sample = pair.left,
+                    absolute_maf_postprocessed = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_amp = select_first([UpdateAbsoluteMafPostprocessed.updated_sample, samples_asg])
+
+    Array[File] asp = select_first([absolute_segtab_postprocessed, []])
+    if (length(asp) > 0) {
+        scatter (pair in zip(samples_amp, asp)) {
+            call s.UpdateSample as UpdateAbsoluteSegtabPostprocessed {
+                input:
+                    sample = pair.left,
+                    absolute_segtab_postprocessed = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_asp = select_first([UpdateAbsoluteSegtabPostprocessed.updated_sample, samples_amp])
+
     Array[File] at = select_first([absolute_table, []])
     if (length(at) > 0) {
-        scatter (pair in zip(samples_asg, at)) {
+        scatter (pair in zip(samples_asp, at)) {
             call s.UpdateSample as UpdateAbsoluteTable {
                 input:
                     sample = pair.left,
@@ -336,7 +362,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_at = select_first([UpdateAbsoluteTable.updated_sample, samples_asg])
+    Array[Sample] samples_at = select_first([UpdateAbsoluteTable.updated_sample, samples_asp])
 
     Array[Float] purity_ = select_first([purity, []])
     if (length(purity_) > 0) {
