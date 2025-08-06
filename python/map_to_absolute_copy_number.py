@@ -61,7 +61,12 @@ def map_to_cn(args):
     }
     vcf_columns = ["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "genotype"]
 
-    abs_seg = pd.read_csv(f"{args.absolute_seg}", sep="\t", comment="#", low_memory=False)
+    try:
+        abs_seg = pd.read_csv(f"{args.absolute_seg}", sep="\t", comment="#", low_memory=False)
+    except pd.errors.EmptyDataError as e:
+        print("Empty data. No preprocessing.")
+        return None
+
     for col, dtype in abs_dtypes.items():
         try:
             abs_seg = abs_seg.astype({col: dtype})

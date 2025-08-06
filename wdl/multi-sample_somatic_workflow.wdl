@@ -663,8 +663,8 @@ workflow MultiSampleSomaticWorkflow {
                 ploidy = abs_ploidy,
         }
 
-        # Only run PhylogicNDT if there are absolute MAFs
-        if (defined(abs_maf)) {
+        # Only run PhylogicNDT if there are MAFs with ccf annotation
+        if (length(select_first([abs_maf, []])) > 0) {
             scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
                 if (defined(sample.absolute_maf) && defined(sample.purity) && (sample.purity > 0)) {
                     String? sample_name = sample.name
