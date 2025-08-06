@@ -21,6 +21,7 @@ def parse_args():
     parser.add_argument("--gvcf",           type=str,   required=False, help="Path to a genotyped germline vcf that contains ref and alt allele information for each pileup locus and contains the GT field.")
     parser.add_argument("--purity",         type=float, required=True,  help="Tumor purity as inferred by ABSOLUTE")
     parser.add_argument("--ploidy",         type=float, required=True,  help="Tumor ploidy as inferred by ABSOLUTE")
+    parser.add_argument("--normal_ploidy",  type=int,   required=True,  help="Normal/germline ploidy of that organism.")
     parser.add_argument("--outdir",         type=str,   required=True,  help="Path to the output directory to write the extended segmentations.")
     return parser.parse_args()
 
@@ -96,27 +97,27 @@ def map_to_cn(args):
 
     def correct_diploid_assumption(col, log=False):
         if log:
-            seg.loc[seg["Chromosome"].isin(["X", "chrX"]), col] += np.log2(2 / nX) if nX > 0 else 0
-            seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), col] += np.log2(2 / nY) if nY > 0 else 0
+            seg.loc[seg["Chromosome"].isin(["X", "chrX"]), col] += np.log2(args.normal_ploidy / nX) if nX > 0 else 0
+            seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), col] += np.log2(args.normal_ploidy / nY) if nY > 0 else 0
         else:
-            seg.loc[seg["Chromosome"].isin(["X", "chrX"]), col] *= 2 / nX if nX > 0 else 0
-            seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), col] *= 2 / nY if nY > 0 else 0
+            seg.loc[seg["Chromosome"].isin(["X", "chrX"]), col] *= args.normal_ploidy / nX if nX > 0 else 0
+            seg.loc[seg["Chromosome"].isin(["Y", "chrY"]), col] *= args.normal_ploidy / nY if nY > 0 else 0
 
     if args.sample is None:
         args.sample = seg["Sample"].dropna().unique()[0]
 
-    D = args.purity * args.ploidy + (1 - args.purity) * 2
-    b = (1 - args.purity) * 2 / D
+    D = args.purity * args.ploidy + (1 - args.purity) * args.normal_ploidy
+    b = (1 - args.purity) * args.normal_ploidy / D
     delta = args.purity / D
 
     # rescale copy number, assuming diploidy
-    seg["CN"] = (seg["tau"] - b).clip(lower=0) / delta / 2
+    seg["CN"] = (seg["tau"] - b).clip(lower=0) / delta / args.normal_ploidy
     correct_diploid_assumption(col="CN")
     # correct offset
     diff = seg["CN"].median() - seg["rescaled_total_cn"].median()
     seg["CN"] -= diff
     seg["CN"] = seg["CN"].clip(lower=0)
-    seg["CN.sigma"] = seg["sigma.tau"] / delta / 2
+    seg["CN.sigma"] = seg["sigma.tau"] / delta / args.normal_ploidy
     correct_diploid_assumption(col="CN.sigma")
 
     r_corr = seg[["CN", "rescaled_total_cn"]].corr().loc["CN", "rescaled_total_cn"]
@@ -162,8 +163,8 @@ def map_to_cn(args):
 
     new_segs = seg[["corrected_total_cn", "rescaled_total_cn"]].isna().any(axis=1)
     seg.loc[new_segs, "sample"] = args.sample
-    seg.loc[new_segs, "total_copy_ratio"] = seg.loc[new_segs, "tau"] / 2
-    seg.loc[new_segs, "copy.ratio"] = seg.loc[new_segs, "tau"] / 2
+    seg.loc[new_segs, "total_copy_ratio"] = seg.loc[new_segs, "tau"] / args.normal_ploidy
+    seg.loc[new_segs, "copy.ratio"] = seg.loc[new_segs, "tau"] / args.normal_ploidy
     correct_diploid_assumption(col="total_copy_ratio")
     correct_diploid_assumption(col="copy.ratio")
 

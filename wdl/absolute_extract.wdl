@@ -83,6 +83,8 @@ task AbsoluteExtractTask {
         String? platform
         String? genome_build
 
+        Int organism_normal_ploidy = 2
+
         Runtime runtime_params
     }
 
@@ -119,6 +121,9 @@ task AbsoluteExtractTask {
             exit 0
 
         elif [[ "~{called_solution}" == "0" ]] ; then
+            # This is a low-purity sample. We force purity to 1 for ABSOLUTE to
+            # still get the same type of output files as for all other samples.
+            # We set purity to 0 below.
             Rscript /library/scripts/run_absolute.R \
                 --results_dir "~{output_dir}/~{sample_name}.force-call" \
                 --sample "~{sample_name}" \
@@ -126,7 +131,7 @@ task AbsoluteExtractTask {
                 ~{"--maf '" + snv_maf + "'"} \
                 ~{"--indel_maf '" + indel_maf + "'"} \
                 --alpha 1 \
-                --tau 2 \
+                --tau ~{organism_normal_ploidy} \
                 ~{"--gender " + sex} \
                 ~{"--platform " + platform} \
                 --ssnv_skew ~{acs_copy_ratio_skew} \
@@ -152,7 +157,8 @@ task AbsoluteExtractTask {
             --pkg_dir "/"
 
         if [[ "~{called_solution}" == "0" ]] ; then
-            sed -i -E "s/\tcalled\t/\tlow purity\t/" "~{output_table}"
+            # Set call status to "low purity" and purity to 0:
+            sed -i -E "s/\tcalled\t1/\tlow purity\t0/" "~{output_table}"
         fi
 
         cut -f4 "~{output_table}" | tail -n 1 > purity
@@ -198,6 +204,8 @@ task Postprocess {
         Float purity
         Float ploidy
 
+        Int organism_normal_ploidy = 2
+
         Runtime runtime_params
     }
 
@@ -217,13 +225,15 @@ task Postprocess {
         echo "Chromosome\tStart.bp\tEnd.bp\n" > "~{output_rescued_intervals}"
 
         wget -O map_to_absolute_copy_number.py ~{script}
+        # If purity == 0, we rescue intervals assuming purity 1,
         python map_to_absolute_copy_number.py \
             --sample '~{this_sample_name}' \
             ~{"--sex  " + sex} \
             --absolute_seg '~{seg}' \
             --cr_seg '~{copy_ratio_segmentation}' \
-            --purity ~{purity} \
+            --purity ~{if (purity > 0) then purity else 1} \
             --ploidy ~{ploidy} \
+            --normal_ploidy ~{organism_normal_ploidy} \
             --outdir "."
     >>>
 
