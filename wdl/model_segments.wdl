@@ -74,7 +74,7 @@ workflow ModelSegments {
 
     # As implemented, if we don't pre-select HETs, it is not guaranteed that the
     # allelic counts sites are identical across all samples.
-    if ((length(pat.samples) > 1) && pre_select_hets) {
+    if ((length(pat.samples) > 1) && pre_select_hets && !defined(pat.modeled_segments)) {
         scatter (sample in pat.samples) {
             File? denoised_copy_ratios = sample.harmonized_denoised_total_copy_ratios
             File? allelic_read_counts = sample.aggregated_allelic_read_counts
@@ -98,94 +98,103 @@ workflow ModelSegments {
                 minimum_total_allele_count_normal = minimum_total_allele_count_normal,
                 runtime_params = runtime_collection.model_segments
         }
+
+        call p.UpdatePatient as AddMultiSampleSegmentationToPatient {
+            input:
+                patient = pat,
+                modeled_segments = MultiSampleModelSegments.multi_sample_segments
+        }
     }
+    Patient pat_seg = select_first([AddMultiSampleSegmentationToPatient.updated_patient, pat])
 
-    scatter (sample in pat.samples) {
-        if (defined(sample.harmonized_denoised_total_copy_ratios))  {
-            Array[File] dcr_list = select_all([sample.harmonized_denoised_total_copy_ratios])
-        }
-        if (defined(sample.aggregated_allelic_read_counts)) {
-            Array[File] ac_list = select_all([sample.aggregated_allelic_read_counts])
-        }
-        if (defined(sample.genotype_error_probabilities)) {
-            Float error_probability = select_first([sample.genotype_error_probabilities])
-        }
-        # If we provide matched normal allelic counts, we run into:
-        # java.lang.IllegalArgumentException:
-        # The minimum total count for filtering allelic counts in case samples
-        # must be set to zero in matched-normal mode. If the effect of statistical
-        # noise due to low depth in case samples on segmentation is a concern,
-        # consider using only denoised copy ratios or externally preprocessing
-        # allelic-count files to remove sites that are poorly covered across all samples.
-        call ModelSegmentsTask as SingleSampleInferCR {
-            input:
-                segments = MultiSampleModelSegments.multi_sample_segments,
-                denoised_copy_ratios = dcr_list,
-                allelic_counts = ac_list,
-                prefix = sample.name,
-                minimum_total_allele_count_case = args.min_snppanel_read_depth,
-                max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
-                window_sizes = args.model_segments_window_sizes,
-                kernel_approximation_dimension = args.model_segments_kernel_approximation_dimension,
-                genotyping_homozygous_log_ratio_threshold = genotyping_homozygous_log_ratio_threshold,
-                genotyping_base_error_rate = error_probability,
-                smoothing_credible_interval_threshold = model_segments_smoothing_credible_interval_threshold,
-                runtime_params = runtime_collection.model_segments
+    scatter (sample in pat_seg.samples) {
+        if (!defined(sample.called_copy_ratio_segmentation)) {
+            if (defined(sample.harmonized_denoised_total_copy_ratios))  {
+                Array[File] dcr_list = select_all([sample.harmonized_denoised_total_copy_ratios])
+            }
+            if (defined(sample.aggregated_allelic_read_counts)) {
+                Array[File] ac_list = select_all([sample.aggregated_allelic_read_counts])
+            }
+            if (defined(sample.genotype_error_probabilities)) {
+                Float error_probability = select_first([sample.genotype_error_probabilities])
+            }
+            # If we provide matched normal allelic counts, we run into:
+            # java.lang.IllegalArgumentException:
+            # The minimum total count for filtering allelic counts in case samples
+            # must be set to zero in matched-normal mode. If the effect of statistical
+            # noise due to low depth in case samples on segmentation is a concern,
+            # consider using only denoised copy ratios or externally preprocessing
+            # allelic-count files to remove sites that are poorly covered across all samples.
+            call ModelSegmentsTask as SingleSampleInferCR {
+                input:
+                    segments = pat_seg.modeled_segments,
+                    denoised_copy_ratios = dcr_list,
+                    allelic_counts = ac_list,
+                    prefix = sample.name,
+                    minimum_total_allele_count_case = args.min_snppanel_read_depth,
+                    max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
+                    window_sizes = args.model_segments_window_sizes,
+                    kernel_approximation_dimension = args.model_segments_kernel_approximation_dimension,
+                    genotyping_homozygous_log_ratio_threshold = genotyping_homozygous_log_ratio_threshold,
+                    genotyping_base_error_rate = error_probability,
+                    smoothing_credible_interval_threshold = model_segments_smoothing_credible_interval_threshold,
+                    runtime_params = runtime_collection.model_segments
+            }
+
+            call CallCopyRatioSegments {
+                input:
+                    cr_seg = select_first([SingleSampleInferCR.cr_seg]),
+                    seg_final = select_first([SingleSampleInferCR.seg_final]),
+                    neutral_segment_copy_ratio_lower_bound = args.call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
+                    neutral_segment_copy_ratio_upper_bound = args.call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
+                    outlier_neutral_segment_copy_ratio_z_score_threshold = args.call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold,
+                    calling_copy_ratio_z_score_threshold = args.call_copy_ratios_z_score_threshold,
+                    runtime_params = runtime_collection.call_copy_ratio_segments
+            }
+
+            call PlotModeledSegments {
+                input:
+                    ref_dict = args.files.ref_dict,
+                    sample_name = sample.name,
+                    segments = select_first([SingleSampleInferCR.seg_final]),
+                    denoised_copy_ratios = sample.harmonized_denoised_total_copy_ratios,
+                    het_allelic_counts = SingleSampleInferCR.hets,
+                    runtime_params = runtime_collection.plot_modeled_segments
+            }
         }
 
-        call CallCopyRatioSegments {
-            input:
-                cr_seg = select_first([SingleSampleInferCR.cr_seg]),
-                seg_final = select_first([SingleSampleInferCR.seg_final]),
-                neutral_segment_copy_ratio_lower_bound = args.call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
-                neutral_segment_copy_ratio_upper_bound = args.call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
-                outlier_neutral_segment_copy_ratio_z_score_threshold = args.call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold,
-                calling_copy_ratio_z_score_threshold = args.call_copy_ratios_z_score_threshold,
-                runtime_params = runtime_collection.call_copy_ratio_segments
-        }
-
-        call PlotModeledSegments {
-            input:
-                ref_dict = args.files.ref_dict,
-                sample_name = sample.name,
-                segments = select_first([SingleSampleInferCR.seg_final]),
-                denoised_copy_ratios = sample.harmonized_denoised_total_copy_ratios,
-                het_allelic_counts = SingleSampleInferCR.hets,
-                runtime_params = runtime_collection.plot_modeled_segments
-        }
+        File af_segmentation_table = select_first([SingleSampleInferCR.af_segmentation_table, sample.af_segmentation_table])
+        File af_model_parameters = select_first([SingleSampleInferCR.af_model_final_parameters, sample.af_model_parameters])
+        File cr_model_parameters = select_first([SingleSampleInferCR.cr_model_final_parameters, sample.cr_model_parameters])
+        File called_copy_ratio_segmentation = select_first([CallCopyRatioSegments.called_seg_final, sample.called_copy_ratio_segmentation])
+        File cr_plot = select_first([PlotModeledSegments.plot, sample.cr_plot])
     }
 
     call p_update_s.UpdateSamples as AddSegmentationResultsToSamples {
         input:
-            patient = pat,
-            af_segmentation_table = select_all(SingleSampleInferCR.af_segmentation_table),
-            af_model_parameters = select_all(SingleSampleInferCR.af_model_final_parameters),
-            cr_model_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters),
-            called_copy_ratio_segmentation =  CallCopyRatioSegments.called_seg_final,
-            cr_plot = PlotModeledSegments.plot
-    }
-
-    call p.UpdatePatient {
-        input:
-            patient = AddSegmentationResultsToSamples.updated_patient,
-            modeled_segments = MultiSampleModelSegments.multi_sample_segments
+            patient = pat_seg,
+            af_segmentation_table = af_segmentation_table,
+            af_model_parameters = af_model_parameters,
+            cr_model_parameters = cr_model_parameters,
+            called_copy_ratio_segmentation =  called_copy_ratio_segmentation,
+            cr_plot = cr_plot
     }
 
     output {
-        Patient updated_patient = UpdatePatient.updated_patient
+        Patient updated_patient = AddSegmentationResultsToSamples.updated_patient
 
         File? modeled_segments = MultiSampleModelSegments.multi_sample_segments
-        Array[File] hets = select_all(SingleSampleInferCR.hets)
-        Array[File] af_model_begin_parameters = select_all(SingleSampleInferCR.af_model_begin_parameters)
-        Array[File] cr_model_begin_parameters = select_all(SingleSampleInferCR.cr_model_begin_parameters)
-        Array[File] af_model_final_parameters = select_all(SingleSampleInferCR.af_model_final_parameters)
-        Array[File] cr_model_final_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters)
-        Array[File] igv_af = select_all(SingleSampleInferCR.igv_af)
-        Array[File] igv_cr = select_all(SingleSampleInferCR.igv_cr)
-        Array[File] seg_begin = select_all(SingleSampleInferCR.seg_begin)
-        Array[File] called_copy_ratio_segmentations = CallCopyRatioSegments.called_seg_final
-        Array[File] af_segmentation_table = select_all(SingleSampleInferCR.af_segmentation_table)
-        Array[File] cr_plots = PlotModeledSegments.plot
+        Array[File]? hets = select_all(SingleSampleInferCR.hets)
+        Array[File]? af_model_begin_parameters = select_all(SingleSampleInferCR.af_model_begin_parameters)
+        Array[File]? cr_model_begin_parameters = select_all(SingleSampleInferCR.cr_model_begin_parameters)
+        Array[File]? af_model_final_parameters = af_model_parameters
+        Array[File]? cr_model_final_parameters = cr_model_parameters
+        Array[File]? igv_af = select_all(SingleSampleInferCR.igv_af)
+        Array[File]? igv_cr = select_all(SingleSampleInferCR.igv_cr)
+        Array[File]? seg_begin = select_all(SingleSampleInferCR.seg_begin)
+        Array[File]? called_copy_ratio_segmentations = called_copy_ratio_segmentation
+        Array[File]? af_segmentation_tables = af_segmentation_table
+        Array[File]? cr_plots = cr_plot
     }
 }
 

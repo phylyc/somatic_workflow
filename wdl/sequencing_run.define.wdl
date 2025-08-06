@@ -9,7 +9,7 @@ workflow DefineSequencingRun {
     input {
         String? name
         String? sample_name
-        Int? timepoint
+        Int timepoint = 0
         File bam
         File bai
         File target_intervals
