@@ -26,7 +26,7 @@ workflow PhylogicNDT {
             patient_id = patient_id,
             sample_names = sample_names,
             absolute_mafs = absolute_mafs,
-            absolute_segtabs = absolute_segtabs,
+#            absolute_segtabs = absolute_segtabs,  # TODO: fix using segtabs
             absolute_purities = absolute_purities,
             timepoints = timepoints,
             run_with_BuildTree = run_with_BuildTree,
