@@ -47,6 +47,7 @@ workflow DefinePatient {
         Array[File]? af_model_parameters
         Array[File]? cr_model_parameters
         Array[File]? called_copy_ratio_segmentation
+        Array[File]? cr_plot
         Array[File]? acs_copy_ratio_segmentation
         Array[Float]? acs_copy_ratio_skew
         Array[File]? annotated_somatic_variants
@@ -416,6 +417,7 @@ workflow DefinePatient {
             af_model_parameters = af_model_parameters,
             cr_model_parameters = cr_model_parameters,
             called_copy_ratio_segmentation = called_copy_ratio_segmentation,
+            cr_plot = cr_plot,
             acs_copy_ratio_segmentation = acs_copy_ratio_segmentation,
             acs_copy_ratio_skew = acs_copy_ratio_skew,
             annotated_somatic_variants = annotated_somatic_variants,
