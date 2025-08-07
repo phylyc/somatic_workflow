@@ -282,6 +282,7 @@ workflow MultiSampleSomaticWorkflow {
                 args = args,
                 runtime_collection = runtime_collection,
                 pre_select_hets = false,
+                force_run_segmentation = false,
                 gvcf = args.files.common_germline_alleles,
                 gvcf_idx = args.files.common_germline_alleles_idx,
         }

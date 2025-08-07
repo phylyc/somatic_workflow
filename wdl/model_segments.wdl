@@ -16,6 +16,7 @@ workflow ModelSegments {
 
         # If the gvcf does not contain GT information, we can not pre-select HETs.
         Boolean pre_select_hets = true
+        Boolean force_run_segmentation = true
         # If GT information is available, args.files.common_germline_alleles can be provided.
         File? gvcf
         File? gvcf_idx
@@ -108,7 +109,7 @@ workflow ModelSegments {
     Patient pat_seg = select_first([AddMultiSampleSegmentationToPatient.updated_patient, pat])
 
     scatter (sample in pat_seg.samples) {
-        if (!defined(sample.called_copy_ratio_segmentation)) {
+        if (force_run_segmentation || !defined(sample.called_copy_ratio_segmentation)) {
             if (defined(sample.harmonized_denoised_total_copy_ratios))  {
                 Array[File] dcr_list = select_all([sample.harmonized_denoised_total_copy_ratios])
             }
