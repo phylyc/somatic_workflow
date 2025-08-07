@@ -52,6 +52,7 @@ struct WorkflowArguments {
     Int model_segments_max_number_of_segments_per_chromosome
     Array[Int] model_segments_window_sizes
     Int model_segments_kernel_approximation_dimension
+    Boolean model_segments_use_multi_sample_cr_segmentation
     Float model_segments_smoothing_credible_interval_threshold
     Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound
     Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound
@@ -181,6 +182,7 @@ workflow DefineWorkflowArguments {
         Int model_segments_max_number_of_segments_per_chromosome = 10000
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
         Int model_segments_kernel_approximation_dimension = 200
+        Boolean model_segments_use_multi_sample_cr_segmentation = true
         Float model_segments_smoothing_credible_interval_threshold = 3.0
         Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
@@ -360,6 +362,7 @@ workflow DefineWorkflowArguments {
         model_segments_max_number_of_segments_per_chromosome: model_segments_max_number_of_segments_per_chromosome,
         model_segments_window_sizes: model_segments_window_sizes,
         model_segments_kernel_approximation_dimension: model_segments_kernel_approximation_dimension,
+        model_segments_use_multi_sample_cr_segmentation: model_segments_use_multi_sample_cr_segmentation,
         model_segments_smoothing_credible_interval_threshold: model_segments_smoothing_credible_interval_threshold,
         call_copy_ratios_neutral_segment_copy_ratio_lower_bound: call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
         call_copy_ratios_neutral_segment_copy_ratio_upper_bound: call_copy_ratios_neutral_segment_copy_ratio_upper_bound,

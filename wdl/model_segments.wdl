@@ -74,7 +74,7 @@ workflow ModelSegments {
 
     # As implemented, if we don't pre-select HETs, it is not guaranteed that the
     # allelic counts sites are identical across all samples.
-    if ((length(pat.samples) > 1) && pre_select_hets && !defined(pat.modeled_segments)) {
+    if (args.model_segments_use_multi_sample_cr_segmentation && (length(pat.samples) > 1) && pre_select_hets && !defined(pat.modeled_segments)) {
         scatter (sample in pat.samples) {
             File? denoised_copy_ratios = sample.harmonized_denoised_total_copy_ratios
             File? allelic_read_counts = sample.aggregated_allelic_read_counts
