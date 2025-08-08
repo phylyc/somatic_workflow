@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument("--gvcf",           type=str,   required=False, help="Path to a genotyped germline vcf that contains ref and alt allele information for each pileup locus and contains the GT field.")
     parser.add_argument("--purity",         type=float, required=True,  help="Tumor purity as inferred by ABSOLUTE")
     parser.add_argument("--ploidy",         type=float, required=True,  help="Tumor ploidy as inferred by ABSOLUTE")
-    parser.add_argument("--normal_ploidy",  type=int,   required=True,  help="Normal/germline ploidy of that organism.")
+    parser.add_argument("--normal_ploidy",  type=int,   required=True,  default=2, help="Normal/germline ploidy of that organism.")
     parser.add_argument("--outdir",         type=str,   required=True,  help="Path to the output directory to write the extended segmentations.")
     return parser.parse_args()
 
