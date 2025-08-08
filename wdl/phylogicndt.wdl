@@ -93,6 +93,7 @@ task PhylogicNDTTask {
 
         # Cell populations are already being inferred.
 
+        set +e  # The rest is not as important as getting the tree and it's not as well tested.
         if [ -f "~{patient_id}_cell_population_mcmc_trace.tsv" ]; then
             # May not yield any result for single samples
             python /build/PhylogicNDT/PhylogicNDT.py GrowthKinetics \
