@@ -12,7 +12,6 @@ workflow PhylogicNDT {
         Array[Float] absolute_purities
         Array[Int]? timepoints
         Boolean run_with_BuildTree = true
-        String phylogicndt_create_sif_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/create_patient_sif.py"
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -22,7 +21,6 @@ workflow PhylogicNDT {
     # Create patient SIF and runs PhylogicNDT
     call PhylogicNDTTask {
         input:
-            script = phylogicndt_create_sif_script,
             patient_id = patient_id,
             sample_names = sample_names,
             absolute_mafs = absolute_mafs,
@@ -34,30 +32,35 @@ workflow PhylogicNDT {
     }
 
     output {
-        File phylogic_sif_file = PhylogicNDTTask.sif_file
+        File sif_file = PhylogicNDTTask.sif_file
         
         # Outputs from PhylogicNDT Cluster
-        File phylogic_cnvs = PhylogicNDTTask.cnvs
-        File phylogic_mut_ccfs = PhylogicNDTTask.mut_ccfs
-        File phylogic_unclustered = PhylogicNDTTask.unclustered
-        File phylogic_cluster_ccfs = PhylogicNDTTask.cluster_ccfs
-        # Array[File] phylogic_pie_plots = PhylogicNDTTask.pie_plots
-        Array[File] phylogic_mutation_plots = PhylogicNDTTask.one_d_mutation_plots
-        Array[File] phylogic_cluster_plots = PhylogicNDTTask.one_d_cluster_plots
+        File cnvs = PhylogicNDTTask.cnvs
+        File mut_ccfs = PhylogicNDTTask.mut_ccfs
+        File unclustered = PhylogicNDTTask.unclustered
+        File cluster_ccfs = PhylogicNDTTask.cluster_ccfs
+        # Array[File] pie_plots = PhylogicNDTTask.pie_plots
+        Array[File] mutation_plots = PhylogicNDTTask.one_d_mutation_plots
+        Array[File] cluster_plots = PhylogicNDTTask.one_d_cluster_plots
 
         # Outputs from PhylogicNDT BuildTree
         # Note: these are optional and may not be present if run_with_BuildTree is false
-        File? phylogic_report = PhylogicNDTTask.phylogic_report
-        File? phylogic_cell_population_abundances = PhylogicNDTTask.cell_population_abundances
-        File? phylogic_cell_population_mcmc_trace = PhylogicNDTTask.cell_population_mcmc_trace
-        File? phylogic_constrained_ccf = PhylogicNDTTask.constrained_ccf
-        File? phylogic_build_tree_posteriors = PhylogicNDTTask.build_tree_posteriors
+        File? report = PhylogicNDTTask.report
+        File? cell_population_abundances = PhylogicNDTTask.cell_population_abundances
+        File? cell_population_mcmc_trace = PhylogicNDTTask.cell_population_mcmc_trace
+        File? constrained_ccf = PhylogicNDTTask.constrained_ccf
+        File? build_tree_posteriors = PhylogicNDTTask.build_tree_posteriors
+
+        File? growth_rates = PhylogicNDTTask.growth_rates
+        File? growth_rate_plot = PhylogicNDTTask.growth_rate_plot
+
+        File? timing_composition = PhylogicNDTTask.timing_composition
+        File? timing_table = PhylogicNDTTask.timing_table
     }
 }
 
 task PhylogicNDTTask {
     input {
-        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/create_patient_sif.py"
         String patient_id
 
         Array[String]? sample_names
@@ -70,12 +73,11 @@ task PhylogicNDTTask {
     }
 
     String sif = patient_id + ".sif"
+    String timing_sif = patient_id + ".sif.timing.txt"
 
     command <<<
         set -e
-        wget -O create_patient_sif.py ~{script}
-
-        python create_patient_sif.py \
+        python /build/PhylogicNDT/create_patient_sif.py \
             --patient_id '~{patient_id}' \
             ~{if defined(sample_names) then "--sample_names '" else ""}~{default="" sep="' '" sample_names}~{if defined(sample_names) then "'" else ""} \
             --absolute_mafs '~{sep="' '" absolute_mafs}' \
@@ -88,6 +90,21 @@ task PhylogicNDTTask {
             -i '~{patient_id}' \
             -sif '~{sif}' \
             ~{if run_with_BuildTree then "--run_with_BuildTree" else ""}
+
+        # Cell populations are already being inferred.
+
+        if [ -f "~{patient_id}_cell_population_mcmc_trace.tsv" ]; then
+            # May not yield any result for single samples
+            python /build/PhylogicNDT/PhylogicNDT.py GrowthKinetics \
+                -i "~{patient_id}" \
+                -ab "~{patient_id}_cell_population_mcmc_trace.tsv"
+        fi
+
+        if [ "~{defined(absolute_segtabs)}" = "true" ]; then
+            python /build/PhylogicNDT/PhylogicNDT.py Timing \
+                -i "~{patient_id}" \
+                -sif "~{timing_sif}"
+        fi
     >>>
 
     output {
@@ -103,11 +120,17 @@ task PhylogicNDTTask {
         Array[File] one_d_cluster_plots = glob("~{patient_id}_1d_cluster_plots/*.cluster_ccfs.svg")
 
         # PhylogicNDT BuildTree outputs
-        File? phylogic_report ="~{patient_id}.phylogic_report.html"
+        File? report ="~{patient_id}.phylogic_report.html"
         File? cell_population_abundances = "~{patient_id}_cell_population_abundances.tsv"
         File? cell_population_mcmc_trace = "~{patient_id}_cell_population_mcmc_trace.tsv"
         File? constrained_ccf = "~{patient_id}_constrained_ccf.tsv"
         File? build_tree_posteriors = "~{patient_id}_build_tree_posteriors.tsv"
+
+        File? growth_rates = "~{patient_id}_growth_rates.tsv"
+        File? growth_rate_plot = "~{patient_id}.growth_rate.pdf"
+
+        File? timing_composition = "~{patient_id}.comp.tsv"
+        File? timing_table = "~{patient_id}.timing.tsv"
     }
 
     runtime {

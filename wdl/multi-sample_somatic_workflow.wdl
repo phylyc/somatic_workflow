@@ -700,7 +700,6 @@ workflow MultiSampleSomaticWorkflow {
                     absolute_segtabs = phylogic_absolute_segtabs,
                     absolute_purities = select_all(sample_purity),
                     timepoints = phylogic_timepoints,
-                    phylogicndt_create_sif_script = args.script_phylogicndt_create_sif,
                     runtime_collection = runtime_collection
             }
         }
@@ -799,8 +798,12 @@ workflow MultiSampleSomaticWorkflow {
         File? snp_sample_correlation = out_patient.snp_sample_correlation
         Float? snp_sample_correlation_min = out_patient.snp_sample_correlation_min
         File? modeled_segments = out_patient.modeled_segments
-        File? phylogic_sif_file = PhylogicNDT.phylogic_sif_file
-        File? phylogic_report = PhylogicNDT.phylogic_report
+        File? phylogic_sif_file = PhylogicNDT.sif_file
+        File? phylogic_report = PhylogicNDT.report
+        File? phylogic_growth_rates = PhylogicNDT.growth_rates
+        File? phylogic_growth_rate_plot = PhylogicNDT.growth_rate_plot
+        File? phylogic_timing_composition = PhylogicNDT.timing_composition
+        File? phylogic_timing_table = PhylogicNDT.timing_table
 
         # composite cache
         Patient output_patient = out_patient

@@ -66,7 +66,6 @@ struct WorkflowArguments {
     String script_map_to_absolute_copy_number
     String script_merge_pileups
     String script_pileup_to_allelic_counts
-    String script_phylogicndt_create_sif
 
     Int absolute_min_hets
     Int absolute_min_probes
@@ -169,7 +168,7 @@ workflow DefineWorkflowArguments {
 
         # CNV WORKFLOW
         Int collect_read_counts_max_soft_clipped_bases = 0
-        Float min_snppanel_pop_af = 0.01
+        Float min_snppanel_pop_af = 0.0001
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
         Float genotype_variants_normal_to_tumor_weight = 10.0
@@ -179,7 +178,7 @@ workflow DefineWorkflowArguments {
         Float genotype_variants_ref_bias = 1.05
         Int harmonize_min_target_length = 20
         Int het_to_interval_mapping_max_distance = 250
-        Int model_segments_max_number_of_segments_per_chromosome = 10000
+        Int model_segments_max_number_of_segments_per_chromosome = 1000
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
         Int model_segments_kernel_approximation_dimension = 200
         Boolean model_segments_use_multi_sample_cr_segmentation = true
@@ -196,7 +195,6 @@ workflow DefineWorkflowArguments {
         String script_map_to_absolute_copy_number = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
         String script_merge_pileups =               "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
         String script_pileup_to_allelic_counts =    "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
-        String script_phylogicndt_create_sif =      "https://github.com/phylyc/somatic_workflow/raw/master/python/create_patient_sif.py"
 
         Int absolute_min_hets = 0
         Int absolute_min_probes = 2
@@ -376,7 +374,6 @@ workflow DefineWorkflowArguments {
         script_map_to_absolute_copy_number: script_map_to_absolute_copy_number,
         script_merge_pileups: script_merge_pileups,
         script_pileup_to_allelic_counts: script_pileup_to_allelic_counts,
-        script_phylogicndt_create_sif: script_phylogicndt_create_sif,
 
         absolute_min_hets: absolute_min_hets,
         absolute_min_probes: absolute_min_probes,
