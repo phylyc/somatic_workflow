@@ -691,16 +691,18 @@ workflow MultiSampleSomaticWorkflow {
             if (length(select_all(sample_timepoint)) > 0) {
                 Array[Int]? phylogic_timepoints = select_all(sample_timepoint)
             }
-        
-            call phylogicndt.PhylogicNDT {
-                input:
-                    patient_id = AddAbsoluteResultsToSamples.updated_patient.name,
-                    sample_names = select_all(phylogic_sample_name),
-                    absolute_mafs = select_all(sample_absolute_maf),
-                    absolute_segtabs = phylogic_absolute_segtabs,
-                    absolute_purities = select_all(sample_purity),
-                    timepoints = phylogic_timepoints,
-                    runtime_collection = runtime_collection
+
+            if (length(select_all(phylogic_sample_name)) > 0) {
+                call phylogicndt.PhylogicNDT {
+                    input:
+                        patient_id = AddAbsoluteResultsToSamples.updated_patient.name,
+                        sample_names = select_all(phylogic_sample_name),
+                        absolute_mafs = select_all(sample_absolute_maf),
+                        absolute_segtabs = phylogic_absolute_segtabs,
+                        absolute_purities = select_all(sample_purity),
+                        timepoints = phylogic_timepoints,
+                        runtime_collection = runtime_collection
+                }
             }
         }
     }
