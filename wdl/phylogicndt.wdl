@@ -11,6 +11,7 @@ workflow PhylogicNDT {
         Array[File]? absolute_segtabs
         Array[Float] absolute_purities
         Array[Int]? timepoints
+        Array[Float]? tumor_mutation_burdens
         Boolean run_with_BuildTree = true
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
@@ -27,6 +28,7 @@ workflow PhylogicNDT {
             absolute_segtabs = absolute_segtabs,
             absolute_purities = absolute_purities,
             timepoints = timepoints,
+            tumor_mutation_burdens = tumor_mutation_burdens,
             run_with_BuildTree = run_with_BuildTree,
             runtime_params = runtime_collection.phylogicndt_task
     }
@@ -68,6 +70,7 @@ task PhylogicNDTTask {
         Array[File]? absolute_segtabs
         Array[Float] absolute_purities
         Array[Int]? timepoints
+        Array[Float]? tumor_mutation_burdens
         Boolean run_with_BuildTree = true
         Runtime runtime_params
     }
@@ -84,6 +87,7 @@ task PhylogicNDTTask {
             ~{if defined(absolute_segtabs) then "--absolute_segtabs '" else ""}~{default="" sep="' '" absolute_segtabs}~{if defined(absolute_segtabs) then "'" else ""} \
             --absolute_purities ~{sep=" " absolute_purities} \
             ~{if defined(timepoints) then "--timepoints " else ""}~{default="" sep=" " timepoints} \
+            ~{if defined(tumor_mutation_burdens) then "--tumor_mutation_burdens " else ""}~{default="" sep=" " tumor_mutation_burdens} \
             --outfile '~{sif}'
 
         python /build/PhylogicNDT/PhylogicNDT.py Cluster \

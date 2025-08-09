@@ -16,6 +16,9 @@ workflow ModelSegments {
 
         # If the gvcf does not contain GT information, we can not pre-select HETs.
         Boolean pre_select_hets = true
+        # Segmentation can be skipped if sample.called_copy_ratio_segmentation is defined.
+        # In this workflow, we do a first-pass segmentation, which sets this attribute,
+        # but we want to overwrite it with the second-pass segmentation.
         Boolean force_run_segmentation = true
         # If GT information is available, args.files.common_germline_alleles can be provided.
         File? gvcf
