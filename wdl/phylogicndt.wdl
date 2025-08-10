@@ -56,8 +56,11 @@ workflow PhylogicNDT {
         File? growth_rates = PhylogicNDTTask.growth_rates
         File? growth_rate_plot = PhylogicNDTTask.growth_rate_plot
 
-        File? timing_composition = PhylogicNDTTask.timing_composition
+        File? timing_comparison = PhylogicNDTTask.timing_comparison
         File? timing_table = PhylogicNDTTask.timing_table
+        File? timing_graph = PhylogicNDTTask.timing_graph
+        File? timing_report = PhylogicNDTTask.timing_report
+        File? timing_wgd_supporting_events = PhylogicNDTTask.timing_wgd_supporting_events
     }
 }
 
@@ -97,7 +100,6 @@ task PhylogicNDTTask {
 
         # Cell populations are already being inferred.
 
-        set +e  # The rest is not as important as getting the tree and it's not as well tested.
         if [ -f "~{patient_id}_cell_population_mcmc_trace.tsv" ]; then
             # May not yield any result for single samples
             python /build/PhylogicNDT/PhylogicNDT.py GrowthKinetics \
@@ -126,17 +128,20 @@ task PhylogicNDTTask {
         Array[File] one_d_cluster_plots = glob("~{patient_id}_1d_cluster_plots/*.cluster_ccfs.svg")
 
         # PhylogicNDT BuildTree outputs
-        File? report ="~{patient_id}.phylogic_report.html"
+        File? report = "~{patient_id}.phylogic_report.html"
         File? cell_population_abundances = "~{patient_id}_cell_population_abundances.tsv"
         File? cell_population_mcmc_trace = "~{patient_id}_cell_population_mcmc_trace.tsv"
         File? constrained_ccf = "~{patient_id}_constrained_ccf.tsv"
         File? build_tree_posteriors = "~{patient_id}_build_tree_posteriors.tsv"
 
-        File? growth_rates = "~{patient_id}_growth_rates.tsv"
+        File? growth_rates = "~{patient_id}_growth_rate.tsv"
         File? growth_rate_plot = "~{patient_id}.growth_rate.pdf"
 
-        File? timing_composition = "~{patient_id}.comp.tsv"
+        File? timing_comparison = "~{patient_id}.comp.tsv"
         File? timing_table = "~{patient_id}.timing.tsv"
+        File? timing_graph = "~{patient_id}.comp_graph.pdf"
+        File? timing_report = "~{patient_id}.phylogic_timing_report.html"
+        File? timing_wgd_supporting_events = "~{patient_id}.WGD_supporting_events.timing.tsv"
     }
 
     runtime {
