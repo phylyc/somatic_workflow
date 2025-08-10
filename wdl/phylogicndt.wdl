@@ -105,7 +105,7 @@ task PhylogicNDTTask {
             python /build/PhylogicNDT/PhylogicNDT.py GrowthKinetics \
                 -i "~{patient_id}" \
                 -ab "~{patient_id}_cell_population_mcmc_trace.tsv" \
-                -sif "~{sif}
+                -sif "~{sif}"
         fi
 
         if [ "~{defined(absolute_segtabs)}" = "true" ]; then
