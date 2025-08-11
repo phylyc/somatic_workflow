@@ -163,28 +163,33 @@ def convert_pileup_to_allelic_counts(args):
                         p["position"] = new_pos
                         pileups.append(p.to_frame(0).T)
 
-            _df = pd.concat(pileups, ignore_index=True)
+            if len(pileups):
+                _df = pd.concat(pileups, ignore_index=True)
+
+                # Aggregate read counts per interval
+                if args.aggregate_hets:
+                    # TODO: infer relative haplotype phase of HETs within each interval
+                    # Account for haplotype phase if available
+                    if "genotype" in _df.columns:
+                        phased_ref_count = np.where(_df["genotype"] == "1|0", _df["alt_count"], _df["ref_count"])
+                        _df["alt_count"] = np.where(_df["genotype"] == "1|0", _df["ref_count"], _df["alt_count"])
+                        _df["ref_count"] = phased_ref_count
+
+                    _df = _df.groupby(["contig", "START", "END"]).agg(
+                        ref_count=("ref_count", "sum"),
+                        alt_count=("alt_count", "sum"),
+                        ref=("ref", "first"),
+                        alt=("alt", "first")
+                    ).reset_index()
+
+                    _df["position"] = (_df["START"] + _df["END"]) // 2
+
+                    print("+", end="", flush=True) if args.verbose else None
+
+                if not _df.empty:
+                    dfs.append(_df)
+
             print(".", end="", flush=True) if args.verbose else None
-
-            # Aggregate read counts per interval
-            if args.aggregate_hets:
-                # TODO: infer relative haplotype phase of HETs within each interval
-                # Account for haplotype phase if available
-                if "genotype" in _df.columns:
-                    phased_ref_count = np.where(_df["genotype"] == "1|0", _df["alt_count"], _df["ref_count"])
-                    _df["alt_count"] = np.where(_df["genotype"] == "1|0", _df["ref_count"], _df["alt_count"])
-                    _df["ref_count"] = phased_ref_count
-
-                _df = _df.groupby(["contig", "START", "END"]).agg(
-                    ref_count=("ref_count", "sum"),
-                    alt_count=("alt_count", "sum"),
-                    ref=("ref", "first"),
-                    alt=("alt", "first")
-                ).reset_index()
-
-                _df["position"] = (_df["START"] + _df["END"]) // 2
-
-                print("+", end="", flush=True) if args.verbose else None
 
             if not _df.empty:
                 dfs.append(_df)
