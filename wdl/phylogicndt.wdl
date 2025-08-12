@@ -13,6 +13,10 @@ workflow PhylogicNDT {
         Array[Int]? timepoints
         Array[Float]? tumor_mutation_burdens
         Boolean run_with_BuildTree = true
+        Boolean use_indels = false
+        Boolean impute_missing_snvs = false
+        Int min_coverage = 8
+        File? driver_genes_file
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -30,6 +34,10 @@ workflow PhylogicNDT {
             timepoints = timepoints,
             tumor_mutation_burdens = tumor_mutation_burdens,
             run_with_BuildTree = run_with_BuildTree,
+            use_indels = use_indels,
+            impute_missing_snvs = impute_missing_snvs,
+            min_coverage = min_coverage,
+            driver_genes_file = driver_genes_file,
             runtime_params = runtime_collection.phylogicndt_task
     }
 
@@ -75,6 +83,12 @@ task PhylogicNDTTask {
         Array[Int]? timepoints
         Array[Float]? tumor_mutation_burdens
         Boolean run_with_BuildTree = true
+        Boolean use_indels = false
+        Boolean impute_missing_snvs = false
+        Int min_coverage = 8
+        Float Pk_k_r = 3.0
+        Float Pk_k_mu = 3.0
+        File? driver_genes_file
         Runtime runtime_params
     }
 
@@ -96,7 +110,13 @@ task PhylogicNDTTask {
         python /build/PhylogicNDT/PhylogicNDT.py Cluster \
             -i '~{patient_id}' \
             -sif '~{sif}' \
-            ~{if run_with_BuildTree then "--run_with_BuildTree" else ""}
+            ~{"--driver_genes_file " + driver_genes_file} \
+            ~{if use_indels then "--use_indels" else ""} \
+            ~{if impute_missing_snvs then "--impute" else ""} \
+            ~{if run_with_BuildTree then "--run_with_BuildTree" else ""} \
+            --Pk_k_r ~{Pk_k_r} \
+            --Pk_k_mu ~{Pk_k_mu} \
+            --min_coverage ~{min_coverage}
 
         # Cell populations are already being inferred.
 

@@ -701,6 +701,10 @@ workflow MultiSampleSomaticWorkflow {
                         absolute_segtabs = phylogic_absolute_segtabs,
                         absolute_purities = select_all(sample_purity),
                         timepoints = phylogic_timepoints,
+                        use_indels = args.phylogic_use_indels,
+                        impute_missing_snvs = args.phylogic_impute_missing_snvs,
+                        min_coverage = args.phylogic_min_coverage,
+                        driver_genes_file = args.files.phylogic_driver_genes_file,
                         runtime_collection = runtime_collection
                 }
             }

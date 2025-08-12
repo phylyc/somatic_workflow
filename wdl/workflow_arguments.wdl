@@ -73,6 +73,9 @@ struct WorkflowArguments {
     String absolute_genome_build
 
     Boolean phylogic_use_segtab
+    Boolean phylogic_use_indels
+    Boolean phylogic_impute_missing_snvs
+    Int phylogic_min_coverage
 
     # SNV WORKFLOW
     Int min_read_depth
@@ -202,6 +205,9 @@ workflow DefineWorkflowArguments {
         String absolute_genome_build = "hg19"
 
         Boolean phylogic_use_segtab = true
+        Boolean phylogic_use_indels = true
+        Boolean phylogic_impute_missing_snvs = false
+        Int phylogic_min_coverage = 8
 
         # SNV WORKFLOW
         Int min_read_depth = 4
@@ -381,6 +387,9 @@ workflow DefineWorkflowArguments {
         absolute_genome_build: absolute_genome_build,
 
         phylogic_use_segtab: phylogic_use_segtab,
+        phylogic_use_indels: phylogic_use_indels,
+        phylogic_impute_missing_snvs: phylogic_impute_missing_snvs,
+        phylogic_min_coverage: phylogic_min_coverage,
 
         min_read_depth: min_read_depth,
         mutect1_initial_tumor_lod: mutect1_initial_tumor_lod,

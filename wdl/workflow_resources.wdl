@@ -36,6 +36,8 @@ struct WorkflowResources {
     # Tarball of data sources for Funcotator. If not provided, the tarball will automatically
     # be downloaded from the GATK resource bundle, which is much slower.
     File? funcotator_data_sources_tar_gz
+    # File containing HUGO synbols of driver genes to be annotated in the tree.
+    File? phylogic_driver_genes_file
 
     # Mutect1 specific resources
     File? germline_resource_v4_1
@@ -67,6 +69,7 @@ workflow DefineWorkflowResources {
         File? realignment_bwa_mem_index_image
         File? funcotator_transcript_list
         File? funcotator_data_sources_tar_gz
+        File? phylogic_driver_genes_file
         
         # Mutect1 specific resources
         File? germline_resource_v4_1
@@ -96,6 +99,7 @@ workflow DefineWorkflowResources {
         realignment_bwa_mem_index_image: realignment_bwa_mem_index_image,
         funcotator_transcript_list: funcotator_transcript_list,
         funcotator_data_sources_tar_gz: funcotator_data_sources_tar_gz,
+        phylogic_driver_genes_file: phylogic_driver_genes_file,
         germline_resource_v4_1: germline_resource_v4_1,
         germline_resource_v4_1_idx: germline_resource_v4_1_idx,
         snv_panel_of_normals_v4_1: snv_panel_of_normals_v4_1,
