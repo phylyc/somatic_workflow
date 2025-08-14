@@ -224,10 +224,7 @@ task AbsoluteTask {
     String output_mode_tab = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_mode.tab.Rds"
     String output_ssnv_mode_tab = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_SSNV.mode.res.Rds"
 
-    # TODO: deal with -1 purity/ploidy
     command <<<
-        # ABSOLUTE may fail for various edge cases, but we still want to capture
-        # the output files for all other samples if run within the somatic workflow.
         set +e
         set -uxo pipefail
 
@@ -243,8 +240,8 @@ task AbsoluteTask {
                 --seg_dat_fn '~{seg_file}' \
                 ~{"--maf '" + snv_maf + "'"} \
                 ~{"--indel_maf '" + indel_maf + "'"} \
-                ~{"--alpha " + purity} \
-                ~{"--tau " + ploidy} \
+                ~{if (defined(purity) && (purity > 0)) then "--alpha " + purity else ""} \
+                ~{if (defined(ploidy) && (purity > 0)) then "--tau " + ploidy else ""} \
                 ~{"--gender  " + sex} \
                 ~{"--platform " + platform} \
                 --ssnv_skew ~{skew} \
@@ -254,8 +251,6 @@ task AbsoluteTask {
         else
             echo "No segments found in the input segmentation file. Exiting." >&2
         fi
-
-        exit 0
     >>>
 
     output {
