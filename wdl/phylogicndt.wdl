@@ -86,8 +86,8 @@ task PhylogicNDTTask {
         Boolean use_indels = false
         Boolean impute_missing_snvs = false
         Int min_coverage = 8
-        Float Pk_k_r = 3.0
-        Float Pk_k_mu = 3.0
+        Float Pi_k_r = 3.0
+        Float Pi_k_mu = 3.0
         File? driver_genes_file
         Runtime runtime_params
     }
@@ -114,8 +114,8 @@ task PhylogicNDTTask {
             ~{if use_indels then "--use_indels" else ""} \
             ~{if impute_missing_snvs then "--impute" else ""} \
             ~{if run_with_BuildTree then "--run_with_BuildTree" else ""} \
-            --Pk_k_r ~{Pk_k_r} \
-            --Pk_k_mu ~{Pk_k_mu} \
+            --Pi_k_r ~{Pi_k_r} \
+            --Pi_k_mu ~{Pi_k_mu} \
             --min_coverage ~{min_coverage}
 
         # Cell populations are already being inferred.
