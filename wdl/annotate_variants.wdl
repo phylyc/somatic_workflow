@@ -268,7 +268,7 @@ task Funcotate {
             ~{exclude_fields_arg} \
             ~{funcotate_extra_args} \
             2> >( \
-                grep -v 'Adding transcript ID to transcript set' \
+                stdbuf -oL grep -v 'Adding transcript ID to transcript set' \
                 >&2 \
             )
 
