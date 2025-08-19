@@ -25,7 +25,7 @@ def parse_args():
     parser.add_argument("--output_dir",     type=str,   required=True,  help="Path to the output directory.")
     parser.add_argument("--min_hets",       type=int,   default=0,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
     parser.add_argument("--min_probes",     type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
-    parser.add_argument("--maf90_threshold",type=float, default=0.485,  help="Threshold of 90% quantile for setting minor allele fraction to 0.5.")
+    parser.add_argument("--maf90_threshold",type=float, default=0.49,   help="Threshold of 90% quantile for setting minor allele fraction to 0.5.")
     parser.add_argument("--sex",            type=str,   default="XXY",  help="Genotype sex of the patient for ploidy priors on X and Y chromosomes: {Female, Male, female, male, XX, XY, XXY, XYY, XXX, etc.}")
     parser.add_argument("--verbose",        default=False,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
@@ -169,20 +169,20 @@ def convert_model_segments_to_alleliccapseg(args):
     # alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["f"].isna(), "f"] = 1 / alleliccapseg_seg_pd["tau"]
     # alleliccapseg_seg_pd["f"] = alleliccapseg_seg_pd["f"].where(alleliccapseg_seg_pd["f"] < 0.5, 1 - alleliccapseg_seg_pd["f"]).clip(lower=0)
 
-    # Correct the diploid assumption
-    if nX < 2:
-        alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "chrX"]), "f"] = np.nan
-    # Assume that Y never has heterozygous germline SNPs (technically not true, but those that arise
-    # e.g. during S-phase before meiosis II are not enough to allow for stable aCR signal).
-    alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["Y", "chrY"]), "f"] = np.nan
-
     # For segments with less than 10 hets, AllelicCapSeg also tries to call whether
     # a segment is "split" or not. ACS performs a simple hypothesis test on the
     # alternate-allele fractions to see if a unimodal distribution peaked at 0.5 is
     # supported over a bimodal distribution peaked at f and 1 - f. If the former is
     # supported, then AllelicCapSeg ignores the MAP estimate of f and simply sets it to 0.5.
     # For now, we replace the statistical test with a simple threshold test.
-    alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["f"] > args.maf90_threshold, "f"] = 0.5
+    alleliccapseg_seg_pd.loc[model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_90"] > args.maf90_threshold, "f"] = 0.5
+
+    # Correct the diploid assumption
+    if nX < 2:
+        alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "chrX"]), "f"] = np.nan
+    # Assume that Y never has heterozygous germline SNPs (technically not true, but those that arise
+    # e.g. during S-phase before meiosis II are not enough to allow for stable aCR signal).
+    alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["Y", "chrY"]), "f"] = np.nan
 
     alleliccapseg_seg_pd["sigma.tau"] = 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_90"] - 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_10"]
     sigma_f = (model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_90"].to_numpy() - model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_10"].to_numpy()) / 2.

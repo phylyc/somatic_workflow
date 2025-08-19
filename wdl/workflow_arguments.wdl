@@ -201,7 +201,7 @@ workflow DefineWorkflowArguments {
 
         Int absolute_min_hets = 0
         Int absolute_min_probes = 2
-        Float absolute_maf90_threshold = 0.485
+        Float absolute_maf90_threshold = 0.49
         String absolute_genome_build = "hg19"
 
         Boolean phylogic_use_segtab = true
