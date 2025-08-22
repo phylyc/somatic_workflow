@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument("-D", "--ref_dict", type=str,   help="Path to the reference dictionary to sort rows.")
     parser.add_argument("--intervals",      type=str,   default=None,   help="Path to the (denoised total copy ratio) intervals to map nearby pileups to intervals. Required columns: CONTIG, START, END")
     parser.add_argument("--het_to_interval_mapping_max_distance", type=int, default=0, help="If a pileup location does not map to an interval provided in the intervals, it will be mapped to the closest interval, which is at most this many base pairs away.")
+    parser.add_argument("--phase_q_tolerance", type=float, default=0.2, help="")
     parser.add_argument("--aggregate_hets", default=False, action="store_true", help="Aggregate pileups in intervals.")
     parser.add_argument("--min_read_depth", type=int,   default=0, help="Minimum read depth.")
     parser.add_argument("--output",         type=str,   required=True,  help="Path to the output file.")
@@ -67,12 +68,13 @@ def get_contigs(ref_dict: str) -> list[str]:
         contig_header = [line for line in file if line.startswith("@SQ")]
     return [h.split("\t")[1].removeprefix("SN:") for h in contig_header]
 
-# Handles gzipped or uncompressed gvcf files
+
 def read_gvcf(filename: str):
     if filename.endswith(".gz") or filename.endswith(".bgz"):
         return gzip.open(filename, "rt")
     else:
         return open(filename, "r")
+
 
 def convert_pileup_to_allelic_counts(args):
     pileup = pd.read_csv(
@@ -125,6 +127,9 @@ def convert_pileup_to_allelic_counts(args):
             if _df.empty or i_contig.empty:
                 continue
 
+            _df = _df.sort_values("position")
+            i_contig = i_contig.sort_values("START")
+
             # Find positions in intervals:
             _df = pd.merge_asof(_df, i_contig[["START", "END"]], left_on="position", right_on="START", direction="backward")
             _df = pd.merge_asof(_df, i_contig[["START", "END"]], left_on="position", right_on="START", direction="forward", suffixes=("_pre", "_post"))
@@ -168,14 +173,32 @@ def convert_pileup_to_allelic_counts(args):
 
                 # Aggregate read counts per interval
                 if args.aggregate_hets:
-                    # TODO: infer relative haplotype phase of HETs within each interval
                     # Account for haplotype phase if available
-                    if "genotype" in _df.columns:
-                        phased_ref_count = np.where(_df["genotype"] == "1|0", _df["alt_count"], _df["ref_count"])
-                        _df["alt_count"] = np.where(_df["genotype"] == "1|0", _df["ref_count"], _df["alt_count"])
-                        _df["ref_count"] = phased_ref_count
+                    if "0|1" in _df.columns and "1|0" in _df.columns:
+                        p01 = _df["0|1"].to_numpy(dtype=float)
+                        w   = _df["0/1"].to_numpy(dtype=float)
 
-                    _df = _df.groupby(["contig", "START", "END"]).agg(
+                        q = np.full_like(w, 0.5)  # default to 0.5 when w==0
+                        nz = w > 0
+                        q[nz] = p01[nz] / w[nz]
+                        q[np.abs(q - 0.5) < args.phase_q_tolerance] = 0.5
+
+                        a = _df["alt_count"].astype(float).to_numpy()
+                        r = _df["ref_count"].astype(float).to_numpy()
+
+                        ref_oriented = q * r + (1 - q) * a
+                        alt_oriented = q * a + (1 - q) * r
+                        _df = _df.assign(ref_count=ref_oriented, alt_count=alt_oriented)
+
+                    elif "genotype" in _df.columns:
+                        phased_ref_count = np.where(_df["genotype"] == "1|0", _df["alt_count"], _df["ref_count"])
+                        phased_alt_count = np.where(_df["genotype"] == "1|0", _df["ref_count"], _df["alt_count"])
+                        _df = _df.assign(ref_count=phased_ref_count, alt_count=phased_alt_count)
+
+                    else:
+                        warnings.warn("Aggregating pileups not accounting for haplotypes!")
+
+                    _df = _df.groupby(by=["contig", "START", "END"], sort=False).agg(
                         ref_count=("ref_count", "sum"),
                         alt_count=("alt_count", "sum"),
                         ref=("ref", "first"),
@@ -183,6 +206,8 @@ def convert_pileup_to_allelic_counts(args):
                     ).reset_index()
 
                     _df["position"] = (_df["START"] + _df["END"]) // 2
+                    _df["ref_count"] = _df["ref_count"].astype(int)
+                    _df["alt_count"] = _df["alt_count"].astype(int)
 
                     print("+", end="", flush=True) if args.verbose else None
 
