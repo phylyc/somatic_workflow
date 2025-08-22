@@ -1,7 +1,6 @@
 import argparse
 from collections import Counter
 from copy import copy
-from functools import reduce
 from itertools import combinations
 import gzip
 import multiprocessing as mp
@@ -9,6 +8,7 @@ import numpy as np
 import os
 import pandas as pd
 import scipy.stats as st
+import scipy.special as sp
 import time
 import warnings
 
@@ -627,7 +627,7 @@ class Genotyper(object):
         """
         other_alt_counts = pileup["other_alt_count"].sum()
         total_counts = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1).sum()
-        return np.clip(1.5 * other_alt_counts / max(1, total_counts), a_min=self.min_error_rate, a_max=self.max_error_rate)
+        return np.clip(3/2 * other_alt_counts / max(1, total_counts), a_min=self.min_error_rate, a_max=self.max_error_rate)
 
     def select_confident_calls(self, likelihoods: pd.DataFrame, genotypes: list[str] = None) -> pd.DataFrame:
         """
@@ -659,7 +659,7 @@ class Genotyper(object):
             pd.DataFrame: DataFrame with genotype likelihoods for each genomic position.
         """
         if pileup.empty:
-            return pd.DataFrame(columns=["contig", "position", "ref_count", "alt_count", "other_alt_count", "allele_frequency", "0/0", "0/1", "1/1", "./."])
+            return pd.DataFrame(columns=["contig", "position", "ref_count", "alt_count", "other_alt_count", "allele_frequency", "0/0", "0|1", "1|0", "0/1", "1/1", "./."])
 
         error = self.get_error_prob(pileup=pileup)
 
@@ -704,6 +704,8 @@ class Genotyper(object):
                 "alt_count": int,
                 "other_alt_count": int,
                 "0/0": float,
+                "0|1": float,
+                "1|0": float,
                 "0/1": float,
                 "1/1": float,
                 "./.": float,
@@ -740,7 +742,7 @@ class Genotyper(object):
         def bias(_f):
             return _f / (_f + (1 - _f) * self.ref_bias)
 
-        f_aa = contamination * popaf + (1 - contamination) * error / 3
+        f_aa = contamination * popaf + (1 - contamination) * error / 3  # errors spread across the three wrong bases
         f_bb = contamination * popaf + (1 - contamination) * (1 - error)
         f_ab = bias(contamination * popaf + (1 - contamination) * minor_af)
         f_ba = bias(contamination * popaf + (1 - contamination) * (1 - minor_af))
@@ -778,9 +780,14 @@ class Genotyper(object):
 
         likelihoods = pileup.copy()
         likelihoods["0/0"] = np.exp(aa)
+        likelihoods["0|1"] = np.exp(ab)
+        likelihoods["1|0"] = np.exp(ba)
         likelihoods["0/1"] = np.exp(het)
         likelihoods["1/1"] = np.exp(bb)
         likelihoods["./."] = np.exp(outlier)
+
+        # Output raw likelihoods since they carry information about read depth
+        # or confidence for joint genotyping.
 
         return likelihoods
 
@@ -831,7 +838,7 @@ class Genotyper(object):
                 joint_log_likelihood[gt] = pd.concat(log_likelihoods, axis=1).fillna(1).apply(nansum, axis=1)
 
         # Normalize likelihoods
-        total = pd.concat(joint_log_likelihood.values(), axis=1).apply(lambda row: reduce(np.logaddexp, row), axis=1)
+        total = pd.concat(joint_log_likelihood.values(), axis=1).apply(sp.logsumexp, axis=1)
         genotype_likelihood = {
             gt: np.exp(joint_log_likelihood[gt].sub(total, axis=0))
             for gt in self.genotypes
