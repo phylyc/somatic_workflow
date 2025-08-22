@@ -242,7 +242,7 @@ workflow DefineRuntimeCollection {
         Int time_print_reads = 60
 
         # gatk: LearnReadOrientationModel
-        Int mem_learn_read_orientation_model_base = 10240  # 8G should be exactly fine, but very occasionally it's not quite enough.
+        Int mem_learn_read_orientation_model_base = 16384  # 8G should be exactly fine, but very occasionally it's not quite enough.
         Int mem_learn_read_orientation_model_additional_per_sample = 1024
         Int time_learn_read_orientation_model = 180  # 3 h
 
