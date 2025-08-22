@@ -36,7 +36,7 @@ struct WorkflowResources {
     # Tarball of data sources for Funcotator. If not provided, the tarball will automatically
     # be downloaded from the GATK resource bundle, which is much slower.
     File? funcotator_data_sources_tar_gz
-    # File containing HUGO synbols of driver genes to be annotated in the tree.
+    # File containing HUGO symbols of driver genes, one per line, to be annotated in the tree.
     File? phylogic_driver_genes_file
 
     # Mutect1 specific resources
