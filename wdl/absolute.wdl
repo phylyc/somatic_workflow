@@ -251,6 +251,8 @@ task AbsoluteTask {
         else
             echo "No segments found in the input segmentation file. Exiting." >&2
         fi
+
+        exit 0
     >>>
 
     output {
