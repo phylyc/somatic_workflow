@@ -14,7 +14,7 @@ workflow FilterVariants {
         RuntimeCollection runtime_collection
     }
 
-    if (!defined(patient.filtered_vcf)) {
+    if (defined(patient.raw_snv_calls_vcf) && !defined(patient.filtered_vcf)) {
         scatter (sample in patient.samples) {
             File? c = sample.contamination_table
             File? s = sample.af_segmentation_table
