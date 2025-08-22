@@ -16,10 +16,6 @@ workflow ModelSegments {
 
         # If the gvcf does not contain GT information, we can not pre-select HETs.
         Boolean pre_select_hets = true
-        # Segmentation can be skipped if sample.called_copy_ratio_segmentation is defined.
-        # In this workflow, we do a first-pass segmentation, which sets this attribute,
-        # but we want to overwrite it with the second-pass segmentation.
-        Boolean force_run_segmentation = true
         # If GT information is available, args.files.common_germline_alleles can be provided.
         File? gvcf
         File? gvcf_idx
@@ -112,59 +108,57 @@ workflow ModelSegments {
     Patient pat_seg = select_first([AddMultiSampleSegmentationToPatient.updated_patient, pat])
 
     scatter (sample in pat_seg.samples) {
-        if (force_run_segmentation || !defined(sample.called_copy_ratio_segmentation)) {
-            if (defined(sample.harmonized_denoised_total_copy_ratios))  {
-                Array[File] dcr_list = select_all([sample.harmonized_denoised_total_copy_ratios])
-            }
-            if (defined(sample.aggregated_allelic_read_counts)) {
-                Array[File] ac_list = select_all([sample.aggregated_allelic_read_counts])
-            }
-            if (defined(sample.genotype_error_probabilities)) {
-                Float error_probability = select_first([sample.genotype_error_probabilities])
-            }
-            # If we provide matched normal allelic counts, we run into:
-            # java.lang.IllegalArgumentException:
-            # The minimum total count for filtering allelic counts in case samples
-            # must be set to zero in matched-normal mode. If the effect of statistical
-            # noise due to low depth in case samples on segmentation is a concern,
-            # consider using only denoised copy ratios or externally preprocessing
-            # allelic-count files to remove sites that are poorly covered across all samples.
-            call ModelSegmentsTask as SingleSampleInferCR {
-                input:
-                    segments = pat_seg.modeled_segments,
-                    denoised_copy_ratios = dcr_list,
-                    allelic_counts = ac_list,
-                    prefix = sample.name,
-                    minimum_total_allele_count_case = args.min_snppanel_read_depth,
-                    max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
-                    window_sizes = args.model_segments_window_sizes,
-                    kernel_approximation_dimension = args.model_segments_kernel_approximation_dimension,
-                    genotyping_homozygous_log_ratio_threshold = genotyping_homozygous_log_ratio_threshold,
-                    genotyping_base_error_rate = error_probability,
-                    smoothing_credible_interval_threshold = model_segments_smoothing_credible_interval_threshold,
-                    runtime_params = runtime_collection.model_segments
-            }
+        if (defined(sample.harmonized_denoised_total_copy_ratios))  {
+            Array[File] dcr_list = select_all([sample.harmonized_denoised_total_copy_ratios])
+        }
+        if (defined(sample.aggregated_allelic_read_counts)) {
+            Array[File] ac_list = select_all([sample.aggregated_allelic_read_counts])
+        }
+        if (defined(sample.genotype_error_probabilities)) {
+            Float error_probability = select_first([sample.genotype_error_probabilities])
+        }
+        # If we provide matched normal allelic counts, we run into:
+        # java.lang.IllegalArgumentException:
+        # The minimum total count for filtering allelic counts in case samples
+        # must be set to zero in matched-normal mode. If the effect of statistical
+        # noise due to low depth in case samples on segmentation is a concern,
+        # consider using only denoised copy ratios or externally preprocessing
+        # allelic-count files to remove sites that are poorly covered across all samples.
+        call ModelSegmentsTask as SingleSampleInferCR {
+            input:
+                segments = pat_seg.modeled_segments,
+                denoised_copy_ratios = dcr_list,
+                allelic_counts = ac_list,
+                prefix = sample.name,
+                minimum_total_allele_count_case = args.min_snppanel_read_depth,
+                max_number_of_segments_per_chromosome = args.model_segments_max_number_of_segments_per_chromosome,
+                window_sizes = args.model_segments_window_sizes,
+                kernel_approximation_dimension = args.model_segments_kernel_approximation_dimension,
+                genotyping_homozygous_log_ratio_threshold = genotyping_homozygous_log_ratio_threshold,
+                genotyping_base_error_rate = error_probability,
+                smoothing_credible_interval_threshold = model_segments_smoothing_credible_interval_threshold,
+                runtime_params = runtime_collection.model_segments
+        }
 
-            call CallCopyRatioSegments {
-                input:
-                    cr_seg = select_first([SingleSampleInferCR.cr_seg]),
-                    seg_final = select_first([SingleSampleInferCR.seg_final]),
-                    neutral_segment_copy_ratio_lower_bound = args.call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
-                    neutral_segment_copy_ratio_upper_bound = args.call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
-                    outlier_neutral_segment_copy_ratio_z_score_threshold = args.call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold,
-                    calling_copy_ratio_z_score_threshold = args.call_copy_ratios_z_score_threshold,
-                    runtime_params = runtime_collection.call_copy_ratio_segments
-            }
+        call CallCopyRatioSegments {
+            input:
+                cr_seg = select_first([SingleSampleInferCR.cr_seg]),
+                seg_final = select_first([SingleSampleInferCR.seg_final]),
+                neutral_segment_copy_ratio_lower_bound = args.call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
+                neutral_segment_copy_ratio_upper_bound = args.call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
+                outlier_neutral_segment_copy_ratio_z_score_threshold = args.call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold,
+                calling_copy_ratio_z_score_threshold = args.call_copy_ratios_z_score_threshold,
+                runtime_params = runtime_collection.call_copy_ratio_segments
+        }
 
-            call PlotModeledSegments {
-                input:
-                    ref_dict = args.files.ref_dict,
-                    sample_name = sample.name,
-                    segments = select_first([SingleSampleInferCR.seg_final]),
-                    denoised_copy_ratios = sample.harmonized_denoised_total_copy_ratios,
-                    het_allelic_counts = SingleSampleInferCR.hets,
-                    runtime_params = runtime_collection.plot_modeled_segments
-            }
+        call PlotModeledSegments {
+            input:
+                ref_dict = args.files.ref_dict,
+                sample_name = sample.name,
+                segments = select_first([SingleSampleInferCR.seg_final]),
+                denoised_copy_ratios = sample.harmonized_denoised_total_copy_ratios,
+                het_allelic_counts = SingleSampleInferCR.hets,
+                runtime_params = runtime_collection.plot_modeled_segments
         }
 
         File af_segmentation_table = select_first([SingleSampleInferCR.af_segmentation_table, sample.af_segmentation_table])

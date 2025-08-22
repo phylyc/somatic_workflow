@@ -282,7 +282,6 @@ workflow MultiSampleSomaticWorkflow {
                 args = args,
                 runtime_collection = runtime_collection,
                 pre_select_hets = false,
-                force_run_segmentation = false,
                 gvcf = args.files.common_germline_alleles,
                 gvcf_idx = args.files.common_germline_alleles_idx,
         }
@@ -401,7 +400,7 @@ workflow MultiSampleSomaticWorkflow {
             # The sample scatter needs to be outside of the call to AnnotateVariants
             # since cromwell shits the bed for piping optional inputs into a nested scatter.
             scatter (sample in filtered_snv_patient.samples) {
-                if (size(sample.annotated_somatic_variants) == 0) {
+                if (defined(filtered_snv_patient.somatic_vcf) && (size(sample.annotated_somatic_variants) == 0)) {
                     if (sample.is_tumor && defined(filtered_snv_patient.matched_normal_sample)) {
                         Sample cnv_matched_normal_sample = select_first([filtered_snv_patient.matched_normal_sample])
                         String? matched_normal_sample_name = cnv_matched_normal_sample.name
