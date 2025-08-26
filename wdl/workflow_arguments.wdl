@@ -47,8 +47,13 @@ struct WorkflowArguments {
     Float genotype_variants_outlier_prior
     Int genotype_variants_overdispersion
     Float genotype_variants_ref_bias
+    Float genotype_variants_phasing_log_ratio_cap
+    Float genotype_variants_phasing_sample_llr_threshold
+    Float genotype_variants_phasing_consensus_fdr
+    Int genotype_variants_phasing_max_num_contig_segs
     Int harmonize_min_target_length
     Int het_to_interval_mapping_max_distance
+    Float aggregate_hets_phase_log_odds_ratio_threshold
     Int model_segments_max_number_of_segments_per_chromosome
     Array[Int] model_segments_window_sizes
     Int model_segments_kernel_approximation_dimension
@@ -58,7 +63,7 @@ struct WorkflowArguments {
     Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound
     Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold
     Float call_copy_ratios_z_score_threshold
-    Int filter_germline_cnvs_min_segment_length
+    Int filter_segments_min_probes
 
     String script_acs_conversion
     String script_genotype_variants
@@ -176,11 +181,16 @@ workflow DefineWorkflowArguments {
         Int min_snppanel_read_depth = 10
         Float genotype_variants_normal_to_tumor_weight = 10.0
         Float genotype_variants_min_genotype_likelihood = 0.995  # = LOD threshold 5.3
-        Float genotype_variants_outlier_prior = 0.00001
+        Float genotype_variants_outlier_prior = 0.001
         Int genotype_variants_overdispersion = 10
         Float genotype_variants_ref_bias = 1.05
+        Float genotype_variants_phasing_log_ratio_cap = 10
+        Float genotype_variants_phasing_sample_llr_threshold = 0.4
+        Float genotype_variants_phasing_consensus_fdr = 0.005  # = LOD threshold 5.3
+        Int genotype_variants_phasing_max_num_contig_segs = 1000
         Int harmonize_min_target_length = 20
         Int het_to_interval_mapping_max_distance = 250
+        Float aggregate_hets_phase_log_odds_ratio_threshold = 0.4
         Int model_segments_max_number_of_segments_per_chromosome = 1000
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
         Int model_segments_kernel_approximation_dimension = 200
@@ -190,7 +200,7 @@ workflow DefineWorkflowArguments {
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
         Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold = 2.0
         Float call_copy_ratios_z_score_threshold = 2.0
-        Int filter_germline_cnvs_min_segment_length = 100
+        Int filter_segments_min_probes = 1
 
         String script_acs_conversion =              "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
         String script_genotype_variants =           "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
@@ -200,7 +210,7 @@ workflow DefineWorkflowArguments {
         String script_pileup_to_allelic_counts =    "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
 
         Int absolute_min_hets = 0
-        Int absolute_min_probes = 2
+        Int absolute_min_probes = 3
         Float absolute_maf90_threshold = 0.49
         String absolute_genome_build = "hg19"
 
@@ -361,8 +371,13 @@ workflow DefineWorkflowArguments {
         genotype_variants_outlier_prior: genotype_variants_outlier_prior,
         genotype_variants_overdispersion: genotype_variants_overdispersion,
         genotype_variants_ref_bias: genotype_variants_ref_bias,
+        genotype_variants_phasing_log_ratio_cap: genotype_variants_phasing_log_ratio_cap,
+        genotype_variants_phasing_sample_llr_threshold: genotype_variants_phasing_sample_llr_threshold,
+        genotype_variants_phasing_consensus_fdr: genotype_variants_phasing_consensus_fdr,
+        genotype_variants_phasing_max_num_contig_segs: genotype_variants_phasing_max_num_contig_segs,
         harmonize_min_target_length: harmonize_min_target_length,
         het_to_interval_mapping_max_distance: het_to_interval_mapping_max_distance,
+        aggregate_hets_phase_log_odds_ratio_threshold: aggregate_hets_phase_log_odds_ratio_threshold,
         model_segments_max_number_of_segments_per_chromosome: model_segments_max_number_of_segments_per_chromosome,
         model_segments_window_sizes: model_segments_window_sizes,
         model_segments_kernel_approximation_dimension: model_segments_kernel_approximation_dimension,
@@ -372,7 +387,7 @@ workflow DefineWorkflowArguments {
         call_copy_ratios_neutral_segment_copy_ratio_upper_bound: call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
         call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold: call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold,
         call_copy_ratios_z_score_threshold: call_copy_ratios_z_score_threshold,
-        filter_germline_cnvs_min_segment_length: filter_germline_cnvs_min_segment_length,
+        filter_segments_min_probes: filter_segments_min_probes,
 
         script_acs_conversion: script_acs_conversion,
         script_genotype_variants: script_genotype_variants,

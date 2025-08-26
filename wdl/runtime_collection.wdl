@@ -26,7 +26,7 @@ struct RuntimeCollection {
     Runtime model_segments
     Runtime call_copy_ratio_segments
     Runtime plot_modeled_segments
-    Runtime filter_germline_cnvs
+    Runtime filter_copy_ratios
     Runtime recount_markers
     Runtime model_segments_to_acs_conversion
     Runtime process_maf_for_absolute
@@ -186,8 +186,8 @@ workflow DefineRuntimeCollection {
         Int time_plot_modeled_segments = 10
 
         # custom filtering script
-        Int mem_filter_germline_cnvs = 2048
-        Int time_filter_germline_cnvs = 10
+        Int mem_filter_copy_ratios = 2048
+        Int time_filter_copy_ratios = 10
 
         # custom recount marker script
         Int mem_recount_markers = 2048
@@ -601,14 +601,14 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime filter_germline_cnvs = {
+    Runtime filter_copy_ratios = {
         "docker": python_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
         "cpu": cpu,
-        "machine_mem": mem_filter_germline_cnvs + mem_machine_overhead,
-        "command_mem": mem_filter_germline_cnvs,
-        "runtime_minutes": time_startup + time_filter_germline_cnvs,
+        "machine_mem": mem_filter_copy_ratios + mem_machine_overhead,
+        "command_mem": mem_filter_copy_ratios,
+        "runtime_minutes": time_startup + time_filter_copy_ratios,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -941,7 +941,7 @@ workflow DefineRuntimeCollection {
         "model_segments": model_segments,
         "call_copy_ratio_segments": call_copy_ratio_segments,
         "plot_modeled_segments": plot_modeled_segments,
-        "filter_germline_cnvs": filter_germline_cnvs,
+        "filter_copy_ratios": filter_copy_ratios,
         "recount_markers": recount_markers,
 
         "model_segments_to_acs_conversion": model_segments_to_acs_conversion,
