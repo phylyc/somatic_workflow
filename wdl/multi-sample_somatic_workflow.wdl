@@ -220,6 +220,8 @@ workflow MultiSampleSomaticWorkflow {
         }
     }
 
+    # todo: infer sex genotype
+
     call p_update_s.UpdateSamples as PatientAddCoverage {
         input:
             patient = coverage_workflow_patient,
@@ -343,6 +345,8 @@ workflow MultiSampleSomaticWorkflow {
                 args = args,
                 runtime_collection = runtime_collection,
         }
+
+        # TODO: If no common germline varaints were supplied, use called germline variants for allelic copy ratio inferece.
 
         if (args.keep_germline && defined(FilterVariants.updated_patient.germline_vcf)) {
             # Collect allelic pileups for all putative germline sites that were
