@@ -23,7 +23,7 @@ import "filter_variants.wdl" as fv
 import "annotate_variants.wdl" as av
 import "tasks.wdl"
 #import "calculate_tumor_mutation_burden.wdl" as tmb
-#import "filter_segments.wdl" as fs
+import "filter_segments.wdl" as fs
 import "absolute.wdl" as abs
 import "absolute_extract.wdl" as abs_extract
 import "phylogicndt.wdl" as phylogicndt
@@ -226,8 +226,6 @@ workflow MultiSampleSomaticWorkflow {
             sequencing_runs = SeqAddCoverage.updated_sequencing_run,
     }
 
-    # todo: FilterIntervals
-
     call hs.HarmonizeSamples {
         input:
             ref_dict = args.files.ref_dict,
@@ -274,9 +272,9 @@ workflow MultiSampleSomaticWorkflow {
                 contamination_table = contam_table,
         }
 
-        # Perform a first-pass single-sample segmentation to get prior allelic
-        # copy ratio segmentations for genotyping.
-        call ms.ModelSegments as FirstPassSegmentation {
+        # Perform a first-pass single-sample segmentation to detect segments that
+        # need to be filtered.
+        call ms.ModelSegments as PreFirstPassSegmentation {
             input:
                 patient = AddContaminationToSamples.updated_patient,
                 args = args,
@@ -285,9 +283,32 @@ workflow MultiSampleSomaticWorkflow {
                 gvcf = args.files.common_germline_alleles,
                 gvcf_idx = args.files.common_germline_alleles_idx,
         }
+
+        if (args.filter_segments_min_probes > 1) {
+            # Remove copy ratio observations that are outliers which induce artificial
+            # segmentation boundaries.
+            call fs.FilterSegments {
+                input:
+                    patient = PreFirstPassSegmentation.updated_patient,
+                    args = args,
+                    runtime_collection = runtime_collection,
+            }
+
+            # Perform a second-pass single-sample segmentation to get prior allelic
+            # copy ratio segmentations for genotyping.
+            call ms.ModelSegments as FirstPassSegmentation {
+                input:
+                    patient = FilterSegments.updated_patient,
+                    args = args,
+                    runtime_collection = runtime_collection,
+                    pre_select_hets = false,
+                    gvcf = args.files.common_germline_alleles,
+                    gvcf_idx = args.files.common_germline_alleles_idx,
+            }
+        }
     }
 
-    Patient coverage_workflow_updated_patient = select_first([FirstPassSegmentation.updated_patient, ConsensusPatient.updated_patient])
+    Patient coverage_workflow_updated_patient = select_first([FirstPassSegmentation.updated_patient, PreFirstPassSegmentation.updated_patient, ConsensusPatient.updated_patient])
 
 
 ###############################################################################
@@ -510,12 +531,14 @@ workflow MultiSampleSomaticWorkflow {
                 outlier_prior = args.genotype_variants_outlier_prior,
                 overdispersion = args.genotype_variants_overdispersion,
                 ref_bias = args.genotype_variants_ref_bias,
+                phasing_log_ratio_cap = args.genotype_variants_phasing_log_ratio_cap,
+                phasing_sample_llr_threshold = args.genotype_variants_phasing_sample_llr_threshold,
+                phasing_consensus_fdr = args.genotype_variants_phasing_consensus_fdr,
+                phasing_max_num_contig_segs = args.genotype_variants_phasing_max_num_contig_segs,
                 select_hets = false,
                 save_sample_genotype_likelihoods = true,
                 runtime_collection = runtime_collection,
         }
-
-        # todo: phase gvcf
 
         call p_update_s.UpdateSamples as AddPileupsToSamples {
             input:
@@ -543,15 +566,6 @@ workflow MultiSampleSomaticWorkflow {
                 args = args,
                 runtime_collection = runtime_collection,
         }
-
-#        if (args.run_filter_segments) {
-#            call fs.FilterSegments {
-#                input:
-#                    patient = ModelSegments.updated_patient,
-#                    args = args,
-#                    runtime_collection = runtime_collection,
-#            }
-#        }
     }
 
     # todo: FuncotateSegments
