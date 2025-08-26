@@ -63,7 +63,7 @@ workflow ModelSegments {
     # to be very permissive. This introduces a bit more noise, which we compensate
     # for by stronger smoothing.
     if (pre_select_hets) {
-        Int genotyping_homozygous_log_ratio_threshold = 10
+        Int genotyping_homozygous_log_ratio_threshold = 5
         Float model_segments_smoothing_credible_interval_threshold = args.model_segments_smoothing_credible_interval_threshold
         if (defined(pat.matched_normal_sample)) {
             Sample matched_normal_sample = select_first([pat.matched_normal_sample])
@@ -241,6 +241,7 @@ task PileupToAllelicCounts {
                 --output '~{output_file}' \
                 --error_output '~{error_output_file}' \
                 ~{if select_hets then "--select_hets" else ""} \
+                ~{if select_hets then "--aggregate_hets" else ""} \
                 --verbose
         fi
     >>>

@@ -25,7 +25,6 @@ def parse_args():
     parser.add_argument("-D", "--ref_dict", type=str,   help="Path to the reference dictionary to sort rows.")
     parser.add_argument("--intervals",      type=str,   default=None,   help="Path to the (denoised total copy ratio) intervals to map nearby pileups to intervals. Required columns: CONTIG, START, END")
     parser.add_argument("--het_to_interval_mapping_max_distance", type=int, default=0, help="If a pileup location does not map to an interval provided in the intervals, it will be mapped to the closest interval, which is at most this many base pairs away.")
-    parser.add_argument("--phase_q_tolerance", type=float, default=0.2, help="")
     parser.add_argument("--aggregate_hets", default=False, action="store_true", help="Aggregate pileups in intervals.")
     parser.add_argument("--min_read_depth", type=int,   default=0, help="Minimum read depth.")
     parser.add_argument("--output",         type=str,   required=True,  help="Path to the output file.")
@@ -121,6 +120,8 @@ def convert_pileup_to_allelic_counts(args):
 
         message("Mapping nearby pileups to intervals:", end="", flush=True)
         dfs = []
+        aggregated_pileups = 0
+        aggregated_intervals = 0
         for contig in df["contig"].unique():
             _df = df.loc[df["contig"] == contig]
             i_contig = intervals.loc[intervals["CONTIG"] == contig]
@@ -168,51 +169,66 @@ def convert_pileup_to_allelic_counts(args):
                         p["position"] = new_pos
                         pileups.append(p.to_frame(0).T)
 
-            if len(pileups):
-                _df = pd.concat(pileups, ignore_index=True)
+            if not len(pileups):
+                print(".", end="", flush=True) if args.verbose else None
+                continue
 
-                # Aggregate read counts per interval
-                if args.aggregate_hets:
-                    # Account for haplotype phase if available
-                    if "0|1" in _df.columns and "1|0" in _df.columns:
-                        p01 = _df["0|1"].to_numpy(dtype=float)
-                        w   = _df["0/1"].to_numpy(dtype=float)
+            _df = pd.concat(pileups, ignore_index=True)
 
-                        q = np.full_like(w, 0.5)  # default to 0.5 when w==0
-                        nz = w > 0
-                        q[nz] = p01[nz] / w[nz]
-                        q[np.abs(q - 0.5) < args.phase_q_tolerance] = 0.5
+            # Aggregate read counts per interval
+            if args.aggregate_hets:
+                agg_chunks = []
+                for (contig, start, end), g in _df.groupby(["contig", "START", "END"], sort=False):
 
-                        a = _df["alt_count"].astype(float).to_numpy()
-                        r = _df["ref_count"].astype(float).to_numpy()
+                    if "genotype" not in g.columns:
+                        agg_chunks.append(g[["contig", "START", "END", "position", "ref_count", "alt_count", "ref", "alt"]])
+                        continue
 
-                        ref_oriented = q * r + (1 - q) * a
-                        alt_oriented = q * a + (1 - q) * r
-                        _df = _df.assign(ref_count=ref_oriented, alt_count=alt_oriented)
+                    # Masks
+                    gt = g["genotype"].to_numpy()
+                    m01 = (gt == "0|1")  # phased: alt on haplotype B
+                    m10 = (gt == "1|0")  # phased: alt on haplotype A
+                    split = m01 | m10  # phased subset
 
-                    elif "genotype" in _df.columns:
-                        phased_ref_count = np.where(_df["genotype"] == "1|0", _df["alt_count"], _df["ref_count"])
-                        phased_alt_count = np.where(_df["genotype"] == "1|0", _df["ref_count"], _df["alt_count"])
-                        _df = _df.assign(ref_count=phased_ref_count, alt_count=phased_alt_count)
+                    if not np.any(split):
+                        # Nothing phased here → keep group unchanged
+                        agg_chunks.append(g[["contig", "START", "END", "position", "ref_count", "alt_count", "ref", "alt"]])
+                        continue
 
-                    else:
-                        warnings.warn("Aggregating pileups not accounting for haplotypes!")
+                    # Oriented sums from phased sites only
+                    a = g["alt_count"].to_numpy(dtype=float)
+                    r = g["ref_count"].to_numpy(dtype=float)
 
-                    _df = _df.groupby(by=["contig", "START", "END"], sort=False).agg(
-                        ref_count=("ref_count", "sum"),
-                        alt_count=("alt_count", "sum"),
-                        ref=("ref", "first"),
-                        alt=("alt", "first")
-                    ).reset_index()
+                    alt_sum = a[m01].sum() + r[m10].sum()
+                    ref_sum = r[m01].sum() + a[m10].sum()
 
-                    _df["position"] = (_df["START"] + _df["END"]) // 2
-                    _df["ref_count"] = _df["ref_count"].astype(int)
-                    _df["alt_count"] = _df["alt_count"].astype(int)
+                    # Build the aggregated row; put it at START so it's the first HET in the interval
+                    agg_row = pd.DataFrame({
+                        "contig": [contig],
+                        "START": [start],
+                        "END": [end],
+                        "position": [start],
+                        "ref_count": [int(round(ref_sum))],
+                        "alt_count": [int(round(alt_sum))],
+                        "ref": [g["ref"].iloc[0]],
+                        "alt": [g["alt"].iloc[0]],
+                    })
 
-                    print("+", end="", flush=True) if args.verbose else None
+                    aggregated_pileups += np.sum(split)
+                    aggregated_intervals += 1
 
-                if not _df.empty:
-                    dfs.append(_df)
+                    keep_rows = g.loc[~split, ["contig", "START", "END", "position", "ref_count", "alt_count", "ref", "alt"]]
+
+                    agg_chunks.append(agg_row)
+                    if not keep_rows.empty:
+                        agg_chunks.append(keep_rows)
+
+                _df = pd.concat(agg_chunks, ignore_index=True)
+
+                print("+", end="", flush=True) if args.verbose else None
+
+            if not _df.empty:
+                dfs.append(_df)
 
             print(".", end="", flush=True) if args.verbose else None
 
@@ -222,6 +238,9 @@ def convert_pileup_to_allelic_counts(args):
             df = pd.concat(dfs).astype({"contig": str, "position": int, "ref_count": int, "alt_count": int})
         else:
             df = pd.DataFrame(columns=["contig", "position", "ref_count", "alt_count", "ref", "alt"])
+
+        if args.aggregate_hets:
+            print(f"Aggregated {aggregated_pileups} pileups in {aggregated_intervals} intervals.")
 
         print(f"Remaining pileups after mapping to intervals: {df.shape[0]}")
 
