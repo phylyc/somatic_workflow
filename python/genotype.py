@@ -1137,11 +1137,15 @@ class Phaser(object):
         X = M[:, mask]
         if X.shape[1] < 20:  # too few loci → skip
             return 0.0
-        C = np.corrcoef(X)
-        if np.any(np.isnan(C)):  # guard
-            return 0.0
-        iu = np.triu_indices_from(C, k=1)
-        return float(np.maximum(0.0, C[iu].mean()))
+        # drop rows with ~zero variance
+        row_var = X.var(axis=1)
+        keep = row_var > 1e-8
+        rho_bar = 0.0
+        if np.count_nonzero(keep) >= 2:
+            C = np.corrcoef(X[keep])
+            iu = np.triu_indices_from(C, k=1)
+            rho_bar = np.maximum(0.0, np.nanmean(C[iu]))
+        return rho_bar
 
     @staticmethod
     def exact_sign_max_gray(Vc: np.ndarray) -> np.ndarray:
