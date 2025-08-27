@@ -165,6 +165,9 @@ RuntimeParameters
 
 All outputs can be provided as `Cache` input in which case the corresponding task to generate that output is skipped if possible.
 
+If `Array[File] Cache.absolute_acr_rdata` is supplied as input, the workflow skips straight to the clonal decomposition step. Use that together with `Array[Int] Cache.absolute_solution` to extract the chosen purity/ploidy mode for each sample and run phylogenetic inference. (Other required cached inputs for this to run successfully are `Array[File] Cache.acs_copy_ratio_segmentation` and `Array[Float] Cache.acs_copy_ratio_skew`.)
+
+
 ---
 ## Troubleshooting
 

@@ -142,7 +142,14 @@ workflow MultiSampleSomaticWorkflow {
     # TODO: add parse_input task to check for validity, then add "after parse_input" to all calls
 
     Patient patient = select_first([input_patient, Cache.patient])
-    # Patient updated_patient = select_first([PatientAddUpdatedBams.updated_patient, patient])
+
+    scatter (sample in patient.samples) {
+        File? cached_absolute_rdata = sample.absolute_acr_rdata
+    }
+    Boolean skip_to_clonal_decomposition = length(select_all(cached_absolute_rdata)) > 0
+
+    if (!skip_to_clonal_decomposition) {
+
 
 ###############################################################################
 #                                                                             #
@@ -592,7 +599,9 @@ workflow MultiSampleSomaticWorkflow {
 ###############################################################################
 
 
-    Patient clonal_patient = cnv_updated_patient
+    } # skip_to_clonal_decomposition
+
+    Patient clonal_patient = select_first([cnv_updated_patient, patient])
 
     if (args.run_clonal_decomposition) {
         scatter (sample in clonal_patient.samples) {
