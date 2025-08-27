@@ -640,21 +640,23 @@ class Genotyper(object):
         total_counts = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1).sum()
         return np.clip(3/2 * other_alt_counts / max(1, total_counts), a_min=self.min_error_rate, a_max=self.max_error_rate)
 
-    def select_confident_calls(self, likelihoods: pd.DataFrame, genotypes: list[str] = None) -> pd.DataFrame:
+    def select_confident_calls(self, likelihoods: pd.DataFrame, genotypes: list[str] = None, normalized: bool = False) -> pd.DataFrame:
         """
         Filters genotype likelihoods based on a minimum threshold.
 
         Args:
             likelihoods (pd.DataFrame): DataFrame containing genotype likelihoods.
             genotypes (list of str, optional): List of genotype columns to consider.
+            normalized (bool): likelihoods can be interpreted as probabilities
 
         Returns:
             pd.DataFrame: DataFrame containing filtered genotype likelihoods.
         """
         if genotypes is None:
             genotypes = self.genotypes
-        total = likelihoods[genotypes].sum(axis=1)
-        return likelihoods.loc[likelihoods[genotypes].max(axis=1) >= self.min_genotype_likelihood * total]
+        total = likelihoods[self.genotypes].sum(axis=1) if not normalized else np.ones(likelihoods.shape[0])
+        selection = likelihoods[genotypes].max(axis=1) >= self.min_genotype_likelihood * total
+        return likelihoods.loc[selection]
 
     def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, contamination: float = 0.001, segments: pd.DataFrame = None, ref_bias: float = 1) -> pd.DataFrame:
         """
@@ -820,7 +822,7 @@ class Genotyper(object):
             pd.DataFrame: DataFrame with joint genotype likelihoods for each genomic position.
         """
         # Calculate the joint genotype likelihoods.
-        message(f"Calculating joint genotype likelihoods ...") if self.verbose else None
+        message(f"Calculating joint genotype likelihoods: ", end="", flush=True) if self.verbose else None
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -851,6 +853,9 @@ class Genotyper(object):
                     else pd.concat(log_likelihoods, axis=1).fillna(1).apply(nansum, axis=1)
                 )
 
+                print(gt, end=" ", flush=True) if self.verbose else None
+        print("") if self.verbose else None
+
         # Normalize likelihoods
         total = pd.concat(joint_log_likelihood.values(), axis=1).apply(sp.logsumexp, axis=1)
         genotype_likelihood = {
@@ -875,14 +880,14 @@ class Genotyper(object):
         df = pd.DataFrame.from_dict(genotype_likelihood)
         message(f"Processed {df.shape[0]} records.") if self.verbose else None
 
-        df = self.select_confident_calls(likelihoods=df)
+        df = self.select_confident_calls(likelihoods=df, normalized=True)
         message(f"Selected  {df.shape[0]} confident calls.") if self.verbose else None
 
-        df = self.select_confident_calls(likelihoods=df, genotypes=[g for g in self.genotypes if g != "./."])
+        df = self.select_confident_calls(likelihoods=df, genotypes=[g for g in self.genotypes if g != "./."], normalized=True)
         message(f"Selected  {df.shape[0]} non-outliers.") if self.verbose else None
 
         if self.select_hets:
-            df = self.select_confident_calls(likelihoods=df, genotypes=["0/1"])
+            df = self.select_confident_calls(likelihoods=df, genotypes=["0/1"], normalized=True)
             message(f"Selected  {df.shape[0]} heterozygous SNPs.") if self.verbose else None
 
         df["GT"] = df[["0/0", "0/1", "1/1", "./."]].idxmax(axis=1)
