@@ -96,7 +96,7 @@ task PhylogicNDTTask {
     String timing_sif = patient_id + ".sif.timing.txt"
 
     command <<<
-        set -e
+        set +e
         python /build/PhylogicNDT/create_patient_sif.py \
             --patient_id '~{patient_id}' \
             ~{if defined(sample_names) then "--sample_names '" else ""}~{default="" sep="' '" sample_names}~{if defined(sample_names) then "'" else ""} \
