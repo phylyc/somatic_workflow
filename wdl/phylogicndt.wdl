@@ -105,7 +105,6 @@ task PhylogicNDTTask {
             --absolute_purities ~{sep=" " absolute_purities} \
             ~{if defined(timepoints) then "--timepoints " else ""}~{default="" sep=" " timepoints} \
             ~{if defined(tumor_mutation_burdens) then "--tumor_mutation_burdens " else ""}~{default="" sep=" " tumor_mutation_burdens} \
-            --impute \
             --outfile '~{sif}'
 
         python /build/PhylogicNDT/PhylogicNDT.py Cluster \
@@ -117,6 +116,7 @@ task PhylogicNDTTask {
             ~{if run_with_BuildTree then "--run_with_BuildTree" else ""} \
             --Pi_k_r ~{Pi_k_r} \
             --Pi_k_mu ~{Pi_k_mu} \
+            --impute \
             --min_coverage ~{min_coverage}
 
         # Cell populations are already being inferred.
