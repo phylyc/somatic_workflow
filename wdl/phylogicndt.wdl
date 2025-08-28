@@ -45,13 +45,13 @@ workflow PhylogicNDT {
         File sif_file = PhylogicNDTTask.sif_file
         
         # Outputs from PhylogicNDT Cluster
-        File cnvs = PhylogicNDTTask.cnvs
-        File mut_ccfs = PhylogicNDTTask.mut_ccfs
-        File unclustered = PhylogicNDTTask.unclustered
-        File cluster_ccfs = PhylogicNDTTask.cluster_ccfs
+        File? cnvs = PhylogicNDTTask.cnvs
+        File? mut_ccfs = PhylogicNDTTask.mut_ccfs
+        File? unclustered = PhylogicNDTTask.unclustered
+        File? cluster_ccfs = PhylogicNDTTask.cluster_ccfs
         # Array[File] pie_plots = PhylogicNDTTask.pie_plots
-        Array[File] mutation_plots = PhylogicNDTTask.one_d_mutation_plots
-        Array[File] cluster_plots = PhylogicNDTTask.one_d_cluster_plots
+        Array[File]? mutation_plots = PhylogicNDTTask.one_d_mutation_plots
+        Array[File]? cluster_plots = PhylogicNDTTask.one_d_cluster_plots
 
         # Outputs from PhylogicNDT BuildTree
         # Note: these are optional and may not be present if run_with_BuildTree is false
@@ -116,7 +116,6 @@ task PhylogicNDTTask {
             ~{if run_with_BuildTree then "--run_with_BuildTree" else ""} \
             --Pi_k_r ~{Pi_k_r} \
             --Pi_k_mu ~{Pi_k_mu} \
-            --impute \
             --min_coverage ~{min_coverage}
 
         # Cell populations are already being inferred.
@@ -129,7 +128,7 @@ task PhylogicNDTTask {
                 -sif "~{sif}"
         fi
 
-        if [ "~{defined(absolute_segtabs)}" = "true" ]; then
+        if [ "~{defined(absolute_segtabs)}" = "true" ] &&  [-f "~{patient_id}.mut_ccfs.txt" ]; then
             python /build/PhylogicNDT/PhylogicNDT.py Timing \
                 -i "~{patient_id}" \
                 -sif "~{timing_sif}"
@@ -142,13 +141,13 @@ task PhylogicNDTTask {
         File sif_file = sif
 
         # PhylogicNDT Cluster outputs
-        File cnvs = '~{patient_id}.cnvs.txt'
-        File mut_ccfs = '~{patient_id}.mut_ccfs.txt'
-        File unclustered = '~{patient_id}.unclustered.txt'
-        File cluster_ccfs = '~{patient_id}.cluster_ccfs.txt'
+        File? cnvs = '~{patient_id}.cnvs.txt'
+        File? mut_ccfs = '~{patient_id}.mut_ccfs.txt'
+        File? unclustered = '~{patient_id}.unclustered.txt'
+        File? cluster_ccfs = '~{patient_id}.cluster_ccfs.txt'
         # Array[File] pie_plots = glob("~{patient_id}_pie_plots/*.pieplot.svg") # Pie plots already in HTML report
-        Array[File] one_d_mutation_plots = glob("~{patient_id}_1d_mutation_plots/*.mutations_ccfs.svg")
-        Array[File] one_d_cluster_plots = glob("~{patient_id}_1d_cluster_plots/*.cluster_ccfs.svg")
+        Array[File]? one_d_mutation_plots = glob("~{patient_id}_1d_mutation_plots/*.mutations_ccfs.svg")
+        Array[File]? one_d_cluster_plots = glob("~{patient_id}_1d_cluster_plots/*.cluster_ccfs.svg")
 
         # PhylogicNDT BuildTree outputs
         File? report = "~{patient_id}.phylogic_report.html"

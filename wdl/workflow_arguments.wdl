@@ -216,7 +216,7 @@ workflow DefineWorkflowArguments {
 
         Boolean phylogic_use_segtab = true
         Boolean phylogic_use_indels = true
-        Boolean phylogic_impute_missing_snvs = false
+        Boolean phylogic_impute_missing_snvs = true
         Int phylogic_min_coverage = 8
 
         # SNV WORKFLOW
