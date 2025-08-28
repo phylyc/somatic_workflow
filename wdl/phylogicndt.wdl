@@ -105,6 +105,7 @@ task PhylogicNDTTask {
             --absolute_purities ~{sep=" " absolute_purities} \
             ~{if defined(timepoints) then "--timepoints " else ""}~{default="" sep=" " timepoints} \
             ~{if defined(tumor_mutation_burdens) then "--tumor_mutation_burdens " else ""}~{default="" sep=" " tumor_mutation_burdens} \
+            --impute \
             --outfile '~{sif}'
 
         python /build/PhylogicNDT/PhylogicNDT.py Cluster \
@@ -133,6 +134,8 @@ task PhylogicNDTTask {
                 -i "~{patient_id}" \
                 -sif "~{timing_sif}"
         fi
+
+        exit 0
     >>>
 
     output {

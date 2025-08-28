@@ -294,7 +294,7 @@ workflow DefineRuntimeCollection {
         Int time_absolute_extract_postprocess = 10
         
         # PhylogicNDTTask
-        Int mem_phylogicndt_task = 2048
+        Int mem_phylogicndt_task = 4096
         Int time_phylogicndt_task = 480  # 8 h
 
         #######################################################################
