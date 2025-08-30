@@ -96,6 +96,8 @@ workflow CallVariants {
                     }
                 }
             }
+            Array[File] single_scatter_mutect1_vcfs = flatten(SingleScatterMutect1.mutect1_vcf)
+            Array[File] single_scatter_mutect1_vcfs_idx = flatten(SingleScatterMutect1.mutect1_vcf_idx)
         } # ELSE
         if (length(scattered_intervals_for_variant_calling_m1) > 1) {
             scatter (interval_list in scattered_intervals_for_variant_calling_m1) {
@@ -169,6 +171,8 @@ workflow CallVariants {
                     }
                 }
             }
+            Array[File] scattered_mutect1_vcfs = flatten(flatten(ScatteredMutect1.mutect1_vcf))
+            Array[File] scattered_mutect1_vcfs_idx = flatten(flatten(ScatteredMutect1.mutect1_vcf_idx))
         }
 
         call MergeMutect1ForceCallVCFs {
@@ -176,8 +180,8 @@ workflow CallVariants {
                 ref_fasta = args.files.ref_fasta,
                 ref_fasta_index = args.files.ref_fasta_index,
                 ref_dict = args.files.ref_dict,
-                mutect1_vcfs = select_all(flatten(select_first([SingleScatterMutect1.mutect1_vcf, ScatteredMutect1.mutect1_vcf]))),
-                mutect1_vcfs_idx = select_all(flatten(select_first([SingleScatterMutect1.mutect1_vcf_idx, ScatteredMutect1.mutect1_vcf_idx]))),
+                mutect1_vcfs = select_first([single_scatter_mutect1_vcfs, scattered_mutect1_vcfs]),
+                mutect1_vcfs_idx = select_first([single_scatter_mutect1_vcfs_idx, scattered_mutect1_vcfs_idx]),
                 force_call_alleles = args.files.force_call_alleles,
                 force_call_alleles_idx = args.files.force_call_alleles_idx,
                 runtime_params = runtime_collection.merge_mutect1_forcecall_vcfs
