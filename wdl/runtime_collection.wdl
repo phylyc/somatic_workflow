@@ -58,6 +58,7 @@ workflow DefineRuntimeCollection {
     input {
         Int num_bams = 1
 
+        # TODO: split by M1, M2, Realignment
         Int scatter_count_for_variant_calling = 25
         Int scatter_count_for_pileups = 1
         String gatk_docker = "broadinstitute/gatk:4.6.2.0"

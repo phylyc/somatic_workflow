@@ -13,8 +13,8 @@ workflow HarmonizeSamples {
         String merge_pileups_script
         Array[Sample] samples
 
-        Int harmonize_min_target_length = 100
-        Int pileups_min_read_depth = 1
+        Int harmonize_min_target_length = 0
+        Int pileups_min_read_depth = 0
         Boolean compress_output = false
 
         RuntimeCollection runtime_collection
@@ -109,7 +109,7 @@ task HarmonizeCopyRatios {
         File ref_dict
         Array[String]+ sample_names
         Array[File]+ denoised_copy_ratios
-        Int min_target_length = 100
+        Int min_target_length = 0
         Boolean compress_output = false
         Boolean verbose = true
 
