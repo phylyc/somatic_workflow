@@ -55,9 +55,50 @@ workflow CallVariants {
 
     # TODO: Estimate shard sizes based on bais and intervals
 
-    scatter (shard in patient.shards) {
-        if (size(shard.raw_calls_mutect2_vcf) == 0 && !shard.skip) {
-            if (args.run_variant_calling_mutect1) {
+    if (args.run_variant_calling_mutect1) {
+        Array[File] scattered_intervals_for_variant_calling_m1 = select_all(select_first([args.files.scattered_intervals_for_variant_calling_m1]))
+        if (length(scattered_intervals_for_variant_calling_m1) == 1) {
+            scatter (sample in patient.samples) {
+                scatter (seq_run in sample.sequencing_runs) {
+                    # Only supply matched normal sample for tumor samples as
+                    # Mutect1 does not like the same bam for tumor and normal.
+                    if (sample.is_tumor && defined(patient.matched_normal_sample)) {
+                        Sample matched_normal_sample_single = select_first([patient.matched_normal_sample])
+                        String matched_normal_sample_name_single = matched_normal_sample_single.name
+                        SequencingRun matched_normal_sample_seq_run_single = select_first(matched_normal_sample_single.sequencing_runs)
+                        File matched_normal_bam_single = matched_normal_sample_seq_run_single.bam
+                        File matched_normal_bai_single = matched_normal_sample_seq_run_single.bai
+                    }
+                    call Mutect1 as SingleScatterMutect1 {
+                        input:
+                            interval_list = select_first(scattered_intervals_for_variant_calling_m1),
+                            ref_fasta = args.files.ref_fasta,
+                            ref_fasta_index = args.files.ref_fasta_index,
+                            ref_dict = args.files.ref_dict,
+                            germline_resource = args.files.germline_resource_v4_1,
+                            germline_resource_idx = args.files.germline_resource_v4_1_idx,
+                            panel_of_normals = args.files.snv_panel_of_normals_v4_1,
+                            panel_of_normals_idx = args.files.snv_panel_of_normals_v4_1_idx,
+                            contamination_table = sample.contamination_table,
+
+                            patient_id = patient.name,
+                            tumor_sample_name = seq_run.sample_name,
+                            tumor_bam = seq_run.bam,
+                            tumor_bai = seq_run.bai,
+                            normal_sample_name = matched_normal_sample_name_single,
+                            normal_bam = matched_normal_bam_single,
+                            normal_bai = matched_normal_bai_single,
+
+                            initial_tumor_lod = args.mutect1_initial_tumor_lod,
+                            tumor_lod = args.mutect1_tumor_lod_to_emit,
+
+                            runtime_params = runtime_collection.mutect1,
+                    }
+                }
+            }
+        } # ELSE
+        if (length(scattered_intervals_for_variant_calling_m1) > 1) {
+            scatter (interval_list in scattered_intervals_for_variant_calling_m1) {
                 # Mutect1
                 # Old GATK does not stream input files, so we have to localize them.
                 # Localizing the full bams is very expensive, so we first subset them
@@ -66,7 +107,7 @@ workflow CallVariants {
                     scatter (seq_run in sample.sequencing_runs) {
                         call tasks.PrintReads as SubsetToShard {
                             input:
-                                interval_list = shard.intervals,
+                                interval_list = interval_list,
                                 ref_fasta = args.files.ref_fasta,
                                 ref_fasta_index = args.files.ref_fasta_index,
                                 ref_dict = args.files.ref_dict,
@@ -100,9 +141,9 @@ workflow CallVariants {
                             File matched_normal_bam = matched_normal_sample_seq_run.bam
                             File matched_normal_bai = matched_normal_sample_seq_run.bai
                         }
-                        call Mutect1 {
+                        call Mutect1 as ScatteredMutect1 {
                             input:
-                                interval_list = shard.intervals,
+                                interval_list = interval_list,
                                 ref_fasta = args.files.ref_fasta,
                                 ref_fasta_index = args.files.ref_fasta_index,
                                 ref_dict = args.files.ref_dict,
@@ -127,26 +168,24 @@ workflow CallVariants {
                         }
                     }
                 }
-                Array[File] mutect1_vcfs = select_all(flatten(Mutect1.mutect1_vcf))
-                Array[File] mutect1_vcfs_idx = select_all(flatten(Mutect1.mutect1_vcf_idx))
-
-                call MergeMutect1ForceCallVCFs {
-                    input:
-                        interval_list = shard.intervals,
-                        ref_fasta = args.files.ref_fasta,
-                        ref_fasta_index = args.files.ref_fasta_index,
-                        ref_dict = args.files.ref_dict,
-
-                        mutect1_vcfs = mutect1_vcfs,
-                        mutect1_vcfs_idx = mutect1_vcfs_idx,
-                        force_call_alleles = args.files.force_call_alleles,
-                        force_call_alleles_idx = args.files.force_call_alleles_idx,
-                        runtime_params = runtime_collection.merge_mutect1_forcecall_vcfs
-                }
-
-                Float shard_bams_size = size(flatten(SubsetToShard.output_bam), "GB")
             }
+        }
 
+        call MergeMutect1ForceCallVCFs {
+            input:
+                ref_fasta = args.files.ref_fasta,
+                ref_fasta_index = args.files.ref_fasta_index,
+                ref_dict = args.files.ref_dict,
+                mutect1_vcfs = select_all(flatten(select_first([SingleScatterMutect1.mutect1_vcf, ScatteredMutect1.mutect1_vcf]))),
+                mutect1_vcfs_idx = select_all(flatten(select_first([SingleScatterMutect1.mutect1_vcf_idx, ScatteredMutect1.mutect1_vcf_idx]))),
+                force_call_alleles = args.files.force_call_alleles,
+                force_call_alleles_idx = args.files.force_call_alleles_idx,
+                runtime_params = runtime_collection.merge_mutect1_forcecall_vcfs
+        }
+    }
+
+    scatter (shard in patient.shards) {
+        if (size(shard.raw_calls_mutect2_vcf) == 0 && !shard.skip) {
             scatter (m2_sample in patient.samples) {
                 scatter (m2_seq_run in m2_sample.sequencing_runs) {
                     File full_bam = m2_seq_run.bam
@@ -159,7 +198,7 @@ workflow CallVariants {
 
             Int m2_diskGB = (
                 runtime_collection.mutect2.disk
-                + if args.make_bamout then ceil(1.2 * select_first([shard_bams_size, full_bams_size / length(patient.shards)])) else 0
+                + if args.make_bamout then ceil(1.2 * full_bams_size / length(patient.shards)) else 0
             )
 
             if (shard.is_high_mem) {
@@ -423,7 +462,7 @@ task Mutect1 {
 
 task MergeMutect1ForceCallVCFs {
     input {
-        File interval_list
+        File? interval_list
         File ref_fasta
         File ref_fasta_index
         File ref_dict

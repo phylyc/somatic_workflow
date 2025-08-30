@@ -11,7 +11,8 @@ struct WorkflowArguments {
 
     String analyst_id
 
-    Int scatter_count_for_variant_calling
+    Int scatter_count_for_variant_calling_m1
+    Int scatter_count_for_variant_calling_m2
     Int scatter_count_for_pileups
     Int variants_per_scatter
 
@@ -144,7 +145,8 @@ workflow DefineWorkflowArguments {
 
         String analyst_id = "PH"
 
-        Int scatter_count_base_for_variant_calling = 25
+        Int scatter_count_for_variant_calling_m1 = 20
+        Int scatter_count_base_for_variant_calling_m2 = 25
         Int scatter_count_for_pileups = 1
         Int total_mean_read_depth = 500
         Int total_mean_read_depth_per_scatter = 500
@@ -216,7 +218,7 @@ workflow DefineWorkflowArguments {
 
         Boolean phylogic_use_segtab = true
         Boolean phylogic_use_indels = true
-        Boolean phylogic_impute_missing_snvs = true
+        Boolean phylogic_impute_missing_snvs = false
         Int phylogic_min_coverage = 8
 
         # SNV WORKFLOW
@@ -297,15 +299,30 @@ workflow DefineWorkflowArguments {
     }
 
     # The shards for variant calling always need to be defined.
-    if (!defined(resources.scattered_intervals_for_variant_calling)) {
-        Int good_scatter_count = ceil(scatter_count_base_for_variant_calling * (total_mean_read_depth + 1) / (total_mean_read_depth_per_scatter + 1))
-        call tasks.SplitIntervals as VariantCallingSplitIntervals {
+    # Scale scatter count by total depth across all samples:
+    Int good_scatter_count = ceil(scatter_count_base_for_variant_calling_m2 * (total_mean_read_depth + 1) / (total_mean_read_depth_per_scatter + 1))
+    if (!defined(resources.scattered_intervals_for_variant_calling_m2) && (good_scatter_count > 1)) {
+        call tasks.SplitIntervals as VariantCallingM2SplitIntervals {
             input:
                 interval_list = select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
                 ref_fasta = resources.ref_fasta,
                 ref_fasta_index = resources.ref_fasta_index,
                 ref_dict = resources.ref_dict,
                 scatter_count = good_scatter_count,
+                split_intervals_extra_args = split_intervals_extra_args,
+                runtime_params = runtime_collection.split_intervals,
+        }
+    }
+
+    # Mutect1 runs per sample, so no need to scale by total depth.
+    if (!defined(resources.scattered_intervals_for_variant_calling_m1) && (scatter_count_for_variant_calling_m1 > 1)) {
+        call tasks.SplitIntervals as VariantCallingM1SplitIntervals {
+            input:
+                interval_list = select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
+                ref_fasta = resources.ref_fasta,
+                ref_fasta_index = resources.ref_fasta_index,
+                ref_dict = resources.ref_dict,
+                scatter_count = scatter_count_for_variant_calling_m1,
                 split_intervals_extra_args = split_intervals_extra_args,
                 runtime_params = runtime_collection.split_intervals,
         }
@@ -327,9 +344,28 @@ workflow DefineWorkflowArguments {
     call wfres_update.UpdateWorkflowResources {
         input:
             resources = resources,
-            preprocessed_intervals = select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
-            scattered_intervals_for_variant_calling = select_first([resources.scattered_intervals_for_variant_calling, VariantCallingSplitIntervals.interval_files]),
-            scattered_intervals_for_pileups = CollectAllelicCountsSplitIntervals.interval_files
+            preprocessed_intervals = select_first([
+                resources.preprocessed_intervals,
+                PreprocessIntervals.preprocessed_interval_list
+            ]),
+            scattered_intervals_for_variant_calling_m1 = select_all(select_first([
+                resources.scattered_intervals_for_variant_calling_m1,
+                VariantCallingM1SplitIntervals.interval_files,
+                [resources.preprocessed_intervals],
+                [PreprocessIntervals.preprocessed_interval_list]
+            ])),
+            scattered_intervals_for_variant_calling_m2 = select_all(select_first([
+                resources.scattered_intervals_for_variant_calling_m2,
+                VariantCallingM2SplitIntervals.interval_files,
+                [resources.preprocessed_intervals],
+                [PreprocessIntervals.preprocessed_interval_list]
+            ])),
+            scattered_intervals_for_pileups = select_all(select_first([
+                resources.scattered_intervals_for_pileups,
+                CollectAllelicCountsSplitIntervals.interval_files,
+                [resources.preprocessed_intervals],
+                [PreprocessIntervals.preprocessed_interval_list]
+            ]))
     }
 
     WorkflowArguments args = object {
@@ -337,8 +373,10 @@ workflow DefineWorkflowArguments {
 
         analyst_id: analyst_id,
 
-        scatter_count_for_variant_calling: length(select_first([resources.scattered_intervals_for_variant_calling, VariantCallingSplitIntervals.interval_files])),
-        scatter_count_for_pileups: length(select_first([resources.scattered_intervals_for_pileups, CollectAllelicCountsSplitIntervals.interval_files, ["ONE"]])),
+        # resource.scattered_intervals_... is always defined:
+        scatter_count_for_variant_calling_m1: length(select_first([resources.scattered_intervals_for_variant_calling_m1])),
+        scatter_count_for_variant_calling_m2: length(select_first([resources.scattered_intervals_for_variant_calling_m2])),
+        scatter_count_for_pileups: length(select_first([resources.scattered_intervals_for_pileups])),
         variants_per_scatter: variants_per_scatter,
 
         run_reorder_bam_contigs: run_reorder_bam_contigs,

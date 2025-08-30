@@ -54,7 +54,8 @@ workflow CreateSNVPanelOfNormals {
 
     call wfargs.DefineWorkflowArguments as Parameters {
         input:
-            scatter_count_base_for_variant_calling = scatter_count,
+            scatter_count_for_variant_calling_m1 = scatter_count,
+            scatter_count_base_for_variant_calling_m2 = scatter_count,
             resources = resources,
 
             run_collect_callable_loci = false,

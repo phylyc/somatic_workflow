@@ -134,7 +134,7 @@ workflow MultiSampleSomaticWorkflow {
                 use_for_tCR = use_sample_for_tCR,
                 use_for_aCR = use_sample_for_aCR,
                 normal_sample_names = normal_sample_names,
-                scattered_intervals_for_variant_calling = args.files.scattered_intervals_for_variant_calling,
+                scattered_intervals_for_variant_calling = args.files.scattered_intervals_for_variant_calling_m2,
                 runtime_collection = runtime_collection,
         }
     }
