@@ -832,6 +832,7 @@ workflow MultiSampleSomaticWorkflow {
         File? modeled_segments = out_patient.modeled_segments
         File? phylogic_sif_file = PhylogicNDT.sif_file
         File? phylogic_report = PhylogicNDT.report
+        File? phylogic_mut_ccfs = PhylogicNDT.mut_ccfs
         File? phylogic_timing_report = PhylogicNDT.timing_report
         File? phylogic_timing_wgd_supporting_events = PhylogicNDT.timing_wgd_supporting_events
         File? phylogic_timing_graph = PhylogicNDT.timing_graph
