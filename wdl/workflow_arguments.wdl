@@ -374,9 +374,9 @@ workflow DefineWorkflowArguments {
         analyst_id: analyst_id,
 
         # resource.scattered_intervals_... is always defined:
-        scatter_count_for_variant_calling_m1: length(select_first([resources.scattered_intervals_for_variant_calling_m1])),
-        scatter_count_for_variant_calling_m2: length(select_first([resources.scattered_intervals_for_variant_calling_m2])),
-        scatter_count_for_pileups: length(select_first([resources.scattered_intervals_for_pileups])),
+        scatter_count_for_variant_calling_m1: length(select_first([UpdateWorkflowResources.updated_resources.scattered_intervals_for_variant_calling_m1])),
+        scatter_count_for_variant_calling_m2: length(select_first([UpdateWorkflowResources.updated_resources.scattered_intervals_for_variant_calling_m2])),
+        scatter_count_for_pileups: length(select_first([UpdateWorkflowResources.updated_resources.scattered_intervals_for_pileups])),
         variants_per_scatter: variants_per_scatter,
 
         run_reorder_bam_contigs: run_reorder_bam_contigs,
