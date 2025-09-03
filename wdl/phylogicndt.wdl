@@ -17,6 +17,7 @@ workflow PhylogicNDT {
         Boolean impute_missing_snvs = false
         Int min_coverage = 8
         File? driver_genes_file
+        File? focal_cnv_intervals
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -38,6 +39,7 @@ workflow PhylogicNDT {
             impute_missing_snvs = impute_missing_snvs,
             min_coverage = min_coverage,
             driver_genes_file = driver_genes_file,
+            focal_cnv_intervals = focal_cnv_intervals,
             runtime_params = runtime_collection.phylogicndt_task
     }
 
@@ -89,6 +91,7 @@ task PhylogicNDTTask {
         Float Pi_k_r = 3.0
         Float Pi_k_mu = 3.0
         File? driver_genes_file
+        File? focal_cnv_intervals
         Runtime runtime_params
     }
 
@@ -111,6 +114,7 @@ task PhylogicNDTTask {
             -i '~{patient_id}' \
             -sif '~{sif}' \
             ~{"--driver_genes_file " + driver_genes_file} \
+            ~{"--cn_peaks " + focal_cnv_intervals} \
             ~{if use_indels then "--use_indels" else ""} \
             ~{if impute_missing_snvs then "--impute" else ""} \
             ~{if run_with_BuildTree then "--run_with_BuildTree" else ""} \
@@ -128,9 +132,10 @@ task PhylogicNDTTask {
                 -sif "~{sif}"
         fi
 
-        if [ "~{defined(absolute_segtabs)}" = "true" ] &&  [-f "~{patient_id}.mut_ccfs.txt" ]; then
+        if [ "~{defined(absolute_segtabs)}" = "true" ] && [ -f "~{patient_id}.mut_ccfs.txt" ]; then
             python /build/PhylogicNDT/PhylogicNDT.py Timing \
                 -i "~{patient_id}" \
+                ~{"--cn_peaks " + focal_cnv_intervals} \
                 -sif "~{timing_sif}"
         fi
 

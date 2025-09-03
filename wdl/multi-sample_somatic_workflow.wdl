@@ -701,12 +701,12 @@ workflow MultiSampleSomaticWorkflow {
         # Only run PhylogicNDT if there are MAFs with ccf annotation
         if (length(select_first([abs_maf, []])) > 0) {
             scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
-                if (defined(sample.absolute_maf) && defined(sample.purity) && (sample.purity > 0)) {
+                if (defined(sample.absolute_maf_postprocessed) && defined(sample.purity) && (sample.purity > 0)) {
                     String? phylogic_sample_name = sample.name
                     # Use the un-postprocessed MAFs and segtabs for PhylogicNDT.
                     # TODO: fix CCF annotation in postprocessed segtabs and MAFs.
-                    File? sample_absolute_maf = sample.absolute_maf
-                    File? sample_absolute_segtab = sample.absolute_segtab
+                    File? sample_absolute_maf = sample.absolute_maf_postprocessed
+                    File? sample_absolute_segtab = sample.absolute_segtab_postprocessed
                     Float? sample_purity = sample.purity
                     Int? sample_timepoint = sample.timepoint
                 }
@@ -731,6 +731,7 @@ workflow MultiSampleSomaticWorkflow {
                         impute_missing_snvs = args.phylogic_impute_missing_snvs,
                         min_coverage = args.phylogic_min_coverage,
                         driver_genes_file = args.files.phylogic_driver_genes_file,
+                        focal_cnv_intervals = args.files.phylogic_focal_cnv_intervals,
                         runtime_collection = runtime_collection
                 }
             }
