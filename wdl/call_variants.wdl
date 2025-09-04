@@ -202,7 +202,7 @@ workflow CallVariants {
 
             Int m2_diskGB = (
                 runtime_collection.mutect2.disk
-                + if args.make_bamout then ceil(1.2 * full_bams_size / length(patient.shards)) else 0
+                + if args.make_bamout then ceil(2 * full_bams_size / length(patient.shards)) else 0
             )
 
             if (shard.is_high_mem) {
