@@ -67,8 +67,12 @@ workflow DefineWorkflowResources {
         File? force_call_alleles_idx
         File? snv_panel_of_normals
         File? snv_panel_of_normals_idx
+        File? snv_panel_of_normals_v4_1
+        File? snv_panel_of_normals_v4_1_idx
         File? germline_resource
         File? germline_resource_idx
+        File? germline_resource_v4_1
+        File? germline_resource_v4_1_idx
         File? common_germline_alleles
         File? common_germline_alleles_idx
         File? realignment_bwa_mem_index_image
@@ -76,12 +80,6 @@ workflow DefineWorkflowResources {
         File? funcotator_data_sources_tar_gz
         File? phylogic_driver_genes_file
         File? phylogic_focal_cnv_intervals
-        
-        # Mutect1 specific resources
-        File? germline_resource_v4_1
-        File? germline_resource_v4_1_idx
-        File? snv_panel_of_normals_v4_1
-        File? snv_panel_of_normals_v4_1_idx
     }
 
     WorkflowResources files = object {
