@@ -17,37 +17,37 @@ java -jar cromwell.jar run multi-sample_somatic_workflow.wdl --inputs multi-samp
 The workflow is organized into the following main tasks:
 
 ### 1. Preprocessing
-- **1.1 Preprocess and Split Calling Intervals** into shards for scatter-gather SNV calling.
+- **1.1 Preprocess and Split Calling Intervals** Prepare the intervals for scatter-gather tasks in shards for SNV calling.
 - **1.2 Define Patient/Sample/SequencingRun sets**: Define a patient as a set of samples, and each sample as a set of sequencing runs. Sequencing runs are grouped by sample name.
 
 ### 2. Coverage Aggregation
-- **2.1 Callable loci per sample** with sufficient coverage for SNV detection.
-- **2.2 Total read counts** in target intervals with denoising via tangent-normalization.
-- **2.3 Allelic read count** at common germline sites (SNP panel: `common_germline_alleles`).
-- **2.4 Harmonization of target intervals and allelic counts** across samples, subset to intersection; merge read count data from multiple sequencing runs per sample.
-- **2.5 Contamination estimation** (out-of-patient)
-- **2.6 First-pass copy ratio segmentation** as a prior single-sample allelic copy ratio segmentation for filtering SNVs (3.3) and genotyping of germline sites (4.1).
-  - **2.6.1 Filter total read counts** based on first-pass segmentation (not by default).
+- **2.1 Callable loci per sample**: Collect genomic regions per sample with sufficient coverage for SNV detection
+- **2.2 Total read counts**: Collect total read counts in target intervals and perform denoising of total copy ratios via tangent-normalization.
+- **2.3 Allelic read count**: Collect allelic read counts at common germline sites (SNP panel: `common_germline_alleles`).
+- **2.4 Harmonization of target intervals and allelic counts**: Harmonize target intervals across samples, subset to intersection; merge read count data from multiple sequencing runs per sample.
+- **2.5 Contamination estimation**: Estimate *out-of-patient* contamination in each sample.
+- **2.6 First-pass copy ratio segmentation**: Get a prior single-sample allelic copy ratio segmentation for filtering SNVs (3.3) and genotyping of germline sites (4.1).
+  - **2.6.1 Filter total read counts**: Filters total read counts based on first-pass segmentation (turned off by default).
 
 ### 3. SNV Calling
-- **3.1 Mutect1 single-sample calling** in tumor-normal mode if a matched normal sample is available, otherwise in tumor-only mode.
-- **3.2 Mutect2 multi-sample calling** with force-call alleles that were called via Mutect1.
-- **3.3 Filter Variant Calls**: Annotate and select somatic vs germline vs artifactual variants.
+- **3.1 Mutect1 single-sample calling**: Use Mutect1 for single-sample mutation calling in tumor-normal mode if a matched normal sample is available, otherwise in tumor-only mode.
+- **3.2 Mutect2 multi-sample calling**: Use Mutect2 for multi-sample mutation calling. Force-call alleles that were called via Mutect1.
+- **3.3 Filter Variant Calls**: Annotate and select somatic vs germline vs artifactual variants based on various filters.
   - **3.3a Filter**: Apply statistical filters for sequencing artifacts, germline variants, read orientation bias, and contamination, among others.
   - **3.3b Hard Filter**: Apply hard filters based on base quality, mapping quality, fragment length, read depth, read orientation quality, position on the read, and population allele frequency.
-  - **3.3c Realignment Filter** based on realignment success (to hg38 or whichever reference is given by `realignment_bwa_mem_index_image`).
-- **3.4 Annotate SNVs** with functional information.
+  - **3.3c Realignment Filter** Filter based on realignment success (to hg38 or whichever reference is given by `realignment_bwa_mem_index_image`).
+- **3.4 Annotate SNVs**: Annotate SNVs with functional information.
 - **3.5 Tumor mutational burden (TMB) estimation**: (coming soon)
 
 ### 4. CNV Calling
-- **4.1 SNP genotyping** of common (from 2.3) and rare (from 3.3) germline sites using evidence across all samples; harmonize loci across samples; phase HETs using allelic imbalance.
-- **4.2 Multi-sample segmentation** of denoised total copy ratios and allelic copy ratio across multiple samples.
-- **4.3 Per-sample total and allelic copy ratio inference**
-- **4.4 Per-sample event calling** of amplifications and deletions. 
-- **4.5 Per-sample segmentation plotting** of denoised copy ratios and allelic copy ratios
+- **4.1 SNP genotyping**: Genotype allelic count data at common (from 2.3) and rare (from 3.3) germline sites using evidence across all samples; harmonize loci across samples; phase HETs using allelic imbalance.
+- **4.2 Multi-sample segmentation**: Segment denoised total copy ratios and allelic copy ratio across multiple samples
+- **4.3 Per-sample total and allelic copy ratio inference**: Infer total and allelic copy ratios for each sample.
+- **4.4 Per-sample event calling**: Call amplifications and deletions for each sample. 
+- **4.5 Per-sample segmentation plotting**: Plot the segmented denoised copy ratios and allelic copy ratios for each sample.
 
 ### 5. Clonal Analysis
-- **5.1 ABSOLUTE** to estimate per-sample tumor purity, ploidy, and absolute copy number.
+- **5.1 ABSOLUTE** Perform per-sample clonal analysis of the identified somatic variants and estimate tumor purity, ploidy, and absolute copy number.
 - **5.2 ABSOLUTE extraction**: Extract results for one chosen solution (needs manual input).
   - **5.2a**: Rescue dropped segments.
 - **5.3 PhylogicNDT**: Build phylogenetic trees from all samples, perform growth kinetics, and timing analysis.
