@@ -50,6 +50,7 @@ workflow FilterVariants {
                 min_total_alt_count = args.hard_filter_min_total_alt_count,
                 min_position_from_end_of_read = args.hard_filter_min_position_from_end_of_read,
                 min_read_orientation_quality = args.hard_filter_min_read_orientation_quality,
+                min_not_germline_quality = args.hard_filter_min_not_germline_quality,
                 germline_min_population_af = args.hard_filter_germline_min_population_af,
                 split_multi_allelics = true,  # necessary for current SelectVariants implementation
                 filter_expressions = args.hard_filter_expressions,
@@ -266,7 +267,8 @@ task FilterVariantCalls {
         Int min_total_depth = 10
         Int min_total_alt_count = 4
         Int min_position_from_end_of_read = 6
-        Int min_read_orientation_quality = 10
+        Int min_read_orientation_quality = 20
+        Int min_not_germline_quality = 30
         Float germline_min_population_af = 3
         Int max_median_fragment_length_difference = 10000  # default: 10000
         Int max_indel_length = 1000  # default: 200
@@ -398,6 +400,8 @@ task FilterVariantCalls {
             --filter-expression 'MPOS.0 < ~{min_position_from_end_of_read}' \
             --filter-name "lowROQ" \
             --filter-expression 'ROQ < ~{min_read_orientation_quality}' \
+            --filter-name "lowGERMQ" \
+            --filter-expression 'GERMQ < ~{min_not_germline_quality}' \
             --filter-name "germline" \
             --filter-expression 'POPAF < ~{germline_min_population_af}' \
             ~{if (length(filter_names) > 0) then " --filter-name '" else ""}~{default="" sep="' --filter-name '" filter_names}~{if (length(filter_names) > 0) then "'" else ""} \

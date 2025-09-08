@@ -109,6 +109,7 @@ struct WorkflowArguments {
     Int hard_filter_min_total_alt_count
     Int hard_filter_min_position_from_end_of_read
     Int hard_filter_min_read_orientation_quality
+    Int hard_filter_min_not_germline_quality
     Float hard_filter_germline_min_population_af
     Array[String] hard_filter_expressions
     Array[String] hard_filter_names
@@ -145,7 +146,7 @@ workflow DefineWorkflowArguments {
 
         String analyst_id = "PH"
 
-        Int scatter_count_for_variant_calling_m1 = 20
+        Int scatter_count_for_variant_calling_m1 = 10
         Int scatter_count_base_for_variant_calling_m2 = 25
         Int scatter_count_for_pileups = 1
         Int total_mean_read_depth = 500
@@ -249,14 +250,15 @@ workflow DefineWorkflowArguments {
         Int hard_filter_min_mapping_quality = 20
         Int hard_filter_min_fragment_length = 18
         Int hard_filter_min_total_depth = 10
-        Int hard_filter_min_total_alt_count = 3
+        Int hard_filter_min_total_alt_count = 4
         Int hard_filter_min_position_from_end_of_read = 6
-        Int hard_filter_min_read_orientation_quality = 10
+        Int hard_filter_min_read_orientation_quality = 20
+        Int hard_filter_min_not_germline_quality = 30
         Float hard_filter_germline_min_population_af = 3
         Array[String] hard_filter_expressions = []
         Array[String] hard_filter_names = []
         String somatic_filter_whitelist = "PASS,normal_artifact"
-        String germline_filter_whitelist = "normal_artifact,panel_of_normals"
+        String germline_filter_whitelist = "normal_artifact,panel_of_normals,lowGERMQ"  # flags additional to "germline"
         String funcotator_reference_version = "hg19"
         String funcotator_output_format = "MAF"
         String funcotator_variant_type = "somatic"  # alternative: germline
@@ -469,6 +471,7 @@ workflow DefineWorkflowArguments {
         hard_filter_min_total_alt_count: hard_filter_min_total_alt_count,
         hard_filter_min_position_from_end_of_read: hard_filter_min_position_from_end_of_read,
         hard_filter_min_read_orientation_quality: hard_filter_min_read_orientation_quality,
+        hard_filter_min_not_germline_quality: hard_filter_min_not_germline_quality,
         hard_filter_germline_min_population_af: hard_filter_germline_min_population_af,
         hard_filter_expressions: hard_filter_expressions,
         hard_filter_names: hard_filter_names,
