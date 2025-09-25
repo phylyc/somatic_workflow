@@ -5,6 +5,9 @@ import os
 import scipy.special as sp
 import scipy.stats as st
 import time
+import warnings
+
+warnings.filterwarnings('ignore')
 
 
 def message(*args, **kwargs) -> None:
@@ -21,12 +24,11 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "map_to_absolute_copy_number.py [--sample <sample>] [--sex <sex>] --absolute_seg <absolute_seg> --cr_seg <cr_seg> [--gvcf <gvcf>] --purity <purity> --ploidy <ploidy> [--normal_ploidy <normal_ploidy>] --outdir <outdir>"
+    parser.usage = "map_to_absolute_copy_number.py [--sample <sample>] [--sex <sex>] --absolute_seg <absolute_seg> --cr_seg <cr_seg> --purity <purity> --ploidy <ploidy> [--normal_ploidy <normal_ploidy>] --outdir <outdir>"
     parser.add_argument("--sample",         type=str,   required=False, help="Sample name.")
     parser.add_argument("--sex",            type=str,   default="XXY",  help="Patient's sex genotype.")
-    parser.add_argument("--absolute_seg",   type=str,   required=True,  help="Path to a ABSOLUTE segtab output file.")
+    parser.add_argument("--absolute_seg",   type=str,   required=False,  help="Path to a ABSOLUTE segtab output file.")
     parser.add_argument("--cr_seg",         type=str,   required=True,  help="Path to a ACS segmentation output file.")
-    parser.add_argument("--gvcf",           type=str,   required=False, help="Path to a genotyped germline vcf that contains ref and alt allele information for each pileup locus and contains the GT field.")
     parser.add_argument("--purity",         type=float, required=True,  help="Tumor purity as inferred by ABSOLUTE")
     parser.add_argument("--ploidy",         type=float, required=True,  help="Tumor ploidy as inferred by ABSOLUTE")
     parser.add_argument("--normal_ploidy",  type=int,   required=False, default=2, help="Normal/germline ploidy of that organism.")
@@ -81,7 +83,6 @@ def map_to_cn(args):
         "mu.minor": float, "sigma.minor": float, "mu.major": float, "sigma.major": float,
         "SegLabelCNLOH": int
     }
-    vcf_columns = ["contig", "position", "id", "ref", "alt", "qual", "filter", "info", "format", "genotype"]
 
     ###########################################################################
     ### LOADING DATA
@@ -89,9 +90,8 @@ def map_to_cn(args):
 
     try:
         abs_seg = pd.read_csv(f"{args.absolute_seg}", sep="\t", comment="#", low_memory=False)
-    except pd.errors.EmptyDataError as e:
-        print("Empty data. No postprocessing.")
-        return None
+    except:
+        abs_seg = pd.DataFrame(None, columns=list(abs_dtypes.keys()))
 
     for col, dtype in abs_dtypes.items():
         abs_seg = abs_seg.astype({col: dtype}, errors="ignore")
@@ -102,12 +102,6 @@ def map_to_cn(args):
     for col, dtype in acs_dtypes.items():
         cr_seg = cr_seg.astype({col: dtype}, errors="ignore")
     cr_seg = cr_seg.set_index(["Chromosome", "Start.bp", "End.bp"])
-
-    gvcf = None
-    if args.gvcf is not None and os.path.exists(args.gvcf):
-        gvcf = pd.read_csv(
-            f"{args.gvcf}", sep="\t", comment="#", header=None, low_memory=False, names=vcf_columns
-        ).astype({"contig": str, "position": int, "id": str, "ref": str, "alt": str, "info": str, "genotype": str})
 
     seg = pd.concat([abs_seg.drop(columns=["n_probes", "length"], errors="ignore"), cr_seg], axis=1).sort_index().reset_index()
 
@@ -163,8 +157,9 @@ def map_to_cn(args):
     # rescale copy number
     seg["CN"] = np.where(chr_ploidy > 0, (seg["tau"] - b).clip(lower=0) / delta / chr_ploidy, 0)
     # correct offset
-    diff = seg["CN"].median() - seg["rescaled_total_cn"].median()
-    seg["CN"] -= diff
+    if not seg["rescaled_total_cn"].isna().any():
+        diff = seg["CN"].median() - seg["rescaled_total_cn"].median()
+        seg["CN"] -= diff
     seg["CN"] = seg["CN"].clip(lower=0)
     seg["CN.sigma"] = np.where(chr_ploidy > 0, seg["sigma.tau"] / delta / chr_ploidy, 0)
     seg["corrected_CN"] = seg.apply(lambda row: map_to_cluster(row["CN"], row["CN.sigma"]), axis=1)
@@ -373,7 +368,6 @@ def map_to_cn(args):
         & ((seg.loc[schz_na, "cancer.cell.frac.a1"] < 1)
          | (seg.loc[schz_na, "cancer.cell.frac.a2"] < 1))
     ).astype(int)
-
 
     message(f"Number of rescued segments: {new_segs.sum()}")
 
