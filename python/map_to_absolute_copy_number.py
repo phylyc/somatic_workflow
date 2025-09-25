@@ -24,7 +24,7 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "map_to_absolute_copy_number.py [--sample <sample>] [--sex <sex>] --absolute_seg <absolute_seg> --cr_seg <cr_seg> --purity <purity> --ploidy <ploidy> [--normal_ploidy <normal_ploidy>] --outdir <outdir>"
+    parser.usage = "map_to_absolute_copy_number.py [--sample <sample>] [--sex <sex>] [--absolute_seg <absolute_seg>] --cr_seg <cr_seg> --purity <purity> --ploidy <ploidy> [--normal_ploidy <normal_ploidy>] --outdir <outdir>"
     parser.add_argument("--sample",         type=str,   required=False, help="Sample name.")
     parser.add_argument("--sex",            type=str,   default="XXY",  help="Patient's sex genotype.")
     parser.add_argument("--absolute_seg",   type=str,   required=False,  help="Path to a ABSOLUTE segtab output file.")
@@ -154,13 +154,21 @@ def map_to_cn(args):
     b = (1 - args.purity) * chr_ploidy / D
     delta = args.purity / D
 
+    seg["W"] = seg["length"] / seg["length"].sum()
+
+    # correct offset: Find alpha for
+    # CN = (tau - b - alpha) / delta / c
+    # sum(w * CN) = ploidy
+    num = np.where(chr_ploidy > 0, seg["W"] * (seg["tau"] - b) / delta / chr_ploidy, 0)
+    den = np.where(chr_ploidy > 0, seg["W"] / delta / chr_ploidy, 0)
+    alpha = (np.sum(num) - args.ploidy) / np.sum(den)
+
+    message(f"Shift ACS total copy number by {-alpha} to fit onto comb.")
+    seg["tau"] -= alpha
+    seg["tau"] = seg["tau"].clip(lower=0)
+
     # rescale copy number
     seg["CN"] = np.where(chr_ploidy > 0, (seg["tau"] - b).clip(lower=0) / delta / chr_ploidy, 0)
-    # correct offset
-    if not seg["rescaled_total_cn"].isna().any():
-        diff = seg["CN"].median() - seg["rescaled_total_cn"].median()
-        seg["CN"] -= diff
-    seg["CN"] = seg["CN"].clip(lower=0)
     seg["CN.sigma"] = np.where(chr_ploidy > 0, seg["sigma.tau"] / delta / chr_ploidy, 0)
     seg["corrected_CN"] = seg.apply(lambda row: map_to_cluster(row["CN"], row["CN.sigma"]), axis=1)
 
@@ -193,8 +201,6 @@ def map_to_cn(args):
     seg.loc[new_segs, "total_HZ"] = (seg.loc[new_segs, "rescaled_total_cn"] == 0).astype(int)
     # extracted from default settings in the ABSOLUTE package
     seg.loc[new_segs, "total_amp"] = (seg.loc[new_segs, "rescaled_total_cn"] >= 7).astype(int)
-
-    seg["W"] = seg["length"] / seg["length"].sum()
 
     def wmode(values, weights):
         val = np.rint(values).astype(int)
