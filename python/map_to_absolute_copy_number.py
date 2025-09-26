@@ -213,15 +213,15 @@ def map_to_cn(args):
     def split_alleles(row) -> tuple[float, float]:
         CN = row["rescaled_total_cn"]
         c0 = C0_by_chr.get(row["Chromosome"], 2)
-        if CN < 2 or row["is_parental_haploid"] or not row["SegLabelCNLOH"]:
+        if CN < 1 or row["is_parental_haploid"] or not row["SegLabelCNLOH"]:
             return 0, CN
         elif (c0 % 2 == 0) and (abs(CN - c0) <= 0.25):  # balanced plateau
             return CN / 2, CN / 2
         elif pd.notna(row["mu.minor.abs"]):
             m = np.clip(row["mu.minor.abs"], 0, CN / 2)
-            return m, CN - m
+            return min(m, CN - m), max(m, CN - m)
         else:
-            return 1, CN - 1
+            return min(1, CN - 1), max(1, CN - 1)
 
     seg["mu.minor.abs"] = seg["f"] * seg["rescaled_total_cn"]
     seg["mu.major.abs"] = (1 - seg["f"]) * seg["rescaled_total_cn"]
