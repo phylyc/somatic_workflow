@@ -231,8 +231,8 @@ task Postprocess {
         python map_to_absolute_copy_number.py \
             --sample '~{this_sample_name}' \
             ~{"--sex  " + sex} \
-            --absolute_seg '~{seg}' \
-            --cr_seg '~{copy_ratio_segmentation}' \
+            --absolute_segtab '~{seg}' \
+            --acs_cr_seg '~{copy_ratio_segmentation}' \
             --purity ~{if (purity > 0) then purity else 1} \
             --ploidy ~{ploidy} \
             --normal_ploidy ~{organism_normal_ploidy} \

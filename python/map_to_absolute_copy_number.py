@@ -24,15 +24,18 @@ def parse_args():
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.usage = "map_to_absolute_copy_number.py [--sample <sample>] [--sex <sex>] [--absolute_seg <absolute_seg>] --cr_seg <cr_seg> --purity <purity> --ploidy <ploidy> [--normal_ploidy <normal_ploidy>] --outdir <outdir>"
-    parser.add_argument("--sample",         type=str,   required=False, help="Sample name.")
-    parser.add_argument("--sex",            type=str,   default="XXY",  help="Patient's sex genotype.")
-    parser.add_argument("--absolute_seg",   type=str,   required=False,  help="Path to a ABSOLUTE segtab output file.")
-    parser.add_argument("--cr_seg",         type=str,   required=True,  help="Path to a ACS segmentation output file.")
-    parser.add_argument("--purity",         type=float, required=True,  help="Tumor purity as inferred by ABSOLUTE")
-    parser.add_argument("--ploidy",         type=float, required=True,  help="Tumor ploidy as inferred by ABSOLUTE")
-    parser.add_argument("--normal_ploidy",  type=int,   required=False, default=2, help="Normal/germline ploidy of that organism.")
-    parser.add_argument("--outdir",         type=str,   required=True,  help="Path to the output directory to write the extended segmentations.")
+    parser.usage = "map_to_absolute_copy_number.py --outdir <outdir> --purity <purity> --ploidy <ploidy> [--acs_cr_seg <acs_cr_seg> / --somix_cr_seg <somix_cr_seg>] [--absolute_segtab <absolute_segtab>] [--sample <sample>] [--sex <sex>] [--normal_ploidy <normal_ploidy>] [--min_hets <min_hets>] [--min_probes <min_probes>]"
+    parser.add_argument("--outdir",             type=str,   required=True,  help="Path to the output directory to write the extended segmentations.")
+    parser.add_argument("--purity",             type=float, required=True,  help="Tumor purity as inferred by ABSOLUTE")
+    parser.add_argument("--ploidy",             type=float, required=True,  help="Tumor ploidy as inferred by ABSOLUTE")
+    parser.add_argument("--sample",             type=str,   required=False, help="Sample name.")
+    parser.add_argument("--sex",                type=str,   default="XXY",  help="Patient's sex genotype.")
+    parser.add_argument("--acs_cr_seg",         type=str,   required=False, help="Path to a ACS segmentation output file.")
+    parser.add_argument("--somix_cr_seg",       type=str,   required=False, help="Path to a somix segmentation output file.")
+    parser.add_argument("--absolute_segtab",    type=str,   required=False, help="Path to a ABSOLUTE segtab output file.")
+    parser.add_argument("--normal_ploidy",      type=int,   required=False, default=2, help="Normal/germline ploidy of that organism.")
+    parser.add_argument("--min_hets",           type=int,   default=0,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
+    parser.add_argument("--min_probes",         type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
     return parser.parse_args()
 
 
@@ -59,6 +62,9 @@ def map_to_cn(args):
 
     nX = s.count("X")
     nY = s.count("Y")
+
+    def get_chromosomal_ploidy(chr):
+        return nX if chr in ["X", "chrX"] else nY if chr in ["Y", "chrY"] else args.normal_ploidy
 
     abs_dtypes = {
         "sample": str,
@@ -89,8 +95,10 @@ def map_to_cn(args):
     ###########################################################################
 
     try:
-        abs_seg = pd.read_csv(f"{args.absolute_seg}", sep="\t", comment="#", low_memory=False)
-    except:
+        abs_seg = pd.read_csv(f"{args.absolute_segtab}", sep="\t", comment="#", low_memory=False)
+    except Exception as e:
+        message(e)
+        message("Using empty dataframe instead.")
         abs_seg = pd.DataFrame(None, columns=list(abs_dtypes.keys()))
 
     for col, dtype in abs_dtypes.items():
@@ -98,7 +106,29 @@ def map_to_cn(args):
     abs_seg_cols = abs_seg.columns
     abs_seg = abs_seg.set_index(["Chromosome", "Start.bp", "End.bp"])
 
-    cr_seg = pd.read_csv(f"{args.cr_seg}", sep="\t", comment="@", low_memory=False)
+    if args.acs_cr_seg is not None:
+        cr_seg = pd.read_csv(f"{args.acs_cr_seg}", sep="\t", comment="@", low_memory=False)
+
+    elif args.somix_cr_seg is not None:
+        cr_seg = pd.read_csv(f"{args.somix_cr_seg}", sep="\t", low_memory=False)
+        cr_seg = cr_seg.rename(columns={"contig": "Chromosome", "n_markers": "n_probes", "n_snps": "n_hets", "f_MAP": "f"})
+        if args.sample is not None:
+            cr_seg = cr_seg.loc[cr_seg["sample_id"] == args.sample]
+        chr_ploidy = cr_seg["Chromosome"].map(get_chromosomal_ploidy)
+        cr_seg["tau"] = np.exp(cr_seg["log_tCR"]) * chr_ploidy
+        cr_seg["sigma.tau"] = chr_ploidy * np.exp(cr_seg["log_tCR"] + cr_seg["sem_log_tCR"]**2 / 2) * np.sqrt(np.exp(cr_seg["sem_log_tCR"]**2) - 1)
+        if "f" in cr_seg.columns:
+            cr_seg["mu.minor"] = cr_seg["f"] * cr_seg["tau"]
+            cr_seg["mu.major"] = (1 - cr_seg["f"]) * cr_seg["tau"]
+            var_f = - 1 / cr_seg["f_hessian"]
+            cr_seg["sigma.minor"] = np.sqrt(cr_seg["tau"]**2 * var_f + cr_seg["f"]**2 * cr_seg["sigma.tau"]**2)
+            cr_seg["sigma.major"] = np.sqrt(cr_seg["tau"]**2 * var_f + (1 - cr_seg["f"])**2 * cr_seg["sigma.tau"]**2)
+        cr_seg = cr_seg.reindex(columns=acs_dtypes.keys())
+
+    else:
+        message("One of acs_cr_seg or somix_cr_seg input arguments must be defined!")
+        return None
+
     for col, dtype in acs_dtypes.items():
         cr_seg = cr_seg.astype({col: dtype}, errors="ignore")
     cr_seg = cr_seg.set_index(["Chromosome", "Start.bp", "End.bp"])
@@ -111,9 +141,6 @@ def map_to_cn(args):
     ###########################################################################
     ### DEFINING UTILITY FUNCTIONS
     ###########################################################################
-
-    def get_chromosomal_ploidy(chr):
-        return nX if chr in ["X", "chrX"] else nY if chr in ["Y", "chrY"] else args.normal_ploidy
 
     # map to cluster
     cluster_values = seg["corrected_total_cn"].round(1).dropna().unique()
@@ -163,7 +190,7 @@ def map_to_cn(args):
     den = np.where(chr_ploidy > 0, seg["W"] / delta / chr_ploidy, 0)
     alpha = (np.sum(num) - args.ploidy) / np.sum(den)
 
-    message(f"Shift ACS total copy number by {-alpha} to fit onto comb.")
+    message(f"Shift total copy number (tau) by {-alpha} to fit onto comb.")
     seg["tau"] -= alpha
     seg["tau"] = seg["tau"].clip(lower=0)
 
@@ -394,6 +421,14 @@ def map_to_cn(args):
     seg = seg.reindex(sort_genomic_positions(index=seg.index))
     seg = seg.reset_index()
     seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(args.ploidy * chr_ploidy / args.normal_ploidy)
+
+    good_rows = (seg["n_hets"] >= args.min_hets) | seg["n_hets"].isna()
+    good_rows &= (seg["n_probes"] >= args.min_probes) | seg["n_probes"].isna()
+    n = seg.shape[0] - np.sum(good_rows)
+    pct_genomic_drop = seg.loc[~good_rows, "W"].sum() * 100
+    print(f"Dropping {n}/{seg.shape[0]} (-{pct_genomic_drop:.6f}% of genome) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
+
+    seg = seg.loc[good_rows]
 
     os.makedirs(args.outdir, exist_ok=True)
 
