@@ -34,6 +34,7 @@ struct Sample {
     File? absolute_segtab                               # ABSOLUTE
     File? absolute_maf_postprocessed                    # ABSOLUTE + Postprocess
     File? absolute_segtab_postprocessed                 # ABSOLUTE + Postprocess
+    File? absolute_segtab_igv_postprocessed             # ABSOLUTE + Postprocess
     File? absolute_table                                # ABSOLUTE
     Float? purity                                       # ABSOLUTE
     Float? ploidy                                       # ABSOLUTE
@@ -74,6 +75,7 @@ workflow UpdateSample {
         File? absolute_segtab
         File? absolute_maf_postprocessed
         File? absolute_segtab_postprocessed
+        File? absolute_segtab_igv_postprocessed
         File? absolute_table
         Float? purity
         Float? ploidy
@@ -111,6 +113,7 @@ workflow UpdateSample {
         absolute_segtab: if defined(absolute_segtab) then absolute_segtab else sample.absolute_segtab,
         absolute_maf_postprocessed: if defined(absolute_maf_postprocessed) then absolute_maf_postprocessed else sample.absolute_maf_postprocessed,
         absolute_segtab_postprocessed: if defined(absolute_segtab_postprocessed) then absolute_segtab_postprocessed else sample.absolute_segtab_postprocessed,
+        absolute_segtab_igv_postprocessed: if defined(absolute_segtab_igv_postprocessed) then absolute_segtab_igv_postprocessed else sample.absolute_segtab_igv_postprocessed,
         absolute_table: if defined(absolute_table) then absolute_table else sample.absolute_table,
         purity: if defined(purity) then purity else sample.purity,
         ploidy: if defined(ploidy) then ploidy else sample.ploidy,

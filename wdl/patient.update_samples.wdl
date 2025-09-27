@@ -33,6 +33,7 @@ workflow UpdateSamples {
         Array[File]? absolute_segtab
         Array[File]? absolute_maf_postprocessed
         Array[File]? absolute_segtab_postprocessed
+        Array[File]? absolute_segtab_igv_postprocessed
         Array[File]? absolute_table
         Array[Float]? purity
         Array[Float]? ploidy
@@ -352,9 +353,21 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_asp = select_first([UpdateAbsoluteSegtabPostprocessed.updated_sample, samples_amp])
 
+    Array[File] asip = select_first([absolute_segtab_igv_postprocessed, []])
+    if (length(asip) > 0) {
+        scatter (pair in zip(samples_asp, asip)) {
+            call s.UpdateSample as UpdateAbsoluteSegtabIGVPostprocessed {
+                input:
+                    sample = pair.left,
+                    absolute_segtab_igv_postprocessed = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_asip = select_first([UpdateAbsoluteSegtabIGVPostprocessed.updated_sample, samples_asp])
+
     Array[File] at = select_first([absolute_table, []])
     if (length(at) > 0) {
-        scatter (pair in zip(samples_asp, at)) {
+        scatter (pair in zip(samples_asip, at)) {
             call s.UpdateSample as UpdateAbsoluteTable {
                 input:
                     sample = pair.left,
@@ -362,7 +375,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_at = select_first([UpdateAbsoluteTable.updated_sample, samples_asp])
+    Array[Sample] samples_at = select_first([UpdateAbsoluteTable.updated_sample, samples_asip])
 
     Array[Float] purity_ = select_first([purity, []])
     if (length(purity_) > 0) {

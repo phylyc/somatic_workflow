@@ -664,11 +664,14 @@ workflow MultiSampleSomaticWorkflow {
         if (length(select_all(AbsoluteExtract.absolute_segtab)) > 0) {
             Array[File] abs_segtab = select_all(AbsoluteExtract.absolute_segtab)
         }
-        if (length(select_all(AbsoluteExtract.absolute_maf)) > 0) {
+        if (length(select_all(AbsoluteExtract.absolute_maf_postprocessed)) > 0) {
             Array[File] abs_maf_postprocessed = select_all(AbsoluteExtract.absolute_maf_postprocessed)
         }
-        if (length(select_all(AbsoluteExtract.absolute_segtab)) > 0) {
+        if (length(select_all(AbsoluteExtract.absolute_segtab_postprocessed)) > 0) {
             Array[File] abs_segtab_postprocessed = select_all(AbsoluteExtract.absolute_segtab_postprocessed)
+        }
+        if (length(select_all(AbsoluteExtract.absolute_segtab_igv_postprocessed)) > 0) {
+            Array[File] abs_segtab_igv_postprocessed = select_all(AbsoluteExtract.absolute_segtab_igv_postprocessed)
         }
         if (length(select_all(AbsoluteExtract.absolute_table)) > 0) {
             Array[File] abs_table = select_all(AbsoluteExtract.absolute_table)
@@ -691,6 +694,7 @@ workflow MultiSampleSomaticWorkflow {
                 absolute_indel_maf = abs_indel_maf,
                 absolute_maf_postprocessed = abs_maf_postprocessed,
                 absolute_segtab_postprocessed = abs_segtab_postprocessed,
+                absolute_segtab_igv_postprocessed = abs_segtab_igv_postprocessed,
                 absolute_maf = abs_maf,
                 absolute_segtab = abs_segtab,
                 absolute_table = abs_table,
@@ -788,6 +792,7 @@ workflow MultiSampleSomaticWorkflow {
         Array[Int]? absolute_solution = Output.absolute_solution
         Array[File]? absolute_maf = Output.absolute_maf
         Array[File]? absolute_segtab = Output.absolute_segtab
+        Array[File]? absolute_segtab_igv = Output.absolute_segtab_igv
         Array[File]? absolute_table = Output.absolute_table
         Array[Float]? purity = Output.purity
         Array[Float]? ploidy = Output.ploidy

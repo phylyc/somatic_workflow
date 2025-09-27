@@ -43,6 +43,7 @@ workflow Output {
         Int? out_absolute_solution = sample.absolute_solution
         File? out_absolute_maf = sample.absolute_maf_postprocessed
         File? out_absolute_segtab = sample.absolute_segtab_postprocessed
+        File? out_absolute_segtab_igv = sample.absolute_segtab_igv_postprocessed
         File? out_absolute_table = sample.absolute_table
         Float? out_purity = sample.purity
         Float? out_ploidy = sample.ploidy
@@ -131,6 +132,9 @@ workflow Output {
     if (length(select_all(out_absolute_segtab)) > 0) {
         Array[File] ast_out = select_all(out_absolute_segtab)
     }
+    if (length(select_all(out_absolute_segtab_igv)) > 0) {
+        Array[File] asti_out = select_all(out_absolute_segtab_igv)
+    }
     if (length(select_all(out_absolute_table)) > 0) {
         Array[File] at_out = select_all(out_absolute_table)
     }
@@ -206,6 +210,7 @@ workflow Output {
         Array[Int]? absolute_solution = as_out
         Array[File]? absolute_maf = am_out
         Array[File]? absolute_segtab = ast_out
+        Array[File]? absolute_segtab_igv = asti_out
         Array[File]? absolute_table = at_out
         Array[Float]? purity = purity_out
         Array[Float]? ploidy = ploidy_out

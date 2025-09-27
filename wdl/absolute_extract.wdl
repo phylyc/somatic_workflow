@@ -52,7 +52,6 @@ workflow AbsoluteExtract {
             copy_ratio_segmentation = acs_copy_ratio_segmentation,
 #            snv_maf = snv_maf,
 #            indel_maf = indel_maf,
-#            gvcf = gvcf,
             purity = AbsoluteExtractTask.purity,
             ploidy = AbsoluteExtractTask.ploidy,
             runtime_params = runtime_collection.absolute_extract_postprocess
@@ -66,6 +65,8 @@ workflow AbsoluteExtract {
         File absolute_segtab = AbsoluteExtractTask.segtab
         File absolute_maf_postprocessed = Postprocess.abs_maf
         File absolute_segtab_postprocessed = Postprocess.segtab
+        File absolute_segtab_igv_postprocessed = Postprocess.segtab_igv
+        File absolute_rescued_intervals = Postprocess.rescued_intervals
     }
 }
 
@@ -202,7 +203,6 @@ task Postprocess {
         File copy_ratio_segmentation
 #        File? snv_maf
 #        File? indel_maf
-#        File? gvcf
         Float purity
         Float ploidy
 
