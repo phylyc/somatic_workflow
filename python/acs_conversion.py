@@ -27,6 +27,7 @@ def parse_args():
     parser.add_argument("--min_probes",     type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
     parser.add_argument("--maf90_threshold",type=float, default=0.49,   help="Threshold of 90% quantile for setting minor allele fraction to 0.5.")
     parser.add_argument("--sex",            type=str,   default="XXY",  help="Genotype sex of the patient for ploidy priors on X and Y chromosomes: {Female, Male, female, male, XX, XY, XXY, XYY, XXX, etc.}")
+    parser.add_argument("--normal_ploidy",  type=int,   required=False, default=2, help="Normal/germline ploidy of that organism.")
     parser.add_argument("--verbose",        default=False,  action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
 
@@ -62,7 +63,7 @@ def convert_model_segments_to_alleliccapseg(args):
     af_param = args.af_parameters
 
     # get the output file names
-    prefix = os.path.basename(model_seg).removesuffix(".seg")
+    prefix = os.path.basename(model_seg).removesuffix(".gz").removesuffix(".seg")
     output_filename = os.path.join(args.output_dir, f"{prefix}.acs.seg")
     output_skew_filename = output_filename + ".skew"
 
@@ -158,11 +159,9 @@ def convert_model_segments_to_alleliccapseg(args):
     # performs maximum a posteriori (MAP) estimation. The copy-ratio and allele-fraction
     # models fit by both also differ.
 
-    alleliccapseg_seg_pd["tau"] = 2. * 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_50"]
-    # Correct the diploid assumption
-    alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["X", "chrX"]), "tau"] *= nX / 2
-    alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["Y", "chrY"]), "tau"] *= nY / 2
+    chr_ploidy = alleliccapseg_seg_pd["Chromosome"].apply(lambda chr: nX if chr in ["X", "chrX"] else nY if chr in ["Y", "chrY"] else args.normal_ploidy)
 
+    alleliccapseg_seg_pd["tau"] = chr_ploidy * 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_50"]
     alleliccapseg_seg_pd["f"] = model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_50"].copy()
 
     # Some segments may not have HETs called due to LOH or approximate LOH.
@@ -184,14 +183,18 @@ def convert_model_segments_to_alleliccapseg(args):
     # e.g. during S-phase before meiosis II are not enough to allow for stable aCR signal).
     alleliccapseg_seg_pd.loc[alleliccapseg_seg_pd["Chromosome"].isin(["Y", "chrY"]), "f"] = np.nan
 
-    alleliccapseg_seg_pd["sigma.tau"] = 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_90"] - 2 ** model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_10"]
-    sigma_f = (model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_90"].to_numpy() - model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_10"].to_numpy()) / 2.
+    # Propagate errors: If y = exp(x) and x is normally distributed, then Var(y) = exp(2*x + Var(x)) * (exp(Var(x)) - 1)
+    # For a normal distribution, it is: q90 - q10 = 2.563 * sigma
+    sigma_log2_tau = (model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_90"].to_numpy() - model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_10"].to_numpy()) / 2.563
+    var_log_tau = np.log(2)**2 * sigma_log2_tau**2
+    alleliccapseg_seg_pd["sigma.tau"] = chr_ploidy * np.exp(np.log(2) * model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_50"] + var_log_tau / 2) * np.sqrt(np.exp(var_log_tau) - 1)
+    sigma_f = (model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_90"].to_numpy() - model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_10"].to_numpy()) / 2.563
     sigma_f = np.where(np.isnan(sigma_f), 1e-3, sigma_f)
-    sigma_mu = np.sqrt(sigma_f ** 2 + alleliccapseg_seg_pd["sigma.tau"] ** 2)
     alleliccapseg_seg_pd["mu.minor"] = alleliccapseg_seg_pd["f"] * alleliccapseg_seg_pd["tau"]
-    alleliccapseg_seg_pd["sigma.minor"] = sigma_mu
-    alleliccapseg_seg_pd["mu.major"] = (1. - alleliccapseg_seg_pd["f"]) * alleliccapseg_seg_pd["tau"]
-    alleliccapseg_seg_pd["sigma.major"] = sigma_mu
+    alleliccapseg_seg_pd["mu.major"] = (1 - alleliccapseg_seg_pd["f"]) * alleliccapseg_seg_pd["tau"]
+    # If m = f * t then Var(m) = t**2 * Var(f) + f**2 * Var(t) (+ cov)
+    alleliccapseg_seg_pd["sigma.minor"] = np.sqrt(alleliccapseg_seg_pd["tau"] ** 2 * sigma_f ** 2 + alleliccapseg_seg_pd["f"] ** 2 * alleliccapseg_seg_pd["sigma.tau"] ** 2)
+    alleliccapseg_seg_pd["sigma.major"] = np.sqrt(alleliccapseg_seg_pd["tau"] ** 2 * sigma_f ** 2 + (1 - alleliccapseg_seg_pd["f"]) ** 2 * alleliccapseg_seg_pd["sigma.tau"] ** 2)
 
     # AllelicCapSeg attempts to call CNLOH. It attempts to distinguish between
     # three states ("0 is flanked on both sides, 1 is one side, 2 is no cn.loh").
