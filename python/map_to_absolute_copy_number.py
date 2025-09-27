@@ -177,6 +177,7 @@ def map_to_cn(args):
     seg["mu.a1"] = seg["mu.minor"]
     seg["mu.a2"] = seg["mu.major"]
 
+    args.purity = args.purity if args.purity > 0 else 1
     D = (1 - args.purity) * chr_ploidy + args.purity * args.ploidy * chr_ploidy / args.normal_ploidy
     b = (1 - args.purity) * chr_ploidy / D
     delta = args.purity / D
@@ -429,6 +430,7 @@ def map_to_cn(args):
     print(f"Dropping {n}/{seg.shape[0]} (-{pct_genomic_drop:.6f}% of genome) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
 
     seg = seg.loc[good_rows]
+    seg["W"] = seg["length"] / seg["length"].sum()
 
     os.makedirs(args.outdir, exist_ok=True)
 
