@@ -59,6 +59,8 @@ def map_to_cn(args):
         s = "XX"
     elif s in ["MALE"]:
         s = "XY"
+    elif s in ["UNKNOWN"]:
+        s = "XXY"
 
     nX = s.count("X")
     nY = s.count("Y")
@@ -137,6 +139,10 @@ def map_to_cn(args):
 
     if args.sample is None:
         args.sample = seg["sample"].dropna().unique()[0]
+
+    if seg.empty:
+        message("No segments to map.")
+        return None
 
     ###########################################################################
     ### DEFINING UTILITY FUNCTIONS
@@ -218,9 +224,9 @@ def map_to_cn(args):
     new_segs = seg[["corrected_total_cn", "rescaled_total_cn"]].isna().any(axis=1)
     seg["is_new"] = new_segs
     seg.loc[new_segs, "sample"] = args.sample
-    seg.loc[new_segs, "total_copy_ratio"] = seg.loc[new_segs, "tau"].div(chr_ploidy.loc[new_segs]).fillna(0)
-    seg.loc[new_segs, "copy.ratio"] = seg.loc[new_segs, "tau"].div(chr_ploidy.loc[new_segs]).fillna(0)
-    seg.loc[new_segs, "seg_sigma"] = seg.loc[new_segs, "sigma.tau"].div(chr_ploidy.loc[new_segs]).fillna(0)
+    seg.loc[new_segs, "total_copy_ratio"] = np.where(chr_ploidy.loc[new_segs] > 0, seg.loc[new_segs, "tau"].div(chr_ploidy.loc[new_segs]).fillna(0), 0)
+    seg.loc[new_segs, "copy.ratio"] = np.where(chr_ploidy.loc[new_segs] > 0, seg.loc[new_segs, "tau"].div(chr_ploidy.loc[new_segs]).fillna(0), 0)
+    seg.loc[new_segs, "seg_sigma"] = np.where(chr_ploidy.loc[new_segs] > 0, seg.loc[new_segs, "sigma.tau"].div(chr_ploidy.loc[new_segs]).fillna(0), 0)
 
     seg.loc[new_segs, "rescaled_total_cn"] = seg.loc[new_segs, "CN"]
     seg.loc[new_segs, "expected_total_cn"] = seg.loc[new_segs, "CN"]
@@ -421,7 +427,7 @@ def map_to_cn(args):
     seg = seg.set_index(["Chromosome", "Start.bp", "End.bp"])
     seg = seg.reindex(sort_genomic_positions(index=seg.index))
     seg = seg.reset_index()
-    seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(args.ploidy * chr_ploidy / args.normal_ploidy)
+    seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(np.where(chr_ploidy > 0, args.ploidy * chr_ploidy / args.normal_ploidy, 1))
 
     good_rows = (seg["n_hets"] >= args.min_hets) | seg["n_hets"].isna()
     good_rows &= (seg["n_probes"] >= args.min_probes) | seg["n_probes"].isna()
