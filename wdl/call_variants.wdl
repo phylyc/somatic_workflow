@@ -381,7 +381,7 @@ task Mutect1 {
     String mutect1_vcf_idx = tumor_sample_name + ".MuTect1.vcf.idx"
 
     # COMPUTE DISK SIZE
-    Int diskGB = runtime_params.disk + ceil(size(ref_fasta, "GB") + size(germline_resource, "GB") + size(panel_of_normals, "GB") + size(tumor_bam, "GB") + size(normal_bam, "GB"))
+    Int diskGB = runtime_params.disk + ceil(1.3 * ceil(size(ref_fasta, "GB") + size(germline_resource, "GB") + size(panel_of_normals, "GB") + size(tumor_bam, "GB") + size(normal_bam, "GB")))
 
     String dollar = "$"
 

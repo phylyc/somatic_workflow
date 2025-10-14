@@ -348,7 +348,7 @@ task GetPileupSummaries {
     String pileup_file = sample_id + ".pileup"
     String output_file = pileup_file + if compress_output then ".gz" else ""
 
-    Int diskGB = ceil(runtime_params.disk + size(variants, "GB"))
+    Int diskGB = ceil(runtime_params.disk + 3 * size(variants, "GB"))
 
     command <<<
         set -e
