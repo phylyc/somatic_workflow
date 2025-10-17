@@ -16,7 +16,7 @@ workflow AnnotateVariants {
 
         File vcf
         File vcf_idx
-        Int? num_variants = 40
+        Int? num_variants = 100
 
         String? individual_id
         String tumor_bam_name
@@ -91,7 +91,7 @@ workflow AnnotateVariants {
                     tumor_sample_name = tumor_sample_name,
                     normal_sample_name = normal_sample_name,
                     output_base_name = tumor_sample_name + ".annotated",
-                    reference_version = this_args.funcotator_reference_version,
+                    reference_version = this_args.genome_build,
                     output_format = this_args.funcotator_output_format,
                     variant_type = this_args.funcotator_variant_type,
                     transcript_selection_mode = this_args.funcotator_transcript_selection_mode,
