@@ -239,6 +239,8 @@ task SelectVariants {
         Runtime runtime_params
     }
 
+    Int diskGB = runtime_params.disk + ceil(10 * size(vcf, "GB"))
+
     String uncompressed_input_vcf = basename(vcf, ".gz")
     Boolean is_compressed = uncompressed_input_vcf != basename(vcf)
     String base_name = if defined(tumor_sample_name) then sub(select_first([tumor_sample_name, ""]), " ", "+") else basename(uncompressed_input_vcf, ".vcf")
@@ -435,7 +437,7 @@ task SelectVariants {
         bootDiskSizeGb: runtime_params.boot_disk_size
         memory: runtime_params.machine_mem + " MB"
         runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
+        disks: "local-disk " + diskGB + " HDD"
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
