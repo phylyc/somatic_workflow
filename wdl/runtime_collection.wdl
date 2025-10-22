@@ -11,7 +11,6 @@ struct RuntimeCollection {
     Runtime split_intervals
     Runtime reorder_sam
     Runtime collect_callable_loci
-    Runtime collect_covered_regions
     Runtime collect_read_counts
     Runtime denoise_read_counts
     Runtime vcf_to_pileup_variants
@@ -61,14 +60,12 @@ workflow DefineRuntimeCollection {
         # TODO: split by M1, M2, Realignment
         Int scatter_count_for_variant_calling = 25
         Int scatter_count_for_pileups = 1
-        String gatk_docker = "broadinstitute/gatk:4.6.2.0"
-        String mutect1_docker = "vanallenlab/mutect:1.1.6"
-        # Needs docker image with bedtools, samtools, and gatk
-        String jupyter_docker = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk"  # 27.5GB todo: find smaller image. This one takes ~13 mins to spin up.
-        String absolute_docker = "phylyc/absolute:1.6"
         String ubuntu_docker = "ubuntu"
         String bcftools_docker = "staphb/bcftools:1.21"  # @sha256:176f4c7c10e57c8c3e2d26f0f105bd680e9ddff65c9e20dd4d3ebff228f17188
+        String gatk_docker = "broadinstitute/gatk:4.6.2.0"
+        String mutect1_docker = "vanallenlab/mutect:1.1.6"
         String python_docker = "civisanalytics/datascience-python:8.0.1"  # @sha256:3482b19792546214a6952b369472c9d4d50d60b3a38300127ce346b7bab5fd51
+        String absolute_docker = "phylyc/absolute:1.6"
         String phylogicndt_docker = "phylyc/phylogicndt:1.2" # @sha256:1140b8fef6e5198008b57b5577e4a119fe96bfb0c681b17bcd1716359d4ce346
         File? gatk_override
         Int preemptible = 1
@@ -82,7 +79,14 @@ workflow DefineRuntimeCollection {
         # Derived from reasonable maximum values amongst >1000 patients.
         # Increasing cpus likely increases costs by the same factor.
 
-        Int mem_machine_overhead = 512
+        # Compute resources are optimized for WES data and most WGS for large cohorts.
+        # However, sometimes this may not be fitting to a case at hand. In that
+        # case it may be easier to JUST RUN AND PAY instead of spending days trying
+        # to optimize individual task settings.
+        Boolean JUST_RUN_IM_WILLING_TO_PAY = false
+        Int mem_BIG_MACHINE = 8192
+
+        Int mem_machine_overhead = if JUST_RUN_IM_WILLING_TO_PAY then 2048 else 512
 
         Int time_startup = 10
 
@@ -111,7 +115,7 @@ workflow DefineRuntimeCollection {
         Int time_split_intervals = 1
 
         # gatk (picard): ReorderSam
-        Int mem_reorder_sam = 2048
+        Int mem_reorder_sam = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 2048
         Int time_reorder_sam = 60
 
         #######################################################################
@@ -122,16 +126,12 @@ workflow DefineRuntimeCollection {
         Int mem_callable_loci = 2048
         Int time_callable_loci = 300
 
-        # CollectCoveredRegions
-        Int mem_collect_covered_regions = 8192
-        Int time_collect_covered_regions = 300
-
         # gatk: CollectReadCounts
-        Int mem_collect_read_counts = 2048
+        Int mem_collect_read_counts =if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else  2048
         Int time_collect_read_counts = 300
 
         # gatk: DenoiseReadCounts
-        Int mem_denoise_read_counts = 2048
+        Int mem_denoise_read_counts = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 2048
         Int time_denoise_read_counts = 120
 
         # VcfToPileupVariants
@@ -139,7 +139,7 @@ workflow DefineRuntimeCollection {
         Int time_vcf_to_pileup_variants = 5
 
         # gatk: GetPileupSummaries
-        Int mem_get_pileup_summaries = 2560  # needs at least 2G
+        Int mem_get_pileup_summaries = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 2560  # needs at least 2G
         Int time_get_pileup_summaries = 4500  # 3 d / scatter_count_for_pileups
 
         # gatk: GatherPileupSummaries
@@ -151,30 +151,30 @@ workflow DefineRuntimeCollection {
         Int time_select_pileup_summaries = 5
 
         # PileupToAllelicCounts
-        Int mem_pileup_to_allelic_counts = 8192
+        Int mem_pileup_to_allelic_counts = 16384
         Int time_pileup_to_allelic_counts = 5
 
         # HarmonizeCopyRatios
         Int cpu_harmonize_copy_ratios = 4
-        Int mem_harmonize_copy_ratios_base = 8192
+        Int mem_harmonize_copy_ratios_base = if JUST_RUN_IM_WILLING_TO_PAY then 2 * mem_BIG_MACHINE else 8192
         Int mem_harmonize_copy_ratios_additional_per_sample = 1280
         Int time_harmonize_copy_ratios = 60
 
         # MergeAllelicCounts
-        Int mem_merge_allelic_counts = 4096
+        Int mem_merge_allelic_counts = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 4096
         Int time_merge_allelic_counts = 10
 
         # gatk: CalculateContamination
         # Memory depends on size of SNP array; gnomad v2.1.1 in WES target regions gives ~50k variants, which uses ~120 MB
-        Int mem_calculate_contamination = 3072
+        Int mem_calculate_contamination = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 3072
         Int time_calculate_contamination = 10
 
         # custom genotyping script based on CalculateContamination model
-        Int mem_genotype_variants = 8192
+        Int mem_genotype_variants = if JUST_RUN_IM_WILLING_TO_PAY then 2 * mem_BIG_MACHINE else 8192
         Int time_genotype_variants = 30
 
         # gatk: ModelSegments
-        Int mem_model_segments_base = 1024
+        Int mem_model_segments_base = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 1024
         Int mem_model_segments_additional_per_sample = 128
         Int time_model_segments = 60
 
@@ -191,7 +191,7 @@ workflow DefineRuntimeCollection {
         Int time_filter_copy_ratios = 10
 
         # custom recount marker script
-        Int mem_recount_markers = 2048
+        Int mem_recount_markers = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 2048
         Int time_recount_markers = 10
 
         #######################################################################
@@ -200,34 +200,34 @@ workflow DefineRuntimeCollection {
 
         # java -jar Mutect1
         Int cpu_mutect1 = 1
-        Int mem_mutect1_base = 3072
-        Int mem_mutect1_overhead = 1024
+        Int mem_mutect1_base = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 3072
+        Int mem_mutect1_overhead = if JUST_RUN_IM_WILLING_TO_PAY then 4096 else 1024
         Int time_mutect1_total = 2880                # 2d
         Int preemptible_mutect1 = 1
         Int max_retries_mutect1 = 0
         # disk size is dynamically inferred.
 
         # MergeMutect1ForceCallVCFs
-        Int mem_merge_mutect1_forcecall_vcfs = 2048
+        Int mem_merge_mutect1_forcecall_vcfs = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 2048
         Int time_merge_mutect1_forcecall_vcfs = 10
 
         # gatk: Mutect2
         # The GATK only parallelizes a few parts of the computation, so any extra cores would be idle for a large fraction of time.
         Int cpu_mutect2 = 1
-        Int mem_mutect2_base = 3072
-        Int mem_mutect2_additional_per_sample = 512
-        Int mem_mutect2_overhead = 1024  # needs to be at least 1GB to run decently
+        Int mem_mutect2_base = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 3072
+        Int mem_mutect2_additional_per_sample = if JUST_RUN_IM_WILLING_TO_PAY then 1024 else 512
+        Int mem_mutect2_overhead = if JUST_RUN_IM_WILLING_TO_PAY then 4096 else 1024  # needs to be at least 1GB to run decently
         Int time_mutect2_total = 10000  # 6 d / scatter_count_for_variant_calling
         Int preemptible_mutect2 = 1
         Int max_retries_mutect2 = 0
         # disk size is dynamically inferred.
 
         # gatk: GatherVCFs
-        Int mem_merge_vcfs = 2048
+        Int mem_merge_vcfs = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 2048
         Int time_merge_vcfs = 10
 
         # gatk: MergeMAFs
-        Int mem_merge_mafs = 512
+        Int mem_merge_mafs = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 512
         Int time_merge_mafs = 5
 
         # gatk: MergeMutectStats
@@ -248,21 +248,21 @@ workflow DefineRuntimeCollection {
         Int time_learn_read_orientation_model = 180  # 3 h
 
         # gatk: FilterVariantCalls
-        Int mem_filter_variant_calls = 1024
+        Int mem_filter_variant_calls = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 1024
         Int time_filter_variant_calls = 800  # 13 h
 
         # gatk: FilterAlignmentArtifacts
         Int cpu_filter_alignment_artifacts = 1
-        Int mem_filter_alignment_artifacts_base = 1024
+        Int mem_filter_alignment_artifacts_base = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 1024
         Int mem_filter_alignment_artifacts_additional_per_sample = 192
         Int time_filter_alignment_artifacts_total = 10000  # 12 d / scatter_count_for_variant_calling
 
         # gatk: SelectVariants
-        Int mem_select_variants = 3072
+        Int mem_select_variants = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 3072
         Int time_select_variants = 5
 
         # gatk: Funcotator
-        Int mem_funcotate = 6144
+        Int mem_funcotate = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 6144
         Int time_funcotate = 1440  # 24 h
 
         # CreateEmptyAnnotations
@@ -279,23 +279,23 @@ workflow DefineRuntimeCollection {
         Int time_model_segments_to_acs_conversion = 10
 
         # ProcessMafForAbsolute
-        Int mem_process_maf_for_absolute = 2048
+        Int mem_process_maf_for_absolute = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 2048
         Int time_process_maf_for_absolute = 10
 
         # Absolute
-        Int mem_absolute = 6144
+        Int mem_absolute = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 6144
         Int time_absolute = 60
 
         # AbsoluteExtract
-        Int mem_absolute_extract = 2048
+        Int mem_absolute_extract = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 2048
         Int time_absolute_extract = 10
 
         # AbsoluteExtractPostprocess
-        Int mem_absolute_extract_postprocess = 2048
+        Int mem_absolute_extract_postprocess = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 2048
         Int time_absolute_extract_postprocess = 10
         
         # PhylogicNDTTask
-        Int mem_phylogicndt_task = 4096
+        Int mem_phylogicndt_task = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 4096
         Int time_phylogicndt_task = 480  # 8 h
 
         #######################################################################
@@ -407,19 +407,6 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_callable_loci + mem_machine_overhead,
         "command_mem": mem_callable_loci,
         "runtime_minutes": time_startup + time_callable_loci,
-        "disk": disk,
-        "boot_disk_size": boot_disk_size
-    }
-
-    Runtime collect_covered_regions = {
-        "docker": jupyter_docker,
-        "jar_override": gatk_override,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu,
-        "machine_mem": mem_collect_covered_regions + mem_machine_overhead,
-        "command_mem": mem_collect_covered_regions,
-        "runtime_minutes": time_startup + time_collect_covered_regions,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -927,7 +914,6 @@ workflow DefineRuntimeCollection {
         "reorder_sam": reorder_sam,
 
         "collect_callable_loci": collect_callable_loci,
-        "collect_covered_regions": collect_covered_regions,
         "collect_read_counts": collect_read_counts,
         "denoise_read_counts": denoise_read_counts,
         "vcf_to_pileup_variants": vcf_to_pileup_variants,
