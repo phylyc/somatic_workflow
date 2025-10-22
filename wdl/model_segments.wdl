@@ -36,6 +36,7 @@ workflow ModelSegments {
                     intervals = sample.harmonized_denoised_total_copy_ratios,
                     het_to_interval_mapping_max_distance = args.het_to_interval_mapping_max_distance,
                     select_hets = pre_select_hets,
+                    aggregate_phased_hets = args.aggregate_phased_hets && pre_select_hets,
                     bam_name = sample.bam_name,
                     runtime_params = runtime_collection.pileup_to_allelic_counts
             }
@@ -209,6 +210,7 @@ task PileupToAllelicCounts {
         Int min_read_depth = 0
         Int het_to_interval_mapping_max_distance = 250
         Boolean select_hets = false
+        Boolean aggregate_phased_hets = false
 
         Runtime runtime_params
     }
@@ -241,7 +243,7 @@ task PileupToAllelicCounts {
                 --output '~{output_file}' \
                 --error_output '~{error_output_file}' \
                 ~{if select_hets then "--select_hets" else ""} \
-                ~{if select_hets then "--aggregate_hets" else ""} \
+                ~{if aggregate_phased_hets then "--aggregate_hets" else ""} \
                 --verbose
         fi
     >>>

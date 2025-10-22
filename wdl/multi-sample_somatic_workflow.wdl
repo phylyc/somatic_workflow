@@ -144,9 +144,16 @@ workflow MultiSampleSomaticWorkflow {
     Patient patient = select_first([input_patient, Cache.patient])
 
     scatter (sample in patient.samples) {
+        File? cached_called_copy_ratio_segmentation = sample.called_copy_ratio_segmentation
+        File? cached_af_model_parameters = sample.af_model_parameters
         File? cached_absolute_rdata = sample.absolute_acr_rdata
     }
-    Boolean skip_to_clonal_decomposition = length(select_all(cached_absolute_rdata)) > 0
+    Boolean skip_to_clonal_decomposition = (
+        (
+            (length(select_all(cached_called_copy_ratio_segmentation)) > 0)
+            && (length(select_all(cached_af_model_parameters)) > 0)
+        ) || (length(select_all(cached_absolute_rdata)) > 0)
+    )
 
     if (!skip_to_clonal_decomposition) {
 
@@ -352,8 +359,6 @@ workflow MultiSampleSomaticWorkflow {
                 args = args,
                 runtime_collection = runtime_collection,
         }
-
-        # TODO: If no common germline varaints were supplied, use called germline variants for allelic copy ratio inferece.
 
         if (args.keep_germline && defined(FilterVariants.updated_patient.germline_vcf)) {
             # Collect allelic pileups for all putative germline sites that were
@@ -619,7 +624,7 @@ workflow MultiSampleSomaticWorkflow {
                         min_hets = args.absolute_min_hets,
                         min_probes = args.absolute_min_probes,
                         maf90_threshold = args.absolute_maf90_threshold,
-                        genome_build = args.absolute_genome_build,
+                        genome_build = args.genome_build,
                         runtime_collection = runtime_collection
                 }
             }
@@ -646,7 +651,7 @@ workflow MultiSampleSomaticWorkflow {
                         snv_maf = snv_maf,
                         indel_maf = indel_maf,
                         gvcf = clonal_patient.gvcf,
-                        genome_build = args.absolute_genome_build,
+                        genome_build = args.genome_build,
                         runtime_collection = runtime_collection
                 }
             }
@@ -707,7 +712,6 @@ workflow MultiSampleSomaticWorkflow {
             scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
                 if (defined(sample.absolute_maf_postprocessed) && defined(sample.purity) && (sample.purity > 0)) {
                     String? phylogic_sample_name = sample.name
-                    # Use the un-postprocessed MAFs and segtabs for PhylogicNDT.
                     # TODO: fix CCF annotation in postprocessed segtabs and MAFs.
                     File? sample_absolute_maf = sample.absolute_maf_postprocessed
                     File? sample_absolute_segtab = sample.absolute_segtab_postprocessed
@@ -736,6 +740,7 @@ workflow MultiSampleSomaticWorkflow {
                         min_coverage = args.phylogic_min_coverage,
                         driver_genes_file = args.files.phylogic_driver_genes_file,
                         focal_cnv_intervals = args.files.phylogic_focal_cnv_intervals,
+                        genome_build = args.genome_build,
                         runtime_collection = runtime_collection
                 }
             }

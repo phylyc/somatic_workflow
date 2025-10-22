@@ -10,6 +10,7 @@ struct WorkflowArguments {
     WorkflowResources files
 
     String analyst_id
+    String genome_build
 
     Int scatter_count_for_variant_calling_m1
     Int scatter_count_for_variant_calling_m2
@@ -54,7 +55,7 @@ struct WorkflowArguments {
     Int genotype_variants_phasing_max_num_contig_segs
     Int harmonize_min_target_length
     Int het_to_interval_mapping_max_distance
-    Float aggregate_hets_phase_log_odds_ratio_threshold
+    Boolean aggregate_phased_hets
     Int model_segments_max_number_of_segments_per_chromosome
     Array[Int] model_segments_window_sizes
     Int model_segments_kernel_approximation_dimension
@@ -76,7 +77,6 @@ struct WorkflowArguments {
     Int absolute_min_hets
     Int absolute_min_probes
     Float absolute_maf90_threshold
-    String absolute_genome_build
 
     Boolean phylogic_use_segtab
     Boolean phylogic_use_indels
@@ -115,7 +115,6 @@ struct WorkflowArguments {
     Array[String] hard_filter_names
     String somatic_filter_whitelist
     String germline_filter_whitelist
-    String funcotator_reference_version
     String funcotator_output_format
     String funcotator_variant_type
     String funcotator_transcript_selection_mode
@@ -145,6 +144,7 @@ workflow DefineWorkflowArguments {
         WorkflowResources resources
 
         String analyst_id = "PH"
+        String genome_build = "hg19"
 
         Int scatter_count_for_variant_calling_m1 = 10
         Int scatter_count_base_for_variant_calling_m2 = 25
@@ -193,7 +193,7 @@ workflow DefineWorkflowArguments {
         Int genotype_variants_phasing_max_num_contig_segs = 1000
         Int harmonize_min_target_length = 20
         Int het_to_interval_mapping_max_distance = 250
-        Float aggregate_hets_phase_log_odds_ratio_threshold = 0.4
+        Boolean aggregate_phased_hets = false
         Int model_segments_max_number_of_segments_per_chromosome = 1000
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
         Int model_segments_kernel_approximation_dimension = 200
@@ -215,7 +215,6 @@ workflow DefineWorkflowArguments {
         Int absolute_min_hets = 0
         Int absolute_min_probes = 3
         Float absolute_maf90_threshold = 0.49
-        String absolute_genome_build = "hg19"
 
         Boolean phylogic_use_segtab = true
         Boolean phylogic_use_indels = true
@@ -259,7 +258,6 @@ workflow DefineWorkflowArguments {
         Array[String] hard_filter_names = []
         String somatic_filter_whitelist = "PASS,normal_artifact"
         String germline_filter_whitelist = "normal_artifact,panel_of_normals,lowGERMQ"  # flags additional to "germline"
-        String funcotator_reference_version = "hg19"
         String funcotator_output_format = "MAF"
         String funcotator_variant_type = "somatic"  # alternative: germline
         String funcotator_transcript_selection_mode = "CANONICAL"  # GATK default: "CANONICAL"
@@ -374,6 +372,7 @@ workflow DefineWorkflowArguments {
         files: UpdateWorkflowResources.updated_resources,
 
         analyst_id: analyst_id,
+        genome_build: genome_build,
 
         # resource.scattered_intervals_... is always defined:
         scatter_count_for_variant_calling_m1: length(select_first([UpdateWorkflowResources.updated_resources.scattered_intervals_for_variant_calling_m1])),
@@ -417,7 +416,7 @@ workflow DefineWorkflowArguments {
         genotype_variants_phasing_max_num_contig_segs: genotype_variants_phasing_max_num_contig_segs,
         harmonize_min_target_length: harmonize_min_target_length,
         het_to_interval_mapping_max_distance: het_to_interval_mapping_max_distance,
-        aggregate_hets_phase_log_odds_ratio_threshold: aggregate_hets_phase_log_odds_ratio_threshold,
+        aggregate_phased_hets: aggregate_phased_hets,
         model_segments_max_number_of_segments_per_chromosome: model_segments_max_number_of_segments_per_chromosome,
         model_segments_window_sizes: model_segments_window_sizes,
         model_segments_kernel_approximation_dimension: model_segments_kernel_approximation_dimension,
@@ -439,7 +438,6 @@ workflow DefineWorkflowArguments {
         absolute_min_hets: absolute_min_hets,
         absolute_min_probes: absolute_min_probes,
         absolute_maf90_threshold: absolute_maf90_threshold,
-        absolute_genome_build: absolute_genome_build,
 
         phylogic_use_segtab: phylogic_use_segtab,
         phylogic_use_indels: phylogic_use_indels,
@@ -477,7 +475,6 @@ workflow DefineWorkflowArguments {
         hard_filter_names: hard_filter_names,
         somatic_filter_whitelist: somatic_filter_whitelist,
         germline_filter_whitelist: germline_filter_whitelist,
-        funcotator_reference_version: funcotator_reference_version,
         funcotator_output_format: funcotator_output_format,
         funcotator_variant_type: funcotator_variant_type,
         funcotator_transcript_selection_mode: funcotator_transcript_selection_mode,

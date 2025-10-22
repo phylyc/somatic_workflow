@@ -2,6 +2,7 @@ version development
 
 import "runtime_collection.wdl" as rtc
 
+
 workflow PhylogicNDT {
     input {
         String patient_id
@@ -18,6 +19,7 @@ workflow PhylogicNDT {
         Int min_coverage = 8
         File? driver_genes_file
         File? focal_cnv_intervals
+        String? genome_build
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -40,6 +42,7 @@ workflow PhylogicNDT {
             min_coverage = min_coverage,
             driver_genes_file = driver_genes_file,
             focal_cnv_intervals = focal_cnv_intervals,
+            genome_build = genome_build,
             runtime_params = runtime_collection.phylogicndt_task
     }
 
@@ -92,6 +95,8 @@ task PhylogicNDTTask {
         Float Pi_k_mu = 3.0
         File? driver_genes_file
         File? focal_cnv_intervals
+        String? genome_build
+
         Runtime runtime_params
     }
 
@@ -113,6 +118,7 @@ task PhylogicNDTTask {
         python /build/PhylogicNDT/PhylogicNDT.py Cluster \
             -i '~{patient_id}' \
             -sif '~{sif}' \
+            ~{"--genome_build " + genome_build} \
             ~{"--driver_genes_file " + driver_genes_file} \
             ~{"--cn_peaks " + focal_cnv_intervals} \
             ~{if use_indels then "--use_indels" else ""} \
@@ -129,6 +135,7 @@ task PhylogicNDTTask {
             python /build/PhylogicNDT/PhylogicNDT.py GrowthKinetics \
                 -i "~{patient_id}" \
                 -ab "~{patient_id}_cell_population_mcmc_trace.tsv" \
+                ~{"--genome_build " + genome_build} \
                 -sif "~{sif}"
         fi
 
@@ -136,6 +143,7 @@ task PhylogicNDTTask {
             python /build/PhylogicNDT/PhylogicNDT.py Timing \
                 -i "~{patient_id}" \
                 ~{"--cn_peaks " + focal_cnv_intervals} \
+                ~{"--genome_build " + genome_build} \
                 -sif "~{timing_sif}"
         fi
 
