@@ -193,7 +193,7 @@ workflow DefineWorkflowArguments {
         Int genotype_variants_phasing_max_num_contig_segs = 1000
         Int harmonize_min_target_length = 20
         Int het_to_interval_mapping_max_distance = 250
-        Boolean aggregate_phased_hets = false
+        Boolean aggregate_phased_hets = true
         Int model_segments_max_number_of_segments_per_chromosome = 1000
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
         Int model_segments_kernel_approximation_dimension = 200
