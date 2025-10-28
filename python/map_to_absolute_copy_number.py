@@ -62,6 +62,11 @@ def map_to_cn(args):
     elif s in ["UNKNOWN"]:
         s = "XXY"
 
+    if args.purity == -1:
+        args.purity = 1
+    if args.ploidy == -1:
+        args.ploidy = args.normal_ploidy
+
     nX = s.count("X")
     nY = s.count("Y")
 
@@ -335,7 +340,7 @@ def map_to_cn(args):
         del_ix = hscr < comb[:, modal_cn]
         idx = np.arange(seg.shape[0])
 
-        # TODO: Some amplification states 2->3 are not in concordance with how
+        #TODO: Some amplification states 2->3 are not in concordance with how
         # ABSOLUTE assigns them as 1->2, leading to much lower CCF estimate for
         # those segments (~0 as opposed to ~1). It is not clear to me where the
         # discrepancy lies. PH
