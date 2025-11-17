@@ -300,6 +300,7 @@ task FilterVariantCalls {
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
     String output_stats = output_base_name + ".stats"
 
+    Boolean vcf_is_gzipped = basename(vcf) != basename(vcf, ".gz")
     String dollar = "$"
 
     command <<<
@@ -417,7 +418,7 @@ task FilterVariantCalls {
         OUT_VCF="~{output_vcf}"
 
         # Need to check if output is compressed or not
-        if [ "~{compress_output}" = "true" ]; then
+        if [ "~{vcf_is_gzipped}" = "true" ]; then
             # Decompress to temporary plain VCF
             TMP_VCF="~{dollar}{OUT_VCF%.gz}"   # strip .gz → *.vcf
             gunzip -c "~{dollar}{OUT_VCF}" > "~{dollar}{TMP_VCF}"
