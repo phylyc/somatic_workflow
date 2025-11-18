@@ -300,7 +300,7 @@ task FilterVariantCalls {
     String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
     String output_stats = output_base_name + ".stats"
 
-    Boolean vcf_is_gzipped = basename(vcf) != basename(vcf, ".gz")
+    Boolean output_vcf_is_gzipped = basename(output_vcf) != basename(output_vcf, ".gz")
     String dollar = "$"
 
     command <<<
@@ -417,8 +417,8 @@ task FilterVariantCalls {
         
         OUT_VCF="~{output_vcf}"
 
-        # Need to check if output is compressed or not
-        if [ "~{vcf_is_gzipped}" = "true" ]; then
+        # Check if output VCF is gzipped or not
+        if [ "~{output_vcf_is_gzipped}" = "true" ]; then
             # Decompress to temporary plain VCF
             TMP_VCF="~{dollar}{OUT_VCF%.gz}"   # strip .gz → *.vcf
             gunzip -c "~{dollar}{OUT_VCF}" > "~{dollar}{TMP_VCF}"
@@ -427,7 +427,7 @@ task FilterVariantCalls {
             sed -i 's/\tRESCUED;strand_bias\t/\tRESCUED\t/g' "~{dollar}{TMP_VCF}"
             sed -i 's/\tRESCUED;strand_bias;weak_evidence\t/\tRESCUED\t/g' "~{dollar}{TMP_VCF}"
 
-            # Recompress with bgzip and overwrite original OUT_VCF
+            # Recompress and overwrite original OUT_VCF
             bgzip -f "~{dollar}{TMP_VCF}"
             mv "~{dollar}{TMP_VCF}.gz" "~{dollar}{OUT_VCF}"
             tabix -f -p vcf "~{dollar}{OUT_VCF}"
@@ -436,7 +436,7 @@ task FilterVariantCalls {
             sed -i 's/\tRESCUED;strand_bias\t/\tRESCUED\t/g' "~{dollar}{OUT_VCF}"
             sed -i 's/\tRESCUED;strand_bias;weak_evidence\t/\tRESCUED\t/g' "~{dollar}{OUT_VCF}"
 
-            # Compress and index for MSSW
+            # Recompress
             bgzip -f "~{dollar}{OUT_VCF}"
             tabix -f -p vcf "~{dollar}{OUT_VCF}.gz"
 
