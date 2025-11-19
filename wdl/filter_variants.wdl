@@ -58,7 +58,7 @@ workflow FilterVariants {
                 mask_vcf = patient.mask_vcf,
                 mask_vcf_idx = patient.mask_vcf_idx,
                 mask_name = patient.mask_name,
-                compress_output = args.compress_output,
+                # compress_output = args.compress_output,
                 m2_filter_extra_args = args.filter_mutect2_extra_args,
                 left_align_and_trim_variants_extra_args = args.left_align_and_trim_variants_extra_args,
                 variant_filtration_extra_args = args.variant_filtration_extra_args,
@@ -285,7 +285,7 @@ task FilterVariantCalls {
         File? mask_vcf_idx
         String? mask_name
 
-        Boolean compress_output = false
+        # Boolean compress_output = false
         String? m2_filter_extra_args
         String? left_align_and_trim_variants_extra_args
         String? variant_filtration_extra_args
@@ -303,8 +303,10 @@ task FilterVariantCalls {
     )
 
     String output_base_name = basename(basename(vcf, ".gz"), ".vcf") + ".filtered"
-    String output_vcf = output_base_name + if compress_output then ".vcf.gz" else ".vcf"
-    String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
+    # String output_vcf = output_base_name + if compress_output then ".vcf.gz" else ".vcf"
+    # String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
+    String output_vcf = output_base_name + ".vcf.gz"
+    String output_vcf_idx = output_vcf + ".tbi"
     String output_stats = output_base_name + ".stats"
 
     String dollar = "$"
