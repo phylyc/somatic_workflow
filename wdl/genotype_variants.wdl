@@ -46,7 +46,7 @@ workflow GenotypeVariants {
         Int disk_sizeGB = 1
         Int cpu = 1
 
-        Int mem_genotype_variants = 8192
+        Int mem_genotype_variants = 12288
         Int time_startup = 10
         Int time_genotype_variants = 30
     }
