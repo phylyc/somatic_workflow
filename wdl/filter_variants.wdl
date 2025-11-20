@@ -417,8 +417,8 @@ task FilterVariantCalls {
             --filter-expression 'POPAF < ~{germline_min_population_af}' \
             --filter-name "RESCUED" \
             --filter-expression "vc.isFiltered() && ((vc.getFilters().size()==1 && vc.getFilters().contains('strand_bias')) || (vc.getFilters().size()==2 && vc.getFilters().contains('strand_bias') && vc.getFilters().contains('weak_evidence'))) && (ROQ >= 30) && (TLOD >= 2.4)" \
-            ~{if (defined(mask_name) && defined(mask_vcf)) then " --mask-name '" + mask_name + "'" else ""} \
-            ~{if (defined(mask_name) && defined(mask_vcf)) then " --mask '" + mask_vcf + "'" else ""} \
+            ~{if (defined(mask_vcf) && defined(mask_name)) then " --mask-name '" + mask_name + "'" else ""} \
+            ~{if (defined(mask_vcf) && defined(mask_name)) then " --mask '" + mask_vcf + "'" else ""} \
             ~{if (length(filter_names) > 0) then " --filter-name '" else ""}~{default="" sep="' --filter-name '" filter_names}~{if (length(filter_names) > 0) then "'" else ""} \
             ~{if (length(filter_expressions) > 0) then " --filter-expression '" else ""}~{default="" sep="' --filter-expression '" filter_expressions}~{if (length(filter_expressions) > 0) then "'" else ""} \
             --output 'filtered.left_aligned_and_trimmed.TAC.VF.vcf.gz' \
