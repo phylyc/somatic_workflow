@@ -438,7 +438,7 @@ task FilterVariantCalls {
         bcftools index -f -t 'filtered.left_aligned_and_trimmed.TAC.VF.rescued.vcf.gz'
         
         # Set all SNVs tagged with **mask_name** to mask_name
-        if [ "~{defined(mask_name)}" = "true" ]; then
+        if [ "~{defined(mask_vcf)}" = "true" ] && [ "~{defined(mask_name)}" = "true" ]; then
             bcftools filter \
                 --soft-filter ~{mask_name} \
                 -e 'FILTER~"~{mask_name}"' \
