@@ -20,7 +20,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="HarmonizeCopyRatios",
         description="""
-            
+            This script harmonizes all intervals across all samples of a given patient.
         """,
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter

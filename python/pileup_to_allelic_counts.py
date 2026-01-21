@@ -25,11 +25,11 @@ def parse_args():
     parser.add_argument("-D", "--ref_dict", type=str,   help="Path to the reference dictionary to sort rows.")
     parser.add_argument("--intervals",      type=str,   default=None,   help="Path to the (denoised total copy ratio) intervals to map nearby pileups to intervals. Required columns: CONTIG, START, END")
     parser.add_argument("--het_to_interval_mapping_max_distance", type=int, default=0, help="If a pileup location does not map to an interval provided in the intervals, it will be mapped to the closest interval, which is at most this many base pairs away.")
-    parser.add_argument("--aggregate_hets", default=False, action="store_true", help="Aggregate pileups in intervals.")
     parser.add_argument("--min_read_depth", type=int,   default=0, help="Minimum read depth.")
     parser.add_argument("--output",         type=str,   required=True,  help="Path to the output file.")
     parser.add_argument("--error_output",   type=str,                   help="Path to the error rate output file.")
     parser.add_argument("--select_hets",    default=False, action="store_true", help="Keep only heterozygous sites.")
+    parser.add_argument("--aggregate_hets", default=False, action="store_true", help="Aggregate pileups in intervals.")
     parser.add_argument("--verbose",        default=False, action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
 
@@ -50,7 +50,7 @@ def print_args(args):
 
 
 def sort_genomic_positions(index: pd.MultiIndex, contig_order: list[str]) -> pd.MultiIndex:
-    contig_order += list(set(index.get_level_values("contig")) - set(contig_order))
+    contig_order += [c for c in index.get_level_values("contig") if c not in contig_order]
     temp_df = pd.DataFrame(index=index).reset_index()
     temp_df["contig"] = pd.Categorical(temp_df["contig"], categories=contig_order, ordered=True)
     temp_df.sort_values(by=["contig", "position"], inplace=True)

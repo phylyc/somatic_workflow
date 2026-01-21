@@ -22,7 +22,6 @@ import "call_variants.wdl" as cv
 import "filter_variants.wdl" as fv
 import "annotate_variants.wdl" as av
 import "tasks.wdl"
-#import "calculate_tumor_mutation_burden.wdl" as tmb
 import "filter_segments.wdl" as fs
 import "absolute.wdl" as abs
 import "absolute_extract.wdl" as abs_extract
@@ -746,6 +745,9 @@ workflow MultiSampleSomaticWorkflow {
             }
         }
     }
+
+    # TODO: add mutational signature decomposition
+    # TODO: calculate TMB
     
     Patient clonal_updated_patient = select_first([AddAbsoluteResultsToSamples.updated_patient, clonal_patient])
 
@@ -829,6 +831,7 @@ workflow MultiSampleSomaticWorkflow {
         Int? num_somatic_variants = out_patient.num_somatic_variants
         File? germline_vcf = out_patient.germline_vcf
         File? germline_vcf_idx = out_patient.germline_vcf_idx
+        Int? num_germline_variants = out_patient.num_germline_variants
         File? rare_germline_alleles = out_patient.rare_germline_alleles
         File? rare_germline_alleles_idx = out_patient.rare_germline_alleles_idx
         File? somatic_calls_bam = out_patient.somatic_calls_bam
