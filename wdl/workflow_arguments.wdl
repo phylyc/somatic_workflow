@@ -155,7 +155,7 @@ workflow DefineWorkflowArguments {
 
         # workflow options
         Boolean run_reorder_bam_contigs = false
-        Boolean run_collect_callable_loci = false
+        Boolean run_collect_callable_loci = true
         Boolean run_collect_total_read_counts = true
         Boolean run_collect_allelic_read_counts = true
         Boolean run_contamination_model = true
