@@ -170,7 +170,7 @@ workflow DefineRuntimeCollection {
         Int time_calculate_contamination = 10
 
         # custom genotyping script based on CalculateContamination model
-        Int mem_genotype_variants = if JUST_RUN_IM_WILLING_TO_PAY then 2 * mem_BIG_MACHINE else 8192
+        Int mem_genotype_variants = if JUST_RUN_IM_WILLING_TO_PAY then 2 * mem_BIG_MACHINE else 12288
         Int time_genotype_variants = 30
 
         # gatk: ModelSegments

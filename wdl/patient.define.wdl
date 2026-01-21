@@ -101,6 +101,10 @@ workflow DefinePatient {
         File? snp_other_alt_counts
         File? snp_sample_correlation
 
+        File? mask_vcf
+        File? mask_vcf_idx
+        String? mask_name
+
         RuntimeCollection runtime_collection
     }
 
@@ -329,6 +333,9 @@ workflow DefinePatient {
         snp_ref_counts: snp_ref_counts,
         snp_alt_counts: snp_alt_counts,
         snp_other_alt_counts: snp_other_alt_counts,
+        mask_vcf: mask_vcf,
+        mask_vcf_idx: mask_vcf_idx,
+        mask_name: mask_name,
     }
 
     call p_update_sh.UpdateShards {

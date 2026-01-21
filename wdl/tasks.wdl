@@ -229,7 +229,7 @@ task SelectVariants {
         Boolean compress_output = false
         Boolean select_somatic = false
         Boolean select_germline = false
-        String somatic_filter_whitelist = "PASS,normal_artifact"
+        String somatic_filter_whitelist = "PASS,normal_artifact,RESCUED"
         String germline_filter_whitelist = "normal_artifact,panel_of_normals,lowGERMQ"
         String suffix = ""
         String? tumor_sample_name

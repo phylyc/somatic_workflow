@@ -256,7 +256,7 @@ workflow DefineWorkflowArguments {
         Float hard_filter_germline_min_population_af = 3
         Array[String] hard_filter_expressions = []
         Array[String] hard_filter_names = []
-        String somatic_filter_whitelist = "PASS,normal_artifact"
+        String somatic_filter_whitelist = "PASS,normal_artifact,RESCUED"
         String germline_filter_whitelist = "normal_artifact,panel_of_normals,lowGERMQ"  # flags additional to "germline"
         String funcotator_output_format = "MAF"
         String funcotator_variant_type = "somatic"  # alternative: germline

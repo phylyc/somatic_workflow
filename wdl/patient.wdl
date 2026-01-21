@@ -43,6 +43,10 @@ struct Patient {
     Float? snp_sample_correlation_min
     File? modeled_segments
 
+    File? mask_vcf
+    File? mask_vcf_idx
+    String? mask_name
+
     # File? phylogic_cnvs
     # File? phylogic_mut_ccfs
     # File? phylogic_unclustered
@@ -95,6 +99,10 @@ workflow UpdatePatient {
         Float? snp_sample_correlation_min
         File? modeled_segments
 
+        File? mask_vcf
+        File? mask_vcf_idx
+        String? mask_name
+
         # File? phylogic_cnvs
         # File? phylogic_mut_ccfs
         # File? phylogic_unclustered
@@ -142,6 +150,10 @@ workflow UpdatePatient {
         snp_sample_correlation: if defined(snp_sample_correlation) then snp_sample_correlation else patient.snp_sample_correlation,
         snp_sample_correlation_min: if defined(snp_sample_correlation_min) then snp_sample_correlation_min else patient.snp_sample_correlation_min,
         modeled_segments: if defined(modeled_segments) then modeled_segments else patient.modeled_segments,
+
+        mask_vcf: if defined(mask_vcf) then mask_vcf else patient.mask_vcf,
+        mask_vcf_idx: if defined(mask_vcf_idx) then mask_vcf_idx else patient.mask_vcf_idx,
+        mask_name: if defined(mask_name) then mask_name else patient.mask_name,
 
         # phylogic_cnvs: if defined(phylogic_cnvs) then phylogic_cnvs else patient.phylogic_cnvs,
         # phylogic_mut_ccfs: if defined(phylogic_mut_ccfs) then phylogic_mut_ccfs else patient.phylogic_mut_ccfs,
