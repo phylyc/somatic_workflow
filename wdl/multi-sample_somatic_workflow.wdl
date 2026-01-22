@@ -23,9 +23,10 @@ import "filter_variants.wdl" as fv
 import "annotate_variants.wdl" as av
 import "tasks.wdl"
 #import "calculate_tumor_mutation_burden.wdl" as tmb
-#import "filter_segments.wdl" as fs
+import "filter_segments.wdl" as fs
 import "absolute.wdl" as abs
 import "absolute_extract.wdl" as abs_extract
+import "phylogicndt.wdl" as phylogicndt
 
 
 workflow MultiSampleSomaticWorkflow {
@@ -39,6 +40,8 @@ workflow MultiSampleSomaticWorkflow {
         # grouped based on the sample name. If the sample name is not provided, it will
         # be inferred from the bam.
         Array[String]? sample_names
+        # Ordinal timepoints of sample collection for phylogenetic inference.
+        Array[Int]? timepoints
         Array[File]+ bams
         Array[File]+ bais
         # For targeted sequencing, the (possibly padded and ideally blacklist-removed)
@@ -121,6 +124,7 @@ workflow MultiSampleSomaticWorkflow {
                 name = patient_id,
                 sex = sex,
                 sample_names = sample_names,
+                timepoints = timepoints,
                 bams = select_first([reordered_bams, bams]),
                 bais = select_first([reordered_bais, bais]),
                 target_intervals = target_intervals,
@@ -130,7 +134,7 @@ workflow MultiSampleSomaticWorkflow {
                 use_for_tCR = use_sample_for_tCR,
                 use_for_aCR = use_sample_for_aCR,
                 normal_sample_names = normal_sample_names,
-                scattered_intervals_for_variant_calling = args.files.scattered_intervals_for_variant_calling,
+                scattered_intervals_for_variant_calling = args.files.scattered_intervals_for_variant_calling_m2,
                 runtime_collection = runtime_collection,
         }
     }
@@ -138,7 +142,21 @@ workflow MultiSampleSomaticWorkflow {
     # TODO: add parse_input task to check for validity, then add "after parse_input" to all calls
 
     Patient patient = select_first([input_patient, Cache.patient])
-    # Patient updated_patient = select_first([PatientAddUpdatedBams.updated_patient, patient])
+
+    scatter (sample in patient.samples) {
+        File? cached_called_copy_ratio_segmentation = sample.called_copy_ratio_segmentation
+        File? cached_af_model_parameters = sample.af_model_parameters
+        File? cached_absolute_rdata = sample.absolute_acr_rdata
+    }
+    Boolean skip_to_clonal_decomposition = (
+        (
+            (length(select_all(cached_called_copy_ratio_segmentation)) > 0)
+            && (length(select_all(cached_af_model_parameters)) > 0)
+        ) || (length(select_all(cached_absolute_rdata)) > 0)
+    )
+
+    if (!skip_to_clonal_decomposition) {
+
 
 ###############################################################################
 #                                                                             #
@@ -224,8 +242,6 @@ workflow MultiSampleSomaticWorkflow {
             sequencing_runs = SeqAddCoverage.updated_sequencing_run,
     }
 
-    # todo: FilterIntervals
-
     call hs.HarmonizeSamples {
         input:
             ref_dict = args.files.ref_dict,
@@ -272,9 +288,9 @@ workflow MultiSampleSomaticWorkflow {
                 contamination_table = contam_table,
         }
 
-        # Perform a first-pass single-sample segmentation to get prior allelic
-        # copy ratio segmentations for genotyping.
-        call ms.ModelSegments as FirstPassSegmentation {
+        # Perform a first-pass single-sample segmentation to detect segments that
+        # need to be filtered.
+        call ms.ModelSegments as PreFirstPassSegmentation {
             input:
                 patient = AddContaminationToSamples.updated_patient,
                 args = args,
@@ -283,9 +299,32 @@ workflow MultiSampleSomaticWorkflow {
                 gvcf = args.files.common_germline_alleles,
                 gvcf_idx = args.files.common_germline_alleles_idx,
         }
+
+        if (args.filter_segments_min_probes > 1) {
+            # Remove copy ratio observations that are outliers which induce artificial
+            # segmentation boundaries.
+            call fs.FilterSegments {
+                input:
+                    patient = PreFirstPassSegmentation.updated_patient,
+                    args = args,
+                    runtime_collection = runtime_collection,
+            }
+
+            # Perform a second-pass single-sample segmentation to get prior allelic
+            # copy ratio segmentations for genotyping.
+            call ms.ModelSegments as FirstPassSegmentation {
+                input:
+                    patient = FilterSegments.updated_patient,
+                    args = args,
+                    runtime_collection = runtime_collection,
+                    pre_select_hets = false,
+                    gvcf = args.files.common_germline_alleles,
+                    gvcf_idx = args.files.common_germline_alleles_idx,
+            }
+        }
     }
 
-    Patient coverage_workflow_updated_patient = select_first([FirstPassSegmentation.updated_patient, ConsensusPatient.updated_patient])
+    Patient coverage_workflow_updated_patient = select_first([FirstPassSegmentation.updated_patient, PreFirstPassSegmentation.updated_patient, ConsensusPatient.updated_patient])
 
 
 ###############################################################################
@@ -320,8 +359,6 @@ workflow MultiSampleSomaticWorkflow {
                 args = args,
                 runtime_collection = runtime_collection,
         }
-
-        # TODO: If no common germline varaints were supplied, use called germline variants for allelic copy ratio inferece.
 
         if (args.keep_germline && defined(FilterVariants.updated_patient.germline_vcf)) {
             # Collect allelic pileups for all putative germline sites that were
@@ -400,7 +437,7 @@ workflow MultiSampleSomaticWorkflow {
             # The sample scatter needs to be outside of the call to AnnotateVariants
             # since cromwell shits the bed for piping optional inputs into a nested scatter.
             scatter (sample in filtered_snv_patient.samples) {
-                if (size(sample.annotated_somatic_variants) == 0) {
+                if (defined(filtered_snv_patient.somatic_vcf) && (size(sample.annotated_somatic_variants) == 0)) {
                     if (sample.is_tumor && defined(filtered_snv_patient.matched_normal_sample)) {
                         Sample cnv_matched_normal_sample = select_first([filtered_snv_patient.matched_normal_sample])
                         String? matched_normal_sample_name = cnv_matched_normal_sample.name
@@ -510,12 +547,14 @@ workflow MultiSampleSomaticWorkflow {
                 outlier_prior = args.genotype_variants_outlier_prior,
                 overdispersion = args.genotype_variants_overdispersion,
                 ref_bias = args.genotype_variants_ref_bias,
+                phasing_log_ratio_cap = args.genotype_variants_phasing_log_ratio_cap,
+                phasing_sample_llr_threshold = args.genotype_variants_phasing_sample_llr_threshold,
+                phasing_consensus_fdr = args.genotype_variants_phasing_consensus_fdr,
+                phasing_max_num_contig_segs = args.genotype_variants_phasing_max_num_contig_segs,
                 select_hets = false,
                 save_sample_genotype_likelihoods = true,
                 runtime_collection = runtime_collection,
         }
-
-        # todo: phase gvcf
 
         call p_update_s.UpdateSamples as AddPileupsToSamples {
             input:
@@ -543,15 +582,6 @@ workflow MultiSampleSomaticWorkflow {
                 args = args,
                 runtime_collection = runtime_collection,
         }
-
-#        if (args.run_filter_segments) {
-#            call fs.FilterSegments {
-#                input:
-#                    patient = ModelSegments.updated_patient,
-#                    args = args,
-#                    runtime_collection = runtime_collection,
-#            }
-#        }
     }
 
     # todo: FuncotateSegments
@@ -574,7 +604,9 @@ workflow MultiSampleSomaticWorkflow {
 ###############################################################################
 
 
-    Patient clonal_patient = cnv_updated_patient
+    } # skip_to_clonal_decomposition
+
+    Patient clonal_patient = select_first([cnv_updated_patient, patient])
 
     if (args.run_clonal_decomposition) {
         scatter (sample in clonal_patient.samples) {
@@ -592,7 +624,7 @@ workflow MultiSampleSomaticWorkflow {
                         min_hets = args.absolute_min_hets,
                         min_probes = args.absolute_min_probes,
                         maf90_threshold = args.absolute_maf90_threshold,
-                        genome_build = args.absolute_genome_build,
+                        genome_build = args.genome_build,
                         runtime_collection = runtime_collection
                 }
             }
@@ -619,7 +651,7 @@ workflow MultiSampleSomaticWorkflow {
                         snv_maf = snv_maf,
                         indel_maf = indel_maf,
                         gvcf = clonal_patient.gvcf,
-                        genome_build = args.absolute_genome_build,
+                        genome_build = args.genome_build,
                         runtime_collection = runtime_collection
                 }
             }
@@ -636,6 +668,15 @@ workflow MultiSampleSomaticWorkflow {
         }
         if (length(select_all(AbsoluteExtract.absolute_segtab)) > 0) {
             Array[File] abs_segtab = select_all(AbsoluteExtract.absolute_segtab)
+        }
+        if (length(select_all(AbsoluteExtract.absolute_maf_postprocessed)) > 0) {
+            Array[File] abs_maf_postprocessed = select_all(AbsoluteExtract.absolute_maf_postprocessed)
+        }
+        if (length(select_all(AbsoluteExtract.absolute_segtab_postprocessed)) > 0) {
+            Array[File] abs_segtab_postprocessed = select_all(AbsoluteExtract.absolute_segtab_postprocessed)
+        }
+        if (length(select_all(AbsoluteExtract.absolute_segtab_igv_postprocessed)) > 0) {
+            Array[File] abs_segtab_igv_postprocessed = select_all(AbsoluteExtract.absolute_segtab_igv_postprocessed)
         }
         if (length(select_all(AbsoluteExtract.absolute_table)) > 0) {
             Array[File] abs_table = select_all(AbsoluteExtract.absolute_table)
@@ -656,16 +697,56 @@ workflow MultiSampleSomaticWorkflow {
                 absolute_acr_plot = acr_plot,
                 absolute_snv_maf = abs_snv_maf,
                 absolute_indel_maf = abs_indel_maf,
+                absolute_maf_postprocessed = abs_maf_postprocessed,
+                absolute_segtab_postprocessed = abs_segtab_postprocessed,
+                absolute_segtab_igv_postprocessed = abs_segtab_igv_postprocessed,
                 absolute_maf = abs_maf,
                 absolute_segtab = abs_segtab,
                 absolute_table = abs_table,
                 purity = abs_purity,
                 ploidy = abs_ploidy,
         }
+
+        # Only run PhylogicNDT if there are MAFs with ccf annotation
+        if (length(select_first([abs_maf, []])) > 0) {
+            scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
+                if (defined(sample.absolute_maf_postprocessed) && defined(sample.purity) && (sample.purity > 0)) {
+                    String? phylogic_sample_name = sample.name
+                    # TODO: fix CCF annotation in postprocessed segtabs and MAFs.
+                    File? sample_absolute_maf = sample.absolute_maf_postprocessed
+                    File? sample_absolute_segtab = sample.absolute_segtab_postprocessed
+                    Float? sample_purity = sample.purity
+                    Int? sample_timepoint = sample.timepoint
+                }
+            }
+            if (args.phylogic_use_segtab && length(select_all(sample_absolute_segtab)) > 0) {
+                Array[File]? phylogic_absolute_segtabs = select_all(sample_absolute_segtab)
+            }
+            if (length(select_all(sample_timepoint)) > 0) {
+                Array[Int]? phylogic_timepoints = select_all(sample_timepoint)
+            }
+
+            if (length(select_all(phylogic_sample_name)) > 0) {
+                call phylogicndt.PhylogicNDT {
+                    input:
+                        patient_id = AddAbsoluteResultsToSamples.updated_patient.name,
+                        sample_names = select_all(phylogic_sample_name),
+                        absolute_mafs = select_all(sample_absolute_maf),
+                        absolute_segtabs = phylogic_absolute_segtabs,
+                        absolute_purities = select_all(sample_purity),
+                        timepoints = phylogic_timepoints,
+                        use_indels = args.phylogic_use_indels,
+                        impute_missing_snvs = args.phylogic_impute_missing_snvs,
+                        min_coverage = args.phylogic_min_coverage,
+                        driver_genes_file = args.files.phylogic_driver_genes_file,
+                        focal_cnv_intervals = args.files.phylogic_focal_cnv_intervals,
+                        genome_build = args.genome_build,
+                        runtime_collection = runtime_collection
+                }
+            }
+        }
     }
-
-    # todo: add phylogicNDT
-
+    
     Patient clonal_updated_patient = select_first([AddAbsoluteResultsToSamples.updated_patient, clonal_patient])
 
 
@@ -674,7 +755,6 @@ workflow MultiSampleSomaticWorkflow {
 #                                  OUTPUT                                     #
 #                                                                             #
 ###############################################################################
-
 
     Patient out_patient = clonal_updated_patient
 
@@ -717,6 +797,7 @@ workflow MultiSampleSomaticWorkflow {
         Array[Int]? absolute_solution = Output.absolute_solution
         Array[File]? absolute_maf = Output.absolute_maf
         Array[File]? absolute_segtab = Output.absolute_segtab
+        Array[File]? absolute_segtab_igv = Output.absolute_segtab_igv
         Array[File]? absolute_table = Output.absolute_table
         Array[Float]? purity = Output.purity
         Array[Float]? ploidy = Output.ploidy
@@ -760,6 +841,16 @@ workflow MultiSampleSomaticWorkflow {
         File? snp_sample_correlation = out_patient.snp_sample_correlation
         Float? snp_sample_correlation_min = out_patient.snp_sample_correlation_min
         File? modeled_segments = out_patient.modeled_segments
+        File? phylogic_sif_file = PhylogicNDT.sif_file
+        File? phylogic_report = PhylogicNDT.report
+        File? phylogic_mut_ccfs = PhylogicNDT.mut_ccfs
+        File? phylogic_timing_report = PhylogicNDT.timing_report
+        File? phylogic_timing_wgd_supporting_events = PhylogicNDT.timing_wgd_supporting_events
+        File? phylogic_timing_graph = PhylogicNDT.timing_graph
+        File? phylogic_growth_rates = PhylogicNDT.growth_rates
+        File? phylogic_growth_rate_plot = PhylogicNDT.growth_rate_plot
+        File? phylogic_timing_comparison = PhylogicNDT.timing_comparison
+        File? phylogic_timing_table = PhylogicNDT.timing_table
 
         # composite cache
         Patient output_patient = out_patient

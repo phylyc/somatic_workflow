@@ -14,7 +14,7 @@ workflow FilterVariants {
         RuntimeCollection runtime_collection
     }
 
-    if (!defined(patient.filtered_vcf)) {
+    if (defined(patient.raw_snv_calls_vcf) && !defined(patient.filtered_vcf)) {
         scatter (sample in patient.samples) {
             File? c = sample.contamination_table
             File? s = sample.af_segmentation_table
@@ -50,11 +50,15 @@ workflow FilterVariants {
                 min_total_alt_count = args.hard_filter_min_total_alt_count,
                 min_position_from_end_of_read = args.hard_filter_min_position_from_end_of_read,
                 min_read_orientation_quality = args.hard_filter_min_read_orientation_quality,
+                min_not_germline_quality = args.hard_filter_min_not_germline_quality,
                 germline_min_population_af = args.hard_filter_germline_min_population_af,
                 split_multi_allelics = true,  # necessary for current SelectVariants implementation
                 filter_expressions = args.hard_filter_expressions,
                 filter_names = args.hard_filter_names,
-                compress_output = args.compress_output,
+                mask_vcf = patient.mask_vcf,
+                mask_vcf_idx = patient.mask_vcf_idx,
+                mask_name = patient.mask_name,
+                # compress_output = args.compress_output,
                 m2_filter_extra_args = args.filter_mutect2_extra_args,
                 left_align_and_trim_variants_extra_args = args.left_align_and_trim_variants_extra_args,
                 variant_filtration_extra_args = args.variant_filtration_extra_args,
@@ -266,7 +270,8 @@ task FilterVariantCalls {
         Int min_total_depth = 10
         Int min_total_alt_count = 4
         Int min_position_from_end_of_read = 6
-        Int min_read_orientation_quality = 10
+        Int min_read_orientation_quality = 20
+        Int min_not_germline_quality = 30
         Float germline_min_population_af = 3
         Int max_median_fragment_length_difference = 10000  # default: 10000
         Int max_indel_length = 1000  # default: 200
@@ -276,7 +281,11 @@ task FilterVariantCalls {
         Array[String] filter_expressions = []
         Array[String] filter_names = []
 
-        Boolean compress_output = false
+        File? mask_vcf 
+        File? mask_vcf_idx
+        String? mask_name
+
+        # Boolean compress_output = false
         String? m2_filter_extra_args
         String? left_align_and_trim_variants_extra_args
         String? variant_filtration_extra_args
@@ -294,9 +303,13 @@ task FilterVariantCalls {
     )
 
     String output_base_name = basename(basename(vcf, ".gz"), ".vcf") + ".filtered"
-    String output_vcf = output_base_name + if compress_output then ".vcf.gz" else ".vcf"
-    String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
+    # String output_vcf = output_base_name + if compress_output then ".vcf.gz" else ".vcf"
+    # String output_vcf_idx = output_vcf + if compress_output then ".tbi" else ".idx"
+    String output_vcf = output_base_name + ".vcf.gz"
+    String output_vcf_idx = output_vcf + ".tbi"
     String output_stats = output_base_name + ".stats"
+
+    String dollar = "$"
 
     command <<<
         set -e
@@ -398,15 +411,47 @@ task FilterVariantCalls {
             --filter-expression 'MPOS.0 < ~{min_position_from_end_of_read}' \
             --filter-name "lowROQ" \
             --filter-expression 'ROQ < ~{min_read_orientation_quality}' \
+            --filter-name "lowGERMQ" \
+            --filter-expression 'GERMQ < ~{min_not_germline_quality}' \
             --filter-name "germline" \
             --filter-expression 'POPAF < ~{germline_min_population_af}' \
+            --filter-name "RESCUED" \
+            --filter-expression "vc.isFiltered() && ((vc.getFilters().size()==1 && vc.getFilters().contains('strand_bias')) || (vc.getFilters().size()==2 && vc.getFilters().contains('strand_bias') && vc.getFilters().contains('weak_evidence'))) && (ROQ >= 30) && (TLOD >= 2.4)" \
+            ~{if (defined(mask_vcf) && defined(mask_name)) then " --mask-name '" + mask_name + "'" else ""} \
+            ~{if (defined(mask_vcf) && defined(mask_name)) then " --mask '" + mask_vcf + "'" else ""} \
             ~{if (length(filter_names) > 0) then " --filter-name '" else ""}~{default="" sep="' --filter-name '" filter_names}~{if (length(filter_names) > 0) then "'" else ""} \
             ~{if (length(filter_expressions) > 0) then " --filter-expression '" else ""}~{default="" sep="' --filter-expression '" filter_expressions}~{if (length(filter_expressions) > 0) then "'" else ""} \
-            --output '~{output_vcf}' \
+            --output 'filtered.left_aligned_and_trimmed.TAC.VF.vcf.gz' \
+            # --output '~{output_vcf}' \
             ~{variant_filtration_extra_args} \
             2> >(grep -v "WARN  JexlEngine - " >&2)
-
+        
         rm -f 'filtered.left_aligned_and_trimmed.TAC.vcf.gz' 'filtered.left_aligned_and_trimmed.TAC.vcf.gz.tbi'
+
+        # Set all SNVs tagged with **RESCUED** to RESCUED
+        bcftools filter \
+            --soft-filter RESCUED \
+            -e 'FILTER~"RESCUED"' \
+            -O z \
+            -o 'filtered.left_aligned_and_trimmed.TAC.VF.rescued.vcf.gz' \
+            'filtered.left_aligned_and_trimmed.TAC.VF.vcf.gz' # takes the VF vcf as input
+        bcftools index -f -t 'filtered.left_aligned_and_trimmed.TAC.VF.rescued.vcf.gz'
+        
+        # Set all SNVs tagged with **mask_name** to mask_name
+        if [ "~{defined(mask_vcf)}" = "true" ] && [ "~{defined(mask_name)}" = "true" ]; then
+            bcftools filter \
+                --soft-filter ~{mask_name} \
+                -e 'FILTER~"~{mask_name}"' \
+                -O z \
+                -o 'filtered.left_aligned_and_trimmed.TAC.VF.rescued.~{mask_name}.vcf.gz' \
+                'filtered.left_aligned_and_trimmed.TAC.VF.rescued.vcf.gz' # takes the rescued vcf as input
+            bcftools index -f -t 'filtered.left_aligned_and_trimmed.TAC.VF.rescued.~{mask_name}.vcf.gz'
+            mv 'filtered.left_aligned_and_trimmed.TAC.VF.rescued.~{mask_name}.vcf.gz' '~{output_vcf}'
+            mv 'filtered.left_aligned_and_trimmed.TAC.VF.rescued.~{mask_name}.vcf.gz.tbi' '~{output_vcf_idx}'
+        else
+            mv 'filtered.left_aligned_and_trimmed.TAC.VF.rescued.vcf.gz' '~{output_vcf}'
+            mv 'filtered.left_aligned_and_trimmed.TAC.VF.rescued.vcf.gz.tbi' '~{output_vcf_idx}'
+        fi
     >>>
 
     output {

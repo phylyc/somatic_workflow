@@ -1,7 +1,6 @@
 import argparse
-from collections import Counter
+from collections import Counter, defaultdict
 from copy import copy
-from functools import reduce
 from itertools import combinations
 import gzip
 import multiprocessing as mp
@@ -9,6 +8,7 @@ import numpy as np
 import os
 import pandas as pd
 import scipy.stats as st
+import scipy.special as sp
 import time
 import warnings
 
@@ -61,7 +61,11 @@ def parse_args():
     parser.add_argument("-l", "--ref_bias",                     type=float, default=1.05,   help="")
     parser.add_argument("--min_error_rate",                     type=float, default=1e-3,   help="")
     parser.add_argument("--max_error_rate",                     type=float, default=1e-2,   help="")
-    parser.add_argument("--outlier_prior",                      type=float, default=1e-5,   help="Prior probability for a variant to be an outlier.")
+    parser.add_argument("--outlier_prior",                      type=float, default=1e-3,   help="Prior probability for a variant to be an outlier.")
+    parser.add_argument("--phasing_log_ratio_cap",              type=float, default=10,     help="Maximum absolute log odds ratio to avoid outlier HETs dominating the phasing signal.")
+    parser.add_argument("--phasing_sample_llr_threshold",       type=float, default=0.4,    help="Sample-level log likelihood ratio threshold of 0|1 vs 1|0 to consider a HET for consensus phasing.")
+    parser.add_argument("--phasing_consensus_fdr",              type=float, default=0.005,  help="Site-level FDR threshold for evidence of 0|1 vs 1|0 to consider for consensus phasing.")
+    parser.add_argument("--phasing_max_num_contig_segs",        type=float, default=1000,   help="Maximum number of segments per chromosome to consider for forming phasing consensus.")
     parser.add_argument("-F", "--format",                       type=str,   default="GT",   help="VCF format field. (GT: genotype; AD: allele depth; DP: total depth; PL: phred-scaled genotype likelihoods.)")
     parser.add_argument("--threads",                            type=int,   default=1,      help="Number of threads to use for parallelization over samples.")
     parser.add_argument("--select_hets",                                    default=False,  action="store_true", help="Keep only heterozygous sites.")
@@ -98,6 +102,12 @@ def main():
         default_ref_bias=args.ref_bias,
         verbose=args.verbose
     )
+    phaser = Phaser(
+        llr_cap=args.phasing_log_ratio_cap,
+        llr_threshold=args.phasing_sample_llr_threshold,
+        consensus_fdr=args.phasing_consensus_fdr,
+        max_num_contig_segs=args.phasing_max_num_contig_segs
+    )
     data.deduplicate_samples()
     data.subset_data()
     data.pileup_likelihoods = data.get_pileup_likelihoods_parallel(genotyper=genotyper, max_processes=args.threads)
@@ -105,6 +115,7 @@ def main():
     data.sample_correlation = data.validate_sample_correlation(genotyper=genotyper)
     data.joint_genotype_likelihood = genotyper.get_joint_genotype_likelihood(pileup_likelihoods=data.pileup_likelihoods, normal_samples=args.normal_sample, normal_to_tumor_weight=args.normal_to_tumor_weight)
     data.sort_genomic_positions()
+    data.phase_hets(phaser=phaser)
     data.write_output(output_dir=args.output_dir, vcf_format=args.format, args=args)
 
 
@@ -627,23 +638,25 @@ class Genotyper(object):
         """
         other_alt_counts = pileup["other_alt_count"].sum()
         total_counts = pileup[["ref_count", "alt_count", "other_alt_count"]].sum(axis=1).sum()
-        return np.clip(1.5 * other_alt_counts / max(1, total_counts), a_min=self.min_error_rate, a_max=self.max_error_rate)
+        return np.clip(3/2 * other_alt_counts / max(1, total_counts), a_min=self.min_error_rate, a_max=self.max_error_rate)
 
-    def select_confident_calls(self, likelihoods: pd.DataFrame, genotypes: list[str] = None) -> pd.DataFrame:
+    def select_confident_calls(self, likelihoods: pd.DataFrame, genotypes: list[str] = None, normalized: bool = False) -> pd.DataFrame:
         """
         Filters genotype likelihoods based on a minimum threshold.
 
         Args:
             likelihoods (pd.DataFrame): DataFrame containing genotype likelihoods.
             genotypes (list of str, optional): List of genotype columns to consider.
+            normalized (bool): likelihoods can be interpreted as probabilities
 
         Returns:
             pd.DataFrame: DataFrame containing filtered genotype likelihoods.
         """
         if genotypes is None:
             genotypes = self.genotypes
-        total = likelihoods[genotypes].sum(axis=1)
-        return likelihoods.loc[likelihoods[genotypes].max(axis=1) >= self.min_genotype_likelihood * total]
+        total = likelihoods[self.genotypes].sum(axis=1) if not normalized else np.ones(likelihoods.shape[0])
+        selection = likelihoods[genotypes].max(axis=1) >= self.min_genotype_likelihood * total
+        return likelihoods.loc[selection]
 
     def calculate_genotype_likelihoods(self, pileup: pd.DataFrame, contamination: float = 0.001, segments: pd.DataFrame = None, ref_bias: float = 1) -> pd.DataFrame:
         """
@@ -659,7 +672,7 @@ class Genotyper(object):
             pd.DataFrame: DataFrame with genotype likelihoods for each genomic position.
         """
         if pileup.empty:
-            return pd.DataFrame(columns=["contig", "position", "ref_count", "alt_count", "other_alt_count", "allele_frequency", "0/0", "0/1", "1/1", "./."])
+            return pd.DataFrame(columns=["contig", "position", "ref_count", "alt_count", "other_alt_count", "allele_frequency", "0/0", "0|1", "1|0", "0/1", "1/1", "./."])
 
         error = self.get_error_prob(pileup=pileup)
 
@@ -704,6 +717,8 @@ class Genotyper(object):
                 "alt_count": int,
                 "other_alt_count": int,
                 "0/0": float,
+                "0|1": float,
+                "1|0": float,
                 "0/1": float,
                 "1/1": float,
                 "./.": float,
@@ -740,7 +755,7 @@ class Genotyper(object):
         def bias(_f):
             return _f / (_f + (1 - _f) * self.ref_bias)
 
-        f_aa = contamination * popaf + (1 - contamination) * error / 3
+        f_aa = contamination * popaf + (1 - contamination) * error / 3  # errors spread across the three wrong bases
         f_bb = contamination * popaf + (1 - contamination) * (1 - error)
         f_ab = bias(contamination * popaf + (1 - contamination) * minor_af)
         f_ba = bias(contamination * popaf + (1 - contamination) * (1 - minor_af))
@@ -778,9 +793,14 @@ class Genotyper(object):
 
         likelihoods = pileup.copy()
         likelihoods["0/0"] = np.exp(aa)
+        likelihoods["0|1"] = np.exp(ab)
+        likelihoods["1|0"] = np.exp(ba)
         likelihoods["0/1"] = np.exp(het)
         likelihoods["1/1"] = np.exp(bb)
         likelihoods["./."] = np.exp(outlier)
+
+        # Output raw likelihoods since they carry information about read depth
+        # or confidence for joint genotyping.
 
         return likelihoods
 
@@ -802,7 +822,7 @@ class Genotyper(object):
             pd.DataFrame: DataFrame with joint genotype likelihoods for each genomic position.
         """
         # Calculate the joint genotype likelihoods.
-        message(f"Calculating joint genotype likelihoods ...") if self.verbose else None
+        message(f"Calculating joint genotype likelihoods: ", end="", flush=True) if self.verbose else None
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -828,10 +848,16 @@ class Genotyper(object):
                     coverage_mask = pl.df[["ref_count", "alt_count"]].sum(axis=1) > 0
                     log_likelihoods.append(np.log(pl.df.loc[coverage_mask, gt]))
 
-                joint_log_likelihood[gt] = pd.concat(log_likelihoods, axis=1).fillna(1).apply(nansum, axis=1)
+                joint_log_likelihood[gt] = (
+                    log_likelihoods[0].fillna(1) if len(log_likelihoods) == 1
+                    else pd.concat(log_likelihoods, axis=1).fillna(1).apply(nansum, axis=1)
+                )
+
+                print(gt, end=" ", flush=True) if self.verbose else None
+        print("") if self.verbose else None
 
         # Normalize likelihoods
-        total = pd.concat(joint_log_likelihood.values(), axis=1).apply(lambda row: reduce(np.logaddexp, row), axis=1)
+        total = pd.concat(joint_log_likelihood.values(), axis=1).apply(sp.logsumexp, axis=1)
         genotype_likelihood = {
             gt: np.exp(joint_log_likelihood[gt].sub(total, axis=0))
             for gt in self.genotypes
@@ -854,17 +880,335 @@ class Genotyper(object):
         df = pd.DataFrame.from_dict(genotype_likelihood)
         message(f"Processed {df.shape[0]} records.") if self.verbose else None
 
-        df = self.select_confident_calls(likelihoods=df)
+        df = self.select_confident_calls(likelihoods=df, normalized=True)
         message(f"Selected  {df.shape[0]} confident calls.") if self.verbose else None
 
-        df = self.select_confident_calls(likelihoods=df, genotypes=[g for g in self.genotypes if g != "./."])
+        df = self.select_confident_calls(likelihoods=df, genotypes=[g for g in self.genotypes if g != "./."], normalized=True)
         message(f"Selected  {df.shape[0]} non-outliers.") if self.verbose else None
 
         if self.select_hets:
-            df = self.select_confident_calls(likelihoods=df, genotypes=["0/1"])
+            df = self.select_confident_calls(likelihoods=df, genotypes=["0/1"], normalized=True)
             message(f"Selected  {df.shape[0]} heterozygous SNPs.") if self.verbose else None
 
+        df["GT"] = df[["0/0", "0/1", "1/1", "./."]].idxmax(axis=1)
+
         return df
+
+
+class Phaser(object):
+    """
+    Phases heterozygous genotype calls using per-sample phased likelihoods, with segment-aware consistency.
+    """
+
+    class _UF:
+        """Union-Find data structure with path compression and union by rank."""
+        def __init__(self, n):
+            self.p = np.arange(n)
+            self.r = np.zeros(n, dtype=int)
+
+        def find(self, x):
+            while self.p[x] != x:
+                self.p[x] = self.p[self.p[x]]
+                x = self.p[x]
+            return x
+
+        def union(self, a, b):
+            ra, rb = self.find(a), self.find(b)
+            if ra == rb: return
+            if self.r[ra] < self.r[rb]:
+                self.p[ra] = rb
+            elif self.r[ra] > self.r[rb]:
+                self.p[rb] = ra
+            else:
+                self.p[rb] = ra
+                self.r[ra] += 1
+
+    def __init__(self, llr_cap: float = 6, llr_threshold: float = 0.4, consensus_fdr: float = 0.01, max_num_contig_segs: int = 1000):
+        self.llr_cap = llr_cap
+        self.llr_threshold = llr_threshold
+        self.max_num_contig_segs = max_num_contig_segs
+        self.consensus_fdr = consensus_fdr
+        self.consensus_threshold = sp.logit(1 - consensus_fdr)
+
+    def phase_hets(
+        self,
+        joint_genotype_likelihood: pd.DataFrame,
+        pileup_likelihoods: list[PileupLikelihood],
+        segments: list[Segments],
+    ) -> pd.DataFrame:
+        """
+        Replace 0/1 in self.joint_genotype_likelihood with 0|1 or 1|0 based on
+        consensus of per-sample phased likelihoods, with segment-aware consistency.
+
+        Args:
+            joint_genotype_likelihood: DataFrame with joint genotype likelihoods.
+            pileup_likelihoods: List of PileupLikelihood objects from different samples.
+            segments: List of Segments objects corresponding to the pileup_likelihoods.
+
+        Returns:
+            DataFrame with phased genotype likelihoods.
+        """
+        message("Phasing HETs ...")
+
+        if joint_genotype_likelihood.empty:
+            return joint_genotype_likelihood
+
+        jl = joint_genotype_likelihood.copy()
+        contigs = jl.index.get_level_values(level="contig").drop_duplicates()
+
+        cons_parts = []  # list[pd.Series] signed consensus per locus
+        num_components_per_contig = dict()
+        num_hets_per_contig = dict()
+        for contig in contigs:
+            is_het_in_contig = jl.index.get_level_values(level="contig") == contig
+            is_het_in_contig &= jl["GT"] == "0/1"
+
+            num_hets_per_contig[contig] = np.sum(is_het_in_contig)
+
+            idx = jl.index[is_het_in_contig]
+
+            if not np.any(is_het_in_contig):
+                continue
+
+            V = []
+            for pl, segs in zip(pileup_likelihoods, segments):
+                hets = pl.df.reindex(idx)
+                # pull as numpy and sanitize
+                l01 = hets["0|1"].to_numpy(dtype=float)
+                l10 = hets["1|0"].to_numpy(dtype=float)
+
+                # turn any NaN/±inf into 0 (i.e., “no evidence”)
+                l01 = np.nan_to_num(l01, nan=0.0, posinf=0.0, neginf=0.0)
+                l10 = np.nan_to_num(l10, nan=0.0, posinf=0.0, neginf=0.0)
+
+                tiny = 1e-32
+                llr = np.log(np.maximum(l01, tiny)) - np.log(np.maximum(l10, tiny))
+                llr = np.clip(llr, -self.llr_cap, self.llr_cap)
+                llr = np.nan_to_num(llr, nan=0.0, posinf=0.0, neginf=0.0)
+
+                if segs.df.empty:
+                    V.append(llr)
+                    continue
+
+                seg_c = segs.df.loc[segs.df["contig"] == contig]
+                if seg_c.empty:
+                    V.append(llr)
+                    continue
+
+                if seg_c.shape[0] > self.max_num_contig_segs:
+                    # Don't use evidence from over-segmented samples. That data
+                    # can not be trusted.
+                    # V.append(llr)
+                    continue
+
+                pos = idx.get_level_values(level="position").to_numpy()
+                for _, row in seg_c.iterrows():
+                    het_in_seg = (row["start"] <= pos) & (pos < row["end"])
+                    if np.sum(het_in_seg):
+                        vseg = np.zeros_like(llr)
+                        vseg[het_in_seg] = llr[het_in_seg]
+                        V.append(vseg)
+
+            if not V:
+                continue
+
+            V = [np.asarray(v, dtype=float, order="C") for v in V]
+
+            components = self.connected_components_from_tracks(V)
+            num_components_per_contig[contig] = len(components)
+
+            for comp in components:
+                Vc = np.stack([V[j] for j in comp], axis=0)  # (Jc, L)
+                if not np.any(Vc):
+                    continue
+
+                cover = np.any(Vc != 0.0, axis=0)  # (L,)
+                if not cover.any():
+                    continue
+
+                idx_comp = idx[cover]
+                Vcov = Vc[:, cover]
+
+                Jc, Lc = Vcov.shape
+
+                if Jc <= 20:
+                    x = self.exact_sign_max_gray(Vcov)
+                else:
+                    x0 = self.spectral_init(Vcov, iters=10)
+                    x = self.best_improvement(Vcov, x0, max_iter=200, eps=1e-9)
+
+                # temperature shrinkage
+                if Jc == 1:
+                    tau = 1
+                else:
+                    rho_bar = self.avg_pairwise_corr(Vcov, mask=(np.abs(Vcov).mean(axis=0) < self.llr_threshold))
+                    tau = np.sqrt(1 + (Jc - 1) * rho_bar)
+                    if not np.isfinite(tau) or tau < 1:
+                        tau = 1
+
+                c_comp = Vcov.T @ x / tau  # consensus LLR per locus (MAP-oriented)
+                cons_parts.append(pd.Series(c_comp, index=idx_comp))
+
+        if not cons_parts:
+            message("No components with usable evidence; no HETs to phase.")
+            return jl
+
+        cons = pd.concat(cons_parts)
+        accept = np.abs(cons) > self.consensus_threshold
+
+        pick01 = (cons > 0) & accept
+        pick10 = (cons < 0) & accept
+
+        jl.loc[pick01.index[pick01], "GT"] = "0|1"
+        jl.loc[pick10.index[pick10], "GT"] = "1|0"
+
+        phased_01_hets = int(pick01.sum())
+        phased_10_hets = int(pick10.sum())
+        num_hets_per_contig = pd.Series(num_hets_per_contig)
+        num_hets = num_hets_per_contig.sum()
+        R = phased_01_hets + phased_10_hets
+        pct = (R / num_hets * 100.0) if num_hets else 0.0
+
+        message(
+            f"Phased {R} / {num_hets} HETs ({pct:.1f}%, 0|1: {phased_01_hets}, 1|0: {phased_10_hets})"
+            f" via |consensus LLR| > {self.consensus_threshold:.3g} (FDR < {self.consensus_fdr})"
+        )
+
+        # Per-contig breakdown (phased / total / %)
+        by_contig_calls = pd.Series(accept, index=cons.index).groupby(level='contig').sum()
+        contig_table = pd.DataFrame({
+            "phased": by_contig_calls.astype(int),
+            "n_hets": num_hets_per_contig
+        }).fillna(0).astype(int)
+        contig_table["pct"] = (100.0 * contig_table["phased"] / contig_table["n_hets"]).round(1)
+        contig_table[["phased", "n_hets"]] = contig_table[["phased", "n_hets"]].astype(str)
+        contig_table.index.name = "contig"
+
+        print(contig_table.reindex(contigs).T.to_string())
+        print("")
+
+        # Quantiles of |consensus| for total vs phased
+        def _qtab(x, name):
+            qs = np.linspace(0, 1, 21)
+            tab = pd.Series(np.quantile(np.abs(x), qs), index=[int(100 * q) for q in qs]).to_frame("|consensus LLR|")
+            tab.index.name = f"% quantile ({name})"
+            return tab.T.round(2)
+
+        print(_qtab(cons.values, "all").to_string())
+        print("")
+
+        if R > 0:
+            print(_qtab(cons.values[accept], "phased").to_string())
+            print("")
+
+        num_components_per_contig = pd.Series(num_components_per_contig).to_frame("n_comp").reindex(contigs).fillna(0).astype(int)
+        num_components_per_contig.index.name = "contig"
+        print(num_components_per_contig.loc[num_components_per_contig["n_comp"] > 0].astype(str).T.to_string())
+        print("")
+
+        return jl
+
+    def connected_components_from_tracks(self, V: list[np.ndarray]) -> list[list[int]]:
+        """Find connected components from tracks V (list of J arrays of length L)."""
+        J = len(V)
+        if J == 0:
+            return []
+        L = V[0].size
+        pos2nodes = [[] for _ in range(L)]
+        for j, v in enumerate(V):
+            nz = np.flatnonzero(v)
+            for i in nz:
+                pos2nodes[i].append(j)
+        uf = self._UF(J)
+        for nodes in pos2nodes:
+            if len(nodes) > 1:
+                first = nodes[0]
+                for k in nodes[1:]:
+                    uf.union(first, k)
+        groups = defaultdict(list)
+        for j in range(J):
+            groups[uf.find(j)].append(j)
+        # drop singleton components with all-zero tracks
+        comps = []
+        for idxs in groups.values():
+            keep = any(np.any(V[j] != 0) for j in idxs)
+            if keep:
+                comps.append(idxs)
+        return comps
+
+    @staticmethod
+    def avg_pairwise_corr(M, mask):
+        # M: (Jc, Lc) raw (unflipped) rows; mask: (Lc,) bool for near-null sites
+        X = M[:, mask]
+        if X.shape[1] < 20:  # too few loci → skip
+            return 0.0
+        # drop rows with ~zero variance
+        row_var = X.var(axis=1)
+        keep = row_var > 1e-8
+        rho_bar = 0.0
+        if np.count_nonzero(keep) >= 2:
+            C = np.corrcoef(X[keep])
+            iu = np.triu_indices_from(C, k=1)
+            rho_bar = np.maximum(0.0, np.nanmean(C[iu]))
+        return rho_bar
+
+    @staticmethod
+    def exact_sign_max_gray(Vc: np.ndarray) -> np.ndarray:
+        """Exact maximize ||sum x_j v_j||^2 for small J using Gray code. Vc shape (Jc, L)."""
+        Jc, _ = Vc.shape
+        x = np.ones(Jc, dtype=int)
+        c = Vc.sum(axis=0)  # consensus for all +1
+        best_x = x.copy()
+        best_F = float(np.dot(c, c))
+        prev_gray = 0
+        for t in range(1, 1 << Jc):
+            gray = t ^ (t >> 1)
+            bit = (prev_gray ^ gray).bit_length() - 1
+            # flip bit
+            c = c - 2 * x[bit] * Vc[bit]
+            x[bit] *= -1
+            F = float(np.dot(c, c))
+            if F > best_F:
+                best_F, best_x = F, x.copy()
+            prev_gray = gray
+        return best_x
+
+    @staticmethod
+    def spectral_init(Vc: np.ndarray, iters: int = 10) -> np.ndarray:
+        """Top eigenvector of W=V V^T via power iteration using implicit multiplies."""
+        Jc = Vc.shape[0]
+        z = np.random.default_rng(42).standard_normal(Jc)
+        z /= (np.linalg.norm(z) + 1e-12)
+        for _ in range(iters):
+            y = Vc.T @ z  # L
+            z = Vc @ y  # Jc   (this equals (V V^T) z)
+            nrm = np.linalg.norm(z)
+            if nrm == 0:
+                break
+            z /= nrm
+        x0 = np.sign(z)
+        x0[x0 == 0] = 1
+        return x0.astype(int)
+
+    @staticmethod
+    def best_improvement(Vc: np.ndarray, x: np.ndarray, max_iter: int = 200, eps: float = 1e-9) -> np.ndarray:
+        """
+        Coordinate ascent: always flip the j with largest positive gain until none.
+        Vc: (Jc, L), x: (Jc,)
+        """
+        # Jc = Vc.shape[0]
+        c = Vc.T @ x  # consensus
+        b = np.einsum("ij,ij->i", Vc, Vc)  # ||v_j||^2
+        for _ in range(max_iter):
+            a = Vc @ c  # a_j = <v_j, c>
+            dF = -4.0 * x * a + 4.0 * b
+            j = int(np.argmax(dF))
+            if dF[j] <= eps:
+                break
+            # flip using OLD sign
+            c = c - 2.0 * x[j] * Vc[j]
+            x[j] = -x[j]
+        return x
 
 
 class GenotypeData(object):
@@ -1167,6 +1511,8 @@ class GenotypeData(object):
 
         Genomic contigs are sorted according to header in variants VCF.
         Positions within contigs are sorted numerically.
+
+        Aligns each sample's pileup likelihood with the joint GT likelihood index.
         """
         # contig_order = self.vcf.contigs
         message("Sorting loci ... ")
@@ -1183,6 +1529,13 @@ class GenotypeData(object):
         self.vcf.df = self.vcf.df.loc[sorted_index]
         for pl in self.pileup_likelihoods:
             pl.df = pl.df.reindex(sorted_index)
+
+    def phase_hets(self, phaser: Phaser):
+        self.joint_genotype_likelihood = phaser.phase_hets(
+            joint_genotype_likelihood=self.joint_genotype_likelihood,
+            pileup_likelihoods=self.pileup_likelihoods,
+            segments=self.segments
+        )
 
     def write_output(self, output_dir: str, vcf_format: str = "GT", args: argparse.Namespace = None):
         """
@@ -1254,7 +1607,7 @@ class GenotypeData(object):
             df["format"] = vcf_format
 
             # create fields for "SAMPLE" column:
-            df["GT"] = df[['0/0', '0/1', '1/1', './.']].astype(float).idxmax(axis=1)
+            # df["GT"] = df[['0/0', '0/1', '1/1', './.']].astype(float).idxmax(axis=1)
             if "AD" in vcf_format:
                 df["AD"] = df[['ref_count', 'alt_count']].astype(int).apply(lambda row: f"{row['ref_count']},{row['alt_count']}", axis=1)
             if "DP" in vcf_format:

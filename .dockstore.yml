@@ -103,4 +103,13 @@ workflows:
     authors:
       - orcid: 0000-0001-9584-9135
       - name: Philipp Hähnel
+  
+  - name: PhylogicNDT
+    subclass: WDL
+    publish: true
+    primaryDescriptorPath: /wdl/phylogicndt.wdl
+    authors:
+      - orcid: 0000-0001-9584-9135
+      - name: Philipp Hähnel
+      - name: Garrett Lam
 

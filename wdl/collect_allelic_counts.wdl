@@ -348,6 +348,8 @@ task GetPileupSummaries {
     String pileup_file = sample_id + ".pileup"
     String output_file = pileup_file + if compress_output then ".gz" else ""
 
+    Int diskGB = ceil(runtime_params.disk + 3 * size(variants, "GB"))
+
     command <<<
         set -e
         export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
@@ -432,7 +434,7 @@ task GetPileupSummaries {
         bootDiskSizeGb: runtime_params.boot_disk_size
         memory: runtime_params.machine_mem + " MB"
         runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
+        disks: "local-disk " + diskGB + " HDD"
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu

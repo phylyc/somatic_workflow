@@ -10,8 +10,10 @@ struct WorkflowArguments {
     WorkflowResources files
 
     String analyst_id
+    String genome_build
 
-    Int scatter_count_for_variant_calling
+    Int scatter_count_for_variant_calling_m1
+    Int scatter_count_for_variant_calling_m2
     Int scatter_count_for_pileups
     Int variants_per_scatter
 
@@ -47,17 +49,23 @@ struct WorkflowArguments {
     Float genotype_variants_outlier_prior
     Int genotype_variants_overdispersion
     Float genotype_variants_ref_bias
+    Float genotype_variants_phasing_log_ratio_cap
+    Float genotype_variants_phasing_sample_llr_threshold
+    Float genotype_variants_phasing_consensus_fdr
+    Int genotype_variants_phasing_max_num_contig_segs
     Int harmonize_min_target_length
     Int het_to_interval_mapping_max_distance
+    Boolean aggregate_phased_hets
     Int model_segments_max_number_of_segments_per_chromosome
     Array[Int] model_segments_window_sizes
     Int model_segments_kernel_approximation_dimension
+    Boolean model_segments_use_multi_sample_cr_segmentation
     Float model_segments_smoothing_credible_interval_threshold
     Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound
     Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound
     Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold
     Float call_copy_ratios_z_score_threshold
-    Int filter_germline_cnvs_min_segment_length
+    Int filter_segments_min_probes
 
     String script_acs_conversion
     String script_genotype_variants
@@ -69,7 +77,11 @@ struct WorkflowArguments {
     Int absolute_min_hets
     Int absolute_min_probes
     Float absolute_maf90_threshold
-    String absolute_genome_build
+
+    Boolean phylogic_use_segtab
+    Boolean phylogic_use_indels
+    Boolean phylogic_impute_missing_snvs
+    Int phylogic_min_coverage
 
     # SNV WORKFLOW
     Int min_read_depth
@@ -97,12 +109,12 @@ struct WorkflowArguments {
     Int hard_filter_min_total_alt_count
     Int hard_filter_min_position_from_end_of_read
     Int hard_filter_min_read_orientation_quality
+    Int hard_filter_min_not_germline_quality
     Float hard_filter_germline_min_population_af
     Array[String] hard_filter_expressions
     Array[String] hard_filter_names
     String somatic_filter_whitelist
     String germline_filter_whitelist
-    String funcotator_reference_version
     String funcotator_output_format
     String funcotator_variant_type
     String funcotator_transcript_selection_mode
@@ -132,8 +144,10 @@ workflow DefineWorkflowArguments {
         WorkflowResources resources
 
         String analyst_id = "PH"
+        String genome_build = "hg19"
 
-        Int scatter_count_base_for_variant_calling = 25
+        Int scatter_count_for_variant_calling_m1 = 10
+        Int scatter_count_base_for_variant_calling_m2 = 25
         Int scatter_count_for_pileups = 1
         Int total_mean_read_depth = 500
         Int total_mean_read_depth_per_scatter = 500
@@ -141,7 +155,7 @@ workflow DefineWorkflowArguments {
 
         # workflow options
         Boolean run_reorder_bam_contigs = false
-        Boolean run_collect_callable_loci = false
+        Boolean run_collect_callable_loci = true
         Boolean run_collect_total_read_counts = true
         Boolean run_collect_allelic_read_counts = true
         Boolean run_contamination_model = true
@@ -165,25 +179,31 @@ workflow DefineWorkflowArguments {
 
         # CNV WORKFLOW
         Int collect_read_counts_max_soft_clipped_bases = 0
-        Float min_snppanel_pop_af = 0.01
+        Float min_snppanel_pop_af = 0.0001
         Float max_snppanel_pop_af = 1.0  # default: 0.2
         Int min_snppanel_read_depth = 10
         Float genotype_variants_normal_to_tumor_weight = 10.0
         Float genotype_variants_min_genotype_likelihood = 0.995  # = LOD threshold 5.3
-        Float genotype_variants_outlier_prior = 0.00001
+        Float genotype_variants_outlier_prior = 0.001
         Int genotype_variants_overdispersion = 10
         Float genotype_variants_ref_bias = 1.05
+        Float genotype_variants_phasing_log_ratio_cap = 10
+        Float genotype_variants_phasing_sample_llr_threshold = 0.4
+        Float genotype_variants_phasing_consensus_fdr = 0.005  # = LOD threshold 5.3
+        Int genotype_variants_phasing_max_num_contig_segs = 1000
         Int harmonize_min_target_length = 20
         Int het_to_interval_mapping_max_distance = 250
-        Int model_segments_max_number_of_segments_per_chromosome = 10000
+        Boolean aggregate_phased_hets = true
+        Int model_segments_max_number_of_segments_per_chromosome = 1000
         Array[Int] model_segments_window_sizes = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
         Int model_segments_kernel_approximation_dimension = 200
+        Boolean model_segments_use_multi_sample_cr_segmentation = true
         Float model_segments_smoothing_credible_interval_threshold = 3.0
         Float call_copy_ratios_neutral_segment_copy_ratio_lower_bound = 0.9
         Float call_copy_ratios_neutral_segment_copy_ratio_upper_bound = 1.1
         Float call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold = 2.0
         Float call_copy_ratios_z_score_threshold = 2.0
-        Int filter_germline_cnvs_min_segment_length = 100
+        Int filter_segments_min_probes = 1
 
         String script_acs_conversion =              "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
         String script_genotype_variants =           "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
@@ -193,9 +213,13 @@ workflow DefineWorkflowArguments {
         String script_pileup_to_allelic_counts =    "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
 
         Int absolute_min_hets = 0
-        Int absolute_min_probes = 2
-        Float absolute_maf90_threshold = 0.485
-        String absolute_genome_build = "hg19"
+        Int absolute_min_probes = 3
+        Float absolute_maf90_threshold = 0.49
+
+        Boolean phylogic_use_segtab = true
+        Boolean phylogic_use_indels = true
+        Boolean phylogic_impute_missing_snvs = false
+        Int phylogic_min_coverage = 8
 
         # SNV WORKFLOW
         Int min_read_depth = 4
@@ -203,7 +227,7 @@ workflow DefineWorkflowArguments {
         Float mutect1_tumor_lod_to_emit = 6.0
         Float mutect2_initial_tumor_lod = 2.0
         Float mutect2_tumor_lod_to_emit = 3.0
-        Float mutect2_high_mem_factor = 1.5
+        Float mutect2_high_mem_factor = 2
         # This is essentially a custom implementation of the mitochondiral model:
         Boolean mutect2_native_pair_hmm_use_double_precision = true
         Boolean mutect2_dont_use_soft_clipped_bases = false
@@ -225,15 +249,15 @@ workflow DefineWorkflowArguments {
         Int hard_filter_min_mapping_quality = 20
         Int hard_filter_min_fragment_length = 18
         Int hard_filter_min_total_depth = 10
-        Int hard_filter_min_total_alt_count = 3
+        Int hard_filter_min_total_alt_count = 4
         Int hard_filter_min_position_from_end_of_read = 6
-        Int hard_filter_min_read_orientation_quality = 10
+        Int hard_filter_min_read_orientation_quality = 20
+        Int hard_filter_min_not_germline_quality = 30
         Float hard_filter_germline_min_population_af = 3
         Array[String] hard_filter_expressions = []
         Array[String] hard_filter_names = []
-        String somatic_filter_whitelist = "PASS,normal_artifact"
-        String germline_filter_whitelist = "normal_artifact,panel_of_normals"
-        String funcotator_reference_version = "hg19"
+        String somatic_filter_whitelist = "PASS,normal_artifact,RESCUED"
+        String germline_filter_whitelist = "normal_artifact,panel_of_normals,lowGERMQ"  # flags additional to "germline"
         String funcotator_output_format = "MAF"
         String funcotator_variant_type = "somatic"  # alternative: germline
         String funcotator_transcript_selection_mode = "CANONICAL"  # GATK default: "CANONICAL"
@@ -275,15 +299,30 @@ workflow DefineWorkflowArguments {
     }
 
     # The shards for variant calling always need to be defined.
-    if (!defined(resources.scattered_intervals_for_variant_calling)) {
-        Int good_scatter_count = ceil(scatter_count_base_for_variant_calling * (total_mean_read_depth + 1) / (total_mean_read_depth_per_scatter + 1))
-        call tasks.SplitIntervals as VariantCallingSplitIntervals {
+    # Scale scatter count by total depth across all samples:
+    Int good_scatter_count = ceil(scatter_count_base_for_variant_calling_m2 * (total_mean_read_depth + 1) / (total_mean_read_depth_per_scatter + 1))
+    if (!defined(resources.scattered_intervals_for_variant_calling_m2) && (good_scatter_count > 1)) {
+        call tasks.SplitIntervals as VariantCallingM2SplitIntervals {
             input:
                 interval_list = select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
                 ref_fasta = resources.ref_fasta,
                 ref_fasta_index = resources.ref_fasta_index,
                 ref_dict = resources.ref_dict,
                 scatter_count = good_scatter_count,
+                split_intervals_extra_args = split_intervals_extra_args,
+                runtime_params = runtime_collection.split_intervals,
+        }
+    }
+
+    # Mutect1 runs per sample, so no need to scale by total depth.
+    if (!defined(resources.scattered_intervals_for_variant_calling_m1) && (scatter_count_for_variant_calling_m1 > 1)) {
+        call tasks.SplitIntervals as VariantCallingM1SplitIntervals {
+            input:
+                interval_list = select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
+                ref_fasta = resources.ref_fasta,
+                ref_fasta_index = resources.ref_fasta_index,
+                ref_dict = resources.ref_dict,
+                scatter_count = scatter_count_for_variant_calling_m1,
                 split_intervals_extra_args = split_intervals_extra_args,
                 runtime_params = runtime_collection.split_intervals,
         }
@@ -305,18 +344,40 @@ workflow DefineWorkflowArguments {
     call wfres_update.UpdateWorkflowResources {
         input:
             resources = resources,
-            preprocessed_intervals = select_first([resources.preprocessed_intervals, PreprocessIntervals.preprocessed_interval_list]),
-            scattered_intervals_for_variant_calling = select_first([resources.scattered_intervals_for_variant_calling, VariantCallingSplitIntervals.interval_files]),
-            scattered_intervals_for_pileups = CollectAllelicCountsSplitIntervals.interval_files
+            preprocessed_intervals = select_first([
+                resources.preprocessed_intervals,
+                PreprocessIntervals.preprocessed_interval_list
+            ]),
+            scattered_intervals_for_variant_calling_m1 = select_all(select_first([
+                resources.scattered_intervals_for_variant_calling_m1,
+                VariantCallingM1SplitIntervals.interval_files,
+                [resources.preprocessed_intervals],
+                [PreprocessIntervals.preprocessed_interval_list]
+            ])),
+            scattered_intervals_for_variant_calling_m2 = select_all(select_first([
+                resources.scattered_intervals_for_variant_calling_m2,
+                VariantCallingM2SplitIntervals.interval_files,
+                [resources.preprocessed_intervals],
+                [PreprocessIntervals.preprocessed_interval_list]
+            ])),
+            scattered_intervals_for_pileups = select_all(select_first([
+                resources.scattered_intervals_for_pileups,
+                CollectAllelicCountsSplitIntervals.interval_files,
+                [resources.preprocessed_intervals],
+                [PreprocessIntervals.preprocessed_interval_list]
+            ]))
     }
 
     WorkflowArguments args = object {
         files: UpdateWorkflowResources.updated_resources,
 
         analyst_id: analyst_id,
+        genome_build: genome_build,
 
-        scatter_count_for_variant_calling: length(select_first([resources.scattered_intervals_for_variant_calling, VariantCallingSplitIntervals.interval_files])),
-        scatter_count_for_pileups: length(select_first([resources.scattered_intervals_for_pileups, CollectAllelicCountsSplitIntervals.interval_files, ["ONE"]])),
+        # resource.scattered_intervals_... is always defined:
+        scatter_count_for_variant_calling_m1: length(select_first([UpdateWorkflowResources.updated_resources.scattered_intervals_for_variant_calling_m1])),
+        scatter_count_for_variant_calling_m2: length(select_first([UpdateWorkflowResources.updated_resources.scattered_intervals_for_variant_calling_m2])),
+        scatter_count_for_pileups: length(select_first([UpdateWorkflowResources.updated_resources.scattered_intervals_for_pileups])),
         variants_per_scatter: variants_per_scatter,
 
         run_reorder_bam_contigs: run_reorder_bam_contigs,
@@ -349,17 +410,23 @@ workflow DefineWorkflowArguments {
         genotype_variants_outlier_prior: genotype_variants_outlier_prior,
         genotype_variants_overdispersion: genotype_variants_overdispersion,
         genotype_variants_ref_bias: genotype_variants_ref_bias,
+        genotype_variants_phasing_log_ratio_cap: genotype_variants_phasing_log_ratio_cap,
+        genotype_variants_phasing_sample_llr_threshold: genotype_variants_phasing_sample_llr_threshold,
+        genotype_variants_phasing_consensus_fdr: genotype_variants_phasing_consensus_fdr,
+        genotype_variants_phasing_max_num_contig_segs: genotype_variants_phasing_max_num_contig_segs,
         harmonize_min_target_length: harmonize_min_target_length,
         het_to_interval_mapping_max_distance: het_to_interval_mapping_max_distance,
+        aggregate_phased_hets: aggregate_phased_hets,
         model_segments_max_number_of_segments_per_chromosome: model_segments_max_number_of_segments_per_chromosome,
         model_segments_window_sizes: model_segments_window_sizes,
         model_segments_kernel_approximation_dimension: model_segments_kernel_approximation_dimension,
+        model_segments_use_multi_sample_cr_segmentation: model_segments_use_multi_sample_cr_segmentation,
         model_segments_smoothing_credible_interval_threshold: model_segments_smoothing_credible_interval_threshold,
         call_copy_ratios_neutral_segment_copy_ratio_lower_bound: call_copy_ratios_neutral_segment_copy_ratio_lower_bound,
         call_copy_ratios_neutral_segment_copy_ratio_upper_bound: call_copy_ratios_neutral_segment_copy_ratio_upper_bound,
         call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold: call_copy_ratios_outlier_neutral_segment_copy_ratio_z_score_threshold,
         call_copy_ratios_z_score_threshold: call_copy_ratios_z_score_threshold,
-        filter_germline_cnvs_min_segment_length: filter_germline_cnvs_min_segment_length,
+        filter_segments_min_probes: filter_segments_min_probes,
 
         script_acs_conversion: script_acs_conversion,
         script_genotype_variants: script_genotype_variants,
@@ -371,7 +438,11 @@ workflow DefineWorkflowArguments {
         absolute_min_hets: absolute_min_hets,
         absolute_min_probes: absolute_min_probes,
         absolute_maf90_threshold: absolute_maf90_threshold,
-        absolute_genome_build: absolute_genome_build,
+
+        phylogic_use_segtab: phylogic_use_segtab,
+        phylogic_use_indels: phylogic_use_indels,
+        phylogic_impute_missing_snvs: phylogic_impute_missing_snvs,
+        phylogic_min_coverage: phylogic_min_coverage,
 
         min_read_depth: min_read_depth,
         mutect1_initial_tumor_lod: mutect1_initial_tumor_lod,
@@ -398,12 +469,12 @@ workflow DefineWorkflowArguments {
         hard_filter_min_total_alt_count: hard_filter_min_total_alt_count,
         hard_filter_min_position_from_end_of_read: hard_filter_min_position_from_end_of_read,
         hard_filter_min_read_orientation_quality: hard_filter_min_read_orientation_quality,
+        hard_filter_min_not_germline_quality: hard_filter_min_not_germline_quality,
         hard_filter_germline_min_population_af: hard_filter_germline_min_population_af,
         hard_filter_expressions: hard_filter_expressions,
         hard_filter_names: hard_filter_names,
         somatic_filter_whitelist: somatic_filter_whitelist,
         germline_filter_whitelist: germline_filter_whitelist,
-        funcotator_reference_version: funcotator_reference_version,
         funcotator_output_format: funcotator_output_format,
         funcotator_variant_type: funcotator_variant_type,
         funcotator_transcript_selection_mode: funcotator_transcript_selection_mode,

@@ -32,7 +32,7 @@ workflow ClonalAnalysisWorkflow {
                         min_hets = args.absolute_min_hets,
                         min_probes = args.absolute_min_probes,
                         maf90_threshold = args.absolute_maf90_threshold,
-                        genome_build = args.absolute_genome_build,
+                        genome_build = args.genome_build,
                         runtime_collection = runtime_collection
                 }
             }

@@ -41,30 +41,32 @@ workflow AbsoluteExtract {
             runtime_params = runtime_collection.absolute_extract
     }
 
-    if (defined(AbsoluteExtractTask.segtab)) {
-        call Postprocess {
-            input:
-                script = map_to_absolute_copy_number_script,
-                sample_name = sample_name,
-                sex = sex,
-                maf = AbsoluteExtractTask.abs_maf,
-                seg = select_first([AbsoluteExtractTask.segtab]),
-                copy_ratio_segmentation = acs_copy_ratio_segmentation,
-#                snv_maf = snv_maf,
-#                indel_maf = indel_maf,
-#                gvcf = gvcf,
-                purity = AbsoluteExtractTask.purity,
-                ploidy = AbsoluteExtractTask.ploidy,
-                runtime_params = runtime_collection.absolute_extract_postprocess
-        }
+    call Postprocess {
+        input:
+            script = map_to_absolute_copy_number_script,
+            sample_name = sample_name,
+            sex = sex,
+            maf = AbsoluteExtractTask.abs_maf,
+            seg = AbsoluteExtractTask.segtab,
+            seg_igv = AbsoluteExtractTask.segtab_igv,
+            copy_ratio_segmentation = acs_copy_ratio_segmentation,
+#            snv_maf = snv_maf,
+#            indel_maf = indel_maf,
+            purity = AbsoluteExtractTask.purity,
+            ploidy = AbsoluteExtractTask.ploidy,
+            runtime_params = runtime_collection.absolute_extract_postprocess
     }
 
     output {
         File absolute_table = AbsoluteExtractTask.table
         Float absolute_purity = AbsoluteExtractTask.purity
         Float absolute_ploidy = AbsoluteExtractTask.ploidy
-        File? absolute_maf = Postprocess.abs_maf
-        File? absolute_segtab = Postprocess.segtab
+        File absolute_maf = AbsoluteExtractTask.abs_maf
+        File absolute_segtab = AbsoluteExtractTask.segtab
+        File absolute_maf_postprocessed = Postprocess.abs_maf
+        File absolute_segtab_postprocessed = Postprocess.segtab
+        File absolute_segtab_igv_postprocessed = Postprocess.segtab_igv
+        File absolute_rescued_intervals = Postprocess.rescued_intervals
     }
 }
 
@@ -84,17 +86,33 @@ task AbsoluteExtractTask {
         String? platform
         String? genome_build
 
+        Int organism_normal_ploidy = 2
+
         Runtime runtime_params
     }
 
     String sample_name = basename(rdata, "." + copy_ratio_type + ".ABSOLUTE.RData")
     String output_dir = "."
     String output_table = output_dir + "/reviewed/" + sample_name + "." + analyst_id + ".ABSOLUTE.table.txt"
+    String output_abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".ABS_MAF.txt"
+    String output_segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab.txt"
+    String output_segtab_igv = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".IGV.seg.txt"
+    String output_called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
+    String output_gene_corrected_cn = output_dir + "/reviewed/" + sample_name + ".gene_corrected_CN.txt"
 
     command <<<
         set -euxo pipefail
 
-        mkdir -p "~{output_dir}/reviewed/"
+        mkdir -p "~{output_dir}/reviewed/samples/"
+        mkdir -p "~{output_dir}/reviewed/SEG_MAF/"
+
+        # Create dummy files to guarantee output files
+        touch "~{output_table}"
+        touch "~{output_abs_maf}"
+        touch "~{output_segtab}"
+        touch "~{output_segtab_igv}"
+        touch "~{output_called_rdata}"
+        touch "~{output_gene_corrected_cn}"
 
         if [[ "~{called_solution}" == "-1" ]] ; then
             echo -e "array\tsample\tcall status\tpurity\tploidy\tGenome doublings\tdelta\tCoverage for 80% power\tCancer DNA fraction\tSubclonal genome fraction\ttau\tE_CR\n" \
@@ -106,6 +124,9 @@ task AbsoluteExtractTask {
             exit 0
 
         elif [[ "~{called_solution}" == "0" ]] ; then
+            # This is a low-purity sample. We force purity to 1 for ABSOLUTE to
+            # still get the same type of output files as for all other samples.
+            # We set purity to 0 below.
             Rscript /library/scripts/run_absolute.R \
                 --results_dir "~{output_dir}/~{sample_name}.force-call" \
                 --sample "~{sample_name}" \
@@ -113,8 +134,8 @@ task AbsoluteExtractTask {
                 ~{"--maf '" + snv_maf + "'"} \
                 ~{"--indel_maf '" + indel_maf + "'"} \
                 --alpha 1 \
-                --tau 2 \
-                ~{"--gender  " + sex} \
+                --tau ~{organism_normal_ploidy} \
+                ~{"--gender " + sex} \
                 ~{"--platform " + platform} \
                 --ssnv_skew ~{acs_copy_ratio_skew} \
                 --copy_num_type ~{copy_ratio_type} \
@@ -139,7 +160,8 @@ task AbsoluteExtractTask {
             --pkg_dir "/"
 
         if [[ "~{called_solution}" == "0" ]] ; then
-            sed -i -E "s/\tcalled\t/\tlow purity\t/" "~{output_table}"
+            # Set call status to "low purity" and purity to 0:
+            sed -i -E "s/\tcalled\t1/\tlow purity\t0/" "~{output_table}"
         fi
 
         cut -f4 "~{output_table}" | tail -n 1 > purity
@@ -150,11 +172,11 @@ task AbsoluteExtractTask {
         File table = output_table
         Float purity = read_float("purity")
         Float ploidy = read_float("ploidy")
-        File? abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".ABS_MAF.txt"
-        File? segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab.txt"
-        File? segtab_igv = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".IGV.seg.txt"
-        File? called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
-        File? gene_corrected_cn = output_dir + "/reviewed/" + sample_name + ".gene_corrected_CN.txt"
+        File abs_maf = output_abs_maf
+        File segtab = output_segtab
+        File segtab_igv = output_segtab_igv
+        File called_rdata = output_called_rdata
+        File gene_corrected_cn = output_gene_corrected_cn
     }
 
     runtime {
@@ -175,39 +197,53 @@ task Postprocess {
 
         String? sample_name
         String? sex
-        File? maf
+        File maf
         File seg
+        File seg_igv
         File copy_ratio_segmentation
-#        File? annotated_variants
 #        File? snv_maf
 #        File? indel_maf
-#        File? gvcf
         Float purity
         Float ploidy
+
+        Int organism_normal_ploidy = 2
 
         Runtime runtime_params
     }
 
     String this_sample_name = if defined(sample_name) then sample_name else basename(seg, ".segtab.txt")
+    String output_maf = this_sample_name + ".ABS_MAF.completed.txt"
+    String output_segtab = this_sample_name + ".segtab.completed.txt"
+    String output_segtab_igv = this_sample_name + ".IGV.seg.completed.txt"
+    String output_rescued_intervals = this_sample_name + ".rescued_intervals.txt"
 
     command <<<
         set -euxo pipefail
+
+        # Create default output files
+        cp "~{maf}" "~{output_maf}"
+        cp "~{seg}" "~{output_segtab}"
+        cp "~{seg_igv}" "~{output_segtab_igv}"
+        echo "Chromosome\tStart.bp\tEnd.bp\n" > "~{output_rescued_intervals}"
+
         wget -O map_to_absolute_copy_number.py ~{script}
+        # If purity == 0, we rescue intervals assuming purity 1,
         python map_to_absolute_copy_number.py \
             --sample '~{this_sample_name}' \
             ~{"--sex  " + sex} \
-            --absolute_seg '~{seg}' \
-            --cr_seg '~{copy_ratio_segmentation}' \
-            --purity ~{purity} \
+            --absolute_segtab '~{seg}' \
+            --acs_cr_seg '~{copy_ratio_segmentation}' \
+            --purity ~{if (purity > 0) then purity else 1} \
             --ploidy ~{ploidy} \
+            --normal_ploidy ~{organism_normal_ploidy} \
             --outdir "."
     >>>
 
     output {
-        File? abs_maf = maf
-        File segtab = this_sample_name + ".segtab.completed.txt"
-        File segtab_igv = this_sample_name + ".IGV.seg.completed.txt"
-        File rescued_intervals = this_sample_name + ".rescued_intervals.txt"
+        File abs_maf = output_maf
+        File segtab = output_segtab
+        File segtab_igv = output_segtab_igv
+        File rescued_intervals = output_rescued_intervals
     }
 
     runtime {

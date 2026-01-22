@@ -28,6 +28,10 @@ workflow GenotypeVariants {
         Float outlier_prior = 0.0001
         Int overdispersion = 10
         Float ref_bias = 1.05
+        Float phasing_log_ratio_cap = 10
+        Float phasing_sample_llr_threshold = 0.4
+        Float phasing_consensus_fdr = 0.005
+        Int phasing_max_num_contig_segs = 1000
         String format = "GT"
         Boolean select_hets = false
         Boolean save_sample_genotype_likelihoods = false
@@ -42,7 +46,7 @@ workflow GenotypeVariants {
         Int disk_sizeGB = 1
         Int cpu = 1
 
-        Int mem_genotype_variants = 8192
+        Int mem_genotype_variants = 12288
         Int time_startup = 10
         Int time_genotype_variants = 30
     }
@@ -81,6 +85,10 @@ workflow GenotypeVariants {
             outlier_prior = outlier_prior,
             overdispersion = overdispersion,
             ref_bias = ref_bias,
+            phasing_log_ratio_cap = phasing_log_ratio_cap,
+            phasing_sample_llr_threshold = phasing_sample_llr_threshold,
+            phasing_consensus_fdr = phasing_consensus_fdr,
+            phasing_max_num_contig_segs = phasing_max_num_contig_segs,
             format = format,
             select_hets = select_hets,
             save_sample_genotype_likelihoods = save_sample_genotype_likelihoods,
@@ -135,9 +143,13 @@ task GenotypeVariantsTask {
         Int min_read_depth = 10
         Float normal_to_tumor_weight = 10.0
         Float min_genotype_likelihood = 0.995
-        Float outlier_prior = 0.00001
+        Float outlier_prior = 0.001
         Int overdispersion = 10
         Float ref_bias = 1.05
+        Float phasing_log_ratio_cap = 10
+        Float phasing_sample_llr_threshold = 0.4
+        Float phasing_consensus_fdr = 0.005
+        Int phasing_max_num_contig_segs = 1000
         String format = "GT"
         Boolean select_hets = false
         Boolean save_sample_genotype_likelihoods = false
@@ -182,6 +194,10 @@ task GenotypeVariantsTask {
             --outlier_prior ~{outlier_prior} \
             --overdispersion ~{overdispersion} \
             --ref_bias ~{ref_bias} \
+            --phasing_log_ratio_cap ~{phasing_log_ratio_cap} \
+            --phasing_sample_llr_threshold ~{phasing_sample_llr_threshold} \
+            --phasing_consensus_fdr ~{phasing_consensus_fdr} \
+            --phasing_max_num_contig_segs ~{phasing_max_num_contig_segs} \
             --format ~{format} \
             --threads 1 \
             ~{if select_hets then "--select_hets" else ""} \

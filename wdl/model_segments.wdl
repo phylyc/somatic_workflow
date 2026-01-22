@@ -36,6 +36,7 @@ workflow ModelSegments {
                     intervals = sample.harmonized_denoised_total_copy_ratios,
                     het_to_interval_mapping_max_distance = args.het_to_interval_mapping_max_distance,
                     select_hets = pre_select_hets,
+                    aggregate_phased_hets = args.aggregate_phased_hets && pre_select_hets,
                     bam_name = sample.bam_name,
                     runtime_params = runtime_collection.pileup_to_allelic_counts
             }
@@ -63,7 +64,7 @@ workflow ModelSegments {
     # to be very permissive. This introduces a bit more noise, which we compensate
     # for by stronger smoothing.
     if (pre_select_hets) {
-        Int genotyping_homozygous_log_ratio_threshold = 10
+        Int genotyping_homozygous_log_ratio_threshold = 5
         Float model_segments_smoothing_credible_interval_threshold = args.model_segments_smoothing_credible_interval_threshold
         if (defined(pat.matched_normal_sample)) {
             Sample matched_normal_sample = select_first([pat.matched_normal_sample])
@@ -74,7 +75,7 @@ workflow ModelSegments {
 
     # As implemented, if we don't pre-select HETs, it is not guaranteed that the
     # allelic counts sites are identical across all samples.
-    if ((length(pat.samples) > 1) && pre_select_hets) {
+    if (args.model_segments_use_multi_sample_cr_segmentation && (length(pat.samples) > 1) && pre_select_hets && !defined(pat.modeled_segments)) {
         scatter (sample in pat.samples) {
             File? denoised_copy_ratios = sample.harmonized_denoised_total_copy_ratios
             File? allelic_read_counts = sample.aggregated_allelic_read_counts
@@ -98,9 +99,16 @@ workflow ModelSegments {
                 minimum_total_allele_count_normal = minimum_total_allele_count_normal,
                 runtime_params = runtime_collection.model_segments
         }
-    }
 
-    scatter (sample in pat.samples) {
+        call p.UpdatePatient as AddMultiSampleSegmentationToPatient {
+            input:
+                patient = pat,
+                modeled_segments = MultiSampleModelSegments.multi_sample_segments
+        }
+    }
+    Patient pat_seg = select_first([AddMultiSampleSegmentationToPatient.updated_patient, pat])
+
+    scatter (sample in pat_seg.samples) {
         if (defined(sample.harmonized_denoised_total_copy_ratios))  {
             Array[File] dcr_list = select_all([sample.harmonized_denoised_total_copy_ratios])
         }
@@ -119,7 +127,7 @@ workflow ModelSegments {
         # allelic-count files to remove sites that are poorly covered across all samples.
         call ModelSegmentsTask as SingleSampleInferCR {
             input:
-                segments = MultiSampleModelSegments.multi_sample_segments,
+                segments = pat_seg.modeled_segments,
                 denoised_copy_ratios = dcr_list,
                 allelic_counts = ac_list,
                 prefix = sample.name,
@@ -153,39 +161,39 @@ workflow ModelSegments {
                 het_allelic_counts = SingleSampleInferCR.hets,
                 runtime_params = runtime_collection.plot_modeled_segments
         }
+
+        File af_segmentation_table = select_first([SingleSampleInferCR.af_segmentation_table, sample.af_segmentation_table])
+        File af_model_parameters = select_first([SingleSampleInferCR.af_model_final_parameters, sample.af_model_parameters])
+        File cr_model_parameters = select_first([SingleSampleInferCR.cr_model_final_parameters, sample.cr_model_parameters])
+        File called_copy_ratio_segmentation = select_first([CallCopyRatioSegments.called_seg_final, sample.called_copy_ratio_segmentation])
+        File cr_plot = select_first([PlotModeledSegments.plot, sample.cr_plot])
     }
 
     call p_update_s.UpdateSamples as AddSegmentationResultsToSamples {
         input:
-            patient = pat,
-            af_segmentation_table = select_all(SingleSampleInferCR.af_segmentation_table),
-            af_model_parameters = select_all(SingleSampleInferCR.af_model_final_parameters),
-            cr_model_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters),
-            called_copy_ratio_segmentation =  CallCopyRatioSegments.called_seg_final,
-            cr_plot = PlotModeledSegments.plot
-    }
-
-    call p.UpdatePatient {
-        input:
-            patient = AddSegmentationResultsToSamples.updated_patient,
-            modeled_segments = MultiSampleModelSegments.multi_sample_segments
+            patient = pat_seg,
+            af_segmentation_table = af_segmentation_table,
+            af_model_parameters = af_model_parameters,
+            cr_model_parameters = cr_model_parameters,
+            called_copy_ratio_segmentation =  called_copy_ratio_segmentation,
+            cr_plot = cr_plot
     }
 
     output {
-        Patient updated_patient = UpdatePatient.updated_patient
+        Patient updated_patient = AddSegmentationResultsToSamples.updated_patient
 
         File? modeled_segments = MultiSampleModelSegments.multi_sample_segments
-        Array[File] hets = select_all(SingleSampleInferCR.hets)
-        Array[File] af_model_begin_parameters = select_all(SingleSampleInferCR.af_model_begin_parameters)
-        Array[File] cr_model_begin_parameters = select_all(SingleSampleInferCR.cr_model_begin_parameters)
-        Array[File] af_model_final_parameters = select_all(SingleSampleInferCR.af_model_final_parameters)
-        Array[File] cr_model_final_parameters = select_all(SingleSampleInferCR.cr_model_final_parameters)
-        Array[File] igv_af = select_all(SingleSampleInferCR.igv_af)
-        Array[File] igv_cr = select_all(SingleSampleInferCR.igv_cr)
-        Array[File] seg_begin = select_all(SingleSampleInferCR.seg_begin)
-        Array[File] called_copy_ratio_segmentations = CallCopyRatioSegments.called_seg_final
-        Array[File] af_segmentation_table = select_all(SingleSampleInferCR.af_segmentation_table)
-        Array[File] cr_plots = PlotModeledSegments.plot
+        Array[File]? hets = select_all(SingleSampleInferCR.hets)
+        Array[File]? af_model_begin_parameters = select_all(SingleSampleInferCR.af_model_begin_parameters)
+        Array[File]? cr_model_begin_parameters = select_all(SingleSampleInferCR.cr_model_begin_parameters)
+        Array[File]? af_model_final_parameters = af_model_parameters
+        Array[File]? cr_model_final_parameters = cr_model_parameters
+        Array[File]? igv_af = select_all(SingleSampleInferCR.igv_af)
+        Array[File]? igv_cr = select_all(SingleSampleInferCR.igv_cr)
+        Array[File]? seg_begin = select_all(SingleSampleInferCR.seg_begin)
+        Array[File]? called_copy_ratio_segmentations = called_copy_ratio_segmentation
+        Array[File]? af_segmentation_tables = af_segmentation_table
+        Array[File]? cr_plots = cr_plot
     }
 }
 
@@ -202,6 +210,7 @@ task PileupToAllelicCounts {
         Int min_read_depth = 0
         Int het_to_interval_mapping_max_distance = 250
         Boolean select_hets = false
+        Boolean aggregate_phased_hets = false
 
         Runtime runtime_params
     }
@@ -234,6 +243,7 @@ task PileupToAllelicCounts {
                 --output '~{output_file}' \
                 --error_output '~{error_output_file}' \
                 ~{if select_hets then "--select_hets" else ""} \
+                ~{if aggregate_phased_hets then "--aggregate_hets" else ""} \
                 --verbose
         fi
     >>>

@@ -26,6 +26,7 @@ workflow DefinePatient {
         Array[Boolean]? use_for_tCR
         Array[Boolean]? use_for_aCR
         Array[String]? sample_names
+        Array[Int]? timepoints
 
         # CACHE
         Array[Array[File]]? callable_loci
@@ -46,6 +47,7 @@ workflow DefinePatient {
         Array[File]? af_model_parameters
         Array[File]? cr_model_parameters
         Array[File]? called_copy_ratio_segmentation
+        Array[File]? cr_plot
         Array[File]? acs_copy_ratio_segmentation
         Array[Float]? acs_copy_ratio_skew
         Array[File]? annotated_somatic_variants
@@ -98,6 +100,10 @@ workflow DefinePatient {
         File? snp_alt_counts
         File? snp_other_alt_counts
         File? snp_sample_correlation
+
+        File? mask_vcf
+        File? mask_vcf_idx
+        String? mask_name
 
         RuntimeCollection runtime_collection
     }
@@ -198,13 +204,25 @@ workflow DefinePatient {
     }
     Array[SequencingRun] seqruns_sn = select_first([UpdateSampleName.updated_sequencing_run, seqruns_uacr])
 
+    Array[Int] t = select_first([timepoints, []])
+    if (length(t) > 0) {
+        scatter (pair in zip(seqruns_sn, t)) {
+            call seq_run.UpdateSequencingRun as UpdateTimepoints {
+                input:
+                    sequencing_run = pair.left,
+                    timepoint = pair.right,
+            }
+        }
+    }
+    Array[SequencingRun] seqruns_t = select_first([UpdateTimepoints.updated_sequencing_run, seqruns_sn])
+
     # GroupBy sample name:
     # We assume that sample_names and bam_names share the same uniqueness,
     # that is if the supplied sample name is the same for two input bams, then the
     # bam names should also be the same, and vice versa.
 
     Array[String] theses_sample_names = select_first([sample_names, bam_names])
-    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_sn)))
+    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_t)))
 
     # Pick tumor and normal samples apart:
 
@@ -221,6 +239,7 @@ workflow DefinePatient {
                 Sample selected_tumor_sample = object {
                     name: pair.left,
                     bam_name: pair.right[0].name,
+                    timepoint: pair.right[0].timepoint,
                     sequencing_runs: pair.right,
                     is_tumor: true,
                 }
@@ -236,6 +255,7 @@ workflow DefinePatient {
                     Sample selected_normal_sample = object {
                         name: pair.left,
                         bam_name: pair.right[0].name,
+                        timepoint: pair.right[0].timepoint,
                         sequencing_runs: pair.right,
                         is_tumor: false,
                     }
@@ -313,6 +333,9 @@ workflow DefinePatient {
         snp_ref_counts: snp_ref_counts,
         snp_alt_counts: snp_alt_counts,
         snp_other_alt_counts: snp_other_alt_counts,
+        mask_vcf: mask_vcf,
+        mask_vcf_idx: mask_vcf_idx,
+        mask_name: mask_name,
     }
 
     call p_update_sh.UpdateShards {
@@ -401,6 +424,7 @@ workflow DefinePatient {
             af_model_parameters = af_model_parameters,
             cr_model_parameters = cr_model_parameters,
             called_copy_ratio_segmentation = called_copy_ratio_segmentation,
+            cr_plot = cr_plot,
             acs_copy_ratio_segmentation = acs_copy_ratio_segmentation,
             acs_copy_ratio_skew = acs_copy_ratio_skew,
             annotated_somatic_variants = annotated_somatic_variants,

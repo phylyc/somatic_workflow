@@ -9,6 +9,7 @@ workflow DefineSequencingRun {
     input {
         String? name
         String? sample_name
+        Int timepoint = 0
         File bam
         File bai
         File target_intervals
@@ -42,6 +43,7 @@ workflow DefineSequencingRun {
     SequencingRun seq_run = object {
         name: select_first([name, GetSampleName.sample_name]),
         sample_name: select_first([sample_name, GetSampleName.sample_name]),
+        timepoint: timepoint,
         bam: bam,
         bai: bai,
         target_intervals: target_intervals,

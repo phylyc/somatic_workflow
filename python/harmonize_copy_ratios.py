@@ -167,7 +167,8 @@ class Harmonizer(object):
             header, df = self.get_header_and_df(file_path=file_path)
             if sample_name is not None:
                 df[self.sample_col] = sample_name
-            self.copy_ratios.append(df)
+            if not df.empty:
+                self.copy_ratios.append(df)
             print(f"Number of loci in {cr_file_path}: {df.shape[0]}") if self.verbose else None
             return header, df
 
