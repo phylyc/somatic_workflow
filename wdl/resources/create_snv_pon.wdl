@@ -198,7 +198,8 @@ task CreateSNVPanel {
             --genomicsdb-workspace-path pon_db \
             -R '~{ref_fasta}' \
             ~{sep="' " prefix("-V '", input_vcfs)}' \
-            -L '~{interval_list}'
+            -L '~{interval_list}' \
+            --merge-input-intervals true
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             CreateSomaticPanelOfNormals \

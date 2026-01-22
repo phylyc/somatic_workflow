@@ -302,7 +302,7 @@ workflow DefineRuntimeCollection {
 
         # gatk: GenomicsDBImport / CreateSomaticPanelOfNormals
         Int mem_create_mutect2_panel = 16384
-        Int mem_create_mutect2_panel_overhead = 2048  # needs to be at least 1GB to run decently
+        Int mem_create_mutect2_panel_overhead = 4096  # needs to be at least 1GB to run decently
         Int time_create_mutect2_panel = 1200  # 20 h
         Int disk_create_mutect2_panel = 10
 
