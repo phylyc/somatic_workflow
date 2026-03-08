@@ -154,8 +154,8 @@ task PhylogicNDTTask {
         File sif_file = sif
 
         # PhylogicNDT Cluster outputs
-        File? cnvs = '~{patient_id}.cnvs.txt'
-        File? mut_ccfs = '~{patient_id}.mut_ccfs.txt'
+        File? ccfs_cnvs = '~{patient_id}.cnvs.txt'
+        File? ccfs_snvs = '~{patient_id}.mut_ccfs.txt'
         File? unclustered = '~{patient_id}.unclustered.txt'
         File? cluster_ccfs = '~{patient_id}.cluster_ccfs.txt'
         # Array[File] pie_plots = glob("~{patient_id}_pie_plots/*.pieplot.svg") # Pie plots already in HTML report

@@ -639,6 +639,7 @@ workflow MultiSampleSomaticWorkflow {
                 call abs_extract.AbsoluteExtract {
                     input:
                         map_to_absolute_copy_number_script = args.script_map_to_absolute_copy_number,
+                        calculate_cancer_cell_fraction_script = args.script_calculate_cancer_cell_fraction,
                         sample_name = sample.name,
                         sex = clonal_patient.sex,
                         rdata = acr_rdata,
@@ -846,12 +847,17 @@ workflow MultiSampleSomaticWorkflow {
         File? modeled_segments = out_patient.modeled_segments
         File? phylogic_sif_file = PhylogicNDT.sif_file
         File? phylogic_report = PhylogicNDT.report
-        File? phylogic_mut_ccfs = PhylogicNDT.mut_ccfs
+        File? phylogic_ccfs_cnvs = PhylogicNDT.ccfs_cnvs
+        File? phylogic_ccfs_snvs = PhylogicNDT.ccfs_snvs
+        File? phylogic_constrained_ccf = PhylogicNDT.constrained_ccf
+        File? phylogic_unclustered = PhylogicNDT.unclustered
+        File? phylogic_cluster_ccfs = PhylogicNDT.cluster_ccfs
+        File? phylogic_build_tree_posteriors = PhylogicNDT.build_tree_posteriors
+        File? phylogic_growth_rates = PhylogicNDT.growth_rates
+        File? phylogic_growth_rate_plot = PhylogicNDT.growth_rate_plot
         File? phylogic_timing_report = PhylogicNDT.timing_report
         File? phylogic_timing_wgd_supporting_events = PhylogicNDT.timing_wgd_supporting_events
         File? phylogic_timing_graph = PhylogicNDT.timing_graph
-        File? phylogic_growth_rates = PhylogicNDT.growth_rates
-        File? phylogic_growth_rate_plot = PhylogicNDT.growth_rate_plot
         File? phylogic_timing_comparison = PhylogicNDT.timing_comparison
         File? phylogic_timing_table = PhylogicNDT.timing_table
 

@@ -20,6 +20,7 @@ workflow AbsoluteExtract {
         File? gvcf
         String? genome_build
         String map_to_absolute_copy_number_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
+        String calculate_cancer_cell_fraction_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/calculate_cancer_cell_fraction.py"
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -43,15 +44,17 @@ workflow AbsoluteExtract {
 
     call Postprocess {
         input:
-            script = map_to_absolute_copy_number_script,
+            cnv_script = map_to_absolute_copy_number_script,
+            snv_script = calculate_cancer_cell_fraction_script,
             sample_name = sample_name,
             sex = sex,
             maf = AbsoluteExtractTask.abs_maf,
             seg = AbsoluteExtractTask.segtab,
             seg_igv = AbsoluteExtractTask.segtab_igv,
             copy_ratio_segmentation = acs_copy_ratio_segmentation,
-#            snv_maf = snv_maf,
-#            indel_maf = indel_maf,
+            acs_copy_ratio_skew = acs_copy_ratio_skew,
+            snv_maf = snv_maf,
+            indel_maf = indel_maf,
             purity = AbsoluteExtractTask.purity,
             ploidy = AbsoluteExtractTask.ploidy,
             runtime_params = runtime_collection.absolute_extract_postprocess
@@ -193,7 +196,8 @@ task AbsoluteExtractTask {
 
 task Postprocess {
     input {
-        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
+        String cnv_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
+        String snv_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/calculate_cancer_cell_fraction.py"
 
         String? sample_name
         String? sex
@@ -201,8 +205,9 @@ task Postprocess {
         File seg
         File seg_igv
         File copy_ratio_segmentation
-#        File? snv_maf
-#        File? indel_maf
+        Float? acs_copy_ratio_skew
+        File? snv_maf
+        File? indel_maf
         Float purity
         Float ploidy
 
@@ -226,13 +231,27 @@ task Postprocess {
         cp "~{seg_igv}" "~{output_segtab_igv}"
         echo "Chromosome\tStart.bp\tEnd.bp\n" > "~{output_rescued_intervals}"
 
-        wget -O map_to_absolute_copy_number.py ~{script}
+        wget -O map_to_absolute_copy_number.py ~{cnv_script}
         # If purity == 0, we rescue intervals assuming purity 1,
         python map_to_absolute_copy_number.py \
             --sample '~{this_sample_name}' \
             ~{"--sex  " + sex} \
             --absolute_segtab '~{seg}' \
             --acs_cr_seg '~{copy_ratio_segmentation}' \
+            --purity ~{if (purity > 0) then purity else 1} \
+            --ploidy ~{ploidy} \
+            --normal_ploidy ~{organism_normal_ploidy} \
+            --outdir "."
+
+        wget -O calculate_cancer_cell_fraction.py ~{snv_script}
+        python calculate_cancer_cell_fraction.py \
+            --sample '~{this_sample_name}' \
+            ~{"--sex  " + sex} \
+            --absolute_maf '~{maf}' \
+            --absolute_segtab '~{output_segtab}' \
+            --ssnv_skew ~{acs_copy_ratio_skew} \
+            --snv_maf '~{snv_maf}' \
+            --indel_maf '~{indel_maf}' \
             --purity ~{if (purity > 0) then purity else 1} \
             --ploidy ~{ploidy} \
             --normal_ploidy ~{organism_normal_ploidy} \

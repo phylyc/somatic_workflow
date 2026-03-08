@@ -69,6 +69,7 @@ struct WorkflowArguments {
 
     String script_acs_conversion
     String script_genotype_variants
+    String script_calculate_cancer_cell_fraction
     String script_harmonize_copy_ratios
     String script_map_to_absolute_copy_number
     String script_merge_pileups
@@ -205,19 +206,20 @@ workflow DefineWorkflowArguments {
         Float call_copy_ratios_z_score_threshold = 2.0
         Int filter_segments_min_probes = 1
 
-        String script_acs_conversion =              "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
-        String script_genotype_variants =           "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
-        String script_harmonize_copy_ratios =       "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
-        String script_map_to_absolute_copy_number = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
-        String script_merge_pileups =               "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
-        String script_pileup_to_allelic_counts =    "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
+        String script_acs_conversion =                  "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
+        String script_calculate_cancer_cell_fraction =  "https://github.com/phylyc/somatic_workflow/raw/master/python/calculate_cancer_cell_fraction.py"
+        String script_genotype_variants =               "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
+        String script_harmonize_copy_ratios =           "https://github.com/phylyc/somatic_workflow/raw/master/python/harmonize_copy_ratios.py"
+        String script_map_to_absolute_copy_number =     "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
+        String script_merge_pileups =                   "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
+        String script_pileup_to_allelic_counts =        "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
 
         Int absolute_min_hets = 0
         Int absolute_min_probes = 3
         Float absolute_maf90_threshold = 0.49
 
         Boolean phylogic_use_segtab = true
-        Boolean phylogic_use_indels = true
+        Boolean phylogic_use_indels = false
         Boolean phylogic_impute_missing_snvs = false
         Int phylogic_min_coverage = 8
 
@@ -430,6 +432,7 @@ workflow DefineWorkflowArguments {
 
         script_acs_conversion: script_acs_conversion,
         script_genotype_variants: script_genotype_variants,
+        script_calculate_cancer_cell_fraction: script_calculate_cancer_cell_fraction,
         script_harmonize_copy_ratios: script_harmonize_copy_ratios,
         script_map_to_absolute_copy_number: script_map_to_absolute_copy_number,
         script_merge_pileups: script_merge_pileups,
