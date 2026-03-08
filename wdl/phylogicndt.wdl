@@ -50,9 +50,8 @@ workflow PhylogicNDT {
         File sif_file = PhylogicNDTTask.sif_file
         
         # Outputs from PhylogicNDT Cluster
-        File? cnvs = PhylogicNDTTask.cnvs
-        File? mut_ccfs = PhylogicNDTTask.mut_ccfs
-        File? unclustered = PhylogicNDTTask.unclustered
+        File? ccfs_cnvs = PhylogicNDTTask.ccfs_cnvs
+        File? ccfs_snvs = PhylogicNDTTask.ccfs_snvs
         File? cluster_ccfs = PhylogicNDTTask.cluster_ccfs
         # Array[File] pie_plots = PhylogicNDTTask.pie_plots
         Array[File]? mutation_plots = PhylogicNDTTask.one_d_mutation_plots
