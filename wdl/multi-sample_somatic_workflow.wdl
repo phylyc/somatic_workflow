@@ -850,7 +850,6 @@ workflow MultiSampleSomaticWorkflow {
         File? phylogic_ccfs_cnvs = PhylogicNDT.ccfs_cnvs
         File? phylogic_ccfs_snvs = PhylogicNDT.ccfs_snvs
         File? phylogic_constrained_ccf = PhylogicNDT.constrained_ccf
-        File? phylogic_unclustered = PhylogicNDT.unclustered
         File? phylogic_cluster_ccfs = PhylogicNDT.cluster_ccfs
         File? phylogic_build_tree_posteriors = PhylogicNDT.build_tree_posteriors
         File? phylogic_growth_rates = PhylogicNDT.growth_rates
