@@ -453,9 +453,9 @@ def compare_to_absolute(inferred: pd.DataFrame, abs_maf: pd.DataFrame) -> None:
 
 def calculate_ccf(args):
     sex = standardize_sex(args.sex)
-    if args.purity == -1:
+    if args.purity <= 0:
         args.purity = 1
-    if args.ploidy == -1:
+    if args.ploidy <= 0:
         args.ploidy = args.normal_ploidy
 
     epsilon = 1e-3

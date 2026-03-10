@@ -62,9 +62,9 @@ def map_to_cn(args):
     elif s in ["UNKNOWN"]:
         s = "XXY"
 
-    if args.purity == -1:
+    if args.purity <= 0:
         args.purity = 1
-    if args.ploidy == -1:
+    if args.ploidy <= 0:
         args.ploidy = args.normal_ploidy
 
     nX = s.count("X")
