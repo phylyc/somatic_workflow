@@ -422,7 +422,6 @@ task FilterVariantCalls {
             ~{if (length(filter_names) > 0) then " --filter-name '" else ""}~{default="" sep="' --filter-name '" filter_names}~{if (length(filter_names) > 0) then "'" else ""} \
             ~{if (length(filter_expressions) > 0) then " --filter-expression '" else ""}~{default="" sep="' --filter-expression '" filter_expressions}~{if (length(filter_expressions) > 0) then "'" else ""} \
             --output 'filtered.left_aligned_and_trimmed.TAC.VF.vcf.gz' \
-            # --output '~{output_vcf}' \
             ~{variant_filtration_extra_args} \
             2> >(grep -v "WARN  JexlEngine - " >&2)
         
