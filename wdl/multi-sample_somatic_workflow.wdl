@@ -712,7 +712,6 @@ workflow MultiSampleSomaticWorkflow {
             scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
                 if (defined(sample.absolute_maf_postprocessed) && defined(sample.purity) && (sample.purity > 0)) {
                     String? phylogic_sample_name = sample.name
-                    # TODO: fix CCF annotation in postprocessed segtabs and MAFs.
                     File? sample_absolute_maf = sample.absolute_maf_postprocessed
                     File? sample_absolute_segtab = sample.absolute_segtab_postprocessed
                     Float? sample_purity = sample.purity

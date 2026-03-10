@@ -458,35 +458,17 @@ task GetUniqueSampleNameSets {
     command <<<
         set -euxo pipefail
 
-        # Convert comma-separated strings to arrays
-        IFS=',' read -r -a all_names <<< "~{sep="," sample_names}"
-        IFS=',' read -r -a normal_names <<< "~{sep="," normal_sample_names}"
+        # Use WDL's built-in write_lines() to safely dump arrays to temp files.
+        # This creates 0-byte files if the input arrays are empty.
+        # We then sort those files directly. This is equivalent to python's sorted().
+        LC_ALL=C sort -u ~{write_lines(sample_names)} > all_sorted.txt
+        LC_ALL=C sort -u ~{write_lines(normal_sample_names)} > normal_sorted.txt
 
-        # Create an associative array to hold unique names
-        declare -A unique_tumor_names
-        declare -A unique_normal_names
+        # Extract Tumor Samples
+        comm -23 all_sorted.txt normal_sorted.txt > tumor_sample_names.txt
 
-        # Loop through all names
-        for name in "~{dollar}{all_names[@]}"; do
-            # Check if name is in the normal names list
-            if [[ " ~{dollar}{normal_names[*]} " =~ " ~{dollar}{name} " ]]; then
-                unique_normal_names["$name"]=1
-            else
-                unique_tumor_names["$name"]=1
-            fi
-        done
-
-        # Write unique tumor sample names to file
-        touch "tumor_sample_names.txt"
-        for tumor_name in "~{dollar}{!unique_tumor_names[@]}"; do
-            echo "$tumor_name" >> "tumor_sample_names.txt"
-        done
-
-        # Write unique normal sample names to file
-        touch "normal_sample_names.txt"
-        for normal_name in "~{dollar}{!unique_normal_names[@]}"; do
-            echo "$normal_name" >> "normal_sample_names.txt"
-        done
+        # Extract Normal Samples
+        comm -12 all_sorted.txt normal_sorted.txt > normal_sample_names.txt
     >>>
 
     output {
