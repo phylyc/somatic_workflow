@@ -43,6 +43,7 @@ workflow FilterVariants {
                 tumor_segmentation = segmentation_tables,
                 mutect_stats = patient.mutect2_stats,
                 max_median_fragment_length_difference = args.filter_mutect2_max_median_fragment_length_difference,
+                max_indel_length = args.hard_filter_max_indel_length,
                 min_base_quality = args.hard_filter_min_base_quality,
                 min_mapping_quality = args.hard_filter_min_mapping_quality,
                 min_fragment_length = args.hard_filter_min_fragment_length,
@@ -415,6 +416,8 @@ task FilterVariantCalls {
             --filter-expression 'GERMQ < ~{min_not_germline_quality}' \
             --filter-name "germline" \
             --filter-expression 'POPAF < ~{germline_min_population_af}' \
+            --filter-name "highSIZE" \
+            --filter-expression 'vc.isIndel() && (vc.getIndelLengths().0 > ~{max_indel_length} || vc.getIndelLengths().0 < -~{max_indel_length})' \
             --filter-name "RESCUED" \
             --filter-expression "vc.isFiltered() && ((vc.getFilters().size()==1 && vc.getFilters().contains('strand_bias')) || (vc.getFilters().size()==2 && vc.getFilters().contains('strand_bias') && vc.getFilters().contains('weak_evidence'))) && (ROQ >= 30) && (TLOD >= 2.4)" \
             ~{if (defined(mask_vcf) && defined(mask_name)) then " --mask-name '" + mask_name + "'" else ""} \

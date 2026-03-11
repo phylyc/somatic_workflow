@@ -103,6 +103,7 @@ struct WorkflowArguments {
     Int mutect2_pcr_indel_qual
     Int filter_mutect2_max_median_fragment_length_difference
     Int filter_alignment_artifacts_max_reasonable_fragment_length
+    Int hard_filter_max_indel_length
     Int hard_filter_min_base_quality
     Int hard_filter_min_mapping_quality
     Int hard_filter_min_fragment_length
@@ -247,6 +248,7 @@ workflow DefineWorkflowArguments {
         Int mutect2_pcr_indel_qual = 40  # default: 40
         Int filter_mutect2_max_median_fragment_length_difference = 10000  # default: 10000
         Int filter_alignment_artifacts_max_reasonable_fragment_length = 10000 # default: 100000
+        Int hard_filter_max_indel_length = 100  # Funcotator may run into trouble with longer indels.
         Int hard_filter_min_base_quality = 20
         Int hard_filter_min_mapping_quality = 20
         Int hard_filter_min_fragment_length = 18
@@ -465,6 +467,7 @@ workflow DefineWorkflowArguments {
         mutect2_pcr_indel_qual: mutect2_pcr_indel_qual,
         filter_mutect2_max_median_fragment_length_difference: filter_mutect2_max_median_fragment_length_difference,
         filter_alignment_artifacts_max_reasonable_fragment_length: filter_alignment_artifacts_max_reasonable_fragment_length,
+        hard_filter_max_indel_length: hard_filter_max_indel_length,
         hard_filter_min_base_quality: hard_filter_min_base_quality,
         hard_filter_min_mapping_quality: hard_filter_min_mapping_quality,
         hard_filter_min_fragment_length: hard_filter_min_fragment_length,
