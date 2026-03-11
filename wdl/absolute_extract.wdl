@@ -130,7 +130,7 @@ task AbsoluteExtractTask {
             # This is a low-purity sample. We force purity to 1 for ABSOLUTE to
             # still get the same type of output files as for all other samples.
             # We set purity to 0 below.
-            Rscript /library/scripts/run_absolute.R \
+            Rscript /opt/absolute/library/scripts/run_absolute.R \
                 --results_dir "~{output_dir}/~{sample_name}.force-call" \
                 --sample "~{sample_name}" \
                 --seg_dat_fn "~{acs_copy_ratio_segmentation}" \
@@ -153,7 +153,7 @@ task AbsoluteExtractTask {
             this_called_solution=~{called_solution}
         fi
 
-        Rscript /library/scripts/extract_solution.R \
+        Rscript /opt/absolute/library/scripts/extract_solution.R \
             --solution_num $this_called_solution \
             --rdata "$this_rdata" \
             --results_dir ~{output_dir} \

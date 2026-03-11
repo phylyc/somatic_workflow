@@ -234,7 +234,7 @@ task AbsoluteTask {
         num_segments=$(( $(wc -l < '~{seg_file}') - 1 ))
 
         if [ $num_segments -gt 0 ] ; then
-            Rscript /library/scripts/run_absolute.R \
+            Rscript /opt/absolute/library/scripts/run_absolute.R \
                 --results_dir '~{output_dir}' \
                 --sample '~{sample_name}' \
                 --seg_dat_fn '~{seg_file}' \
