@@ -247,7 +247,7 @@ task AbsoluteTask {
                 --ssnv_skew ~{skew} \
                 --copy_num_type ~{copy_ratio_type} \
                 ~{"--genome_build '" + genome_build + "'"} \
-                --pkg_dir "/"
+                --pkg_dir "/opt/absolute"
         else
             echo "No segments found in the input segmentation file. Exiting." >&2
         fi

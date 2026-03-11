@@ -143,7 +143,7 @@ task AbsoluteExtractTask {
                 --ssnv_skew ~{acs_copy_ratio_skew} \
                 --copy_num_type ~{copy_ratio_type} \
                 ~{"--genome_build '" + genome_build + "'"} \
-                --pkg_dir "/"
+                --pkg_dir "/opt/absolute"
 
             this_rdata="~{output_dir}/~{sample_name}.force-call/~{sample_name}.allelic.ABSOLUTE.RData"
             this_called_solution=1
@@ -160,7 +160,7 @@ task AbsoluteExtractTask {
             --analyst_id '~{analyst_id}' \
             --sample '~{sample_name}' \
             --copy_num_type ~{copy_ratio_type} \
-            --pkg_dir "/"
+            --pkg_dir "/opt/absolute"
 
         if [[ "~{called_solution}" == "0" ]] ; then
             # Set call status to "low purity" and purity to 0:
