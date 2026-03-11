@@ -254,7 +254,7 @@ workflow DefineWorkflowArguments {
         Int hard_filter_min_total_alt_count = 4
         Int hard_filter_min_position_from_end_of_read = 6
         Int hard_filter_min_read_orientation_quality = 20
-        Int hard_filter_min_not_germline_quality = 30
+        Int hard_filter_min_not_germline_quality = 0
         Float hard_filter_germline_min_population_af = 3
         Array[String] hard_filter_expressions = []
         Array[String] hard_filter_names = []

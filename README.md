@@ -49,7 +49,7 @@ The workflow is organized into the following main tasks:
 ### 5. Clonal Analysis
 - **5.1 ABSOLUTE** Perform per-sample clonal analysis of the identified somatic variants and estimate tumor purity, ploidy, and absolute copy number.
 - **5.2 ABSOLUTE extraction**: Extract results for one chosen solution (needs manual input).
-  - **5.2a**: Rescue dropped segments.
+  - **5.2a**: Rescue dropped segments and SNVs.
 - **5.3 PhylogicNDT**: Build phylogenetic trees from all samples, perform growth kinetics, and timing analysis.
 
 Please remember to always review the intermediate results to ensure that the final results are as expected. Inappropriate filtering or parameter settings can lead to misleading output.
