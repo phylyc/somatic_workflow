@@ -105,7 +105,12 @@ def normalize_maf_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def read_table(path: str, comment="#") -> pd.DataFrame:
-    return pd.read_csv(path, sep="\t", comment=comment, low_memory=False)
+    try:
+        return pd.read_csv(path, sep="\t", comment=comment, low_memory=False)
+    except Exception as e:
+        message(e)
+        message("Using empty dataframe instead.")
+        return pd.DataFrame()
 
 
 def read_optional_maf(path: str | None) -> pd.DataFrame:

@@ -238,7 +238,7 @@ task Postprocess {
             ~{"--sex  " + sex} \
             --absolute_segtab '~{seg}' \
             --acs_cr_seg '~{copy_ratio_segmentation}' \
-            --purity ~{if (purity > 0) then purity else 1} \
+            --purity ~{purity} \
             --ploidy ~{ploidy} \
             --normal_ploidy ~{organism_normal_ploidy} \
             --outdir "."
@@ -252,7 +252,7 @@ task Postprocess {
             --ssnv_skew ~{acs_copy_ratio_skew} \
             --snv_maf '~{snv_maf}' \
             --indel_maf '~{indel_maf}' \
-            --purity ~{if (purity > 0) then purity else 1} \
+            --purity ~{purity} \
             --ploidy ~{ploidy} \
             --normal_ploidy ~{organism_normal_ploidy} \
             --outdir "."
