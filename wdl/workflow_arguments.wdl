@@ -248,7 +248,10 @@ workflow DefineWorkflowArguments {
         Int mutect2_pcr_indel_qual = 40  # default: 40
         Int filter_mutect2_max_median_fragment_length_difference = 10000  # default: 10000
         Int filter_alignment_artifacts_max_reasonable_fragment_length = 10000 # default: 100000
-        Int hard_filter_max_indel_length = 100  # Funcotator may run into trouble with longer indels.
+        # Small indels are defined to be < 50bp.
+        # Mutect2 likes to also report deletions > 50bp that are more likely mapping artifacts.
+        # Funcotator may run into trouble with longer indels.
+        Int hard_filter_max_indel_length = 50
         Int hard_filter_min_base_quality = 20
         Int hard_filter_min_mapping_quality = 20
         Int hard_filter_min_fragment_length = 18
