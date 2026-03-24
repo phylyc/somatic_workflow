@@ -59,7 +59,7 @@ workflow ClonalAnalysisWorkflow {
                         snv_maf = snv_maf,
                         indel_maf = indel_maf,
                         gvcf = patient.gvcf,
-                        genome_build = args.absolute_genome_build,
+                        genome_build = args.genome_build,
                 }
             }
         }

@@ -348,10 +348,10 @@ workflow DefineWorkflowArguments {
         }
     }
     if (defined(resources.preprocessed_intervals)) {
-        Array[File] input_preprocessed_intervals = [resources.preprocessed_intervals]
+        Array[File] input_preprocessed_intervals = select_all([resources.preprocessed_intervals])
     }
     if (defined(PreprocessIntervals.preprocessed_interval_list)) {
-        Array[File] preprocessed_intervals = [PreprocessIntervals.preprocessed_interval_list]
+        Array[File] preprocessed_intervals = select_all([PreprocessIntervals.preprocessed_interval_list])
     }
 
     call wfres_update.UpdateWorkflowResources {
