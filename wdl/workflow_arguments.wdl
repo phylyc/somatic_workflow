@@ -347,6 +347,12 @@ workflow DefineWorkflowArguments {
                 runtime_params = runtime_collection.split_intervals,
         }
     }
+    if (defined(resources.preprocessed_intervals)) {
+        Array[File] input_preprocessed_intervals = [resources.preprocessed_intervals]
+    }
+    if (defined(PreprocessIntervals.preprocessed_interval_list)) {
+        Array[File] preprocessed_intervals = [PreprocessIntervals.preprocessed_interval_list]
+    }
 
     call wfres_update.UpdateWorkflowResources {
         input:
@@ -358,20 +364,20 @@ workflow DefineWorkflowArguments {
             scattered_intervals_for_variant_calling_m1 = select_all(select_first([
                 resources.scattered_intervals_for_variant_calling_m1,
                 VariantCallingM1SplitIntervals.interval_files,
-                [resources.preprocessed_intervals],
-                [PreprocessIntervals.preprocessed_interval_list]
+                input_preprocessed_intervals,
+                preprocessed_intervals
             ])),
             scattered_intervals_for_variant_calling_m2 = select_all(select_first([
                 resources.scattered_intervals_for_variant_calling_m2,
                 VariantCallingM2SplitIntervals.interval_files,
-                [resources.preprocessed_intervals],
-                [PreprocessIntervals.preprocessed_interval_list]
+                input_preprocessed_intervals,
+                preprocessed_intervals
             ])),
             scattered_intervals_for_pileups = select_all(select_first([
                 resources.scattered_intervals_for_pileups,
                 CollectAllelicCountsSplitIntervals.interval_files,
-                [resources.preprocessed_intervals],
-                [PreprocessIntervals.preprocessed_interval_list]
+                input_preprocessed_intervals,
+                preprocessed_intervals
             ]))
     }
 
