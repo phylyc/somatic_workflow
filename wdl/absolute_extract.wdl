@@ -243,19 +243,21 @@ task Postprocess {
             --normal_ploidy ~{organism_normal_ploidy} \
             --outdir "."
 
-        wget -O calculate_cancer_cell_fraction.py ~{snv_script}
-        python calculate_cancer_cell_fraction.py \
-            --sample '~{this_sample_name}' \
-            ~{"--sex  " + sex} \
-            --absolute_maf '~{maf}' \
-            --absolute_segtab '~{output_segtab}' \
-            --ssnv_skew ~{acs_copy_ratio_skew} \
-            --snv_maf '~{snv_maf}' \
-            --indel_maf '~{indel_maf}' \
-            --purity ~{purity} \
-            --ploidy ~{ploidy} \
-            --normal_ploidy ~{organism_normal_ploidy} \
-            --outdir "."
+        if [[ "~{defined(snv_maf)}" == "true" || "~{defined(indel_maf)}" == "true" ]] ; then
+            wget -O calculate_cancer_cell_fraction.py ~{snv_script}
+            python calculate_cancer_cell_fraction.py \
+                --sample '~{this_sample_name}' \
+                ~{"--sex " + sex} \
+                --absolute_maf '~{maf}' \
+                --absolute_segtab '~{output_segtab}' \
+                ~{"--ssnv_skew " + acs_copy_ratio_skew} \
+                ~{"--snv_maf '" + snv_maf + "'"} \
+                ~{"--indel_maf '" + indel_maf + "'"} \
+                --purity ~{purity} \
+                --ploidy ~{ploidy} \
+                --normal_ploidy ~{organism_normal_ploidy} \
+                --outdir '.'
+        fi
     >>>
 
     output {
