@@ -41,7 +41,7 @@ def parse_args():
     parser.add_argument("--outdir", type=str, required=True, help="Output directory.")
     parser.add_argument("--purity", type=float, required=True, help="Tumor purity as inferred by ABSOLUTE.")
     parser.add_argument("--ploidy", type=float, required=True, help="Tumor ploidy as inferred by ABSOLUTE.")
-    parser.add_argument("--ssnv_skew", type=float, required=True, help="SSNV skew parameter used by ABSOLUTE.")
+    parser.add_argument("--ssnv_skew", type=float, required=False, default=0.9883274, help="SSNV skew parameter used by ABSOLUTE.")
     parser.add_argument("--sample", type=str, required=False, help="Sample name.")
     parser.add_argument("--sex", type=str, default="XXY", help="Patient's sex genotype.")
     parser.add_argument("--absolute_maf", type=str, required=False, help="Path to ABSOLUTE ABS_MAF output.")

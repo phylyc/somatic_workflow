@@ -97,6 +97,26 @@ def map_to_cn(args):
         "SegLabelCNLOH": int
     }
 
+    extra_columns = [
+        "ccf_mean",
+        "ccf_median",
+        "ccf_mode",
+        "ccf_ci95_low",
+        "ccf_ci95_high",
+        "ccf_ci95_width",
+        "ccf_entropy",
+        "ccf_max_p",
+        "ccf_support_50",
+        "ccf_support_90",
+        "current_pair_entropy",
+        "current_pair_effn",
+        "tail_mass_high_cn",
+        "high_copy_flag",
+        "ambiguous_ccf_flag",
+        "baseline_q1",
+        "baseline_q2",
+    ]
+
     ###########################################################################
     ### LOADING DATA
     ###########################################################################
@@ -109,8 +129,8 @@ def map_to_cn(args):
         abs_seg = pd.DataFrame(None, columns=list(abs_dtypes.keys()))
 
     for col, dtype in abs_dtypes.items():
-        abs_seg = abs_seg.astype({col: dtype}, errors="ignore")
-    abs_seg_cols = abs_seg.columns
+        if col in abs_seg.columns:
+            abs_seg = abs_seg.astype({col: dtype}, errors="ignore")
     abs_seg = abs_seg.set_index(["Chromosome", "Start.bp", "End.bp"])
 
     if args.acs_cr_seg is not None:
@@ -387,6 +407,383 @@ def map_to_cn(args):
 
         return hat, low, high
 
+    def get_segment_ccf(
+        nu=10,
+        max_cn=200,
+        pair_post_thresh=0.02,
+        pair_window=2,
+        high_cn_threshold=12,
+        high_cn_sigma_threshold=1.5,
+        high_cn_tail_mass_threshold=0.10,
+        high_cn_pair_post_thresh=1e-3,
+        baseline_total_cn_cap=8,
+        ambiguous_width_threshold=0.50,
+        ambiguous_max_p_threshold=0.05,
+        ambiguous_pair_effn_threshold=4.0,
+    ):
+        """
+        Joint segment-level CCF estimation using both alleles simultaneously.
+
+        ---------------------------------------------
+        1) Reports robust summaries of the CCF posterior:
+           - mean, median, mode, equal-tail 95% interval
+           The median is the recommended working point estimate for downstream use.
+
+        2) Uses a chromosome-specific baseline *allele pair* when possible,
+           rather than only a chromosome-specific modal total CN split.
+           This is still approximate, but behaves better for gains / LOH backgrounds.
+
+        3) Emits diagnostics for downstream use in CLaDE:
+           - posterior width / entropy / max posterior mass
+           - effective number of current-state pairs
+           - high-copy flag
+           - ambiguity flag
+
+        Returns
+        -------
+        pd.DataFrame
+            Indexed like `seg`, with columns:
+                ccf_mean
+                ccf_median
+                ccf_mode
+                ccf_ci95_low
+                ccf_ci95_high
+                ccf_ci95_width
+                ccf_entropy
+                ccf_max_p
+                ccf_support_50
+                ccf_support_90
+                current_pair_entropy
+                current_pair_effn
+                tail_mass_high_cn
+                high_copy_flag
+                ambiguous_ccf_flag
+                baseline_q1
+                baseline_q2
+        """
+        eps = 1e-12
+
+        hscr1 = seg["hscr.a1"].to_numpy(dtype=float)
+        hscr2 = seg["hscr.a2"].to_numpy(dtype=float)
+
+        sigma1 = seg["sigma.a1"].to_numpy(dtype=float)
+        sigma2 = seg["sigma.a2"].to_numpy(dtype=float)
+
+        total_cn = seg["CN"].to_numpy(dtype=float)
+        total_cn_sigma = seg["CN.sigma"].to_numpy(dtype=float)
+
+        cp = chr_ploidy.to_numpy(dtype=float)
+        d = delta.to_numpy(dtype=float)
+        bb = b.to_numpy(dtype=float)
+
+        chrom = seg["Chromosome"].astype(str).to_numpy()
+        is_parental_haploid = seg["is_parental_haploid"].to_numpy(dtype=bool)
+
+        # current-state seeds
+        q1_cur0 = pd.to_numeric(seg["modal.a1"], errors="coerce").to_numpy()
+        q2_cur0 = pd.to_numeric(seg["modal.a2"], errors="coerce").to_numpy()
+
+        q1_fallback = np.rint(pd.to_numeric(seg["rescaled.cn.a1"], errors="coerce").to_numpy())
+        q2_fallback = np.rint(pd.to_numeric(seg["rescaled.cn.a2"], errors="coerce").to_numpy())
+
+        q1_cur0 = np.where(np.isfinite(q1_cur0), q1_cur0, q1_fallback)
+        q2_cur0 = np.where(np.isfinite(q2_cur0), q2_cur0, q2_fallback)
+
+        q1_cur0 = np.where(np.isfinite(q1_cur0), q1_cur0, 0.0)
+        q2_cur0 = np.where(np.isfinite(q2_cur0), q2_cur0, 0.0)
+
+        q1_cur0 = np.clip(np.rint(q1_cur0), 0, max_cn - 1).astype(int)
+        q2_cur0 = np.clip(np.rint(q2_cur0), 0, max_cn - 1).astype(int)
+
+        cn_grid = np.arange(max_cn, dtype=float)
+        ccf_grid = np.linspace(0.0, 1.0, 101)
+
+        nseg = seg.shape[0]
+
+        ccf_mean = np.full(nseg, np.nan, dtype=float)
+        ccf_median = np.full(nseg, np.nan, dtype=float)
+        ccf_mode = np.full(nseg, np.nan, dtype=float)
+        ccf_low = np.full(nseg, np.nan, dtype=float)
+        ccf_high = np.full(nseg, np.nan, dtype=float)
+        ccf_width = np.full(nseg, np.nan, dtype=float)
+        ccf_entropy = np.full(nseg, np.nan, dtype=float)
+        ccf_max_p = np.full(nseg, np.nan, dtype=float)
+        ccf_support_50 = np.full(nseg, np.nan, dtype=float)
+        ccf_support_90 = np.full(nseg, np.nan, dtype=float)
+
+        pair_entropy = np.full(nseg, np.nan, dtype=float)
+        pair_effn = np.full(nseg, np.nan, dtype=float)
+
+        tail_mass_high_cn = np.full(nseg, np.nan, dtype=float)
+        high_copy_flag = np.zeros(nseg, dtype=int)
+        ambiguous_ccf_flag = np.zeros(nseg, dtype=int)
+
+        baseline_q1 = np.full(nseg, np.nan, dtype=float)
+        baseline_q2 = np.full(nseg, np.nan, dtype=float)
+
+        # ------------------------------------------------------------------
+        # chromosome-specific baseline allele-pair estimate
+        # ------------------------------------------------------------------
+        def fallback_baseline_pair(ch):
+            c0 = int(round(C0_by_chr.get(ch, 2)))
+            chr_p = get_chromosomal_ploidy(ch)
+            if chr_p == 1 and ((nX == 1) or (nY > 0)):
+                return (0, max(c0, 1))
+            if c0 <= 0:
+                return (0, 0)
+            if c0 % 2 == 0:
+                return (c0 // 2, c0 // 2)
+            q1 = c0 // 2
+            q2 = c0 - q1
+            return (q1, q2)
+
+        q1_base_seed = np.where(np.isfinite(q1_cur0), q1_cur0, 0).astype(int)
+        q2_base_seed = np.where(np.isfinite(q2_cur0), q2_cur0, 0).astype(int)
+
+        # Use reasonably low/moderate CN states to estimate the broad/background allele pair.
+        usable_for_baseline = (
+                np.isfinite(q1_base_seed)
+                & np.isfinite(q2_base_seed)
+                & (q1_base_seed >= 0)
+                & (q2_base_seed >= 0)
+                & ((q1_base_seed + q2_base_seed) <= baseline_total_cn_cap)
+        )
+
+        chrom_baseline_pair = {}
+        weights_all = seg["W"].to_numpy(dtype=float)
+
+        for ch in pd.unique(chrom):
+            idx = np.where((chrom == ch) & usable_for_baseline)[0]
+
+            if idx.size == 0:
+                chrom_baseline_pair[ch] = fallback_baseline_pair(ch)
+                continue
+
+            pair_weight = {}
+            for j in idx:
+                a = int(q1_base_seed[j])
+                b_ = int(q2_base_seed[j])
+                key = (a, b_)
+                pair_weight[key] = pair_weight.get(key, 0.0) + float(weights_all[j])
+
+            max_w = max(pair_weight.values())
+            candidates = [k for k, v in pair_weight.items() if np.isclose(v, max_w)]
+
+            c0 = int(round(C0_by_chr.get(ch, 2)))
+
+            # Tie-breaker:
+            #   1) total CN closest to chromosome baseline total CN
+            #   2) more balanced split
+            #   3) smaller total CN
+            def tie_score(pair):
+                a, b_ = pair
+                return (abs((a + b_) - c0), abs(a - b_), a + b_)
+
+            chrom_baseline_pair[ch] = min(candidates, key=tie_score)
+
+        # ------------------------------------------------------------------
+        # main loop
+        # ------------------------------------------------------------------
+        for i in range(nseg):
+            if not (np.isfinite(hscr1[i]) and np.isfinite(hscr2[i])):
+                continue
+            if not (np.isfinite(cp[i]) and cp[i] > 0 and np.isfinite(d[i]) and d[i] > 0):
+                continue
+
+            sc1 = sigma1[i] * np.sqrt((nu - 2) / nu) if np.isfinite(sigma1[i]) and sigma1[i] > 0 else 1e-3
+            sc2 = sigma2[i] * np.sqrt((nu - 2) / nu) if np.isfinite(sigma2[i]) and sigma2[i] > 0 else 1e-3
+
+            comb_i = cn_grid * d[i] * cp[i] + bb[i]
+
+            # total-CN posterior
+            if np.isfinite(total_cn[i]) and np.isfinite(total_cn_sigma[i]) and total_cn_sigma[i] > 0:
+                log_t = st.norm.logpdf(cn_grid, loc=total_cn[i], scale=max(total_cn_sigma[i], 1e-3))
+            elif np.isfinite(total_cn[i]):
+                log_t = st.norm.logpdf(cn_grid, loc=total_cn[i], scale=0.25)
+            else:
+                log_t = np.zeros_like(cn_grid)
+
+            log_t -= sp.logsumexp(log_t)
+            t_post = np.exp(log_t)
+
+            # baseline allele pair
+            if is_parental_haploid[i]:
+                qc10, qc20 = fallback_baseline_pair(chrom[i])
+            else:
+                qc10, qc20 = chrom_baseline_pair.get(chrom[i], fallback_baseline_pair(chrom[i]))
+
+            qc10 = int(np.clip(qc10, 0, max_cn - 1))
+            qc20 = int(np.clip(qc20, 0, max_cn - 1))
+
+            baseline_q1[i] = qc10
+            baseline_q2[i] = qc20
+
+            # posterior over current allele states from observed HSCR and total-CN feasibility
+            feasible = np.flip(np.cumsum(np.flip(t_post)))
+            feasible = np.clip(feasible, eps, 1.0)
+
+            log_q1 = st.t.logpdf(hscr1[i], df=nu, loc=comb_i, scale=sc1) + np.log(feasible)
+            log_q2 = st.t.logpdf(hscr2[i], df=nu, loc=comb_i, scale=sc2) + np.log(feasible)
+
+            log_q1 -= sp.logsumexp(log_q1)
+            log_q2 -= sp.logsumexp(log_q2)
+
+            q1_post = np.exp(log_q1)
+            q2_post = np.exp(log_q2)
+
+            # high-copy / ecDNA-like regime
+            tail_mass = t_post[int(high_cn_threshold):].sum() if high_cn_threshold < len(t_post) else 0.0
+            tail_mass_high_cn[i] = tail_mass
+
+            is_high_copy = (
+                    (np.isfinite(total_cn[i]) and total_cn[i] >= high_cn_threshold)
+                    or (
+                            np.isfinite(total_cn_sigma[i])
+                            and total_cn_sigma[i] >= high_cn_sigma_threshold
+                            and tail_mass >= high_cn_tail_mass_threshold
+                    )
+                    or (tail_mass >= 0.5)
+            )
+            high_copy_flag[i] = int(is_high_copy)
+
+            if not is_high_copy:
+                # ordinary regime: stay close to anchored current calls
+                cand1 = {q1_cur0[i], int(np.argmax(q1_post))}
+                cand2 = {q2_cur0[i], int(np.argmax(q2_post))}
+
+                for q in range(max(0, q1_cur0[i] - pair_window), min(max_cn, q1_cur0[i] + pair_window + 1)):
+                    if q1_post[q] >= pair_post_thresh:
+                        cand1.add(int(q))
+                for q in range(max(0, q2_cur0[i] - pair_window), min(max_cn, q2_cur0[i] + pair_window + 1)):
+                    if q2_post[q] >= pair_post_thresh:
+                        cand2.add(int(q))
+
+                cand1 = sorted(cand1)
+                cand2 = sorted(cand2)
+            else:
+                # high-copy regime: allow a broad set of current states
+                cand1 = np.where(q1_post >= high_cn_pair_post_thresh)[0].tolist()
+                cand2 = np.where(q2_post >= high_cn_pair_post_thresh)[0].tolist()
+
+                if not cand1:
+                    cand1 = [int(np.argmax(q1_post))]
+                if not cand2:
+                    cand2 = [int(np.argmax(q2_post))]
+
+                # retain anchored state if itself high-CN
+                if q1_cur0[i] >= high_cn_threshold:
+                    cand1.append(int(q1_cur0[i]))
+                if q2_cur0[i] >= high_cn_threshold:
+                    cand2.append(int(q2_cur0[i]))
+
+                cand1 = sorted(set(cand1))
+                cand2 = sorted(set(cand2))
+
+            # current-state pair posterior
+            pair_states = []
+            pair_weights = []
+
+            for qs1 in cand1:
+                for qs2 in cand2:
+                    tcur = qs1 + qs2
+                    if tcur >= max_cn:
+                        continue
+
+                    w = q1_post[qs1] * q2_post[qs2] * t_post[tcur]
+                    if w <= 0:
+                        continue
+
+                    pair_states.append((qs1, qs2))
+                    pair_weights.append(w)
+
+            if not pair_states:
+                pair_states = [(q1_cur0[i], q2_cur0[i])]
+                pair_weights = [1.0]
+
+            pair_weights = np.asarray(pair_weights, dtype=float)
+            pair_weights /= pair_weights.sum()
+
+            pe = -np.sum(pair_weights * np.log(np.clip(pair_weights, eps, 1.0)))
+            pair_entropy[i] = pe
+            pair_effn[i] = np.exp(pe)
+
+            # mixture posterior over segment-level CCF
+            mix = np.zeros_like(ccf_grid, dtype=float)
+
+            for (qs1, qs2), w in zip(pair_states, pair_weights):
+                cr1_grid = ((qs1 - qc10) * ccf_grid + qc10) * d[i] * cp[i] + bb[i]
+                cr2_grid = ((qs2 - qc20) * ccf_grid + qc20) * d[i] * cp[i] + bb[i]
+
+                logp1 = st.t.logpdf(hscr1[i], df=nu, loc=cr1_grid, scale=sc1)
+                logp2 = st.t.logpdf(hscr2[i], df=nu, loc=cr2_grid, scale=sc2)
+
+                logp = logp1 + logp2
+                logp -= sp.logsumexp(logp)
+                p = np.exp(logp)
+
+                mix += w * p
+
+            if not np.isfinite(mix).all() or mix.sum() <= 0:
+                qs1, qs2 = q1_cur0[i], q2_cur0[i]
+                cr1_grid = ((qs1 - qc10) * ccf_grid + qc10) * d[i] * cp[i] + bb[i]
+                cr2_grid = ((qs2 - qc20) * ccf_grid + qc20) * d[i] * cp[i] + bb[i]
+                logp1 = st.t.logpdf(hscr1[i], df=nu, loc=cr1_grid, scale=sc1)
+                logp2 = st.t.logpdf(hscr2[i], df=nu, loc=cr2_grid, scale=sc2)
+                logp = logp1 + logp2
+                logp -= sp.logsumexp(logp)
+                mix = np.exp(logp)
+
+            mix = np.clip(mix, 0, np.inf)
+            mix /= mix.sum()
+
+            ecdf = np.cumsum(mix)
+
+            # robust summaries
+            ccf_mean[i] = np.sum(mix * ccf_grid)
+            ccf_median[i] = np.interp(0.5, ecdf, ccf_grid, left=0.0, right=1.0)
+            ccf_mode[i] = ccf_grid[np.argmax(mix)]
+
+            ccf_low[i] = np.interp(0.025, ecdf, ccf_grid, left=0.0, right=1.0)
+            ccf_high[i] = np.interp(0.975, ecdf, ccf_grid, left=0.0, right=1.0)
+            ccf_width[i] = ccf_high[i] - ccf_low[i]
+
+            ce = -np.sum(mix * np.log(np.clip(mix, eps, 1.0)))
+            ccf_entropy[i] = ce
+            ccf_max_p[i] = mix.max()
+            ccf_support_50[i] = np.sum(mix >= 0.5 * mix.max())
+            ccf_support_90[i] = np.sum(mix >= 0.1 * mix.max())
+
+            ambiguous_ccf_flag[i] = int(
+                is_high_copy
+                or (ccf_width[i] >= ambiguous_width_threshold)
+                or (ccf_max_p[i] <= ambiguous_max_p_threshold)
+                or (pair_effn[i] >= ambiguous_pair_effn_threshold)
+            )
+
+        precision = 3
+        return pd.DataFrame(
+            {
+                "ccf_mean": ccf_mean.round(precision),
+                "ccf_median": ccf_median.round(precision),
+                "ccf_mode": ccf_mode.round(precision),
+                "ccf_ci95_low": ccf_low.round(precision),
+                "ccf_ci95_high": ccf_high.round(precision),
+                "ccf_ci95_width": ccf_width.round(precision),
+                "ccf_entropy": ccf_entropy.round(precision),
+                "ccf_max_p": ccf_max_p.round(precision),
+                "ccf_support_50": ccf_support_50,
+                "ccf_support_90": ccf_support_90,
+                "current_pair_entropy": pair_entropy.round(precision),
+                "current_pair_effn": pair_effn.round(precision),
+                "tail_mass_high_cn": tail_mass_high_cn.round(precision),
+                "high_copy_flag": high_copy_flag,
+                "ambiguous_ccf_flag": ambiguous_ccf_flag,
+                "baseline_q1": baseline_q1,
+                "baseline_q2": baseline_q2,
+            },
+            index=seg.index,
+        )
+
     for allele in ["a1", "a2"]:
         ccf_hat, ccf_low, ccf_hi = get_ccf(allele)
         ccf_hat = pd.Series(ccf_hat, index=seg.index).round(2)
@@ -406,6 +803,10 @@ def map_to_cn(args):
 
         for col, series in zip([f"cancer.cell.frac.{allele}", f"ccf.ci95.low.{allele}", f"ccf.ci95.high.{allele}", f"subclonal.{allele}"], [ccf_hat, ccf_low, ccf_hi, is_subclonal]):
             seg.loc[seg[col].isna(), col] = series.loc[seg[col].isna()]
+
+    seg_ccf = get_segment_ccf()
+
+    seg = pd.concat([seg, seg_ccf], axis=1)
 
     schz_na = seg["SC_HZ"].isna()
     seg.loc[schz_na, "SC_HZ"] = (
@@ -446,6 +847,7 @@ def map_to_cn(args):
     os.makedirs(args.outdir, exist_ok=True)
 
     seg.loc[seg["is_new"]].reset_index()[["Chromosome", "Start.bp", "End.bp"]].to_csv(f"{args.outdir}/{args.sample}.rescued_intervals.txt", sep="\t", index=False)
+    abs_seg_cols = [c for c in list(abs_dtypes.keys()) + extra_columns if c in seg.columns]
     seg[abs_seg_cols].to_csv(f"{args.outdir}/{args.sample}.segtab.completed.txt", sep="\t", index=False)
     seg[["sample", "Chromosome", "Start.bp", "End.bp", "Segment_Mean", "rescaled_total_cn"]].to_csv(f"{args.outdir}/{args.sample}.IGV.seg.completed.txt", sep="\t", index=False)
 
