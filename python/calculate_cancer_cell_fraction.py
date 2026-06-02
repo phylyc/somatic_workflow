@@ -474,6 +474,20 @@ def calculate_ccf(args):
     caller_df = concat_callers(snv_maf, indel_maf)
     seg = prepare_segtab(read_table(args.absolute_segtab, comment="#"), sex=sex, normal_ploidy=args.normal_ploidy)
 
+    # Update local allelic CN in ABS_MAF from the (possibly corrected) segtab.
+    # The segtab may have been updated by --allelic_split_focals in
+    # map_to_absolute_copy_number, making the original ABSOLUTE local_cn_a1/a2 stale.
+    if not abs_maf.empty:
+        abs_maf_remapped = map_variants_to_segments(abs_maf, seg)
+        remapped_mask = abs_maf_remapped["T.seg.ix"].notna()
+        stale_a1 = remapped_mask & (abs_maf_remapped["local_cn_a1"] != abs_maf["local_cn_a1"])
+        stale_a2 = remapped_mask & (abs_maf_remapped["local_cn_a2"] != abs_maf["local_cn_a2"])
+        n_updated = int((stale_a1 | stale_a2).sum())
+        if n_updated:
+            message(f"Updating local_cn_a1/a2 from segtab for {n_updated} ABS_MAF variants.")
+            abs_maf.loc[remapped_mask, "local_cn_a1"] = abs_maf_remapped.loc[remapped_mask, "local_cn_a1"]
+            abs_maf.loc[remapped_mask, "local_cn_a2"] = abs_maf_remapped.loc[remapped_mask, "local_cn_a2"]
+
     sample_name = infer_sample_name(args=args, seg=seg, caller_df=caller_df, abs_maf=abs_maf)
     output_maf = os.path.join(args.outdir, f"{sample_name}.ABS_MAF.completed.txt")
     os.makedirs(args.outdir, exist_ok=True)
