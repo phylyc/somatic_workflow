@@ -241,6 +241,7 @@ task Postprocess {
             --purity ~{purity} \
             --ploidy ~{ploidy} \
             --normal_ploidy ~{organism_normal_ploidy} \
+            --allelic_resplit_focals \
             --outdir "."
 
         if [[ "~{defined(snv_maf)}" == "true" || "~{defined(indel_maf)}" == "true" ]] ; then

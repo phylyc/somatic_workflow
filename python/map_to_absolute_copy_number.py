@@ -36,6 +36,9 @@ def parse_args():
     parser.add_argument("--normal_ploidy",      type=int,   required=False, default=2, help="Normal/germline ploidy of that organism.")
     parser.add_argument("--min_hets",           type=int,   default=0,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
     parser.add_argument("--min_probes",         type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
+    parser.add_argument("--allelic_resplit_focals",           default=False, action="store_true", help="Correct f=0.5 for high-CN focal segments with few HETs by re-splitting to 1:(N-1).")
+    parser.add_argument("--allelic_resplit_focals_high_cn",   type=float, default=10, help="Tau threshold above which a segment with f=0.5 is considered suspect for allelic split correction.")
+    parser.add_argument("--allelic_resplit_focals_max_hets",  type=int,   default=10, help="Maximum number of HETs for a segment to be eligible for allelic split correction.")
     return parser.parse_args()
 
 
@@ -213,6 +216,7 @@ def map_to_cn(args):
     b = (1 - args.purity) * chr_ploidy / D
     delta = args.purity / D
 
+    seg["length"] = seg["End.bp"] - seg["Start.bp"]
     seg["W"] = seg["length"] / seg["length"].sum()
 
     # correct offset: Find alpha for
@@ -284,6 +288,61 @@ def map_to_cn(args):
 
     seg["mu.minor.abs"] = seg["f"] * seg["rescaled_total_cn"]
     seg["mu.major.abs"] = (1 - seg["f"]) * seg["rescaled_total_cn"]
+
+    # Correct f = 0.5 for high-CN segments with few HETs.
+    # When tau is large and n_hets is small, the MAF90 threshold in acs_conversion
+    # may have artificially set f = 0.5 (implying balanced high-level gain, e.g. 5:5).
+    # Bi-allelic high-level gains of the same magnitude are biologically very unlikely.
+    # Instead, assume the most likely split is 1:(N-1) (i.e., LOH-like).
+    if args.allelic_resplit_focals:
+        suspect_balanced = (
+            (seg["f"] == 0.5)
+            & (seg["tau"] > args.allelic_resplit_focals_high_cn)
+            & (seg["n_hets"] < args.allelic_resplit_focals_max_hets)
+        )
+        if suspect_balanced.any():
+            message(f"Correcting f=0.5 for {suspect_balanced.sum()} high-CN segments with few HETs.")
+            # Re-split: assign minor allele = 1 copy, major = (total - 1)
+            corrected_minor = np.where(
+                seg.loc[suspect_balanced, "rescaled_total_cn"] >= 2,
+                1.0 / seg.loc[suspect_balanced, "rescaled_total_cn"],
+                0.0
+            )
+            seg.loc[suspect_balanced, "f"] = corrected_minor
+            seg.loc[suspect_balanced, "mu.minor.abs"] = seg.loc[suspect_balanced, "f"] * seg.loc[suspect_balanced, "rescaled_total_cn"]
+            seg.loc[suspect_balanced, "mu.major.abs"] = (1 - seg.loc[suspect_balanced, "f"]) * seg.loc[suspect_balanced, "rescaled_total_cn"]
+            # Recompute allelic uncertainties for the corrected split.
+            # Since these segments have very few HETs, the original sigma_f was
+            # unreliable. We use a wide sigma_f (~ uniform over [0, 0.5]) to
+            # reflect that we have essentially no allelic constraint and are
+            # guessing the split based on biological priors.
+            # sigma.minor = sqrt(tau^2 * sigma_f^2 + f^2 * sigma.tau^2)
+            # sigma.major = sqrt(tau^2 * sigma_f^2 + (1-f)^2 * sigma.tau^2)
+            uninformative_sigma_f = 1.0 / np.sqrt(12)  # uniform over [0, 1]
+            tau_s = seg.loc[suspect_balanced, "tau"]
+            sigma_tau_s = seg.loc[suspect_balanced, "sigma.tau"]
+            f_s = seg.loc[suspect_balanced, "f"]
+            seg.loc[suspect_balanced, "sigma.minor"] = np.sqrt(tau_s**2 * uninformative_sigma_f**2 + f_s**2 * sigma_tau_s**2)
+            seg.loc[suspect_balanced, "sigma.major"] = np.sqrt(tau_s**2 * uninformative_sigma_f**2 + (1 - f_s)**2 * sigma_tau_s**2)
+            seg.loc[suspect_balanced, "sigma.a1"] = seg.loc[suspect_balanced, "sigma.minor"]
+            seg.loc[suspect_balanced, "sigma.a2"] = seg.loc[suspect_balanced, "sigma.major"]
+            # Invalidate ABSOLUTE allelic annotations for these segments so they get recomputed
+            # as if they were new (rescued) segments.
+            allelic_cols_to_invalidate = [
+                "rescaled.cn.a1", "rescaled.cn.a2",
+                "hscr.a1", "hscr.a2",
+                "modal.a1", "modal.a2",
+                "expected.a1", "expected.a2",
+                "cancer.cell.frac.a1", "ccf.ci95.low.a1", "ccf.ci95.high.a1",
+                "cancer.cell.frac.a2", "ccf.ci95.low.a2", "ccf.ci95.high.a2",
+                "subclonal.a1", "subclonal.a2",
+                "LOH", "HZ", "SC_HZ",
+            ]
+            for col in allelic_cols_to_invalidate:
+                if col in seg.columns:
+                    seg.loc[suspect_balanced, col] = np.nan
+            # Mark these as needing recomputation alongside rescued segments
+            new_segs = new_segs | suspect_balanced
 
     mn, mj = zip(*seg.apply(split_alleles, axis=1))
     mn, mj = np.array(mn), np.array(mj)

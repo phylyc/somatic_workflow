@@ -90,6 +90,7 @@ task PhylogicNDTTask {
         Boolean use_indels = false
         Boolean impute_missing_snvs = false
         Int min_coverage = 8
+        Int n_iter = 1000  # 250 default, but we want sharper tree posteriors
         Float Pi_k_r = 3.0
         Float Pi_k_mu = 3.0
         File? driver_genes_file
@@ -123,6 +124,7 @@ task PhylogicNDTTask {
             ~{if use_indels then "--use_indels" else ""} \
             ~{if impute_missing_snvs then "--impute" else ""} \
             ~{if run_with_BuildTree then "--run_with_BuildTree" else ""} \
+            --n_iter ~{n_iter} \
             --Pi_k_r ~{Pi_k_r} \
             --Pi_k_mu ~{Pi_k_mu} \
             --min_coverage ~{min_coverage}
