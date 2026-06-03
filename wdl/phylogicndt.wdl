@@ -90,7 +90,7 @@ task PhylogicNDTTask {
         Boolean use_indels = false
         Boolean impute_missing_snvs = false
         Int min_coverage = 8
-        Int n_iter = 1000  # 250 default, but we want sharper tree posteriors
+        Int n_iter = 250
         Float Pi_k_r = 3.0
         Float Pi_k_mu = 3.0
         File? driver_genes_file
