@@ -183,17 +183,50 @@ workflow UpdateSamples {
         }
     }
 
-    # Update patient:
-    call p.UpdatePatient {
-        input:
-            patient = patient,
-            samples = samples,
-            tumor_samples = tumor_samples,
-            normal_samples = normal_samples,
-            matched_normal_sample = matched_normal_sample
+    # Assemble the updated patient inline (a plain struct construction, not a sub-workflow
+    # call). Only the sample sets change here; every other field is carried over from the
+    # input patient.
+    Patient updated_patient_obj = object {
+        name: patient.name,
+        sex: patient.sex,
+        samples: samples,
+        tumor_samples: tumor_samples,
+        normal_samples: select_first([normal_samples, patient.normal_samples]),
+        has_tumor: patient.has_tumor,
+        has_normal: patient.has_normal,
+        matched_normal_sample: if defined(matched_normal_sample) then matched_normal_sample else patient.matched_normal_sample,
+        shards: patient.shards,
+        raw_snv_calls_vcf: patient.raw_snv_calls_vcf,
+        raw_snv_calls_vcf_idx: patient.raw_snv_calls_vcf_idx,
+        mutect2_stats: patient.mutect2_stats,
+        orientation_bias: patient.orientation_bias,
+        filtered_vcf: patient.filtered_vcf,
+        filtered_vcf_idx: patient.filtered_vcf_idx,
+        filtering_stats: patient.filtering_stats,
+        somatic_vcf: patient.somatic_vcf,
+        somatic_vcf_idx: patient.somatic_vcf_idx,
+        num_somatic_variants: patient.num_somatic_variants,
+        germline_vcf: patient.germline_vcf,
+        germline_vcf_idx: patient.germline_vcf_idx,
+        num_germline_variants: patient.num_germline_variants,
+        somatic_calls_bam: patient.somatic_calls_bam,
+        somatic_calls_bai: patient.somatic_calls_bai,
+        rare_germline_alleles: patient.rare_germline_alleles,
+        rare_germline_alleles_idx: patient.rare_germline_alleles_idx,
+        gvcf: patient.gvcf,
+        gvcf_idx: patient.gvcf_idx,
+        snp_ref_counts: patient.snp_ref_counts,
+        snp_alt_counts: patient.snp_alt_counts,
+        snp_other_alt_counts: patient.snp_other_alt_counts,
+        snp_sample_correlation: patient.snp_sample_correlation,
+        snp_sample_correlation_min: patient.snp_sample_correlation_min,
+        modeled_segments: patient.modeled_segments,
+        mask_vcf: patient.mask_vcf,
+        mask_vcf_idx: patient.mask_vcf_idx,
+        mask_name: patient.mask_name
     }
 
     output {
-        Patient updated_patient = UpdatePatient.updated_patient
+        Patient updated_patient = updated_patient_obj
     }
 }
