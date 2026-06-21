@@ -50,6 +50,8 @@ struct Sample {
     Float?               absolute_tcr_purity                # ABSOLUTE
     Float?               absolute_tcr_ploidy                # ABSOLUTE
     Int?                 timepoint                          # manual
+    Float?               user_purity                        # manual: forces ABSOLUTE alpha/tau (both or neither)
+    Float?               user_ploidy                        # manual: forces ABSOLUTE alpha/tau (both or neither)
 }
 
 workflow UpdateSample {
@@ -96,6 +98,8 @@ workflow UpdateSample {
         Float? absolute_tcr_purity
         Float? absolute_tcr_ploidy
         Int? timepoint
+        Float? user_purity
+        Float? user_ploidy
     }
 
     Sample updated = object {
@@ -139,7 +143,9 @@ workflow UpdateSample {
         absolute_tcr_table: if defined(absolute_tcr_table) then absolute_tcr_table else sample.absolute_tcr_table,
         absolute_tcr_purity: if defined(absolute_tcr_purity) then absolute_tcr_purity else sample.absolute_tcr_purity,
         absolute_tcr_ploidy: if defined(absolute_tcr_ploidy) then absolute_tcr_ploidy else sample.absolute_tcr_ploidy,
-        timepoint: if defined(timepoint) then timepoint else sample.timepoint
+        timepoint: if defined(timepoint) then timepoint else sample.timepoint,
+        user_purity: if defined(user_purity) then user_purity else sample.user_purity,
+        user_ploidy: if defined(user_ploidy) then user_ploidy else sample.user_ploidy
     }
 
     output {

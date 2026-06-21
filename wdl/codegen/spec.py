@@ -104,6 +104,8 @@ SAMPLE = [
     over("absolute_tcr_purity", "Float?", "ABSOLUTE"),
     over("absolute_tcr_ploidy", "Float?", "ABSOLUTE"),
     over("timepoint", "Int?", "manual"),
+    over("user_purity", "Float?", "manual: forces ABSOLUTE alpha/tau (both or neither)"),
+    over("user_ploidy", "Float?", "manual: forces ABSOLUTE alpha/tau (both or neither)"),
 ]
 
 # Patient's sample-set fields are computed inside UpdateSamples (not overlay inputs and

@@ -609,6 +609,13 @@ workflow MultiSampleSomaticWorkflow {
 
     if (args.run_clonal_decomposition) {
         scatter (sample in clonal_patient.samples) {
+            # Force ABSOLUTE's purity (alpha) and ploidy (tau) only when the user supplied
+            # both; a lone value is ignored so ABSOLUTE infers both (alpha and tau are
+            # forced together or not at all).
+            if (defined(sample.user_purity) && defined(sample.user_ploidy)) {
+                Float forced_purity = select_first([sample.user_purity])
+                Float forced_ploidy = select_first([sample.user_ploidy])
+            }
             if (defined(sample.called_copy_ratio_segmentation) && defined(sample.af_model_parameters) && !defined(sample.absolute_acr_rdata) && !defined(sample.absolute_acr_plot)) {
                 call abs.Absolute {
                     input:
@@ -617,9 +624,8 @@ workflow MultiSampleSomaticWorkflow {
                         copy_ratio_segmentation = select_first([sample.called_copy_ratio_segmentation]),
                         af_model_parameters = sample.af_model_parameters,
                         annotated_variants = sample.annotated_somatic_variants,
-                        # TODO: wire user-supplied purity/ploidy override here once the
-                        # user_purity/user_ploidy contract is added. (The old sample.purity/
-                        # sample.ploidy force fields were removed in the aCR/tCR refactor.)
+                        purity = forced_purity,
+                        ploidy = forced_ploidy,
                         sex = clonal_patient.sex,
                         min_hets = args.absolute_min_hets,
                         min_probes = args.absolute_min_probes,
@@ -864,6 +870,10 @@ workflow MultiSampleSomaticWorkflow {
         Array[File]? absolute_tcr_table = Output.absolute_tcr_table
         Array[Float]? absolute_tcr_purity = Output.absolute_tcr_purity
         Array[Float]? absolute_tcr_ploidy = Output.absolute_tcr_ploidy
+
+        # user-supplied purity/ploidy override, echoed back for round-tripping:
+        Array[Float]? user_purity = Output.user_purity
+        Array[Float]? user_ploidy = Output.user_ploidy
 
         Array[File]? first_pass_cr_segmentations = FirstPassSegmentation.called_copy_ratio_segmentations
         Array[File]? first_pass_cr_plots = FirstPassSegmentation.cr_plots

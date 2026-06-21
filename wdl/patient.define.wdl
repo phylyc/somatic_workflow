@@ -73,6 +73,10 @@ workflow DefinePatient {
         Array[Float]? absolute_tcr_purity
         Array[Float]? absolute_tcr_ploidy
 
+        # user-supplied purity/ploidy that force ABSOLUTE's alpha/tau (both or neither):
+        Array[Float]? user_purity
+        Array[Float]? user_ploidy
+
         # for the patient-level shards:
         # CACHE
         Array[File]? scattered_intervals_for_variant_calling
@@ -385,7 +389,10 @@ workflow DefinePatient {
             absolute_tcr_segtab = absolute_tcr_segtab,
             absolute_tcr_table = absolute_tcr_table,
             absolute_tcr_purity = absolute_tcr_purity,
-            absolute_tcr_ploidy = absolute_tcr_ploidy
+            absolute_tcr_ploidy = absolute_tcr_ploidy,
+
+            user_purity = user_purity,
+            user_ploidy = user_ploidy
     }
 
     output {

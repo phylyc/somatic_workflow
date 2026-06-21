@@ -62,6 +62,8 @@ workflow Output {
         Float? out_absolute_tcr_purity = sample.absolute_tcr_purity
         Float? out_absolute_tcr_ploidy = sample.absolute_tcr_ploidy
         Int? out_timepoint = sample.timepoint
+        Float? out_user_purity = sample.user_purity
+        Float? out_user_ploidy = sample.user_ploidy
     }
 
     if (length(flatten(out_callable_loci)) > 0) {
@@ -188,6 +190,12 @@ workflow Output {
     if (length(select_all(out_timepoint)) > 0) {
         Array[Int] timepoint_out = select_all(out_timepoint)
     }
+    if (length(select_all(out_user_purity)) > 0) {
+        Array[Float] user_purity_out = select_all(out_user_purity)
+    }
+    if (length(select_all(out_user_ploidy)) > 0) {
+        Array[Float] user_ploidy_out = select_all(out_user_ploidy)
+    }
 
     scatter (shard in patient.shards) {
         File? shard_raw_calls_mutect2_vcf = shard.raw_calls_mutect2_vcf
@@ -259,6 +267,8 @@ workflow Output {
         Array[Float]? absolute_tcr_purity = absolute_tcr_purity_out
         Array[Float]? absolute_tcr_ploidy = absolute_tcr_ploidy_out
         Array[Int]? timepoint = timepoint_out
+        Array[Float]? user_purity = user_purity_out
+        Array[Float]? user_ploidy = user_ploidy_out
         Array[File]? raw_calls_mutect2_vcf_scattered = raw_calls_mutect2_vcf_out
         Array[File]? raw_calls_mutect2_vcf_idx_scattered = raw_calls_mutect2_vcf_idx_out
         Array[File]? raw_mutect2_stats_scattered = raw_mutect2_stats_out

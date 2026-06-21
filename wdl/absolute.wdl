@@ -235,6 +235,8 @@ task AbsoluteTask {
 
         num_segments=$(( $(wc -l < '~{seg_file}') - 1 ))
 
+        # The ploidy (tau) input is intentionally gated on purity > 0 as well: ABSOLUTE's
+        # --alpha and --tau must be forced together or not at all, so purity is the switch.
         if [ $num_segments -gt 0 ] ; then
             Rscript /opt/absolute/library/scripts/run_absolute.R \
                 --results_dir '~{output_dir}' \

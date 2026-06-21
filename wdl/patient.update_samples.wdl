@@ -50,6 +50,8 @@ workflow UpdateSamples {
         Array[Float]? absolute_tcr_purity
         Array[Float]? absolute_tcr_ploidy
         Array[Int]? timepoint
+        Array[Float]? user_purity
+        Array[Float]? user_ploidy
     }
 
     # Build each updated Sample in a single pass. Each provided overlay array carries
@@ -93,6 +95,8 @@ workflow UpdateSamples {
     Array[Float] absolute_tcr_purity_arr = select_first([absolute_tcr_purity, []])
     Array[Float] absolute_tcr_ploidy_arr = select_first([absolute_tcr_ploidy, []])
     Array[Int] timepoint_arr = select_first([timepoint, []])
+    Array[Float] user_purity_arr = select_first([user_purity, []])
+    Array[Float] user_ploidy_arr = select_first([user_ploidy, []])
 
     scatter (i in range(length(patient.samples))) {
         Sample sample_i = patient.samples[i]
@@ -137,7 +141,9 @@ workflow UpdateSamples {
             absolute_tcr_table: if length(absolute_tcr_table_arr) > 0 then absolute_tcr_table_arr[i] else sample_i.absolute_tcr_table,
             absolute_tcr_purity: if length(absolute_tcr_purity_arr) > 0 then absolute_tcr_purity_arr[i] else sample_i.absolute_tcr_purity,
             absolute_tcr_ploidy: if length(absolute_tcr_ploidy_arr) > 0 then absolute_tcr_ploidy_arr[i] else sample_i.absolute_tcr_ploidy,
-            timepoint: if length(timepoint_arr) > 0 then timepoint_arr[i] else sample_i.timepoint
+            timepoint: if length(timepoint_arr) > 0 then timepoint_arr[i] else sample_i.timepoint,
+            user_purity: if length(user_purity_arr) > 0 then user_purity_arr[i] else sample_i.user_purity,
+            user_ploidy: if length(user_ploidy_arr) > 0 then user_ploidy_arr[i] else sample_i.user_ploidy
         }
     }
     Array[Sample] samples = updated_sample_i

@@ -19,6 +19,13 @@ workflow ClonalAnalysisWorkflow {
 
     if (args.run_clonal_decomposition) {
         scatter (sample in patient.samples) {
+            # Force ABSOLUTE's purity (alpha) and ploidy (tau) only when the user supplied
+            # both; a lone value is ignored so ABSOLUTE infers both (alpha and tau are
+            # forced together or not at all).
+            if (defined(sample.user_purity) && defined(sample.user_ploidy)) {
+                Float forced_purity = select_first([sample.user_purity])
+                Float forced_ploidy = select_first([sample.user_ploidy])
+            }
             if (defined(sample.called_copy_ratio_segmentation) && defined(sample.af_model_parameters) && !defined(sample.absolute_acr_rdata) && !defined(sample.absolute_acr_plot)) {
                 call abs.Absolute {
                     input:
@@ -27,9 +34,8 @@ workflow ClonalAnalysisWorkflow {
                         copy_ratio_segmentation = select_first([sample.called_copy_ratio_segmentation]),
                         af_model_parameters = sample.af_model_parameters,
                         annotated_variants = sample.annotated_somatic_variants,
-                        # TODO: wire user-supplied purity/ploidy override here once the
-                        # user_purity/user_ploidy contract is added. (The old sample.purity/
-                        # sample.ploidy force fields were removed in the aCR/tCR refactor.)
+                        purity = forced_purity,
+                        ploidy = forced_ploidy,
                         sex = patient.sex,
                         min_hets = args.absolute_min_hets,
                         min_probes = args.absolute_min_probes,
