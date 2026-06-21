@@ -104,15 +104,15 @@ task ParseInput {
         python validate_inputs.py \
             --n_bams ~{n_bams} \
             --n_bais ~{n_bais} \
-            ~{if defined(sample_names) then "--sample_names_file " + write_lines(select_first([sample_names])) else ""} \
-            ~{if defined(normal_sample_names) then "--normal_sample_names_file " + write_lines(select_first([normal_sample_names])) else ""} \
-            ~{if defined(is_paired_end) then "--is_paired_end_file " + write_lines(select_first([is_paired_end])) else ""} \
-            ~{if defined(use_for_tCR) then "--use_for_tCR_file " + write_lines(select_first([use_for_tCR])) else ""} \
-            ~{if defined(use_for_aCR) then "--use_for_aCR_file " + write_lines(select_first([use_for_aCR])) else ""} \
-            ~{if defined(timepoints) then "--timepoints_file " + write_lines(select_first([timepoints])) else ""} \
-            ~{if defined(target_intervals) then "--target_intervals_file " + write_lines(select_first([target_intervals])) else ""} \
-            ~{if defined(annotated_target_intervals) then "--annotated_target_intervals_file " + write_lines(select_first([annotated_target_intervals])) else ""} \
-            ~{if defined(cnv_panel_of_normals) then "--cnv_panel_of_normals_file " + write_lines(select_first([cnv_panel_of_normals])) else ""} \
+            ~{true="--sample_names '" false="" defined(sample_names)}~{default="" sep="' --sample_names '" sample_names}~{true="'" false="" defined(sample_names)} \
+            ~{true="--normal_sample_names '" false="" defined(normal_sample_names)}~{default="" sep="' --normal_sample_names '" normal_sample_names}~{true="'" false="" defined(normal_sample_names)} \
+            ~{true="--is_paired_end '" false="" defined(is_paired_end)}~{default="" sep="' --is_paired_end '" is_paired_end}~{true="'" false="" defined(is_paired_end)} \
+            ~{true="--use_for_tCR '" false="" defined(use_for_tCR)}~{default="" sep="' --use_for_tCR '" use_for_tCR}~{true="'" false="" defined(use_for_tCR)} \
+            ~{true="--use_for_aCR '" false="" defined(use_for_aCR)}~{default="" sep="' --use_for_aCR '" use_for_aCR}~{true="'" false="" defined(use_for_aCR)} \
+            ~{true="--timepoints '" false="" defined(timepoints)}~{default="" sep="' --timepoints '" timepoints}~{true="'" false="" defined(timepoints)} \
+            ~{true="--target_intervals '" false="" defined(target_intervals)}~{default="" sep="' --target_intervals '" target_intervals}~{true="'" false="" defined(target_intervals)} \
+            ~{true="--annotated_target_intervals '" false="" defined(annotated_target_intervals)}~{default="" sep="' --annotated_target_intervals '" annotated_target_intervals}~{true="'" false="" defined(annotated_target_intervals)} \
+            ~{true="--cnv_panel_of_normals '" false="" defined(cnv_panel_of_normals)}~{default="" sep="' --cnv_panel_of_normals '" cnv_panel_of_normals}~{true="'" false="" defined(cnv_panel_of_normals)} \
             --has_common_germline_alleles ~{has_common_germline_alleles} \
             --has_common_germline_alleles_idx ~{has_common_germline_alleles_idx} \
             --has_realignment_image ~{has_realignment_image} \
@@ -131,8 +131,9 @@ task ParseInput {
             --run_variant_calling ~{run_variant_calling} \
             --run_variant_annotation ~{run_variant_annotation} \
             --run_clonal_decomposition ~{run_clonal_decomposition} \
-            ~{if deep then "--deep --bams_file " + write_lines(bams) else ""} \
-            ~{if (deep && defined(ref_dict)) then "--ref_dict " + ref_dict else ""}
+            ~{if deep then "--deep" else ""} \
+            ~{true="--bams '" false="" deep}~{default="" sep="' --bams '" bams}~{true="'" false="" deep} \
+            ~{if (deep && defined(ref_dict)) then "--ref_dict '" + ref_dict + "'" else ""}
     >>>
 
     output {

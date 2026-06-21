@@ -26,13 +26,6 @@ import subprocess
 import sys
 
 
-def read_lines(path):
-    if not path:
-        return None  # distinguishes "not provided" from "provided empty"
-    with open(path) as f:
-        return [line.rstrip("\n") for line in f if line.rstrip("\n") != ""]
-
-
 def parse_bool(s):
     return str(s).lower() == "true"
 
@@ -60,12 +53,13 @@ def main():
     p.add_argument("--n_bams", type=int, required=True)
     p.add_argument("--n_bais", type=int, required=True)
 
-    # per-run arrays (a file of one value per line; absent flag == not provided)
+    # per-run arrays, passed inline as repeated flags (--x v1 --x v2). An absent
+    # flag means not provided (None); this is kept distinct from provided-empty.
     for name in ("sample_names", "normal_sample_names", "is_paired_end",
                  "use_for_tCR", "use_for_aCR", "timepoints",
                  "target_intervals", "annotated_target_intervals",
                  "cnv_panel_of_normals"):
-        p.add_argument("--" + name + "_file")
+        p.add_argument("--" + name, action="append")
 
     # resource presence (booleans; we never localize the resources just to test
     # for existence)
@@ -85,7 +79,7 @@ def main():
 
     # deep tier
     p.add_argument("--deep", action="store_true")
-    p.add_argument("--bams_file")
+    p.add_argument("--bams", action="append")
     p.add_argument("--ref_dict")
 
     args = p.parse_args()
@@ -104,7 +98,7 @@ def main():
         errors.append(
             "bais has {} entries but there are {} bams.".format(args.n_bais, n))
 
-    arrays = {name: read_lines(getattr(args, name + "_file"))
+    arrays = {name: getattr(args, name)
               for name in ("sample_names", "normal_sample_names", "is_paired_end",
                            "use_for_tCR", "use_for_aCR", "timepoints",
                            "target_intervals", "annotated_target_intervals",
@@ -193,7 +187,7 @@ def main():
 
     # ---- deep bam integrity (opt-in) ----------------------------------------
     if args.deep:
-        bams = read_lines(args.bams_file) or []
+        bams = args.bams or []
         for bam in bams:
             rc = subprocess.run(["samtools", "quickcheck", bam]).returncode
             if rc != 0:
