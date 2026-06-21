@@ -107,6 +107,7 @@ workflow MultiSampleSomaticWorkflow {
     # which makes the block depend on ParseInput so nothing heavy starts until it passes.
     call tasks.ParseInput {
         input:
+            script = args.script_validate_inputs,
             n_bams = length(bams),
             n_bais = length(bais),
             sample_names = sample_names,
