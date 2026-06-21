@@ -98,7 +98,7 @@ workflow DefineRuntimeCollection {
         #######################################################################
 
         # ParseInput
-        Int mem_parse_input = 512
+        Int mem_parse_input = 2048
         Int time_parse_input = 5
 
         # GetTumorSampleNames

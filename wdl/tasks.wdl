@@ -94,6 +94,10 @@ task ParseInput {
         Runtime runtime_params
     }
 
+    # In deep mode the bams are localized for samtools, so the request must cover
+    # them; bams is empty in the default mode, leaving just the base disk.
+    Int disk = runtime_params.disk + if deep then ceil(size(bams, "GB")) + 1 else 0
+
     command <<<
         set -euxo pipefail
         wget -O validate_inputs.py ~{script}
@@ -140,7 +144,7 @@ task ParseInput {
         bootDiskSizeGb: runtime_params.boot_disk_size
         memory: runtime_params.machine_mem + " MB"
         runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
+        disks: "local-disk " + disk + " HDD"
         preemptible: runtime_params.preemptible
         maxRetries: runtime_params.max_retries
         cpu: runtime_params.cpu
