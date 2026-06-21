@@ -52,16 +52,26 @@ workflow DefinePatient {
         Array[Float]? acs_copy_ratio_skew
         Array[File]? annotated_somatic_variants
         Array[File]? annotated_somatic_variants_idx
-        Array[File]? absolute_acr_rdata
-        Array[File]? absolute_acr_plot
         Array[File]? absolute_snv_maf
         Array[File]? absolute_indel_maf
-        Array[Int]? absolute_solution
-        Array[File]? absolute_maf
-        Array[File]? absolute_segtab
-        Array[File]? absolute_table
-        Array[Float]? purity
-        Array[Float]? ploidy
+
+        Array[File]? absolute_acr_rdata
+        Array[File]? absolute_acr_plot
+        Array[Int]? absolute_acr_solution
+        Array[File]? absolute_acr_maf
+        Array[File]? absolute_acr_segtab
+        Array[File]? absolute_acr_table
+        Array[Float]? absolute_acr_purity
+        Array[Float]? absolute_acr_ploidy
+
+        Array[File]? absolute_tcr_rdata
+        Array[File]? absolute_tcr_plot
+        Array[Int]? absolute_tcr_solution
+        Array[File]? absolute_tcr_maf
+        Array[File]? absolute_tcr_segtab
+        Array[File]? absolute_tcr_table
+        Array[Float]? absolute_tcr_purity
+        Array[Float]? absolute_tcr_ploidy
 
         # for the patient-level shards:
         # CACHE
@@ -429,16 +439,27 @@ workflow DefinePatient {
             acs_copy_ratio_skew = acs_copy_ratio_skew,
             annotated_somatic_variants = annotated_somatic_variants,
             annotated_somatic_variants_idx = annotated_somatic_variants_idx,
-            absolute_acr_rdata = absolute_acr_rdata,
-            absolute_acr_plot = absolute_acr_plot,
+
             absolute_snv_maf = absolute_snv_maf,
             absolute_indel_maf = absolute_indel_maf,
-            absolute_solution = absolute_solution,
-            absolute_maf = absolute_maf,
-            absolute_segtab = absolute_segtab,
-            absolute_table = absolute_table,
-            purity = purity,
-            ploidy = ploidy
+
+            absolute_acr_rdata = absolute_acr_rdata,
+            absolute_acr_plot = absolute_acr_plot,
+            absolute_acr_solution = absolute_acr_solution,
+            absolute_acr_maf = absolute_acr_maf,
+            absolute_acr_segtab = absolute_acr_segtab,
+            absolute_acr_table = absolute_acr_table,
+            absolute_acr_purity = absolute_acr_purity,
+            absolute_acr_ploidy = absolute_acr_ploidy,
+
+            absolute_tcr_rdata = absolute_tcr_rdata,
+            absolute_tcr_plot = absolute_tcr_plot,
+            absolute_tcr_solution = absolute_tcr_solution,
+            absolute_tcr_maf = absolute_tcr_maf,
+            absolute_tcr_segtab = absolute_tcr_segtab,
+            absolute_tcr_table = absolute_tcr_table,
+            absolute_tcr_purity = absolute_tcr_purity,
+            absolute_tcr_ploidy = absolute_tcr_ploidy
     }
 
     output {

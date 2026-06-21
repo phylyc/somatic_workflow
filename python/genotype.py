@@ -753,6 +753,12 @@ class Genotyper(object):
         popaf = pileup["allele_frequency"]  # population allele frequency from SNP panel
 
         def bias(_f):
+            # NOTE: this intentionally uses self.ref_bias (the global CLI default), NOT the
+            # per-segment `ref_bias` argument threaded in from ModelSegments MEAN_BIAS. In past
+            # experiments, applying the per-sample/per-segment reference bias was strongly
+            # DETRIMENTAL to genotype-call quality, so it is deliberately disabled here.
+            # DEV: revisit only with a careful GT-quality validation before re-enabling the
+            # per-segment `ref_bias` (would be `_f / (_f + (1 - _f) * ref_bias)`).
             return _f / (_f + (1 - _f) * self.ref_bias)
 
         f_aa = contamination * popaf + (1 - contamination) * error / 3  # errors spread across the three wrong bases
@@ -838,7 +844,7 @@ class Genotyper(object):
                 mask = ndarray != 1
                 if np.sum(mask) == 0:
                     return -np.inf
-                return np.average(ndarray[mask], weights=weights[mask])
+                return np.sum(ndarray[mask] * weights[mask])
 
             joint_log_likelihood = {}
             for gt in self.genotypes:

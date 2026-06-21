@@ -24,19 +24,30 @@ workflow UpdateSamples {
         Array[Float]? acs_copy_ratio_skew
         Array[File]? annotated_somatic_variants
         Array[File]? annotated_somatic_variants_idx
-        Array[File]? absolute_acr_rdata
-        Array[File]? absolute_acr_plot
+
         Array[File]? absolute_snv_maf
         Array[File]? absolute_indel_maf
-        Array[Int]? absolute_solution
-        Array[File]? absolute_maf
-        Array[File]? absolute_segtab
-        Array[File]? absolute_maf_postprocessed
-        Array[File]? absolute_segtab_postprocessed
-        Array[File]? absolute_segtab_igv_postprocessed
-        Array[File]? absolute_table
-        Array[Float]? purity
-        Array[Float]? ploidy
+
+        Array[File]? absolute_acr_rdata
+        Array[File]? absolute_acr_plot
+        Array[Int]? absolute_acr_solution
+        Array[File]? absolute_acr_maf
+        Array[File]? absolute_acr_segtab
+        Array[File]? absolute_acr_segtab_igv
+        Array[File]? absolute_acr_table
+        Array[Float]? absolute_acr_purity
+        Array[Float]? absolute_acr_ploidy
+
+        Array[File]? absolute_tcr_rdata
+        Array[File]? absolute_tcr_plot
+        Array[Int]? absolute_tcr_solution
+        Array[File]? absolute_tcr_maf
+        Array[File]? absolute_tcr_segtab
+        Array[File]? absolute_tcr_segtab_igv
+        Array[File]? absolute_tcr_table
+        Array[Float]? absolute_tcr_purity
+        Array[Float]? absolute_tcr_ploidy
+
         Array[Int]? timepoint
     }
 
@@ -245,33 +256,9 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_asvi = select_first([UpdateAnnotatedSomaticVariantsIdx.updated_sample, samples_asv])
 
-    Array[File] ard = select_first([absolute_acr_rdata, []])
-    if (length(ard) > 0) {
-        scatter (pair in zip(samples_asvi, ard)) {
-            call s.UpdateSample as UpdateAbsoluteRData {
-                input:
-                    sample = pair.left,
-                    absolute_acr_rdata = pair.right,
-            }
-        }
-    }
-    Array[Sample] samples_ard = select_first([UpdateAbsoluteRData.updated_sample, samples_asvi])
-
-    Array[File] acrp = select_first([absolute_acr_plot, []])
-    if (length(acrp) > 0) {
-        scatter (pair in zip(samples_ard, acrp)) {
-            call s.UpdateSample as UpdateAbsolutePlot {
-                input:
-                    sample = pair.left,
-                    absolute_acr_plot = pair.right,
-            }
-        }
-    }
-    Array[Sample] samples_acrp = select_first([UpdateAbsolutePlot.updated_sample, samples_ard])
-
     Array[File] asnm = select_first([absolute_snv_maf, []])
     if (length(asnm) > 0) {
-        scatter (pair in zip(samples_acrp, asnm)) {
+        scatter (pair in zip(samples_asvi, asnm)) {
             call s.UpdateSample as UpdateAbsoluteSnvMaf {
                 input:
                     sample = pair.left,
@@ -279,7 +266,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_asnm = select_first([UpdateAbsoluteSnvMaf.updated_sample, samples_acrp])
+    Array[Sample] samples_asnm = select_first([UpdateAbsoluteSnvMaf.updated_sample, samples_asvi])
 
     Array[File] asim = select_first([absolute_indel_maf, []])
     if (length(asim) > 0) {
@@ -293,117 +280,225 @@ workflow UpdateSamples {
     }
     Array[Sample] samples_asim = select_first([UpdateAbsoluteIndelMaf.updated_sample, samples_asnm])
 
-    Array[Int] asol = select_first([absolute_solution, []])
-    if (length(asol) > 0) {
-        scatter (pair in zip(samples_asim, asol)) {
+    Array[File] aard = select_first([absolute_acr_rdata, []])
+    if (length(aard) > 0) {
+        scatter (pair in zip(samples_asim, aard)) {
+            call s.UpdateSample as UpdateAbsoluteACRRData {
+                input:
+                    sample = pair.left,
+                    absolute_acr_rdata = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_aard = select_first([UpdateAbsoluteACRRData.updated_sample, samples_asim])
+
+    Array[File] aacrp = select_first([absolute_acr_plot, []])
+    if (length(aacrp) > 0) {
+        scatter (pair in zip(samples_aard, aacrp)) {
+            call s.UpdateSample as UpdateAbsoluteACRPlot {
+                input:
+                    sample = pair.left,
+                    absolute_acr_plot = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_aacrp = select_first([UpdateAbsoluteACRPlot.updated_sample, samples_aard])
+
+    Array[Int] aasol = select_first([absolute_acr_solution, []])
+    if (length(aasol) > 0) {
+        scatter (pair in zip(samples_aacrp, aasol)) {
+            call s.UpdateSample as UpdateAbsoluteACRSolution {
+                input:
+                    sample = pair.left,
+                    absolute_acr_solution = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_asol = select_first([UpdateAbsoluteACRSolution.updated_sample, samples_aacrp])
+
+    Array[File] aam = select_first([absolute_acr_maf, []])
+    if (length(aam) > 0) {
+        scatter (pair in zip(samples_asol, aam)) {
+            call s.UpdateSample as UpdateAbsoluteACRMaf {
+                input:
+                    sample = pair.left,
+                    absolute_acr_maf = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_aam = select_first([UpdateAbsoluteACRMaf.updated_sample, samples_asol])
+
+    Array[File] aasg = select_first([absolute_acr_segtab, []])
+    if (length(aasg) > 0) {
+        scatter (pair in zip(samples_aam, aasg)) {
+            call s.UpdateSample as UpdateAbsoluteACRSegtab {
+                input:
+                    sample = pair.left,
+                    absolute_acr_segtab = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_aasg = select_first([UpdateAbsoluteACRSegtab.updated_sample, samples_aam])
+
+    Array[File] aasip = select_first([absolute_acr_segtab_igv, []])
+    if (length(aasip) > 0) {
+        scatter (pair in zip(samples_aasg, aasip)) {
+            call s.UpdateSample as UpdateAbsoluteACRSegtabIGV {
+                input:
+                    sample = pair.left,
+                    absolute_acr_segtab_igv = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_aasip = select_first([UpdateAbsoluteACRSegtabIGV.updated_sample, samples_aasg])
+
+    Array[File] aat = select_first([absolute_acr_table, []])
+    if (length(aat) > 0) {
+        scatter (pair in zip(samples_aasip, aat)) {
+            call s.UpdateSample as UpdateAbsoluteACRTable {
+                input:
+                    sample = pair.left,
+                    absolute_acr_table = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_aat = select_first([UpdateAbsoluteACRTable.updated_sample, samples_aasip])
+
+    Array[Float] acr_purity_ = select_first([absolute_acr_purity, []])
+    if (length(acr_purity_) > 0) {
+        scatter (pair in zip(samples_aat, acr_purity_)) {
+            call s.UpdateSample as UpdateACRPurity {
+                input:
+                    sample = pair.left,
+                    absolute_acr_purity = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_acr_purity = select_first([UpdateACRPurity.updated_sample, samples_aat])
+
+    Array[Float] acr_ploidy_ = select_first([absolute_acr_ploidy, []])
+    if (length(acr_ploidy_) > 0) {
+        scatter (pair in zip(samples_acr_purity, acr_ploidy_)) {
+            call s.UpdateSample as UpdateACRPloidy {
+                input:
+                    sample = pair.left,
+                    absolute_acr_ploidy = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_acr_ploidy = select_first([UpdateACRPloidy.updated_sample, samples_acr_purity])
+
+    Array[File] atrd = select_first([absolute_tcr_rdata, []])
+    if (length(atrd) > 0) {
+        scatter (pair in zip(samples_acr_ploidy, atrd)) {
+            call s.UpdateSample as UpdateAbsoluteRData {
+                input:
+                    sample = pair.left,
+                    absolute_tcr_rdata = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_ard = select_first([UpdateAbsoluteRData.updated_sample, samples_acr_ploidy])
+
+    Array[File] atcrp = select_first([absolute_tcr_plot, []])
+    if (length(atcrp) > 0) {
+        scatter (pair in zip(samples_ard, atcrp)) {
+            call s.UpdateSample as UpdateAbsolutePlot {
+                input:
+                    sample = pair.left,
+                    absolute_tcr_plot = pair.right,
+            }
+        }
+    }
+    Array[Sample] samples_acrp = select_first([UpdateAbsolutePlot.updated_sample, samples_ard])
+
+    Array[Int] atsol = select_first([absolute_tcr_solution, []])
+    if (length(atsol) > 0) {
+        scatter (pair in zip(samples_acrp, atsol)) {
             call s.UpdateSample as UpdateAbsoluteSolution {
                 input:
                     sample = pair.left,
-                    absolute_solution = pair.right,
+                    absolute_tcr_solution = pair.right,
             }
         }
     }
-    Array[Sample] samples_asol = select_first([UpdateAbsoluteSolution.updated_sample, samples_asim])
+    Array[Sample] samples_atsol = select_first([UpdateAbsoluteSolution.updated_sample, samples_acrp])
 
-    Array[File] am = select_first([absolute_maf, []])
+    Array[File] am = select_first([absolute_tcr_maf, []])
     if (length(am) > 0) {
-        scatter (pair in zip(samples_asol, am)) {
+        scatter (pair in zip(samples_atsol, am)) {
             call s.UpdateSample as UpdateAbsoluteMaf {
                 input:
                     sample = pair.left,
-                    absolute_maf = pair.right,
+                    absolute_tcr_maf = pair.right,
             }
         }
     }
-    Array[Sample] samples_am = select_first([UpdateAbsoluteMaf.updated_sample, samples_asol])
+    Array[Sample] samples_am = select_first([UpdateAbsoluteMaf.updated_sample, samples_atsol])
 
-    Array[File] asg = select_first([absolute_segtab, []])
-    if (length(asg) > 0) {
-        scatter (pair in zip(samples_am, asg)) {
+    Array[File] atsg = select_first([absolute_tcr_segtab, []])
+    if (length(atsg) > 0) {
+        scatter (pair in zip(samples_am, atsg)) {
             call s.UpdateSample as UpdateAbsoluteSegtab {
                 input:
                     sample = pair.left,
-                    absolute_segtab = pair.right,
+                    absolute_tcr_segtab = pair.right,
             }
         }
     }
-    Array[Sample] samples_asg = select_first([UpdateAbsoluteSegtab.updated_sample, samples_am])
+    Array[Sample] samples_atsg = select_first([UpdateAbsoluteSegtab.updated_sample, samples_am])
 
-    Array[File] amp = select_first([absolute_maf_postprocessed, []])
-    if (length(amp) > 0) {
-        scatter (pair in zip(samples_asg, amp)) {
-            call s.UpdateSample as UpdateAbsoluteMafPostprocessed {
+    Array[File] atsip = select_first([absolute_tcr_segtab_igv, []])
+    if (length(atsip) > 0) {
+        scatter (pair in zip(samples_atsg, atsip)) {
+            call s.UpdateSample as UpdateAbsoluteSegtabIGV {
                 input:
                     sample = pair.left,
-                    absolute_maf_postprocessed = pair.right,
+                    absolute_tcr_segtab_igv = pair.right,
             }
         }
     }
-    Array[Sample] samples_amp = select_first([UpdateAbsoluteMafPostprocessed.updated_sample, samples_asg])
+    Array[Sample] samples_atsip = select_first([UpdateAbsoluteSegtabIGV.updated_sample, samples_atsg])
 
-    Array[File] asp = select_first([absolute_segtab_postprocessed, []])
-    if (length(asp) > 0) {
-        scatter (pair in zip(samples_amp, asp)) {
-            call s.UpdateSample as UpdateAbsoluteSegtabPostprocessed {
-                input:
-                    sample = pair.left,
-                    absolute_segtab_postprocessed = pair.right,
-            }
-        }
-    }
-    Array[Sample] samples_asp = select_first([UpdateAbsoluteSegtabPostprocessed.updated_sample, samples_amp])
-
-    Array[File] asip = select_first([absolute_segtab_igv_postprocessed, []])
-    if (length(asip) > 0) {
-        scatter (pair in zip(samples_asp, asip)) {
-            call s.UpdateSample as UpdateAbsoluteSegtabIGVPostprocessed {
-                input:
-                    sample = pair.left,
-                    absolute_segtab_igv_postprocessed = pair.right,
-            }
-        }
-    }
-    Array[Sample] samples_asip = select_first([UpdateAbsoluteSegtabIGVPostprocessed.updated_sample, samples_asp])
-
-    Array[File] at = select_first([absolute_table, []])
-    if (length(at) > 0) {
-        scatter (pair in zip(samples_asip, at)) {
+    Array[File] att = select_first([absolute_tcr_table, []])
+    if (length(att) > 0) {
+        scatter (pair in zip(samples_atsip, att)) {
             call s.UpdateSample as UpdateAbsoluteTable {
                 input:
                     sample = pair.left,
-                    absolute_table = pair.right,
+                    absolute_tcr_table = pair.right,
             }
         }
     }
-    Array[Sample] samples_at = select_first([UpdateAbsoluteTable.updated_sample, samples_asip])
+    Array[Sample] samples_att = select_first([UpdateAbsoluteTable.updated_sample, samples_atsip])
 
-    Array[Float] purity_ = select_first([purity, []])
-    if (length(purity_) > 0) {
-        scatter (pair in zip(samples_at, purity_)) {
+    Array[Float] tcr_purity_ = select_first([absolute_tcr_purity, []])
+    if (length(tcr_purity_) > 0) {
+        scatter (pair in zip(samples_att, tcr_purity_)) {
             call s.UpdateSample as UpdatePurity {
                 input:
                     sample = pair.left,
-                    purity = pair.right,
+                    absolute_tcr_purity = pair.right,
             }
         }
     }
-    Array[Sample] samples_purity = select_first([UpdatePurity.updated_sample, samples_at])
+    Array[Sample] samples_tcr_purity = select_first([UpdatePurity.updated_sample, samples_att])
 
-    Array[Float] ploidy_ = select_first([ploidy, []])
-    if (length(ploidy_) > 0) {
-        scatter (pair in zip(samples_purity, ploidy_)) {
+    Array[Float] tcr_ploidy_ = select_first([absolute_tcr_ploidy, []])
+    if (length(tcr_ploidy_) > 0) {
+        scatter (pair in zip(samples_tcr_purity, tcr_ploidy_)) {
             call s.UpdateSample as UpdatePloidy {
                 input:
                     sample = pair.left,
-                    ploidy = pair.right,
+                    absolute_tcr_ploidy = pair.right,
             }
         }
     }
-    Array[Sample] samples_ploidy = select_first([UpdatePloidy.updated_sample, samples_purity])
+    Array[Sample] samples_tcr_ploidy = select_first([UpdatePloidy.updated_sample, samples_tcr_purity])
 
     Array[Int] timepoint_ = select_first([timepoint, []])
     if (length(timepoint_) > 0) {
-        scatter (pair in zip(samples_ploidy, timepoint_)) {
+        scatter (pair in zip(samples_tcr_ploidy, timepoint_)) {
             call s.UpdateSample as UpdateTimepoint {
                 input:
                     sample = pair.left,
@@ -411,7 +506,7 @@ workflow UpdateSamples {
             }
         }
     }
-    Array[Sample] samples_timepoint = select_first([UpdateTimepoint.updated_sample, samples_ploidy])
+    Array[Sample] samples_timepoint = select_first([UpdateTimepoint.updated_sample, samples_tcr_ploidy])
 
     Array[Sample] samples = samples_timepoint
 

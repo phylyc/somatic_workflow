@@ -36,17 +36,30 @@ workflow Output {
         Float? out_acs_copy_ratio_skew = sample.acs_copy_ratio_skew
         File? out_annotated_somatic_variants = sample.annotated_somatic_variants
         File? out_annotated_somatic_variants_idx = sample.annotated_somatic_variants_idx
-        File? out_absolute_acr_rdata = sample.absolute_acr_rdata
-        File? out_absolute_acr_plot = sample.absolute_acr_plot
+
         File? out_absolute_snv_maf = sample.absolute_snv_maf
         File? out_absolute_indel_maf = sample.absolute_indel_maf
-        Int? out_absolute_solution = sample.absolute_solution
-        File? out_absolute_maf = sample.absolute_maf_postprocessed
-        File? out_absolute_segtab = sample.absolute_segtab_postprocessed
-        File? out_absolute_segtab_igv = sample.absolute_segtab_igv_postprocessed
-        File? out_absolute_table = sample.absolute_table
-        Float? out_purity = sample.purity
-        Float? out_ploidy = sample.ploidy
+
+        File? out_absolute_acr_rdata = sample.absolute_acr_rdata
+        File? out_absolute_acr_plot = sample.absolute_acr_plot
+        Int? out_absolute_acr_solution = sample.absolute_acr_solution
+        File? out_absolute_acr_maf = sample.absolute_acr_maf
+        File? out_absolute_acr_segtab = sample.absolute_acr_segtab
+        File? out_absolute_acr_segtab_igv = sample.absolute_acr_segtab_igv
+        File? out_absolute_acr_table = sample.absolute_acr_table
+        Float? out_absolute_acr_purity = sample.absolute_acr_purity
+        Float? out_absolute_acr_ploidy = sample.absolute_acr_ploidy
+
+        File? out_absolute_tcr_rdata = sample.absolute_tcr_rdata
+        File? out_absolute_tcr_plot = sample.absolute_tcr_plot
+        Int? out_absolute_tcr_solution = sample.absolute_tcr_solution
+        File? out_absolute_tcr_maf = sample.absolute_tcr_maf
+        File? out_absolute_tcr_segtab = sample.absolute_tcr_segtab
+        File? out_absolute_tcr_segtab_igv = sample.absolute_tcr_segtab_igv
+        File? out_absolute_tcr_table = sample.absolute_tcr_table
+        Float? out_absolute_tcr_purity = sample.absolute_tcr_purity
+        Float? out_absolute_tcr_ploidy = sample.absolute_tcr_ploidy
+
         Int? out_timepoint = sample.timepoint
     }
 
@@ -111,39 +124,70 @@ workflow Output {
     if (length(select_all(out_annotated_somatic_variants_idx)) > 0) {
         Array[File] asvi_out = select_all(out_annotated_somatic_variants_idx)
     }
-    if (length(select_all(out_absolute_acr_rdata)) > 0) {
-        Array[File] aar_out = select_all(out_absolute_acr_rdata)
-    }
-    if (length(select_all(out_absolute_acr_plot)) > 0) {
-        Array[File] acr_plot_out = select_all(out_absolute_acr_plot)
-    }
+
     if (length(select_all(out_absolute_snv_maf)) > 0) {
         Array[File] asm_out = select_all(out_absolute_snv_maf)
     }
     if (length(select_all(out_absolute_indel_maf)) > 0) {
         Array[File] aim_out = select_all(out_absolute_indel_maf)
     }
-    if (length(select_all(out_absolute_solution)) > 0) {
-        Array[Int] as_out = select_all(out_absolute_solution)
+
+    if (length(select_all(out_absolute_acr_rdata)) > 0) {
+        Array[File] aar_out = select_all(out_absolute_acr_rdata)
     }
-    if (length(select_all(out_absolute_maf)) > 0) {
-        Array[File] am_out = select_all(out_absolute_maf)
+    if (length(select_all(out_absolute_acr_plot)) > 0) {
+        Array[File] acr_plot_out = select_all(out_absolute_acr_plot)
     }
-    if (length(select_all(out_absolute_segtab)) > 0) {
-        Array[File] ast_out = select_all(out_absolute_segtab)
+    if (length(select_all(out_absolute_acr_solution)) > 0) {
+        Array[Int] aas_out = select_all(out_absolute_acr_solution)
     }
-    if (length(select_all(out_absolute_segtab_igv)) > 0) {
-        Array[File] asti_out = select_all(out_absolute_segtab_igv)
+    if (length(select_all(out_absolute_acr_maf)) > 0) {
+        Array[File] aam_out = select_all(out_absolute_acr_maf)
     }
-    if (length(select_all(out_absolute_table)) > 0) {
-        Array[File] at_out = select_all(out_absolute_table)
+    if (length(select_all(out_absolute_acr_segtab)) > 0) {
+        Array[File] aast_out = select_all(out_absolute_acr_segtab)
     }
-    if (length(select_all(out_purity)) > 0) {
-        Array[Float] purity_out = select_all(out_purity)
+    if (length(select_all(out_absolute_acr_segtab_igv)) > 0) {
+        Array[File] aasti_out = select_all(out_absolute_acr_segtab_igv)
     }
-    if (length(select_all(out_ploidy)) > 0) {
-        Array[Float] ploidy_out = select_all(out_ploidy)
+    if (length(select_all(out_absolute_acr_table)) > 0) {
+        Array[File] aat_out = select_all(out_absolute_acr_table)
     }
+    if (length(select_all(out_absolute_acr_purity)) > 0) {
+        Array[Float] aa_purity_out = select_all(out_absolute_acr_purity)
+    }
+    if (length(select_all(out_absolute_acr_ploidy)) > 0) {
+        Array[Float] aa_ploidy_out = select_all(out_absolute_acr_ploidy)
+    }
+
+    if (length(select_all(out_absolute_tcr_rdata)) > 0) {
+        Array[File] atr_out = select_all(out_absolute_tcr_rdata)
+    }
+    if (length(select_all(out_absolute_tcr_plot)) > 0) {
+        Array[File] tcr_plot_out = select_all(out_absolute_tcr_plot)
+    }
+    if (length(select_all(out_absolute_tcr_solution)) > 0) {
+        Array[Int] ats_out = select_all(out_absolute_tcr_solution)
+    }
+    if (length(select_all(out_absolute_tcr_maf)) > 0) {
+        Array[File] atm_out = select_all(out_absolute_tcr_maf)
+    }
+    if (length(select_all(out_absolute_tcr_segtab)) > 0) {
+        Array[File] atst_out = select_all(out_absolute_tcr_segtab)
+    }
+    if (length(select_all(out_absolute_tcr_segtab_igv)) > 0) {
+        Array[File] atsti_out = select_all(out_absolute_tcr_segtab_igv)
+    }
+    if (length(select_all(out_absolute_tcr_table)) > 0) {
+        Array[File] att_out = select_all(out_absolute_tcr_table)
+    }
+    if (length(select_all(out_absolute_tcr_purity)) > 0) {
+        Array[Float] at_purity_out = select_all(out_absolute_tcr_purity)
+    }
+    if (length(select_all(out_absolute_tcr_ploidy)) > 0) {
+        Array[Float] at_ploidy_out = select_all(out_absolute_tcr_ploidy)
+    }
+
     if (length(select_all(out_timepoint)) > 0) {
         Array[Int] timepoint_out = select_all(out_timepoint)
     }
@@ -203,17 +247,29 @@ workflow Output {
         Array[Float]? acs_copy_ratio_skew = acrskew_out
         Array[File]? annotated_somatic_variants = asv_out
         Array[File?]? annotated_somatic_variants_idx = asvi_out
-        Array[File]? absolute_acr_rdata = aar_out
-        Array[File]? absolute_acr_plot = acr_plot_out
         Array[File]? absolute_snv_maf = asm_out
         Array[File]? absolute_indel_maf = aim_out
-        Array[Int]? absolute_solution = as_out
-        Array[File]? absolute_maf = am_out
-        Array[File]? absolute_segtab = ast_out
-        Array[File]? absolute_segtab_igv = asti_out
-        Array[File]? absolute_table = at_out
-        Array[Float]? purity = purity_out
-        Array[Float]? ploidy = ploidy_out
+
+        Array[File]? absolute_acr_rdata = aar_out
+        Array[File]? absolute_acr_plot = acr_plot_out
+        Array[Int]? absolute_acr_solution = aas_out
+        Array[File]? absolute_acr_maf = aam_out
+        Array[File]? absolute_acr_segtab = aast_out
+        Array[File]? absolute_acr_segtab_igv = aasti_out
+        Array[File]? absolute_acr_table = aat_out
+        Array[Float]? absolute_acr_purity = aa_purity_out
+        Array[Float]? absolute_acr_ploidy = aa_ploidy_out
+
+        Array[File]? absolute_tcr_rdata = atr_out
+        Array[File]? absolute_tcr_plot = tcr_plot_out
+        Array[Int]? absolute_tcr_solution = ats_out
+        Array[File]? absolute_tcr_maf = atm_out
+        Array[File]? absolute_tcr_segtab = atst_out
+        Array[File]? absolute_tcr_segtab_igv = atsti_out
+        Array[File]? absolute_tcr_table = att_out
+        Array[Float]? absolute_tcr_purity = at_purity_out
+        Array[Float]? absolute_tcr_ploidy = at_ploidy_out
+
         Array[Int]? timepoint = timepoint_out
 
         # for each shard:

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 validate_wdl () {
   local wdl=$1
 #  echo "> miniwdl check:"

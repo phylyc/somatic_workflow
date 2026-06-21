@@ -37,7 +37,7 @@ def parse_args():
     parser.add_argument("--min_hets",           type=int,   default=0,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
     parser.add_argument("--min_probes",         type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
     parser.add_argument("--allelic_resplit_focals",           default=False, action="store_true", help="Correct f=0.5 for high-CN focal segments with few HETs by re-splitting to 1:(N-1).")
-    parser.add_argument("--allelic_resplit_focals_high_cn",   type=float, default=10, help="Tau threshold above which a segment with f=0.5 is considered suspect for allelic split correction.")
+    parser.add_argument("--allelic_resplit_focals_high_cn",   type=float, default=10, help="Absolute (rescaled) total copy-number threshold above which a segment with f=0.5 is considered suspect for allelic split correction.")
     parser.add_argument("--allelic_resplit_focals_max_hets",  type=int,   default=10, help="Maximum number of HETs for a segment to be eligible for allelic split correction.")
     return parser.parse_args()
 
@@ -290,24 +290,30 @@ def map_to_cn(args):
     seg["mu.major.abs"] = (1 - seg["f"]) * seg["rescaled_total_cn"]
 
     # Correct f = 0.5 for high-CN segments with few HETs.
-    # When tau is large and n_hets is small, the MAF90 threshold in acs_conversion
-    # may have artificially set f = 0.5 (implying balanced high-level gain, e.g. 5:5).
-    # Bi-allelic high-level gains of the same magnitude are biologically very unlikely.
-    # Instead, assume the most likely split is 1:(N-1) (i.e., LOH-like).
+    # When the (rescaled, absolute) total CN is large and n_hets is small, the MAF90
+    # threshold in acs_conversion may have artificially set f = 0.5 (implying a balanced
+    # high-level gain, e.g. 5:5). Bi-allelic high-level gains of equal magnitude are
+    # biologically very unlikely. The exact f == 0.5 test deliberately targets only the
+    # segments that MAF90 snapped to balanced; segments with genuine imbalance evidence
+    # keep their data-driven f (lower --maf90_threshold to capture more of them).
     if args.allelic_resplit_focals:
         suspect_balanced = (
             (seg["f"] == 0.5)
-            & (seg["tau"] > args.allelic_resplit_focals_high_cn)
+            & (seg["rescaled_total_cn"] > args.allelic_resplit_focals_high_cn)
             & (seg["n_hets"] < args.allelic_resplit_focals_max_hets)
         )
         if suspect_balanced.any():
             message(f"Correcting f=0.5 for {suspect_balanced.sum()} high-CN segments with few HETs.")
-            # Re-split: assign minor allele = 1 copy, major = (total - 1)
-            corrected_minor = np.where(
-                seg.loc[suspect_balanced, "rescaled_total_cn"] >= 2,
-                1.0 / seg.loc[suspect_balanced, "rescaled_total_cn"],
-                0.0
+            # Re-split: put the minor allele at the chromosome's *background* per-allele
+            # copy number (half its modal total CN, C0_by_chr/2), not a hard 1 copy. On a
+            # non-WGD background (modal CN ~2) this is the 1:(N-1) / LOH-like split; on a
+            # WGD background (modal CN ~4) it keeps a minor floor of ~2:(N-2), so a genuine
+            # post-WGD co-amplification is not force-collapsed to a single retained copy.
+            cn_sb = seg.loc[suspect_balanced, "rescaled_total_cn"]
+            baseline_minor = seg.loc[suspect_balanced, "Chromosome"].map(
+                lambda c: max(1, int(round(C0_by_chr.get(c, 2) / 2)))
             )
+            corrected_minor = np.where(cn_sb >= 2, baseline_minor / cn_sb, 0.0)
             seg.loc[suspect_balanced, "f"] = corrected_minor
             seg.loc[suspect_balanced, "mu.minor.abs"] = seg.loc[suspect_balanced, "f"] * seg.loc[suspect_balanced, "rescaled_total_cn"]
             seg.loc[suspect_balanced, "mu.major.abs"] = (1 - seg.loc[suspect_balanced, "f"]) * seg.loc[suspect_balanced, "rescaled_total_cn"]
@@ -318,7 +324,7 @@ def map_to_cn(args):
             # guessing the split based on biological priors.
             # sigma.minor = sqrt(tau^2 * sigma_f^2 + f^2 * sigma.tau^2)
             # sigma.major = sqrt(tau^2 * sigma_f^2 + (1-f)^2 * sigma.tau^2)
-            uninformative_sigma_f = 1.0 / np.sqrt(12)  # uniform over [0, 1]
+            uninformative_sigma_f = 0.5 / np.sqrt(12)  # SD of a uniform over [0, 0.5] (the MAF support)
             tau_s = seg.loc[suspect_balanced, "tau"]
             sigma_tau_s = seg.loc[suspect_balanced, "sigma.tau"]
             f_s = seg.loc[suspect_balanced, "f"]

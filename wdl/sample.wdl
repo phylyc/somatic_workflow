@@ -25,19 +25,30 @@ struct Sample {
     Float? acs_copy_ratio_skew                          # ModelSegmentsToACSConversion
     File? annotated_somatic_variants                    # GATK Funcotator
     File? annotated_somatic_variants_idx                # GATK Funcotator
+
+    File? absolute_snv_maf                              # ABSOLUTE input
+    File? absolute_indel_maf                            # ABSOLUTE input
+
     File? absolute_acr_rdata                            # ABSOLUTE
     File? absolute_acr_plot                             # ABSOLUTE
-    File? absolute_snv_maf                              # ABSOLUTE
-    File? absolute_indel_maf                            # ABSOLUTE
-    Int? absolute_solution                              # manual
-    File? absolute_maf                                  # ABSOLUTE
-    File? absolute_segtab                               # ABSOLUTE
-    File? absolute_maf_postprocessed                    # ABSOLUTE + Postprocess
-    File? absolute_segtab_postprocessed                 # ABSOLUTE + Postprocess
-    File? absolute_segtab_igv_postprocessed             # ABSOLUTE + Postprocess
-    File? absolute_table                                # ABSOLUTE
-    Float? purity                                       # ABSOLUTE
-    Float? ploidy                                       # ABSOLUTE
+    Int? absolute_acr_solution                          # manual
+    File? absolute_acr_maf                              # ABSOLUTE + Postprocess
+    File? absolute_acr_segtab                           # ABSOLUTE + Postprocess
+    File? absolute_acr_segtab_igv                       # ABSOLUTE + Postprocess
+    File? absolute_acr_table                            # ABSOLUTE
+    Float? absolute_acr_purity                          # ABSOLUTE
+    Float? absolute_acr_ploidy                          # ABSOLUTE
+
+    File? absolute_tcr_rdata                            # ABSOLUTE
+    File? absolute_tcr_plot                             # ABSOLUTE
+    Int? absolute_tcr_solution                          # manual
+    File? absolute_tcr_maf                              # ABSOLUTE + Postprocess
+    File? absolute_tcr_segtab                           # ABSOLUTE + Postprocess
+    File? absolute_tcr_segtab_igv                       # ABSOLUTE + Postprocess
+    File? absolute_tcr_table                            # ABSOLUTE
+    Float? absolute_tcr_purity                          # ABSOLUTE
+    Float? absolute_tcr_ploidy                          # ABSOLUTE
+
     Int? timepoint                                      # manual
 }
 
@@ -66,19 +77,30 @@ workflow UpdateSample {
         Float? acs_copy_ratio_skew
         File? annotated_somatic_variants
         File? annotated_somatic_variants_idx
-        File? absolute_acr_rdata
-        File? absolute_acr_plot
+
         File? absolute_snv_maf
         File? absolute_indel_maf
-        Int? absolute_solution
-        File? absolute_maf
-        File? absolute_segtab
-        File? absolute_maf_postprocessed
-        File? absolute_segtab_postprocessed
-        File? absolute_segtab_igv_postprocessed
-        File? absolute_table
-        Float? purity
-        Float? ploidy
+
+        File? absolute_acr_rdata
+        File? absolute_acr_plot
+        Int? absolute_acr_solution
+        File? absolute_acr_maf
+        File? absolute_acr_segtab
+        File? absolute_acr_segtab_igv
+        File? absolute_acr_table
+        Float? absolute_acr_purity
+        Float? absolute_acr_ploidy
+
+        File? absolute_tcr_rdata
+        File? absolute_tcr_plot
+        Int? absolute_tcr_solution
+        File? absolute_tcr_maf
+        File? absolute_tcr_segtab
+        File? absolute_tcr_segtab_igv
+        File? absolute_tcr_table
+        Float? absolute_tcr_purity
+        Float? absolute_tcr_ploidy
+
         Int? timepoint
     }
 
@@ -87,6 +109,7 @@ workflow UpdateSample {
         bam_name: select_first([bam_name, sample.bam_name]),
         sequencing_runs: select_first([sequencing_runs, sample.sequencing_runs]),
         is_tumor: select_first([is_tumor, sample.is_tumor]),
+
         # cannot use select_first for optional fields:
         harmonized_callable_loci: if defined(harmonized_callable_loci) then harmonized_callable_loci else sample.harmonized_callable_loci,
         harmonized_denoised_total_copy_ratios: if defined(harmonized_denoised_total_copy_ratios) then harmonized_denoised_total_copy_ratios else sample.harmonized_denoised_total_copy_ratios,
@@ -104,19 +127,30 @@ workflow UpdateSample {
         acs_copy_ratio_skew: if defined(acs_copy_ratio_skew) then acs_copy_ratio_skew else sample.acs_copy_ratio_skew,
         annotated_somatic_variants: if defined(annotated_somatic_variants) then annotated_somatic_variants else sample.annotated_somatic_variants,
         annotated_somatic_variants_idx: if defined(annotated_somatic_variants_idx) then annotated_somatic_variants_idx else sample.annotated_somatic_variants_idx,
-        absolute_acr_rdata: if defined(absolute_acr_rdata) then absolute_acr_rdata else sample.absolute_acr_rdata,
-        absolute_acr_plot: if defined(absolute_acr_plot) then absolute_acr_plot else sample.absolute_acr_plot,
+
         absolute_snv_maf: if defined(absolute_snv_maf) then absolute_snv_maf else sample.absolute_snv_maf,
         absolute_indel_maf: if defined(absolute_indel_maf) then absolute_indel_maf else sample.absolute_indel_maf,
-        absolute_solution: if defined(absolute_solution) then absolute_solution else sample.absolute_solution,
-        absolute_maf: if defined(absolute_maf) then absolute_maf else sample.absolute_maf,
-        absolute_segtab: if defined(absolute_segtab) then absolute_segtab else sample.absolute_segtab,
-        absolute_maf_postprocessed: if defined(absolute_maf_postprocessed) then absolute_maf_postprocessed else sample.absolute_maf_postprocessed,
-        absolute_segtab_postprocessed: if defined(absolute_segtab_postprocessed) then absolute_segtab_postprocessed else sample.absolute_segtab_postprocessed,
-        absolute_segtab_igv_postprocessed: if defined(absolute_segtab_igv_postprocessed) then absolute_segtab_igv_postprocessed else sample.absolute_segtab_igv_postprocessed,
-        absolute_table: if defined(absolute_table) then absolute_table else sample.absolute_table,
-        purity: if defined(purity) then purity else sample.purity,
-        ploidy: if defined(ploidy) then ploidy else sample.ploidy,
+
+        absolute_acr_rdata: if defined(absolute_acr_rdata) then absolute_acr_rdata else sample.absolute_acr_rdata,
+        absolute_acr_plot: if defined(absolute_acr_plot) then absolute_acr_plot else sample.absolute_acr_plot,
+        absolute_acr_solution: if defined(absolute_acr_solution) then absolute_acr_solution else sample.absolute_acr_solution,
+        absolute_acr_maf: if defined(absolute_acr_maf) then absolute_acr_maf else sample.absolute_acr_maf,
+        absolute_acr_segtab: if defined(absolute_acr_segtab) then absolute_acr_segtab else sample.absolute_acr_segtab,
+        absolute_acr_segtab_igv: if defined(absolute_acr_segtab_igv) then absolute_acr_segtab_igv else sample.absolute_acr_segtab_igv,
+        absolute_acr_table: if defined(absolute_acr_table) then absolute_acr_table else sample.absolute_acr_table,
+        absolute_acr_purity: if defined(absolute_acr_purity) then absolute_acr_purity else sample.absolute_acr_purity,
+        absolute_acr_ploidy: if defined(absolute_acr_ploidy) then absolute_acr_ploidy else sample.absolute_acr_ploidy,
+
+        absolute_tcr_rdata: if defined(absolute_tcr_rdata) then absolute_tcr_rdata else sample.absolute_tcr_rdata,
+        absolute_tcr_plot: if defined(absolute_tcr_plot) then absolute_tcr_plot else sample.absolute_tcr_plot,
+        absolute_tcr_solution: if defined(absolute_tcr_solution) then absolute_tcr_solution else sample.absolute_tcr_solution,
+        absolute_tcr_maf: if defined(absolute_tcr_maf) then absolute_tcr_maf else sample.absolute_tcr_maf,
+        absolute_tcr_segtab: if defined(absolute_tcr_segtab) then absolute_tcr_segtab else sample.absolute_tcr_segtab,
+        absolute_tcr_segtab_igv: if defined(absolute_tcr_segtab_igv) then absolute_tcr_segtab_igv else sample.absolute_tcr_segtab_igv,
+        absolute_tcr_table: if defined(absolute_tcr_table) then absolute_tcr_table else sample.absolute_tcr_table,
+        absolute_tcr_purity: if defined(absolute_tcr_purity) then absolute_tcr_purity else sample.absolute_tcr_purity,
+        absolute_tcr_ploidy: if defined(absolute_tcr_ploidy) then absolute_tcr_ploidy else sample.absolute_tcr_ploidy,
+
         timepoint: if defined(timepoint) then timepoint else sample.timepoint
     }
 

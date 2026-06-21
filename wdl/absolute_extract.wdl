@@ -64,11 +64,9 @@ workflow AbsoluteExtract {
         File absolute_table = AbsoluteExtractTask.table
         Float absolute_purity = AbsoluteExtractTask.purity
         Float absolute_ploidy = AbsoluteExtractTask.ploidy
-        File absolute_maf = AbsoluteExtractTask.abs_maf
-        File absolute_segtab = AbsoluteExtractTask.segtab
-        File absolute_maf_postprocessed = Postprocess.abs_maf
-        File absolute_segtab_postprocessed = Postprocess.segtab
-        File absolute_segtab_igv_postprocessed = Postprocess.segtab_igv
+        File absolute_maf = Postprocess.abs_maf
+        File absolute_segtab = Postprocess.segtab
+        File absolute_segtab_igv = Postprocess.segtab_igv
         File absolute_rescued_intervals = Postprocess.rescued_intervals
     }
 }
@@ -140,7 +138,7 @@ task AbsoluteExtractTask {
                 --tau ~{organism_normal_ploidy} \
                 ~{"--gender " + sex} \
                 ~{"--platform " + platform} \
-                --ssnv_skew ~{acs_copy_ratio_skew} \
+                ~{if (defined(acs_copy_ratio_skew) && (acs_copy_ratio_skew > 0)) then "--ssnv_skew " + acs_copy_ratio_skew else ""} \
                 --copy_num_type ~{copy_ratio_type} \
                 ~{"--genome_build '" + genome_build + "'"} \
                 --pkg_dir "/opt/absolute"
@@ -251,7 +249,7 @@ task Postprocess {
                 ~{"--sex " + sex} \
                 --absolute_maf '~{maf}' \
                 --absolute_segtab '~{output_segtab}' \
-                ~{"--ssnv_skew " + acs_copy_ratio_skew} \
+                ~{if (defined(acs_copy_ratio_skew) && (acs_copy_ratio_skew > 0)) then "--ssnv_skew " + acs_copy_ratio_skew else ""} \
                 ~{"--snv_maf '" + snv_maf + "'"} \
                 ~{"--indel_maf '" + indel_maf + "'"} \
                 --purity ~{purity} \
