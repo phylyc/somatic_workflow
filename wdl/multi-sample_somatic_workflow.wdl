@@ -101,8 +101,49 @@ workflow MultiSampleSomaticWorkflow {
     }
     WorkflowArguments args = select_first([input_args, Parameters.arguments])
 
-    if (!defined(input_patient)) {
-        # Only necessary if bams contig order does not match reference contig 
+    # Pre-flight gate: validate the raw inputs before any expensive task. ParseInput
+    # exits non-zero (failing the workflow) on a mis-shaped input or an unmet implicit
+    # requirement. Each downstream work block is guarded by `&& ParseInput.validated`,
+    # which makes the block depend on ParseInput so nothing heavy starts until it passes.
+    call tasks.ParseInput {
+        input:
+            n_bams = length(bams),
+            n_bais = length(bais),
+            sample_names = sample_names,
+            normal_sample_names = normal_sample_names,
+            is_paired_end = is_paired_end,
+            use_for_tCR = use_sample_for_tCR,
+            use_for_aCR = use_sample_for_aCR,
+            timepoints = timepoints,
+            target_intervals = target_intervals,
+            annotated_target_intervals = annotated_target_intervals,
+            cnv_panel_of_normals = cnv_panel_of_normals,
+            has_common_germline_alleles = defined(args.files.common_germline_alleles),
+            has_common_germline_alleles_idx = defined(args.files.common_germline_alleles_idx),
+            has_realignment_image = defined(args.files.realignment_bwa_mem_index_image),
+            has_germline_resource = defined(args.files.germline_resource),
+            has_snv_panel_of_normals = defined(args.files.snv_panel_of_normals),
+            has_germline_resource_v4_1 = defined(args.files.germline_resource_v4_1),
+            has_snv_panel_of_normals_v4_1 = defined(args.files.snv_panel_of_normals_v4_1),
+            has_funcotator_sources = defined(args.files.funcotator_data_sources_tar_gz),
+            has_sex = defined(sex),
+            run_collect_total_read_counts = args.run_collect_total_read_counts,
+            run_model_segments = args.run_model_segments,
+            run_collect_allelic_read_counts = args.run_collect_allelic_read_counts,
+            run_contamination_model = args.run_contamination_model,
+            run_realignment_filter = args.run_realignment_filter,
+            run_variant_calling_mutect1 = args.run_variant_calling_mutect1,
+            run_variant_calling = args.run_variant_calling,
+            run_variant_annotation = args.run_variant_annotation,
+            run_clonal_decomposition = args.run_clonal_decomposition,
+            deep = args.run_input_validation_deep,
+            bams = if args.run_input_validation_deep then bams else [],
+            ref_dict = args.files.ref_dict,
+            runtime_params = runtime_collection.parse_input,
+    }
+
+    if (!defined(input_patient) && ParseInput.validated) {
+        # Only necessary if bams contig order does not match reference contig
         if (args.run_reorder_bam_contigs) {
             scatter (pair in zip(bams, bais)) {
                 call tasks.ReorderSam as ReorderSam {
@@ -138,8 +179,6 @@ workflow MultiSampleSomaticWorkflow {
         }
     }
 
-    # TODO: add parse_input task to check for validity, then add "after parse_input" to all calls
-
     Patient patient = select_first([input_patient, Cache.patient])
 
     scatter (sample in patient.samples) {
@@ -154,7 +193,7 @@ workflow MultiSampleSomaticWorkflow {
         ) || (length(select_all(cached_absolute_rdata)) > 0)
     )
 
-    if (!skip_to_clonal_decomposition) {
+    if (!skip_to_clonal_decomposition && ParseInput.validated) {
 
 
 ###############################################################################
@@ -607,7 +646,7 @@ workflow MultiSampleSomaticWorkflow {
 
     Patient clonal_patient = select_first([cnv_updated_patient, patient])
 
-    if (args.run_clonal_decomposition) {
+    if (args.run_clonal_decomposition && ParseInput.validated) {
         scatter (sample in clonal_patient.samples) {
             # Force ABSOLUTE's purity (alpha) and ploidy (tau) only when the user supplied
             # both; a lone value is ignored so ABSOLUTE infers both (alpha and tau are
