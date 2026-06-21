@@ -152,4 +152,18 @@ PATIENT = [
     over("mask_name", "String?"),
 ]
 
-STRUCTS = {"SequencingRun": SEQUENCING_RUN, "Sample": SAMPLE, "Patient": PATIENT}
+SHARD = [
+    fixed("id", "Int"),
+    fixed("intervals", "File"),
+    fixed("skip", "Boolean"),
+    fixed("is_high_mem", "Boolean"),
+    over("raw_calls_mutect2_vcf", "File?"),
+    over("raw_calls_mutect2_vcf_idx", "File?"),
+    over("raw_mutect2_stats", "File?"),
+    over("raw_mutect2_bam_out", "File?"),
+    over("raw_mutect2_bai_out", "File?"),
+    over("raw_mutect2_artifact_priors", "File?"),
+]
+
+STRUCTS = {"SequencingRun": SEQUENCING_RUN, "Sample": SAMPLE, "Shard": SHARD, "Patient": PATIENT}
+
