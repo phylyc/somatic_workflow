@@ -14,6 +14,10 @@ Whole files generated (each = banner + struct/workflow, 100% field-driven):
     patient.update_samples.wdl, patient.update_shards.wdl,
     patient.merge.wdl, patient.out.wdl
 
+Marker blocks filled in hand-written files (between `# CODEGEN:BEGIN id` / `# CODEGEN:END id`):
+    runtime_collection.wdl  (struct fields, Runtime constructions, collection map; from
+                             runtimes_spec.py. The input{} tuning block stays hand-written.)
+
 Not generated (bespoke, hand-written): patient.define.wdl remaps input names, has the
 0-byte cnv-PoN special case, and exposes only a subset of fields.
 """
@@ -23,6 +27,7 @@ import re
 import sys
 
 import spec
+import runtimes_spec as rts
 
 I = "    "
 WDL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .../wdl
@@ -328,6 +333,55 @@ def emit_merge_patients():
     return "\n".join(out)
 
 
+# ----------------------------------------------------- runtime_collection.wdl
+
+def emit_runtime_struct_fields():
+    return "\n".join(f"{I}Runtime {r.name}" for r in rts.RUNTIMES)
+
+
+def emit_runtime_constructions():
+    blocks = []
+    for r in rts.RUNTIMES:
+        mem = r.command_mem()
+        lines = []
+        if r.mem_derive:
+            lines.append(f"{I}Int {mem} = {r.mem_derive}")
+        lines.append(f"{I}Runtime {r.name} = {{")
+        lines.append(f'{I}{I}"docker": {r.docker},')
+        if r.jar:
+            lines.append(f'{I}{I}"jar_override": gatk_override,')
+        lines.append(f'{I}{I}"preemptible": {r.preemptible},')
+        lines.append(f'{I}{I}"max_retries": {r.max_retries},')
+        lines.append(f'{I}{I}"cpu": {r.cpu},')
+        lines.append(f'{I}{I}"machine_mem": {mem} + {r.overhead},')
+        lines.append(f'{I}{I}"command_mem": {mem},')
+        lines.append(f'{I}{I}"runtime_minutes": {r.runtime_minutes()},')
+        lines.append(f'{I}{I}"disk": {r.disk},')
+        lines.append(f'{I}{I}"boot_disk_size": boot_disk_size')
+        lines.append(f"{I}}}")
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
+
+
+def emit_runtime_collection():
+    return "\n".join(f'{I}{I}"{r.name}": {r.name},' for r in rts.RUNTIMES)
+
+
+MARKER_RE = "(?P<b>^[ \\t]*# CODEGEN:BEGIN {0}[ \\t]*\\n)(?:.*?)(?P<e>^[ \\t]*# CODEGEN:END {0}[ \\t]*\\n)"
+
+
+def fill_markers(text, blocks):
+    """Replace the body between `# CODEGEN:BEGIN id` / `# CODEGEN:END id` for each id."""
+    for mid, content in blocks.items():
+        pat = re.compile(MARKER_RE.format(re.escape(mid)), re.DOTALL | re.MULTILINE)
+        body = content if content.endswith("\n") else content + "\n"
+        new, n = pat.subn(lambda m: m.group("b") + body + m.group("e"), text)
+        if n != 1:
+            raise SystemExit(f"marker '{mid}': expected exactly 1 begin/end pair, found {n}")
+        text = new
+    return text
+
+
 # --------------------------------------------------------------------- files
 
 def file_sequencing_run():
@@ -415,15 +469,35 @@ WHOLE_FILES = {
     "patient.out.wdl": file_patient_out,
 }
 
+# Hand-written files with generated marker blocks (id -> emitter). The non-marked
+# regions (e.g. runtime_collection.wdl's input{} tuning block) are left untouched.
+MARKER_FILES = {
+    "runtime_collection.wdl": {
+        "struct_fields": emit_runtime_struct_fields,
+        "runtimes": emit_runtime_constructions,
+        "collection": emit_runtime_collection,
+    },
+}
+
 
 # --------------------------------------------------------------------- main
 
+def render_marker_file(name):
+    text = open(os.path.join(WDL_DIR, name)).read()
+    return fill_markers(text, {mid: fn() for mid, fn in MARKER_FILES[name].items()})
+
+
 def write_all():
     for name, builder in WHOLE_FILES.items():
-        path = os.path.join(WDL_DIR, name)
-        with open(path, "w") as fh:
+        with open(os.path.join(WDL_DIR, name), "w") as fh:
             fh.write(builder())
         print(f"wrote {name}")
+    for name in MARKER_FILES:
+        path = os.path.join(WDL_DIR, name)
+        rendered = render_marker_file(name)
+        with open(path, "w") as fh:
+            fh.write(rendered)
+        print(f"filled markers in {name}")
 
 
 def check_all():
@@ -432,6 +506,9 @@ def check_all():
         path = os.path.join(WDL_DIR, name)
         on_disk = open(path).read() if os.path.exists(path) else ""
         if strip_header(on_disk).strip() != strip_header(builder()).strip():
+            stale.append(name)
+    for name in MARKER_FILES:
+        if open(os.path.join(WDL_DIR, name)).read() != render_marker_file(name):
             stale.append(name)
     if stale:
         print("STALE (run generate.py): " + ", ".join(stale))
