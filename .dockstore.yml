@@ -1,12 +1,5 @@
 version: 1.2
 workflows:
-  - name: MultiSampleSomaticWorkflowWrapper
-    subclass: WDL
-    publish: true
-    primaryDescriptorPath: /wdl/multi-sample_somatic_workflow.wrapper.wdl
-    authors:
-      - orcid: 0000-0001-9584-9135
-        
   - name: MultiSampleSomaticWorkflow
     subclass: WDL
     publish: true

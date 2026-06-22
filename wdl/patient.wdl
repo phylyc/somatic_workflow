@@ -26,6 +26,9 @@ struct Patient {
     File?         filtered_vcf
     File?         filtered_vcf_idx
     File?         filtering_stats
+    File?         mask_vcf
+    File?         mask_vcf_idx
+    String?       mask_name
     File?         somatic_vcf
     File?         somatic_vcf_idx
     Int?          num_somatic_variants
@@ -44,9 +47,20 @@ struct Patient {
     File?         snp_sample_correlation
     Float?        snp_sample_correlation_min
     File?         modeled_segments
-    File?         mask_vcf
-    File?         mask_vcf_idx
-    String?       mask_name
+    File?         phylogic_sif_file
+    File?         phylogic_report
+    File?         phylogic_ccfs_cnvs
+    File?         phylogic_ccfs_snvs
+    File?         phylogic_constrained_ccf
+    File?         phylogic_cluster_ccfs
+    File?         phylogic_build_tree_posteriors
+    File?         phylogic_growth_rates
+    File?         phylogic_growth_rate_plot
+    File?         phylogic_timing_report
+    File?         phylogic_timing_wgd_supporting_events
+    File?         phylogic_timing_graph
+    File?         phylogic_timing_comparison
+    File?         phylogic_timing_table
 }
 
 workflow UpdatePatient {
@@ -68,6 +82,9 @@ workflow UpdatePatient {
         File? filtered_vcf
         File? filtered_vcf_idx
         File? filtering_stats
+        File? mask_vcf
+        File? mask_vcf_idx
+        String? mask_name
         File? somatic_vcf
         File? somatic_vcf_idx
         Int? num_somatic_variants
@@ -86,9 +103,20 @@ workflow UpdatePatient {
         File? snp_sample_correlation
         Float? snp_sample_correlation_min
         File? modeled_segments
-        File? mask_vcf
-        File? mask_vcf_idx
-        String? mask_name
+        File? phylogic_sif_file
+        File? phylogic_report
+        File? phylogic_ccfs_cnvs
+        File? phylogic_ccfs_snvs
+        File? phylogic_constrained_ccf
+        File? phylogic_cluster_ccfs
+        File? phylogic_build_tree_posteriors
+        File? phylogic_growth_rates
+        File? phylogic_growth_rate_plot
+        File? phylogic_timing_report
+        File? phylogic_timing_wgd_supporting_events
+        File? phylogic_timing_graph
+        File? phylogic_timing_comparison
+        File? phylogic_timing_table
     }
 
     Patient updated = object {
@@ -108,6 +136,9 @@ workflow UpdatePatient {
         filtered_vcf: if defined(filtered_vcf) then filtered_vcf else patient.filtered_vcf,
         filtered_vcf_idx: if defined(filtered_vcf_idx) then filtered_vcf_idx else patient.filtered_vcf_idx,
         filtering_stats: if defined(filtering_stats) then filtering_stats else patient.filtering_stats,
+        mask_vcf: if defined(mask_vcf) then mask_vcf else patient.mask_vcf,
+        mask_vcf_idx: if defined(mask_vcf_idx) then mask_vcf_idx else patient.mask_vcf_idx,
+        mask_name: if defined(mask_name) then mask_name else patient.mask_name,
         somatic_vcf: if defined(somatic_vcf) then somatic_vcf else patient.somatic_vcf,
         somatic_vcf_idx: if defined(somatic_vcf_idx) then somatic_vcf_idx else patient.somatic_vcf_idx,
         num_somatic_variants: if defined(num_somatic_variants) then num_somatic_variants else patient.num_somatic_variants,
@@ -126,9 +157,20 @@ workflow UpdatePatient {
         snp_sample_correlation: if defined(snp_sample_correlation) then snp_sample_correlation else patient.snp_sample_correlation,
         snp_sample_correlation_min: if defined(snp_sample_correlation_min) then snp_sample_correlation_min else patient.snp_sample_correlation_min,
         modeled_segments: if defined(modeled_segments) then modeled_segments else patient.modeled_segments,
-        mask_vcf: if defined(mask_vcf) then mask_vcf else patient.mask_vcf,
-        mask_vcf_idx: if defined(mask_vcf_idx) then mask_vcf_idx else patient.mask_vcf_idx,
-        mask_name: if defined(mask_name) then mask_name else patient.mask_name
+        phylogic_sif_file: if defined(phylogic_sif_file) then phylogic_sif_file else patient.phylogic_sif_file,
+        phylogic_report: if defined(phylogic_report) then phylogic_report else patient.phylogic_report,
+        phylogic_ccfs_cnvs: if defined(phylogic_ccfs_cnvs) then phylogic_ccfs_cnvs else patient.phylogic_ccfs_cnvs,
+        phylogic_ccfs_snvs: if defined(phylogic_ccfs_snvs) then phylogic_ccfs_snvs else patient.phylogic_ccfs_snvs,
+        phylogic_constrained_ccf: if defined(phylogic_constrained_ccf) then phylogic_constrained_ccf else patient.phylogic_constrained_ccf,
+        phylogic_cluster_ccfs: if defined(phylogic_cluster_ccfs) then phylogic_cluster_ccfs else patient.phylogic_cluster_ccfs,
+        phylogic_build_tree_posteriors: if defined(phylogic_build_tree_posteriors) then phylogic_build_tree_posteriors else patient.phylogic_build_tree_posteriors,
+        phylogic_growth_rates: if defined(phylogic_growth_rates) then phylogic_growth_rates else patient.phylogic_growth_rates,
+        phylogic_growth_rate_plot: if defined(phylogic_growth_rate_plot) then phylogic_growth_rate_plot else patient.phylogic_growth_rate_plot,
+        phylogic_timing_report: if defined(phylogic_timing_report) then phylogic_timing_report else patient.phylogic_timing_report,
+        phylogic_timing_wgd_supporting_events: if defined(phylogic_timing_wgd_supporting_events) then phylogic_timing_wgd_supporting_events else patient.phylogic_timing_wgd_supporting_events,
+        phylogic_timing_graph: if defined(phylogic_timing_graph) then phylogic_timing_graph else patient.phylogic_timing_graph,
+        phylogic_timing_comparison: if defined(phylogic_timing_comparison) then phylogic_timing_comparison else patient.phylogic_timing_comparison,
+        phylogic_timing_table: if defined(phylogic_timing_table) then phylogic_timing_table else patient.phylogic_timing_table
     }
 
     output {

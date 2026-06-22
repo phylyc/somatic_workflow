@@ -1,11 +1,13 @@
-"""Single source of truth for the SequencingRun / Sample / Patient struct fields.
+"""Single source of truth for the SequencingRun / Sample / Shard / Patient struct fields.
 
 Edit the field lists here, then run `generate.py` to (re)emit the WDL struct
 definitions and the bulk single-pass constructors. The point is that each field is
-declared exactly ONCE; the ~40-field `object {...}` blocks that are tedious and
-drift-prone to maintain by hand (sample.wdl, patient.update_samples.wdl,
-patient.define.wdl, patient.out.wdl) become generated output, so a rename can never
-again leave one consumer pointing at a field that no longer exists.
+declared exactly ONCE; the long `object {...}` blocks that are tedious and drift-prone
+to maintain by hand (the struct definitions, their per-element Update* constructors,
+and patient.out.wdl) become generated output, so a rename can never again leave one
+consumer pointing at a field that no longer exists. patient.define.wdl stays hand-
+written — it remaps input names and exposes only a curated subset — so adding a field
+here that DefinePatient should accept still requires a matching edit there.
 
 Field semantics
 ---------------
@@ -131,6 +133,9 @@ PATIENT = [
     over("filtered_vcf", "File?"),
     over("filtered_vcf_idx", "File?"),
     over("filtering_stats", "File?"),
+    over("mask_vcf", "File?"),
+    over("mask_vcf_idx", "File?"),
+    over("mask_name", "String?"),
     over("somatic_vcf", "File?"),
     over("somatic_vcf_idx", "File?"),
     over("num_somatic_variants", "Int?"),
@@ -149,9 +154,20 @@ PATIENT = [
     over("snp_sample_correlation", "File?"),
     over("snp_sample_correlation_min", "Float?"),
     over("modeled_segments", "File?"),
-    over("mask_vcf", "File?"),
-    over("mask_vcf_idx", "File?"),
-    over("mask_name", "String?"),
+    over("phylogic_sif_file", "File?"),
+    over("phylogic_report", "File?"),
+    over("phylogic_ccfs_cnvs", "File?"),
+    over("phylogic_ccfs_snvs", "File?"),
+    over("phylogic_constrained_ccf", "File?"),
+    over("phylogic_cluster_ccfs", "File?"),
+    over("phylogic_build_tree_posteriors", "File?"),
+    over("phylogic_growth_rates", "File?"),
+    over("phylogic_growth_rate_plot", "File?"),
+    over("phylogic_timing_report", "File?"),
+    over("phylogic_timing_wgd_supporting_events", "File?"),
+    over("phylogic_timing_graph", "File?"),
+    over("phylogic_timing_comparison", "File?"),
+    over("phylogic_timing_table", "File?"),
 ]
 
 SHARD = [

@@ -195,6 +195,9 @@ workflow UpdateSamples {
         filtered_vcf: patient.filtered_vcf,
         filtered_vcf_idx: patient.filtered_vcf_idx,
         filtering_stats: patient.filtering_stats,
+        mask_vcf: patient.mask_vcf,
+        mask_vcf_idx: patient.mask_vcf_idx,
+        mask_name: patient.mask_name,
         somatic_vcf: patient.somatic_vcf,
         somatic_vcf_idx: patient.somatic_vcf_idx,
         num_somatic_variants: patient.num_somatic_variants,
@@ -213,9 +216,20 @@ workflow UpdateSamples {
         snp_sample_correlation: patient.snp_sample_correlation,
         snp_sample_correlation_min: patient.snp_sample_correlation_min,
         modeled_segments: patient.modeled_segments,
-        mask_vcf: patient.mask_vcf,
-        mask_vcf_idx: patient.mask_vcf_idx,
-        mask_name: patient.mask_name
+        phylogic_sif_file: patient.phylogic_sif_file,
+        phylogic_report: patient.phylogic_report,
+        phylogic_ccfs_cnvs: patient.phylogic_ccfs_cnvs,
+        phylogic_ccfs_snvs: patient.phylogic_ccfs_snvs,
+        phylogic_constrained_ccf: patient.phylogic_constrained_ccf,
+        phylogic_cluster_ccfs: patient.phylogic_cluster_ccfs,
+        phylogic_build_tree_posteriors: patient.phylogic_build_tree_posteriors,
+        phylogic_growth_rates: patient.phylogic_growth_rates,
+        phylogic_growth_rate_plot: patient.phylogic_growth_rate_plot,
+        phylogic_timing_report: patient.phylogic_timing_report,
+        phylogic_timing_wgd_supporting_events: patient.phylogic_timing_wgd_supporting_events,
+        phylogic_timing_graph: patient.phylogic_timing_graph,
+        phylogic_timing_comparison: patient.phylogic_timing_comparison,
+        phylogic_timing_table: patient.phylogic_timing_table
     }
 
     output {
