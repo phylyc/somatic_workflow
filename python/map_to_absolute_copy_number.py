@@ -163,7 +163,13 @@ def map_to_cn(args):
         cr_seg = cr_seg.astype({col: dtype}, errors="ignore")
     cr_seg = cr_seg.set_index(["Chromosome", "Start.bp", "End.bp"])
 
-    seg = pd.concat([abs_seg.drop(columns=["n_probes", "length"], errors="ignore"), cr_seg], axis=1).sort_index().reset_index()
+    # cr_seg (the ACS conversion) is the source of truth for any column it shares
+    # with the ABSOLUTE segtab: n_probes and length always, plus tau in total-copy-
+    # ratio mode (where the segtab also carries a tau). Drop those from abs_seg so the
+    # axis=1 concat does not produce duplicate, identically-named columns (which makes
+    # seg["tau"] a DataFrame and breaks the downstream Series arithmetic).
+    shared_columns = abs_seg.columns.intersection(cr_seg.columns)
+    seg = pd.concat([abs_seg.drop(columns=shared_columns, errors="ignore"), cr_seg], axis=1).sort_index().reset_index()
 
     if args.sample is None:
         args.sample = seg["sample"].dropna().unique()[0]
