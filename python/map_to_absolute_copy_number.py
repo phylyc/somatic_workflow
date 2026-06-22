@@ -401,7 +401,7 @@ def map_to_cn(args):
     seg["bi.allelic"] = ((seg["modal.a1"] > 0) & (seg["modal.a2"] > 0)).astype(int)
 
 
-    def get_ccf(allele, nu=10, max_cn=20):
+    def get_ccf(allele, nu=10, max_cn=20, clonal_ccf_threshold=0.9):
         hscr = seg[f"hscr.{allele}"].to_numpy()  # haplotype-specific copy number
         seg_sigma = seg[f"sigma.{allele}"].to_numpy()
         scale = seg_sigma * np.sqrt((nu - 2) / nu)
@@ -410,18 +410,19 @@ def map_to_cn(args):
         # allelic copy number comb
         comb = cn_grid[None, :] * delta.to_numpy()[:, None] * chr_ploidy.to_numpy()[:, None] + b.to_numpy()[:, None]
 
-        # Get global modal CN, averaged across both alleles, to determine deletion vs amplification state
-        _mu = seg["total_copy_ratio"].to_numpy()  # number of haploid copies
-        _seg_sigma = seg[f"seg_sigma"].to_numpy()
-        _scale = _seg_sigma * np.sqrt((nu - 2) / nu)
-
+        # Modal allelic CN for this allele, used as the deletion-vs-amplification
+        # reference. It must be scored against this allele's own copy ratio (hscr) on
+        # the allelic comb: scoring the total copy ratio against the allelic comb would
+        # land at the total modal (~2 for a diploid) rather than the allelic modal
+        # (~1), shifting every gain bracket up by one (1->2 mis-read as 2->3, collapsing
+        # clonal-gain CCFs to ~0).
         comb_max = comb.max(axis=1)
         use_out = np.where(comb_max >= 1, 1, comb_max)  # assume haploid neutral
         mu_neutral = np.where(chr_ploidy > 0, (use_out - b) / delta / chr_ploidy, 0)
         Wq0 = st.norm.pdf(mu_neutral[:, None], loc=cn_grid[None, :], scale=1000) + 1e-10
         Wq0 /= Wq0.sum(axis=1, keepdims=True)
         log_prior = np.log(Wq0)
-        ll = st.t.logpdf(comb, df=nu, loc=_mu[:, None], scale=_scale[:, None])
+        ll = st.t.logpdf(comb, df=nu, loc=hscr[:, None], scale=scale[:, None])
         log_mat = ll + log_prior
         log_mat -= sp.logsumexp(log_mat, axis=1, keepdims=True)
         seg_Q_post = np.exp(log_mat)
@@ -476,11 +477,23 @@ def map_to_cn(args):
         low = np.where(low < hat, low, hat)
         high = np.where(hat < high, high, hat)
 
+        # Lightweight clonal collapse. ABSOLUTE assigns near-clonal segments to a clonal
+        # cluster via Dirichlet-process clustering (deconstruct_SCNAs.R) and reports them
+        # at the clonal CCF. We do not run that clustering; instead, when the CCF
+        # posterior puts the majority of its mass at high CCF, the event is present in
+        # essentially all cancer cells, so we report it as clonal (CCF = 1). Subclonal
+        # segments keep their estimated fraction. (This is why per-segment CCFs do not
+        # correlate perfectly with ABSOLUTE — the clonal/subclonal split differs.)
+        clonal = p[:, ccf_grid >= clonal_ccf_threshold].sum(axis=1) > 0.5
+        hat = np.where(clonal, 1.0, hat)
+        high = np.where(clonal, 1.0, high)
+
         return hat, low, high
 
     def get_segment_ccf(
         nu=10,
         max_cn=200,
+        clonal_ccf_threshold=0.9,
         pair_post_thresh=0.02,
         pair_window=2,
         high_cn_threshold=12,
@@ -707,13 +720,13 @@ def map_to_cn(args):
             tail_mass_high_cn[i] = tail_mass
 
             is_high_copy = (
-                    (np.isfinite(total_cn[i]) and total_cn[i] >= high_cn_threshold)
-                    or (
-                            np.isfinite(total_cn_sigma[i])
-                            and total_cn_sigma[i] >= high_cn_sigma_threshold
-                            and tail_mass >= high_cn_tail_mass_threshold
-                    )
-                    or (tail_mass >= 0.5)
+                (np.isfinite(total_cn[i]) and total_cn[i] >= high_cn_threshold)
+                or (
+                    np.isfinite(total_cn_sigma[i])
+                    and total_cn_sigma[i] >= high_cn_sigma_threshold
+                    and tail_mass >= high_cn_tail_mass_threshold
+                )
+                or (tail_mass >= 0.5)
             )
             high_copy_flag[i] = int(is_high_copy)
 
@@ -824,6 +837,14 @@ def map_to_cn(args):
             ccf_support_50[i] = np.sum(mix >= 0.5 * mix.max())
             ccf_support_90[i] = np.sum(mix >= 0.1 * mix.max())
 
+            # Lightweight clonal collapse (mirrors get_ccf): when the joint CCF
+            # posterior is dominated by high CCF, the event is present in essentially
+            # all cancer cells, so report the point estimates as clonal (CCF = 1).
+            if mix[ccf_grid >= clonal_ccf_threshold].sum() > 0.5:
+                ccf_mean[i] = ccf_median[i] = ccf_mode[i] = 1.0
+                ccf_high[i] = 1.0
+                ccf_width[i] = ccf_high[i] - ccf_low[i]
+
             ambiguous_ccf_flag[i] = int(
                 is_high_copy
                 or (ccf_width[i] >= ambiguous_width_threshold)
@@ -855,6 +876,12 @@ def map_to_cn(args):
             index=seg.index,
         )
 
+    # Per-segment CCFs are estimated independently here; ABSOLUTE instead clusters
+    # segment CCFs with a Dirichlet process. We do not replicate that clustering, so
+    # the correlations below are not expected to reach 1 — the two methods can split
+    # the clonal/subclonal boundary differently for individual segments.
+    message("Note: CCFs are estimated per segment; ABSOLUTE's Dirichlet-process "
+            "clustering is not replicated, so <1 correlation with ABSOLUTE is expected.")
     for allele in ["a1", "a2"]:
         ccf_hat, ccf_low, ccf_hi = get_ccf(allele)
         ccf_hat = pd.Series(ccf_hat, index=seg.index).round(2)
