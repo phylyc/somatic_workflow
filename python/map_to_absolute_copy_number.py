@@ -36,6 +36,7 @@ def parse_args():
     parser.add_argument("--normal_ploidy",      type=int,   required=False, default=2, help="Normal/germline ploidy of that organism.")
     parser.add_argument("--min_hets",           type=int,   default=0,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
     parser.add_argument("--min_probes",         type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
+    parser.add_argument("--copy_num_type",      type=str,   default="allelic", help="Type of copy number mode {allelic, total}.")
     parser.add_argument("--allelic_resplit_focals",           default=False, action="store_true", help="Correct f=0.5 for high-CN focal segments with few HETs by re-splitting to 1:(N-1).")
     parser.add_argument("--allelic_resplit_focals_high_cn",   type=float, default=10, help="Absolute (rescaled) total copy-number threshold above which a segment with f=0.5 is considered suspect for allelic split correction.")
     parser.add_argument("--allelic_resplit_focals_max_hets",  type=int,   default=10, help="Maximum number of HETs for a segment to be eligible for allelic split correction.")
@@ -130,6 +131,19 @@ def map_to_cn(args):
         message(e)
         message("Using empty dataframe instead.")
         abs_seg = pd.DataFrame(None, columns=list(abs_dtypes.keys()))
+
+    # Without an ABSOLUTE segtab we recompute total copy number de novo from the copy
+    # ratios, purity and ploidy. The normalization below pins the segment-length-weighted
+    # mean copy number to the supplied ploidy; flag the WGD caveat explicitly.
+    has_absolute = abs_seg.shape[0] > 0
+    if not has_absolute:
+        message(
+            "WARNING: no ABSOLUTE segtab provided; recomputing total copy number de novo. "
+            "Copy ratios are normalized so that the segment-length-weighted mean copy number "
+            "equals the supplied ploidy (sum(W * CN) = ploidy). This assumption can miss "
+            "whole-genome doubling: a WGD genome may be normalized to half its true integer "
+            "copy number."
+        )
 
     for col, dtype in abs_dtypes.items():
         if col in abs_seg.columns:
@@ -241,15 +255,16 @@ def map_to_cn(args):
     seg["CN.sigma"] = np.where(chr_ploidy > 0, seg["sigma.tau"] / delta / chr_ploidy, 0)
     seg["corrected_CN"] = seg.apply(lambda row: map_to_cluster(row["CN"], row["CN.sigma"]), axis=1)
 
-    r_corr = seg[["CN", "rescaled_total_cn"]].corr().loc["CN", "rescaled_total_cn"]
-    diff = np.abs(seg['CN'] - seg['rescaled_total_cn'])
-    message(f"Correlation between rescaled total copy number and ABSOLUTE output:       {r_corr:.3f}, "
-            f"median |diff| = {np.nanmedian(diff):.3f} ± {np.nanstd(diff):.3f}")
+    if has_absolute:
+        r_corr = seg[["CN", "rescaled_total_cn"]].corr().loc["CN", "rescaled_total_cn"]
+        diff = np.abs(seg['CN'] - seg['rescaled_total_cn'])
+        message(f"Correlation between rescaled total copy number and ABSOLUTE output:       {r_corr:.3f}, "
+                f"median |diff| = {np.nanmedian(diff):.3f} ± {np.nanstd(diff):.3f}")
 
-    c_corr = seg[["corrected_CN", "corrected_total_cn"]].corr().loc["corrected_CN", "corrected_total_cn"]
-    diff = np.abs(seg['corrected_CN'] - seg['corrected_total_cn'])
-    message(f"Correlation between corrected total copy number and ABSOLUTE output:      {c_corr:.3f}, "
-            f"median |diff| = {np.nanmedian(diff):.3f} ± {np.nanstd(diff):.3f}")
+        c_corr = seg[["corrected_CN", "corrected_total_cn"]].corr().loc["corrected_CN", "corrected_total_cn"]
+        diff = np.abs(seg['corrected_CN'] - seg['corrected_total_cn'])
+        message(f"Correlation between corrected total copy number and ABSOLUTE output:      {c_corr:.3f}, "
+                f"median |diff| = {np.nanmedian(diff):.3f} ± {np.nanstd(diff):.3f}")
 
     # RESCUE SEGMENTS
     # NOTE: This may (very likely) also "rescue" artifactual homozygous deletions.
@@ -270,6 +285,51 @@ def map_to_cn(args):
     seg.loc[new_segs, "total_HZ"] = (seg.loc[new_segs, "rescaled_total_cn"] == 0).astype(int)
     # extracted from default settings in the ABSOLUTE package
     seg.loc[new_segs, "total_amp"] = (seg.loc[new_segs, "rescaled_total_cn"] >= 7).astype(int)
+
+    def finalize_outputs(seg):
+        label = "computed de novo" if not has_absolute else "rescued"
+        message(f"Number of segments {label}: {seg['is_new'].sum()}")
+
+        def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
+            by = ["Chromosome", "Start.bp", "End.bp"]
+            contig_order = (
+                [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
+                + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
+            )
+            contig_order += list(sorted(set(index.get_level_values("Chromosome")) - set(contig_order)))
+            temp_df = pd.DataFrame(index=index).reset_index().astype({c: t for c, t in abs_dtypes.items() if c in index.names})
+            temp_df["Chromosome"] = pd.Categorical(temp_df["Chromosome"], categories=contig_order, ordered=True)
+            temp_df.sort_values(by=by, inplace=True)
+            temp_df = temp_df.astype({c: t for c, t in abs_dtypes.items() if c in temp_df.columns})
+            return pd.MultiIndex.from_frame(temp_df[index.names])
+
+        seg = seg.set_index(["Chromosome", "Start.bp", "End.bp"])
+        seg = seg.reindex(sort_genomic_positions(index=seg.index))
+        seg = seg.reset_index()
+        seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(np.where(chr_ploidy > 0, args.ploidy * chr_ploidy / args.normal_ploidy, 1))
+
+        good_rows = (seg["n_hets"] >= args.min_hets) | seg["n_hets"].isna()
+        good_rows &= (seg["n_probes"] >= args.min_probes) | seg["n_probes"].isna()
+        n = seg.shape[0] - np.sum(good_rows)
+        pct_genomic_drop = seg.loc[~good_rows, "W"].sum() * 100
+        print(f"Dropping {n}/{seg.shape[0]} (-{pct_genomic_drop:.6f}% of genome) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
+
+        seg = seg.loc[good_rows]
+        seg["W"] = seg["length"] / seg["length"].sum()
+
+        os.makedirs(args.outdir, exist_ok=True)
+
+        seg.loc[seg["is_new"]].reset_index()[["Chromosome", "Start.bp", "End.bp"]].to_csv(f"{args.outdir}/{args.sample}.rescued_intervals.{args.copy_num_type}.txt", sep="\t", index=False)
+        abs_seg_cols = [c for c in list(abs_dtypes.keys()) + extra_columns if c in seg.columns]
+        seg[abs_seg_cols].to_csv(f"{args.outdir}/{args.sample}.segtab.{args.copy_num_type}.completed.txt", sep="\t", index=False)
+        seg[["sample", "Chromosome", "Start.bp", "End.bp", "Segment_Mean", "rescaled_total_cn"]].to_csv(f"{args.outdir}/{args.sample}.IGV.seg.{args.copy_num_type}.completed.txt", sep="\t", index=False)
+
+    # Total copy-ratio mode infers no allelic split (the assumptions do not hold genome-
+    # wide) and has no ABSOLUTE allelic calls to recompute, so emit the total-CN columns
+    # and stop. Allelic mode continues to the allelic split and CCF estimation below.
+    if args.copy_num_type != "allelic":
+        finalize_outputs(seg)
+        return
 
     def wmode(values, weights):
         val = np.rint(values).astype(int)
@@ -913,41 +973,7 @@ def map_to_cn(args):
          | (seg.loc[schz_na, "cancer.cell.frac.a2"] < 1))
     ).astype(int)
 
-    message(f"Number of rescued segments: {new_segs.sum()}")
-
-    def sort_genomic_positions(index: pd.MultiIndex) -> pd.MultiIndex:
-        by = ["Chromosome", "Start.bp", "End.bp"]
-        contig_order = (
-            [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
-            + [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
-        )
-        contig_order += list(sorted(set(index.get_level_values("Chromosome")) - set(contig_order)))
-        temp_df = pd.DataFrame(index=index).reset_index().astype({c: t for c, t in abs_dtypes.items() if c in index.names})
-        temp_df["Chromosome"] = pd.Categorical(temp_df["Chromosome"], categories=contig_order, ordered=True)
-        temp_df.sort_values(by=by, inplace=True)
-        temp_df = temp_df.astype({c: t for c, t in abs_dtypes.items() if c in temp_df.columns})
-        return pd.MultiIndex.from_frame(temp_df[index.names])
-
-    seg = seg.set_index(["Chromosome", "Start.bp", "End.bp"])
-    seg = seg.reindex(sort_genomic_positions(index=seg.index))
-    seg = seg.reset_index()
-    seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(np.where(chr_ploidy > 0, args.ploidy * chr_ploidy / args.normal_ploidy, 1))
-
-    good_rows = (seg["n_hets"] >= args.min_hets) | seg["n_hets"].isna()
-    good_rows &= (seg["n_probes"] >= args.min_probes) | seg["n_probes"].isna()
-    n = seg.shape[0] - np.sum(good_rows)
-    pct_genomic_drop = seg.loc[~good_rows, "W"].sum() * 100
-    print(f"Dropping {n}/{seg.shape[0]} (-{pct_genomic_drop:.6f}% of genome) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
-
-    seg = seg.loc[good_rows]
-    seg["W"] = seg["length"] / seg["length"].sum()
-
-    os.makedirs(args.outdir, exist_ok=True)
-
-    seg.loc[seg["is_new"]].reset_index()[["Chromosome", "Start.bp", "End.bp"]].to_csv(f"{args.outdir}/{args.sample}.rescued_intervals.txt", sep="\t", index=False)
-    abs_seg_cols = [c for c in list(abs_dtypes.keys()) + extra_columns if c in seg.columns]
-    seg[abs_seg_cols].to_csv(f"{args.outdir}/{args.sample}.segtab.completed.txt", sep="\t", index=False)
-    seg[["sample", "Chromosome", "Start.bp", "End.bp", "Segment_Mean", "rescaled_total_cn"]].to_csv(f"{args.outdir}/{args.sample}.IGV.seg.completed.txt", sep="\t", index=False)
+    finalize_outputs(seg)
 
 
 if __name__ == "__main__":

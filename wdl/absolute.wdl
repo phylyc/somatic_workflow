@@ -220,11 +220,11 @@ task AbsoluteTask {
     }
 
     String output_dir = "."
-    String output_plot = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_plot.pdf"
-    String output_rdata = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE.RData"
-    String output_mode_res = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_mode.res.Rds"
-    String output_mode_tab = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_mode.tab.Rds"
-    String output_ssnv_mode_tab = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_SSNV.mode.res.Rds"
+    String output_plot = output_dir + "/" + sample_name + ".ABSOLUTE." + copy_ratio_type + "_plot.pdf"
+    String output_rdata = output_dir + "/" + sample_name + ".ABSOLUTE." + copy_ratio_type + ".RData"
+    String output_mode_res = output_dir + "/" + sample_name + ".ABSOLUTE." + copy_ratio_type + "_mode.res.Rds"
+    String output_mode_tab = output_dir + "/" + sample_name + ".ABSOLUTE." + copy_ratio_type + "_mode.tab.Rds"
+    String output_ssnv_mode_tab = output_dir + "/" + sample_name + ".ABSOLUTE." + copy_ratio_type + "_SSNV.mode.res.Rds"
 
     command <<<
         set +e
