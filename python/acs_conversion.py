@@ -14,7 +14,21 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="ModelSegmentsToAllelicCapSegConversion",
         description="""
-            Convert GATK ModelSegments output to AllelicCapSeg output. 
+            Convert a GATK ModelSegments segmentation (modelFinal.seg) into AllelicCapSeg
+            (ACS) format for ABSOLUTE. Per segment it emits total copy ratio scaled by
+            chromosomal ploidy (tau = chr_ploidy * 2^LOG2_COPY_RATIO_POSTERIOR_50), the
+            minor allele fraction f in [0, 0.5] (from MINOR_ALLELE_FRACTION_POSTERIOR_50;
+            snapped to 0.5 when MINOR_ALLELE_FRACTION_POSTERIOR_90 > --maf90_threshold),
+            the allelic copy ratios mu.minor = f*tau and mu.major = (1-f)*tau with
+            propagated sigmas, and a CNLOH label. Sex is handled per karyotype: a contig
+            with chromosomal ploidy 0 (e.g. chrY in a female) carries no copy-ratio signal
+            and its tau/f are NaN; haploid male X/Y are scaled by ploidy 1. Segments below
+            --min_hets / --min_probes are dropped.
+
+            A companion '<prefix>.acs.seg.skew' file is written for ABSOLUTE: skew =
+            2 / (1 + MEAN_BIAS) from the allele-fraction parameters when --af_parameters is
+            given, otherwise the sentinel -1.0 (meaning "no skew / disabled" in
+            total-copy-ratio mode).
         """,
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -25,7 +39,7 @@ def parse_args():
     parser.add_argument("--af_parameters",  type=str,                   help="Path to the GATK ModelSegments modelFinal.af.param output file.")
     parser.add_argument("--min_hets",       type=int,   default=0,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
     parser.add_argument("--min_probes",     type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
-    parser.add_argument("--maf90_threshold",type=float, default=0.49,   help="Threshold of 90% quantile for setting minor allele fraction to 0.5.")
+    parser.add_argument("--maf90_threshold",type=float, default=0.49,   help="Threshold of 90%% quantile for setting minor allele fraction to 0.5.")
     parser.add_argument("--sex",            type=str,   default="XXY",  help="Genotype sex of the patient for ploidy priors on X and Y chromosomes: {Female, Male, female, male, XX, XY, XXY, XYY, XXX, etc.}")
     parser.add_argument("--normal_ploidy",  type=int,   required=False, default=2, help="Normal/germline ploidy of that organism.")
     parser.add_argument("--verbose",        default=False,  action="store_true", help="Print information to stdout during execution.")

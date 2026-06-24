@@ -1,5 +1,15 @@
 .idea
-python/test_data/output/*
 local_validate_wdls.sh
 **.DS_Store**
 wdl/codegen/__pycache__/
+
+# python test suite
+# The synthetic ground-truth cohort under python/tests/synthetic/data/ is fully
+# regenerable (the test fixtures rebuild it into a temp dir each run) and is NOT
+# committed. Regenerate locally for inspection — see python/TESTING.md.
+python/tests/synthetic/data/
+.venv-test/
+.pytest_cache/
+python/**/__pycache__/
+python/.coverage
+python/tests/**/.pytest_cache/

@@ -27,8 +27,20 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="CalculateCancerCellFraction",
         description="""
-            Rescue SNVs / INDELs absent from ABSOLUTE ABS_MAF output by mapping them
-            onto the completed segtab and inferring a CCF posterior on the 0.01 grid.
+            Assign each somatic SNV / INDEL a cancer-cell-fraction (CCF) posterior on the
+            0.01 grid, given the sample's absolute copy-number segtab (from
+            map_to_absolute_copy_number) and --purity/--ploidy. Each variant is mapped onto
+            its segment to obtain the local copy number, then its observed VAF is converted
+            to a CCF posterior; outputs include the point estimate ccf_hat, the 95% interval
+            ccf_CI95_low/high, the full per-grid posterior, and detection-power columns.
+            Multiplicity (alt copies per carrying cell) is folded into the VAF->CCF mapping,
+            so a clonal multi-copy mutation still yields ccf ~ 1 (never > 1).
+
+            Variants are EXCLUDED if they cannot be placed on a segment, fall on MT, or have
+            no tumor coverage. Variants already present in --absolute_maf keep their ABSOLUTE
+            CCF; caller-only variants (--snv_maf / --indel_maf) are "rescued" (inferred here).
+            Unlike map_to_absolute's per-segment CCF, variant CCF is identifiable because VAF
+            directly encodes purity * ccf * multiplicity / local_copy_number.
         """,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )

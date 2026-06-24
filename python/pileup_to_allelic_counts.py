@@ -15,6 +15,11 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="PileupToAllelicCounts",
         description="""
+            Convert an allelic pileup plus a genotyped germline VCF into an
+            allelic-counts table (contig, position, ref_count, alt_count, ref, alt)
+            at the germline SNP loci shared by both inputs. Optionally restrict to
+            heterozygous sites, map nearby loci onto provided intervals, and
+            aggregate phased het counts per interval.
         """,
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter

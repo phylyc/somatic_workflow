@@ -22,21 +22,31 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="Genotyper",
         description="""
-            Genotyper is a script that calculates genotype likelihoods from allelic counts, 
-            while accounting for potential sample contamination, reference bias, and  
-            segment-specific minor allele fractions. It leverages allelic pileup data 
-            (from GATK GetPileupSummaries), allelic segmentation data (from GATK CalculateContamination
-            or GATK ModelSegments), and contamination estimates (from GATK CalculateContamination), 
-            to compute genotype likelihoods under a beta-binomial model. The script 
-            computes variant genotype correlations across samples as a consistency check.
+            Genotyper infers a patient's germline SNP genotypes JOINTLY from the allelic
+            pileups of all the patient's samples. Because the genotype is germline, each
+            site's call (0/0, 0/1, 1/1) is a property of the patient and is shared across
+            that patient's samples — it should not depend on which subset of samples is
+            supplied. Only biallelic SNVs from the --variant candidate list are genotyped
+            (multiallelic / indel / spanning candidates are skipped). The population allele
+            frequency carried in --variant is used as a per-site prior, so a common SNP
+            yields a higher variant-genotype likelihood than a rare one with the same reads.
+
+            It leverages allelic pileup data (from GATK GetPileupSummaries), allelic
+            segmentation (from GATK CalculateContamination or ModelSegments), and
+            contamination estimates (from GATK CalculateContamination) under a beta-binomial
+            model that accounts for contamination, reference bias, and segment-specific
+            minor allele fractions. Heterozygous sites are phased (0|1 vs 1|0) per
+            copy-ratio segment from allelic imbalance (not statistical haplotype phasing),
+            so the phase is recoverable only up to a per-segment global flip. Genotype
+            correlations across samples serve as a same-individual consistency check.
 
             Outputs include:
-                1) A VCF with genotype information for each patient,
-                2) Allelic count matrices for each allele,
-                3) Sample correlation matrix, and
-                4) (Optionally) sample pileups annotated with genotype likelihoods.
+                1) A single per-patient germline VCF with one (possibly phased) genotype per site,
+                2) Per-sample allelic count matrices (ref / alt / other_alt),
+                3) A sample correlation matrix, and
+                4) (Optionally) per-sample pileups annotated with genotype likelihoods.
 
-            Additional options allow filtering based on allele frequency, read depth, and 
+            Additional options allow filtering based on allele frequency, read depth, and
             error rate thresholds, as well as output formatting and parallelization.
         """,
         epilog="",
@@ -57,10 +67,10 @@ def parse_args():
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
     parser.add_argument("--min_allele_frequency",               type=float, default=0,      help="Minimum population allele frequency to consider a site.")
     parser.add_argument("-p", "--min_genotype_likelihood",      type=float, default=0.995,  help="Probability threshold for calling and retaining genotypes.")
-    parser.add_argument("-s", "--overdispersion",               type=float, default=10,     help="")
-    parser.add_argument("-l", "--ref_bias",                     type=float, default=1.05,   help="")
-    parser.add_argument("--min_error_rate",                     type=float, default=1e-3,   help="")
-    parser.add_argument("--max_error_rate",                     type=float, default=1e-2,   help="")
+    parser.add_argument("-s", "--overdispersion",               type=float, default=10,     help="Beta-binomial overdispersion (concentration) of the heterozygous allele-fraction model; higher values concentrate the expected fraction more tightly around the minor allele fraction.")
+    parser.add_argument("-l", "--ref_bias",                     type=float, default=1.05,   help="Reference-allele mapping bias lambda in f_obs = f / (f + (1 - f) * lambda); > 1 means the reference allele is over-represented.")
+    parser.add_argument("--min_error_rate",                     type=float, default=1e-3,   help="Lower bound on the per-site sequencing error rate (estimated from other_alt counts).")
+    parser.add_argument("--max_error_rate",                     type=float, default=1e-2,   help="Upper bound on the per-site sequencing error rate (estimated from other_alt counts).")
     parser.add_argument("--outlier_prior",                      type=float, default=1e-3,   help="Prior probability for a variant to be an outlier.")
     parser.add_argument("--phasing_log_ratio_cap",              type=float, default=10,     help="Maximum absolute log odds ratio to avoid outlier HETs dominating the phasing signal.")
     parser.add_argument("--phasing_sample_llr_threshold",       type=float, default=0.4,    help="Sample-level log likelihood ratio threshold of 0|1 vs 1|0 to consider a HET for consensus phasing.")
@@ -547,7 +557,7 @@ def join_vcfs(vcfs: list["VCF"], verbose=False):
         joint = copy(vcfs[0])
         df = pd.concat([vcf.df.reset_index() for vcf in vcfs])
         n_input_vars = df.shape[0]
-        df.drop_duplicates(subset=["contig", "position"], keep="first")
+        df = df.drop_duplicates(subset=["contig", "position"], keep="first")
         n_kept_vars = df.shape[0]
         if n_kept_vars < n_input_vars:
             print(f"    Dropping {n_input_vars - n_kept_vars} duplicate loci from multiple variant inputs. {n_kept_vars} loci remaining total.") if verbose else None
