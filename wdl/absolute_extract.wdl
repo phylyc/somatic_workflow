@@ -225,7 +225,7 @@ task Postprocess {
         Runtime runtime_params
     }
 
-    String this_sample_name = if defined(sample_name) then sample_name else basename(seg, ".segtab.txt")
+    String this_sample_name = if defined(sample_name) then sample_name else basename(seg, ".segtab.", copy_ratio_type, ".txt")
     String output_maf = this_sample_name + ".ABS_MAF." + copy_ratio_type + ".completed.txt"
     String output_segtab = this_sample_name + ".segtab." + copy_ratio_type + ".completed.txt"
     String output_segtab_igv = this_sample_name + ".IGV.seg." + copy_ratio_type + ".completed.txt"
