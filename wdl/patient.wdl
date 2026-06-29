@@ -41,6 +41,10 @@ struct Patient {
     File? snp_other_alt_counts
     File? snp_sample_correlation
     Float? snp_sample_correlation_min
+    String? ancestry_pred
+    Float? ancestry_prob
+    File? background_pca_table
+    File? pca_plot
     File? modeled_segments
 
     File? mask_vcf
@@ -97,6 +101,10 @@ workflow UpdatePatient {
         File? snp_other_alt_counts
         File? snp_sample_correlation
         Float? snp_sample_correlation_min
+        String? ancestry_pred
+        Float? ancestry_prob
+        File? background_pca_table
+        File? pca_plot
         File? modeled_segments
 
         File? mask_vcf
@@ -149,6 +157,10 @@ workflow UpdatePatient {
         snp_other_alt_counts: if defined(snp_other_alt_counts) then snp_other_alt_counts else patient.snp_other_alt_counts,
         snp_sample_correlation: if defined(snp_sample_correlation) then snp_sample_correlation else patient.snp_sample_correlation,
         snp_sample_correlation_min: if defined(snp_sample_correlation_min) then snp_sample_correlation_min else patient.snp_sample_correlation_min,
+        ancestry_pred: if defined(ancestry_pred) then ancestry_pred else patient.ancestry_pred,
+        ancestry_prob: if defined(ancestry_prob) then ancestry_prob else patient.ancestry_prob,
+        background_pca_table: if defined(background_pca_table) then background_pca_table else patient.background_pca_table,
+        pca_plot: if defined(pca_plot) then pca_plot else patient.pca_plot,
         modeled_segments: if defined(modeled_segments) then modeled_segments else patient.modeled_segments,
 
         mask_vcf: if defined(mask_vcf) then mask_vcf else patient.mask_vcf,

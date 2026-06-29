@@ -1,0 +1,25 @@
+# PhylogicNDT
+
+[PhylogicNDT](https://github.com/broadinstitute/PhylogicNDT) is a Bayesian framework for analyzing the clonal architecture and evolutionary history of tumors. Given cancer cell fractions of somatic mutations (from ABSOLUTE), it clusters co-occurring mutations into clonal populations, infers phylogenetic tree topologies relating those clones, and estimates the relative timing of somatic events (both point mutations and focal copy-number alterations)
+
+## Goal
+
+This stage performs multi-sample clonal clustering, phylogenetic reconstruction, and molecular timing using somatic variants and ABSOLUTE-informed copy-number context. In this workflow, the implementation additionally supports focal CNAs as timing events. Events with strong local support can be timed directly; events with insufficient support may still be retained as prior-only or otherwise non-estimable timing events rather than being forced into an overconfident posterior.
+
+## When it runs
+
+PhylogicNDT is most useful after a successful ABSOLUTE selection/extraction step. In practice, it is part of the second-pass workflow after the ABSOLUTE manual review.
+
+## Outputs
+
+Key outputs include:
+
+- `phylogic_report` — HTML report with tree visualizations and cluster summaries
+- `phylogic_sif_file` — sample information file used as PhylogicNDT input
+- `phylogic_growth_rates` — estimated clonal growth rates (if timepoints provided)
+- `phylogic_growth_rate_plot` — growth rate visualization
+- `phylogic_timing_report` — molecular timing report
+- `phylogic_timing_table` — timing estimates per event
+- `phylogic_timing_graph` — timing DAG visualization
+- `phylogic_timing_comparison` — cross-sample timing comparison
+- `phylogic_timing_wgd_supporting_events` — events supporting whole-genome doubling timing

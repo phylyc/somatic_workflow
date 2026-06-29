@@ -1,5 +1,12 @@
 # SNV calling
 
+The SNV workflow is organized around four ideas:
+
+1. call likely short variants in each sample
+2. use those calls to seed multi-sample calling
+3. apply both statistical and hard filters
+4. annotate the final somatic calls
+
 ## Goal
 
 Starting from aligned reads and reference resources, this stage produces filtered and annotated somatic SNV/indel calls and related germline-aware outputs.
@@ -14,9 +21,9 @@ Main inputs include:
 - germline resource
 - common germline alleles
 - SNV panel of normals
-- optional force-call alleles
-- optional matched normal sample designation
-- optional realignment index image
+- force-call alleles
+- matched normal sample designation
+- realignment index image
 
 ## Outputs
 
@@ -27,18 +34,19 @@ Key outputs from this part of the workflow include:
 - gVCF
 - filtered/annotated mutation calls
 - rare germline allele set used downstream
-- mutation-support BAM/BAM index when enabled
+- mutation-support BAM + BAI when enabled
 
-## User-facing method summary
+## Panel of normals
+Recommended: Use **CreateSNVPanelOfNormals** workflow to create `snv_panel_of_normals` and `snv_panel_of_normals_idx`. This is needed for the SNV workflow
 
-The SNV workflow is organized around four ideas:
+    -   Dockstore: <https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/CreateSNVPanelOfNormals:master?tab=info>
+    -   WDL: <https://github.com/phylyc/somatic_workflow/blob/master/wdl/resources/create_snv_pon.wdl>
 
-1. call likely short variants in each sample
-2. use those calls to seed multi-sample calling
-3. apply both statistical and hard filters
-4. annotate the final somatic calls
+## Force calling and filtering
 
 A Mutect1-based callset is used as an additional source of candidate alleles for force-calling with Mutect2. This is intentional: Mutect1 and Mutect2 have different behavior, and the force-call strategy helps recover variants that are obvious in the reads but may be missed by Mutect2 graph assembly in some regions.
+
+An additional force-calling resource may be supplied, for example a known mutation set or a cancer hotspot resource (see docs/10_resources.md)
 
 Downstream filtering uses information from:
 
@@ -54,25 +62,18 @@ Downstream filtering uses information from:
 
 If a matched normal is available, it improves filtering and interpretation. If no matched normal exists, the workflow still runs in tumor-only mode.
 
-## Force-calling resource
+## Filtering parameters users are most likely to adjust
 
-A force-calling resource may be supplied, for example a known mutation set or a cancer hotspot resource.
-
-`<TODO_FORCE_CALL_RESOURCE_LINK>`
-
-## Parameters users are most likely to adjust
-
-These are the main SNV-related settings that ordinary users may need to touch:
+These are the main SNV-related settings that users may wish to change:
 
 - `Parameters.hard_filter_min_total_depth`
 - `Parameters.hard_filter_min_total_alt_count`
 - `Parameters.min_read_depth`
 - `Parameters.mutect2_pcr_indel_qual`
 - `Parameters.mutect2_pcr_snv_qual`
-- `Parameters.run_*` toggles for enabling/disabling specific workflow blocks
 
 Most other settings should be treated as advanced.
 
-## Notes for mixed platforms
+## Important caveats for mixed platforms
 
 When combining data from different platforms, SNV calling can still be informative, but platform-specific error behavior matters. In those settings, `mutect2_pcr_snv_qual` may need to be adapted to the effective mixed-platform error profile.

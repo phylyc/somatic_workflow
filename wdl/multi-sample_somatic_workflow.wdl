@@ -26,6 +26,7 @@ import "filter_segments.wdl" as fs
 import "absolute.wdl" as abs
 import "absolute_extract.wdl" as abs_extract
 import "phylogicndt.wdl" as phylogicndt
+import "call_ancestry.wdl" as can
 
 
 workflow MultiSampleSomaticWorkflow {
@@ -573,11 +574,28 @@ workflow MultiSampleSomaticWorkflow {
                 snp_sample_correlation_min = GenotypeVariants.sample_correlation_min
         }
     }
+    if (args.run_ancestry_calling && defined(AddGVCFtoPatient.updated_patient)) {
+        call can.CallAncestry {
+            input:
+                patient = select_first([AddGVCFtoPatient.updated_patient, cnv_patient]),
+                genome_build = args.genome_build,
+                runtime_collection = runtime_collection
+        }
+
+        call p.UpdatePatient as AddAncestryCallsToPatient {
+            input:
+                patient = select_first([AddGVCFtoPatient.updated_patient, cnv_patient]),
+                ancestry_pred = CallAncestry.ancestry_pred,
+                ancestry_prob = CallAncestry.ancestry_prob,
+                background_pca_table = CallAncestry.background_pca_table,
+                pca_plot = CallAncestry.pca_plot
+        }
+    }
 
     if (args.run_model_segments) {
         call ms.ModelSegments {
             input:
-                patient = select_first([AddGVCFtoPatient.updated_patient, cnv_patient]),
+                patient = select_first([AddAncestryCallsToPatient.updated_patient, cnv_patient]),
                 args = args,
                 runtime_collection = runtime_collection,
         }
@@ -588,7 +606,7 @@ workflow MultiSampleSomaticWorkflow {
     # Only update here so Funcotator can run in parallel to CNV workflow.
     call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
         input:
-            patient = select_first([ModelSegments.updated_patient, AddGVCFtoPatient.updated_patient, cnv_patient]),
+            patient = select_first([ModelSegments.updated_patient, AddAncestryCallsToPatient.updated_patient, cnv_patient]),
             annotated_somatic_variants = annot_som_var,
             annotated_somatic_variants_idx = annotated_variants_idx,
     }
