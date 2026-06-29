@@ -1,6 +1,6 @@
 # Multi-sample somatic variant discovery (GATK4+)
 The MultiSampleSomaticWorkflow (MSSW) is a pipeline for somatic analysis of tissue or liquid biopsy samples from cancer patients. The modality of the data is assumed to be DNA, supporting WES, WGS, and panel sequencing data.
-This repository contains a WDL (Workflow Description Language) workflow for performing multi-sample somatic variant calling using GATK4 on WES/WGS data. The workflow covers preprocessing, single nucleotide variant (SNV) calling, copy number variation (CNV) calling, and clonal analysis.
+This repository contains a WDL (Workflow Description Language) workflow using GATK4. The workflow covers preprocessing, single nucleotide variant (SNV) calling, copy number variation (CNV) calling, and clonal analysis.
 
 
 ## Why multi-sample analysis?
@@ -9,88 +9,41 @@ Multi-sample analysis improves sensitivity by borrowing evidence across samples 
 
 ## Quickstart
 1) **Import the workflow**:
-   a) The workflow is available on [Dockstore](https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/MultiSampleSomaticWorkflow:master) to import into e.g. a [Terra](https://app.terra.bio/) workspace.
-   b) Alternatively, clone this repository to run the workflow locally using [Cromwell](https://cromwell.readthedocs.io/en/stable/):
-2) **Prepare inputs**: Prepare an input json file as `multi-sample_somatic_workflow.inputs.json`. See the table describing minimal inputs below. See `docs/inputs.md` for a template. For Terra, upload the json file under the INPUTS tab on the Terra workflow page to fill out the inputs.
+   - The workflow is available on [Dockstore](https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/MultiSampleSomaticWorkflow:master) to import into e.g. a [Terra](https://app.terra.bio/) workspace.
+   - Alternatively, clone this repository to run the workflow locally using [Cromwell](https://cromwell.readthedocs.io/en/stable/)
+2) **Prepare inputs**: Prepare an input json file. See `docs/inputs.md` for a full description of inputs and for a minimal run template. For Terra, upload the json file under the INPUTS tab on the Terra workflow page to fill out the inputs (or fill out manually).
 3) **Run 1**: Run the full workflow - CNV calling, SNV calling and Clonal Analysis with ABSOLUTE. If running locally using Cromwell:
    ```bash
       java -jar cromwell.jar run multi-sample_somatic_workflow.wdl --inputs multi-sample_somatic_workflow.inputs.json
    ```
-4) **Manual review**: ABSOLUTE outputs multiple possible solutions (purity and ploidy estimates) per sample. These solutions can be found in the `absolute_acr_plot` output pdf. Review all solutions manually and select one per sample to pass into `Cache.absolute_solution`. See `docs/absolute-review-and-rerun.md` for a full guide.
-5) **Populate cache inputs**: Prepare an updated version of the input json file with Cache inputs added. For Terra, upload this json under the INPUTS tab on the Terra workflow page to fill out the inputs.
+4) **Manual review**: ABSOLUTE outputs multiple possible solutions (purity and ploidy estimates) per sample. These solutions can be found in the `absolute_acr_plot` output pdf. Review all solutions manually and select one per sample to pass into `Cache.absolute_solution`. See `docs/06_absolute-review-and-rerun.md` for a full guide.
+5) **Populate cache inputs**: Prepare an updated version of the input json file with Cache inputs added. For Terra, upload this json under the INPUTS tab on workflow page to fill out the inputs.
 6) **Run 2**: Run the workflow again with `Cache.absolute_solution` + cached outputs to complete ABSOLUTE extraction and downstream clonal analysis.
-7) **Understanding outputs**: Refer to docs/outputs.md for a guide on reviewing and understanding outputs.
+7) **Understanding outputs**: Refer to `docs/03_outputs.md` for a guide on reviewing and understanding outputs.
 
-> For a comprehensive understanding of the workflow:
+**For a comprehensive understanding of the workflow:**
 1) First, please take a look at the Workflow Structure section below.
-2) Please refer to the `docs` folder, starting with `docs/getting-started.md`
+2) Please refer to the `docs` folder, starting with `docs/00_getting-started.md`
 
 
 ## Basic concepts
 **Patient → samples → runs.** A patient has ≥1 sample(s), and a sample may have multiple sequencing runs. Runs are grouped by `sample_names` which are inferred from bam read group names if not provided. Matched normal optional.
 
+## Common troubleshooting strategies and suggestions
 
-## Inputs (selected)
-> Below are the minimum inputs to run the workflow. See docs/inputs.md for a template json
-
-### A) Core input (`MultiSampleSomaticWorkflow`)
-
-| Name                                        | Type             | Required | Notes                                                                                     |
-| ------------------------------------------- |------------------| :------: |-------------------------------------------------------------------------------------------|
-| `patient_id`                                | String           |     ✓    | Label used across outputs                                                                 |
-| `sex`                                       | String?          |          | “XX” or “XY”                                                                              |
-| `sample_names`                              | Array\[String]?  |          | Groups runs into samples; if omitted, inferred from BAMs                                  |
-| `timepoints`                                | Array\[Int]?     |          | Ordinal or days for phylogenetic timing                                                   |
-| `bams` / `bais`                             | Array\[File]+    |     ✓    | BAMs and BAI indices (per run)                                                            |
-| `target_intervals`                          | Array\[File]+    |     ✓    | WES padded targets **or** WGS binned genomic intervals (prefer blacklist-filtered)        |
-| `annotated_target_intervals`                | Array\[File]?    |          | Targets with GC, mappability, optional segdups                                            |
-| `cnv_panel_of_normals`                      | Array\[File]?    |          | If unavailable for a platform, point to **0-byte** file to fall back to annotated targets |
-| `is_paired_end`                             | Array\[Boolean]? |          | Avoids double-counting for short cfDNA inserts                                            |
-| `use_sample_for_tCR` / `use_sample_for_aCR` | Array\[Boolean]? |          | Choose samples contributing to tCR/aCR estimation                                         |
-| `normal_sample_names`                       | Array\[String]?  |          | First entry used as the matched normal (choose highest coverage if known)                 |
-
-### B) Reference data (`Files`)
-
-| Name                                                      | Type    | Required | Notes                                                                                                       |
-| --------------------------------------------------------- | ------- | :------: |-------------------------------------------------------------------------------------------------------------|
-| `interval_list` / `interval_lists` / `interval_blacklist` | File(s) |          | Short-variant calling intervals (apply blacklist); if not provided, SNV are called across the whole genome. |
-| `ref_fasta` / `_index` / `_dict`                          | File    |     ✓    | Reference genome                                                                                            |
-| `force_call_alleles` / `_idx`                             | File?   |          | COSMIC/driver sites to force-call                                                                           |
-| `snv_panel_of_normals` / `_idx` (+ v4.1 variants)         | File?   |          | Platform-specific artifact PoN                                                                              |
-| `germline_resource` / `_idx` (+ v4.1 variants)            | File?   |          | gnomAD with AF for filtering                                                                                |
-| `common_germline_alleles` / `_idx`                        | File?   |          | Common biallelic SNPs for aCR + contamination                                                               |
-| `realignment_bwa_mem_index_image`                         | File?   |          | For realignment filter (e.g., hg38)                                                                         |
-| `funcotator_transcript_list`                              | File?   |          | Transcript whitelist for annotation                                                                         |
-| `funcotator_data_sources_tar_gz`                          | File?   |          | If omitted, downloaded automatically (much slower)                                                          |
-
-### C) Workflow Parameters (`Parameters`)
-
-| Name                                                      | Type  | Required | Notes                                                                                                                         |
-| --------------------------------------------------------- |-------| :------: |-------------------------------------------------------------------------------------------------------------------------------|
-| `total_mean_read_depth` | Int   |          | Approximate total mean read depth across all samples (used to dynamically scale scattter-gather shard number for SNV calling) |  |
-
-
-## Outputs (by level)
-> See docs/outputs.md for full output table
-
-**Patient**: somatic VCF, filtering stats, modeled segments, clonal reports.  
-**Sample**: harmonized counts, contamination table, segmentation plots, purity/ploidy.  
-**Shard**: raw Mutect2 calls/stats for debugging.
-
-
-## Troubleshooting
-
-**A few Mutect2 shards failed while most succeeded**
+### A few Mutect2 shards failed while most succeeded
 - Retry problematic shards with more memory: set `Cache.high_mem_shards` to the list of shard IDs and re-run (call-caching will reuse prior successes if enabled).
 - If needed, increase `Parameters.mutect2_high_mem_factor` (e.g., 3).
 - As a last resort, skip shards with `Cache.skip_shards` (acknowledging lost calls in those regions).
 
-**Mutect2 consideration for complex regions**
+Also see `docs/09_failure-recovery.md`
+
+### Mutect2 consideration for complex regions
 - Mutect2 `use_linked_de_bruijn_graph`, while increasing sensitivity, has trouble calling variants in complex regions. It is strongly recommended (necessary) to use it together with `recover_all_dangling_branches` (both turned on by default). Pre-calling with Mutect1 also helps.
 
-**Other issues**
+### Other issues
 - For assistance running workflows on GCP or locally, refer to the [GATK tutorial](https://gatk.broadinstitute.org/hc/en-us/articles/360035530952).
-- Access necessary reference and resources bundles via the [GATK Resource Bundle](https://gatk.broadinstitute.org/hc/en-us/articles/360036212652).
+- Access necessary reference and resources bundles via the [GATK Resource Bundle](https://gatk.broadinstitute.org/hc/en-us/articles/360035890811-Resource-bundle). Also see `docs/10_resources.md`.
 
 
 
@@ -134,28 +87,27 @@ The workflow is organized into the following main tasks:
   - **5.2a**: Rescue dropped segments and SNVs.
 - **5.3 PhylogicNDT**: Build phylogenetic trees from all samples, perform growth kinetics, and timing analysis.
 
+### 6. Ancestry Calling
+- Infer the patient's genetic ancestry from the genotyped gVCF. Runs PCA against reference populations and reports the most likely ancestry assignment with a confidence probability. Supports hg38 and hg19.
+
 Please remember to always review the intermediate results to ensure that the final results are as expected. Inappropriate filtering or parameter settings can lead to misleading output.
 
-
 ## Runtime
-Runtime parameters are optimized for implementations on Google Cloud Platform (GCP) and HPC cluster with SLURM scheduler and for applications to whole exome sequencing data. Provide RAM/disk for Mutect2/CNV steps (see docs/runtime.md).
+Runtime parameters are optimized for implementations on Google Cloud Platform (GCP) and HPC cluster with SLURM scheduler and for applications to whole exome sequencing data. Provide RAM/disk for Mutect2/CNV steps.
 
 
 ## FAQ
 **Q: Can I run tumor-only (no matched normal)?**
-A: Yes, Mutect1/2 and CNV tumor-only calling are supported. Expect more rare germline calls in the somatic SNV call set and consider stronger filtering (e.g. GERMQ >= 40) for SNV burden tests. 
+- Yes, Mutect1/2 and CNV tumor-only calling are supported. Expect more rare germline calls in the somatic SNV call set and consider stronger filtering (e.g. GERMQ >= 40) for SNV burden tests. 
 
 **Q: No CNV panel of normals (PoN) for my sequencing platform?**
-A: Provide a **0-byte** file for that entry. The workflow will fall back to `annotated_target_intervals` (using gc-content) for denoising. This is still provides decent results for WGS samples, but WES samples tend to have more batch structure. 
+- Provide a **0-byte** file for that entry. The workflow will fall back to `annotated_target_intervals` (using gc-content) for denoising. This is still provides decent results for WGS samples, but WES samples tend to have more batch structure. 
 
-**Q: My targeted panels differ across samples—OK?**
-A: Harmonization intersects targets across samples and mixed panels reduce effective target space. Prefer consistent panels for multi-sample CNV detection.
+**Q: My targeted panels differ across samples. Is this OK?**
+- Harmonization intersects targets across samples and mixed panels reduce effective target space. Prefer consistent panels for multi-sample CNV detection. Using highly dissimilar panels across samples will still work, but might lead to unreliable CNV calls and loss of SNV calls in regions that are not common between the panels.
 
 
 ## Software version requirements :
 - **GATK**: Version 4.6.2.0. 
 - **Cromwell**: Tested successfully on version 86.
 - **Docker**: Docker tags listed in `docker/`.
-
-
-## Citation / License / Contributing
