@@ -1,15 +1,5 @@
 # Supported use cases
 
-## Primary supported modes
-
-The workflow is designed primarily for:
-
-- multi-sample tumor-only whole-exome sequencing
-- multi-sample tumor-only whole-genome sequencing
-- matched tumor-normal analysis for the same settings
-
-Matched normals improve results, but they are not required. Tumor-only analysis is a first-class mode and is expected to yield sensible results.
-
 ## Assay-specific notes
 
 ### Whole-exome sequencing
@@ -51,7 +41,3 @@ Examples:
 - ULP WGS + WES for the same biospecimen: useful in some contexts, but often one modality should be excluded from specific copy-ratio calculations
 
 For SNV calling, mixed platforms can still be useful, but error-model differences matter. In such cases, consider adjusting `Parameters.mutect2_pcr_snv_qual` and related settings appropriately.
-
-## Current framing
-
-The goal is a production-ready best-practice workflow. In practice, users should still regard it as a research workflow and review intermediate outputs carefully.

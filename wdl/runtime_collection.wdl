@@ -50,6 +50,7 @@ struct RuntimeCollection {
     Runtime create_cnv_panel
     Runtime create_mutect2_panel
     Runtime select_af_only_from_vcf
+    Runtime ancestry
 }
 
 
@@ -67,6 +68,7 @@ workflow DefineRuntimeCollection {
         String python_docker = "civisanalytics/datascience-python:8.0.1"  # @sha256:3482b19792546214a6952b369472c9d4d50d60b3a38300127ce346b7bab5fd51
         String absolute_docker = "phylyc/absolute:1.6"
         String phylogicndt_docker = "phylyc/phylogicndt:1.2" # @sha256:1140b8fef6e5198008b57b5577e4a119fe96bfb0c681b17bcd1716359d4ce346
+        String ancestry_docker = "us.gcr.io/tag-public/peddy-analysis:v1"
         File? gatk_override
         Int preemptible = 1
         Int max_retries = 1
@@ -117,6 +119,10 @@ workflow DefineRuntimeCollection {
         # gatk (picard): ReorderSam
         Int mem_reorder_sam = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 2048
         Int time_reorder_sam = 60
+
+        # peddy: Ancestry calling
+        Int mem_ancestry = 1024
+        Int time_ancestry = 10
 
         #######################################################################
         # CNV workflow
@@ -906,6 +912,18 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime ancestry = {
+        "docker": ancestry_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_ancestry + mem_machine_overhead,
+        "command_mem": mem_ancestry,
+        "runtime_minutes": time_startup + time_ancestry,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     RuntimeCollection runtime_collection = {
         "get_tumor_sample_names": get_tumor_sample_names,
         "get_sample_name": get_sample_name,
@@ -957,6 +975,7 @@ workflow DefineRuntimeCollection {
         "create_cnv_panel": create_cnv_panel,
         "create_mutect2_panel": create_mutect2_panel,
         "select_af_only_from_vcf": select_af_only_from_vcf,
+        "ancestry": ancestry
     }
 
     output {

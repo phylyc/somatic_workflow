@@ -31,6 +31,7 @@ struct WorkflowArguments {
     Boolean run_variant_annotation_scattered
     Boolean run_model_segments
     Boolean run_clonal_decomposition
+    Boolean run_ancestry_calling
 
     Boolean keep_germline
     Boolean compress_output
@@ -170,6 +171,7 @@ workflow DefineWorkflowArguments {
         Boolean run_variant_annotation_scattered = false
         Boolean run_model_segments = true
         Boolean run_clonal_decomposition = true
+        Boolean run_ancestry_calling = true
 
         Boolean keep_germline = true
         Boolean compress_output = true
@@ -407,6 +409,7 @@ workflow DefineWorkflowArguments {
         run_variant_annotation_scattered: run_variant_annotation_scattered,
         run_model_segments: run_model_segments,
         run_clonal_decomposition: run_clonal_decomposition,
+        run_ancestry_calling: run_ancestry_calling,
 
         keep_germline: keep_germline,
         compress_output: compress_output,

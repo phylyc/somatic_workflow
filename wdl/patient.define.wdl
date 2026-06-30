@@ -100,6 +100,12 @@ workflow DefinePatient {
         File? snp_alt_counts
         File? snp_other_alt_counts
         File? snp_sample_correlation
+        # TODO: ADD peddy file names here
+        # DONE
+        String? ancestry_pred
+        Float? ancestry_prob
+        File? background_pca_table
+        File? pca_plot
 
         File? mask_vcf
         File? mask_vcf_idx
@@ -336,6 +342,10 @@ workflow DefinePatient {
         mask_vcf: mask_vcf,
         mask_vcf_idx: mask_vcf_idx,
         mask_name: mask_name,
+        ancestry_pred: ancestry_pred,
+        ancestry_prob: ancestry_prob,
+        background_pca_table: background_pca_table,
+        pca_plot: pca_plot
     }
 
     call p_update_sh.UpdateShards {
