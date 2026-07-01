@@ -35,8 +35,6 @@ GATK tools.
   Pierre-Jean M, Rigaill G. New efficient algorithms for multiple change-point
   detection with kernels. 2016. hal-01413230v2.
   <https://hal.science/hal-01413230v2>
-- **GATK** (CollectReadCounts / DenoiseReadCounts / ModelSegments) — GATK (v4.6.x),
-  Broad Institute. <https://github.com/broadinstitute/gatk>
 
 ## Purity, ploidy and absolute copy number — ABSOLUTE
 
