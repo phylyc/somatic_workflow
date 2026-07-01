@@ -3,6 +3,29 @@ The MultiSampleSomaticWorkflow (MSSW) is a pipeline for somatic analysis of tiss
 This repository contains a WDL (Workflow Description Language) workflow using GATK4. The workflow covers preprocessing, single nucleotide variant (SNV) calling, copy number variation (CNV) calling, and clonal analysis.
 
 
+## 📖 Documentation
+Full documentation is published as a browsable site (with sidebar navigation and search):
+
+**➡️ https://phylyc.github.io/somatic_workflow/**
+
+You can also read the same pages directly in the [`docs/`](docs/) folder:
+
+| Page | What it covers |
+| --- | --- |
+| [Getting started](docs/00_getting-started.md) | First-run walkthrough and orientation |
+| [Supported use cases](docs/01_supported-use-cases.md) | What data and scenarios are supported |
+| [Inputs](docs/02_inputs.md) | Full input reference and minimal run template |
+| [Outputs](docs/03_outputs.md) | Reviewing and understanding outputs |
+| [CNV calling](docs/04_cnv-calling.md) | Copy number variation calling details |
+| [SNV calling](docs/05_snv-calling.md) | Single nucleotide variant calling details |
+| [ABSOLUTE review and rerun](docs/06_absolute-review-and-rerun.md) | Manual solution selection and re-run |
+| [PhylogicNDT](docs/07_phylogicndt.md) | Phylogenetic and clonal dynamics analysis |
+| [Ancestry calling](docs/08_ancestry-calling.md) | Genetic ancestry inference |
+| [Failure recovery](docs/09_failure-recovery.md) | Recovering from failed shards/tasks |
+| [Reference resources](docs/10_resources.md) | Reference and resource bundles |
+| [References](docs/11_references.md) | Citations for underlying tools |
+
+
 ## Why multi-sample analysis?
 Multi-sample analysis improves sensitivity by borrowing evidence across samples from the same patient. This is especially useful in low-purity settings and for subclonal variants that may be weak in one sample but clearer in another.
 

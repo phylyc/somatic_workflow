@@ -13,3 +13,6 @@ python/tests/synthetic/data/
 python/**/__pycache__/
 python/.coverage
 python/tests/**/.pytest_cache/
+
+# MkDocs build output
+/site/
