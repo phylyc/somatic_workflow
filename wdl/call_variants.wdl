@@ -102,16 +102,16 @@ workflow CallVariants {
         if (length(scattered_intervals_for_variant_calling_m1) > 1) {
             # Index of the matched normal within patient.samples; its shard-subset bam
             # (first sequencing run) is reused as the normal for every tumor sample.
-            # Computed once, by name.
-            if (defined(patient.matched_normal_sample)) {
-                String mn_name = select_first([patient.matched_normal_sample]).name
-                scatter (idx in range(length(patient.samples))) {
-                    if (patient.samples[idx].name == mn_name) {
-                        Int mn_idx_maybe = idx
-                    }
+            # Keep the index collection always defined so tumor-only runs don't require
+            # conditionally-created values across nested scatter/conditional boundaries.
+            Boolean has_matched_normal_m1 = defined(patient.matched_normal_sample)
+            String mn_name = if has_matched_normal_m1 then select_first([patient.matched_normal_sample]).name else ""
+            scatter (idx in range(length(patient.samples))) {
+                if (has_matched_normal_m1 && (patient.samples[idx].name == mn_name)) {
+                    Int mn_idx_maybe = idx
                 }
-                Int matched_normal_idx = select_all(mn_idx_maybe)[0]
             }
+            Array[Int] matched_normal_indices = select_all(mn_idx_maybe)
 
             scatter (interval_list in scattered_intervals_for_variant_calling_m1) {
                 # Mutect1
@@ -134,18 +134,6 @@ workflow CallVariants {
                     }
                 }
 
-                # Route the shard-subset bams directly by index instead of rebuilding
-                # SequencingRun/Patient structs per shard. SubsetToShard.output_bam is
-                # Array[Array[File]] indexed [sample][run], aligned with patient.samples.
-                if (defined(matched_normal_idx)) {
-                    Int mn_idx = select_first([matched_normal_idx])
-                    Array[File] mn_shard_bams = SubsetToShard.output_bam[mn_idx]
-                    Array[File] mn_shard_bais = SubsetToShard.output_bai[mn_idx]
-                    File shard_matched_normal_bam = mn_shard_bams[0]
-                    File shard_matched_normal_bai = mn_shard_bais[0]
-                    String shard_matched_normal_name = patient.samples[mn_idx].name
-                }
-
                 scatter (s_idx in range(length(patient.samples))) {
                     Sample m1_sample = patient.samples[s_idx]
                     Array[File] sample_shard_bams = SubsetToShard.output_bam[s_idx]
@@ -154,10 +142,15 @@ workflow CallVariants {
                         SequencingRun m1_seq_run = m1_sample.sequencing_runs[r_idx]
                         # Only supply matched normal sample for tumor samples as
                         # Mutect1 does not like the same bam for tumor and normal.
-                        if (m1_sample.is_tumor && defined(matched_normal_idx)) {
-                            String? this_normal_name = shard_matched_normal_name
-                            File? this_normal_bam = shard_matched_normal_bam
-                            File? this_normal_bai = shard_matched_normal_bai
+                        # SubsetToShard.output_bam/output_bai are Array[Array[File]]
+                        # indexed [sample][run], aligned with patient.samples.
+                        if (m1_sample.is_tumor && has_matched_normal_m1) {
+                            Int mn_idx = matched_normal_indices[0]
+                            Array[File] mn_shard_bams = SubsetToShard.output_bam[mn_idx]
+                            Array[File] mn_shard_bais = SubsetToShard.output_bai[mn_idx]
+                            String this_normal_name = patient.samples[mn_idx].name
+                            File this_normal_bam = mn_shard_bams[0]
+                            File this_normal_bai = mn_shard_bais[0]
                         }
                         call Mutect1 as ScatteredMutect1 {
                             input:
