@@ -98,21 +98,45 @@ task ParseInput {
     # them; bams is empty in the default mode, leaving just the base disk.
     Int disk = runtime_params.disk + if deep then ceil(size(bams, "GB")) + 1 else 0
 
+    # Terra may pass an empty optional array as defined([]). Normalize optional
+    # arrays and gate command-line expansion on non-empty values so repeated
+    # argparse flags are omitted instead of receiving a single empty string.
+    Array[String] sample_names_args = select_first([sample_names, []])
+    Array[String] normal_sample_names_args = select_first([normal_sample_names, []])
+    Array[Boolean] is_paired_end_args = select_first([is_paired_end, []])
+    Array[Boolean] use_for_tCR_args = select_first([use_for_tCR, []])
+    Array[Boolean] use_for_aCR_args = select_first([use_for_aCR, []])
+    Array[Int] timepoints_args = select_first([timepoints, []])
+    Array[File] target_intervals_args = select_first([target_intervals, []])
+    Array[File] annotated_target_intervals_args = select_first([annotated_target_intervals, []])
+    Array[File] cnv_panel_of_normals_args = select_first([cnv_panel_of_normals, []])
+
+    Boolean has_sample_names_args = length(sample_names_args) > 0
+    Boolean has_normal_sample_names_args = length(normal_sample_names_args) > 0
+    Boolean has_is_paired_end_args = length(is_paired_end_args) > 0
+    Boolean has_use_for_tCR_args = length(use_for_tCR_args) > 0
+    Boolean has_use_for_aCR_args = length(use_for_aCR_args) > 0
+    Boolean has_timepoints_args = length(timepoints_args) > 0
+    Boolean has_target_intervals_args = length(target_intervals_args) > 0
+    Boolean has_annotated_target_intervals_args = length(annotated_target_intervals_args) > 0
+    Boolean has_cnv_panel_of_normals_args = length(cnv_panel_of_normals_args) > 0
+    Boolean has_bams_args = length(bams) > 0
+
     command <<<
         set -euxo pipefail
         wget -O validate_inputs.py ~{script}
         python validate_inputs.py \
             --n_bams ~{n_bams} \
             --n_bais ~{n_bais} \
-            ~{true="--sample_names '" false="" defined(sample_names)}~{default="" sep="' --sample_names '" sample_names}~{true="'" false="" defined(sample_names)} \
-            ~{true="--normal_sample_names '" false="" defined(normal_sample_names)}~{default="" sep="' --normal_sample_names '" normal_sample_names}~{true="'" false="" defined(normal_sample_names)} \
-            ~{true="--is_paired_end '" false="" defined(is_paired_end)}~{default="" sep="' --is_paired_end '" is_paired_end}~{true="'" false="" defined(is_paired_end)} \
-            ~{true="--use_for_tCR '" false="" defined(use_for_tCR)}~{default="" sep="' --use_for_tCR '" use_for_tCR}~{true="'" false="" defined(use_for_tCR)} \
-            ~{true="--use_for_aCR '" false="" defined(use_for_aCR)}~{default="" sep="' --use_for_aCR '" use_for_aCR}~{true="'" false="" defined(use_for_aCR)} \
-            ~{true="--timepoints '" false="" defined(timepoints)}~{default="" sep="' --timepoints '" timepoints}~{true="'" false="" defined(timepoints)} \
-            ~{true="--target_intervals '" false="" defined(target_intervals)}~{default="" sep="' --target_intervals '" target_intervals}~{true="'" false="" defined(target_intervals)} \
-            ~{true="--annotated_target_intervals '" false="" defined(annotated_target_intervals)}~{default="" sep="' --annotated_target_intervals '" annotated_target_intervals}~{true="'" false="" defined(annotated_target_intervals)} \
-            ~{true="--cnv_panel_of_normals '" false="" defined(cnv_panel_of_normals)}~{default="" sep="' --cnv_panel_of_normals '" cnv_panel_of_normals}~{true="'" false="" defined(cnv_panel_of_normals)} \
+            ~{true="--sample_names '" false="" has_sample_names_args}~{default="" sep="' --sample_names '" sample_names_args}~{true="'" false="" has_sample_names_args} \
+            ~{true="--normal_sample_names '" false="" has_normal_sample_names_args}~{default="" sep="' --normal_sample_names '" normal_sample_names_args}~{true="'" false="" has_normal_sample_names_args} \
+            ~{true="--is_paired_end '" false="" has_is_paired_end_args}~{default="" sep="' --is_paired_end '" is_paired_end_args}~{true="'" false="" has_is_paired_end_args} \
+            ~{true="--use_for_tCR '" false="" has_use_for_tCR_args}~{default="" sep="' --use_for_tCR '" use_for_tCR_args}~{true="'" false="" has_use_for_tCR_args} \
+            ~{true="--use_for_aCR '" false="" has_use_for_aCR_args}~{default="" sep="' --use_for_aCR '" use_for_aCR_args}~{true="'" false="" has_use_for_aCR_args} \
+            ~{true="--timepoints '" false="" has_timepoints_args}~{default="" sep="' --timepoints '" timepoints_args}~{true="'" false="" has_timepoints_args} \
+            ~{true="--target_intervals '" false="" has_target_intervals_args}~{default="" sep="' --target_intervals '" target_intervals_args}~{true="'" false="" has_target_intervals_args} \
+            ~{true="--annotated_target_intervals '" false="" has_annotated_target_intervals_args}~{default="" sep="' --annotated_target_intervals '" annotated_target_intervals_args}~{true="'" false="" has_annotated_target_intervals_args} \
+            ~{true="--cnv_panel_of_normals '" false="" has_cnv_panel_of_normals_args}~{default="" sep="' --cnv_panel_of_normals '" cnv_panel_of_normals_args}~{true="'" false="" has_cnv_panel_of_normals_args} \
             --has_common_germline_alleles ~{has_common_germline_alleles} \
             --has_common_germline_alleles_idx ~{has_common_germline_alleles_idx} \
             --has_realignment_image ~{has_realignment_image} \
@@ -132,7 +156,7 @@ task ParseInput {
             --run_variant_annotation ~{run_variant_annotation} \
             --run_clonal_decomposition ~{run_clonal_decomposition} \
             ~{if deep then "--deep" else ""} \
-            ~{true="--bams '" false="" deep}~{default="" sep="' --bams '" bams}~{true="'" false="" deep} \
+            ~{true="--bams '" false="" deep && has_bams_args}~{default="" sep="' --bams '" bams}~{true="'" false="" deep && has_bams_args} \
             ~{if (deep && defined(ref_dict)) then "--ref_dict '" + ref_dict + "'" else ""}
     >>>
 
@@ -227,6 +251,8 @@ task PreprocessIntervals {
     }
 
     String preprocessed_intervals = "preprocessed.interval_list"
+    Array[File] interval_lists_args = select_first([interval_lists, []])
+    Boolean has_interval_lists_args = length(interval_lists_args) > 0
 
     command <<<
         set -e
@@ -236,7 +262,7 @@ task PreprocessIntervals {
             -R '~{ref_fasta}' \
             ~{"-L '" + interval_list + "'"} \
             ~{"-XL '" + interval_blacklist + "'"} \
-            ~{true="-L '" false="" defined(interval_lists)}~{default="" sep="' -L '" interval_lists}~{true="'" false="" defined(interval_lists)} \
+            ~{true="-L '" false="" has_interval_lists_args}~{default="" sep="' -L '" interval_lists_args}~{true="'" false="" has_interval_lists_args} \
             --bin-length ~{bin_length} \
             --padding ~{padding} \
             --interval-merging-rule OVERLAPPING_ONLY \

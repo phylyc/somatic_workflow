@@ -168,6 +168,15 @@ task GenotypeVariantsTask {
     String output_vcf = output_dir + "/" + patient_id + ".germline.vcf" + (if compress_output then ".gz" else "")
     String output_vcf_idx = output_vcf + (if compress_output then ".tbi" else ".idx")
 
+    Array[File] segmentation_tables_args = select_first([segmentation_tables, []])
+    Array[File] contamination_tables_args = select_first([contamination_tables, []])
+    Array[File] af_model_parameters_args = select_first([af_model_parameters, []])
+    Array[String] normal_sample_names_args = select_first([normal_sample_names, []])
+    Boolean has_segmentation_tables_args = length(segmentation_tables_args) > 0
+    Boolean has_contamination_tables_args = length(contamination_tables_args) > 0
+    Boolean has_af_model_parameters_args = length(af_model_parameters_args) > 0
+    Boolean has_normal_sample_names_args = length(normal_sample_names_args) > 0
+
     # Once "suffix" is implemented, we can use this over glob:
 #    Array[String] possible_sample_outputs = suffix(".likelihoods.pileup" + (if compress_output then ".gz" else ""), sample_names)
 #    Array[File]? output_sample_genotype_likelihoods = if save_sample_genotype_likelihoods then prefix(output_dir + "/", possible_sample_outputs) else None
@@ -183,10 +192,10 @@ task GenotypeVariantsTask {
             ~{"--sex " + sex} \
             ~{sep="' " prefix("--sample '", sample_names)}' \
             ~{sep="' " prefix("-P '", pileups)}' \
-            ~{true="-S '" false="" defined(segmentation_tables)}~{default="" sep="' -S '" segmentation_tables}~{true="'" false="" defined(segmentation_tables)} \
-            ~{true="-C '" false="" defined(contamination_tables)}~{default="" sep="' -C '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
-            ~{true="-L '" false="" defined(af_model_parameters)}~{default="" sep="' -L '" af_model_parameters}~{true="'" false="" defined(af_model_parameters)} \
-            ~{true="--normal_sample '" false="" defined(normal_sample_names)}~{default="" sep="' --normal_sample '" normal_sample_names}~{true="'" false="" defined(normal_sample_names)} \
+            ~{true="-S '" false="" has_segmentation_tables_args}~{default="" sep="' -S '" segmentation_tables_args}~{true="'" false="" has_segmentation_tables_args} \
+            ~{true="-C '" false="" has_contamination_tables_args}~{default="" sep="' -C '" contamination_tables_args}~{true="'" false="" has_contamination_tables_args} \
+            ~{true="-L '" false="" has_af_model_parameters_args}~{default="" sep="' -L '" af_model_parameters_args}~{true="'" false="" has_af_model_parameters_args} \
+            ~{true="--normal_sample '" false="" has_normal_sample_names_args}~{default="" sep="' --normal_sample '" normal_sample_names_args}~{true="'" false="" has_normal_sample_names_args} \
             --normal_to_tumor_weight ~{normal_to_tumor_weight} \
             --min_allele_frequency ~{min_allele_frequency} \
             --min_read_depth ~{min_read_depth} \

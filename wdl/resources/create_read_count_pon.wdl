@@ -53,8 +53,12 @@ workflow CreateReadCountPanelOfNormals {
 
     # todo: assert either normal_bams or normal_bams_file is defined
 
-    Array[File] non_optional_normal_bams = if defined(normal_bams) then select_first([normal_bams, []]) else read_lines(select_first([normal_bams_file, ""]))
-    Array[File] non_optional_normal_bais = if defined(normal_bais) then select_first([normal_bais, []]) else read_lines(select_first([normal_bais_file, ""]))
+    Array[File] normal_bams_args = select_first([normal_bams, []])
+    Array[File] normal_bais_args = select_first([normal_bais, []])
+    Boolean has_normal_bams_args = length(normal_bams_args) > 0
+    Boolean has_normal_bais_args = length(normal_bais_args) > 0
+    Array[File] non_optional_normal_bams = if has_normal_bams_args then normal_bams_args else read_lines(select_first([normal_bams_file, ""]))
+    Array[File] non_optional_normal_bais = if has_normal_bais_args then normal_bais_args else read_lines(select_first([normal_bais_file, ""]))
 
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:

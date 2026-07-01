@@ -303,7 +303,11 @@ task ModelSegmentsTask {
         Runtime runtime_params
     }
 
-    Int num_samples = if defined(denoised_copy_ratios) then length(select_first([denoised_copy_ratios])) else length(select_first([allelic_counts]))
+    Array[File] denoised_copy_ratios_args = select_first([denoised_copy_ratios, []])
+    Array[File] allelic_counts_args = select_first([allelic_counts, []])
+    Boolean has_denoised_copy_ratios_args = length(denoised_copy_ratios_args) > 0
+    Boolean has_allelic_counts_args = length(allelic_counts_args) > 0
+    Int num_samples = if has_denoised_copy_ratios_args then length(denoised_copy_ratios_args) else length(allelic_counts_args)
 
     String output_dir = "."
     String output_segments = prefix + ".segments"
@@ -323,8 +327,8 @@ task ModelSegmentsTask {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             ModelSegments \
             ~{"--segments '" + segments + "'"} \
-            ~{true="--denoised-copy-ratios '" false="" defined(denoised_copy_ratios)}~{default="" sep="' --denoised-copy-ratios '" denoised_copy_ratios}~{true="'" false="" defined(denoised_copy_ratios)} \
-            ~{true="--allelic-counts '" false="" defined(allelic_counts)}~{default="" sep="' --allelic-counts '" allelic_counts}~{true="'" false="" defined(allelic_counts)} \
+            ~{true="--denoised-copy-ratios '" false="" has_denoised_copy_ratios_args}~{default="" sep="' --denoised-copy-ratios '" denoised_copy_ratios_args}~{true="'" false="" has_denoised_copy_ratios_args} \
+            ~{true="--allelic-counts '" false="" has_allelic_counts_args}~{default="" sep="' --allelic-counts '" allelic_counts_args}~{true="'" false="" has_allelic_counts_args} \
             ~{"--normal-allelic-counts '" + normal_allelic_counts + "'"} \
             ~{"--output-prefix '" + prefix + "'"} \
             --genotyping-base-error-rate ~{genotyping_base_error_rate} \

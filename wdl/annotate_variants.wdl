@@ -191,12 +191,22 @@ task Funcotate {
     String output_file_index = output_file +  if compress_output then ".tbi" else ".idx"
 
     # Calculate disk size:
-    Int funco_tar_sizeGB = if defined(data_sources_paths) then 0 else (if defined(data_sources_tar_gz) then 4 * ceil(size(data_sources_tar_gz, "GB")) else 100)
+    Array[String] data_sources_paths_args = select_first([data_sources_paths, []])
+    Array[String] annotation_defaults_args = select_first([annotation_defaults, []])
+    Array[String] annotation_overrides_args = select_first([annotation_overrides, []])
+    Array[String] exclude_fields_args = select_first([exclude_fields, []])
+    Boolean has_data_sources_paths_args = length(data_sources_paths_args) > 0
+    Boolean has_annotation_defaults_args = length(annotation_defaults_args) > 0
+    Boolean has_annotation_overrides_args = length(annotation_overrides_args) > 0
+    Boolean has_exclude_fields_args = length(exclude_fields_args) > 0
+
+    Int funco_tar_sizeGB = if has_data_sources_paths_args then 0 else (if defined(data_sources_tar_gz) then 4 * ceil(size(data_sources_tar_gz, "GB")) else 100)
     Int disk = runtime_params.disk + funco_tar_sizeGB
 
-    String annotation_default_arg = if defined(annotation_defaults) then sep(" ", prefix("--annotation-default ", select_first([annotation_defaults, ["none"]]))) else ""
-    String annotation_override_arg = if defined(annotation_overrides) then sep(" ", prefix("--annotation-override ", select_first([annotation_overrides, ["none"]]))) else ""
-    String exclude_fields_arg = if defined(exclude_fields) then sep(" ", prefix("--exclude-field ", select_first([exclude_fields, ["none"]]))) else ""
+    Array[String] funcotator_data_sources_paths = if has_data_sources_paths_args then data_sources_paths_args else ["$DATA_SOURCES_FOLDER"]
+    String annotation_default_arg = if has_annotation_defaults_args then sep(" ", prefix("--annotation-default ", annotation_defaults_args)) else ""
+    String annotation_override_arg = if has_annotation_overrides_args then sep(" ", prefix("--annotation-override ", annotation_overrides_args)) else ""
+    String exclude_fields_arg = if has_exclude_fields_args then sep(" ", prefix("--exclude-field ", exclude_fields_args)) else ""
 
     command <<<
         set -e
@@ -207,7 +217,7 @@ task Funcotate {
             false
         fi
 
-        if [ "~{defined(data_sources_paths)}" == "false" ] ; then
+        if [ "~{has_data_sources_paths_args}" == "false" ] ; then
             mkdir datasources_dir
             DATA_SOURCES_FOLDER="$PWD/datasources_dir"
             echo "Obtaining Funcotator data sources..."
@@ -249,7 +259,7 @@ task Funcotate {
 
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             Funcotator \
-            ~{sep=" " prefix("--data-sources-path ", select_first([data_sources_paths, ["$DATA_SOURCES_FOLDER"]]))} \
+            ~{sep=" " prefix("--data-sources-path ", funcotator_data_sources_paths)} \
             --ref-version ~{reference_version} \
             --output-file-format ~{output_format} \
             -R '~{ref_fasta}' \

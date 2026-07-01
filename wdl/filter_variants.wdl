@@ -294,11 +294,16 @@ task FilterVariantCalls {
         Runtime runtime_params
     }
 
+    Array[File] contamination_tables_args = select_first([contamination_tables, []])
+    Array[File] tumor_segmentation_args = select_first([tumor_segmentation, []])
+    Boolean has_contamination_tables_args = length(contamination_tables_args) > 0
+    Boolean has_tumor_segmentation_args = length(tumor_segmentation_args) > 0
+
     Int disk = (
         ceil(size(vcf, "GB"))
         + ceil(size(orientation_bias, "GB"))
-        + if defined(contamination_tables) then ceil(size(select_first([contamination_tables]), "GB")) else 0
-        + if defined(tumor_segmentation) then ceil(size(select_first([tumor_segmentation]), "GB")) else 0
+        + if has_contamination_tables_args then ceil(size(contamination_tables_args, "GB")) else 0
+        + if has_tumor_segmentation_args then ceil(size(tumor_segmentation_args, "GB")) else 0
         + ceil(size(mutect_stats, "GB"))
         + runtime_params.disk
     )
@@ -321,8 +326,8 @@ task FilterVariantCalls {
             --variant '~{vcf}' \
             --output 'filtered.vcf.gz' \
             ~{"--orientation-bias-artifact-priors '" + orientation_bias + "'"} \
-            ~{true="--contamination-table '" false="" defined(contamination_tables)}~{default="" sep="' --contamination-table '" contamination_tables}~{true="'" false="" defined(contamination_tables)} \
-            ~{true="--tumor-segmentation '" false="" defined(tumor_segmentation)}~{default="" sep="' --tumor-segmentation '" tumor_segmentation}~{true="'" false="" defined(tumor_segmentation)} \
+            ~{true="--contamination-table '" false="" has_contamination_tables_args}~{default="" sep="' --contamination-table '" contamination_tables_args}~{true="'" false="" has_contamination_tables_args} \
+            ~{true="--tumor-segmentation '" false="" has_tumor_segmentation_args}~{default="" sep="' --tumor-segmentation '" tumor_segmentation_args}~{true="'" false="" has_tumor_segmentation_args} \
             ~{"--stats '" + mutect_stats + "'"} \
             ~{"--max-median-fragment-length-difference " + max_median_fragment_length_difference} \
             ~{"--min-median-base-quality " + min_base_quality} \
