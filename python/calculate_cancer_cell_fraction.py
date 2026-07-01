@@ -27,8 +27,20 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="CalculateCancerCellFraction",
         description="""
-            Rescue SNVs / INDELs absent from ABSOLUTE ABS_MAF output by mapping them
-            onto the completed segtab and inferring a CCF posterior on the 0.01 grid.
+            Assign each somatic SNV / INDEL a cancer-cell-fraction (CCF) posterior on the
+            0.01 grid, given the sample's absolute copy-number segtab (from
+            map_to_absolute_copy_number) and --purity/--ploidy. Each variant is mapped onto
+            its segment to obtain the local copy number, then its observed VAF is converted
+            to a CCF posterior; outputs include the point estimate ccf_hat, the 95% interval
+            ccf_CI95_low/high, the full per-grid posterior, and detection-power columns.
+            Multiplicity (alt copies per carrying cell) is folded into the VAF->CCF mapping,
+            so a clonal multi-copy mutation still yields ccf ~ 1 (never > 1).
+
+            Variants are EXCLUDED if they cannot be placed on a segment, fall on MT, or have
+            no tumor coverage. Variants already present in --absolute_maf keep their ABSOLUTE
+            CCF; caller-only variants (--snv_maf / --indel_maf) are "rescued" (inferred here).
+            Unlike map_to_absolute's per-segment CCF, variant CCF is identifiable because VAF
+            directly encodes purity * ccf * multiplicity / local_copy_number.
         """,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -49,6 +61,7 @@ def parse_args():
     parser.add_argument("--snv_maf", type=str, required=False, help="Path to caller SNV MAF.")
     parser.add_argument("--indel_maf", type=str, required=False, help="Path to caller INDEL MAF.")
     parser.add_argument("--normal_ploidy", type=int, default=2, help="Normal/germline ploidy of that organism.")
+    parser.add_argument("--copy_num_type", type=str, default="allelic", help="Type of copy number mode {allelic, total}.")
     return parser.parse_args()
 
 
@@ -196,6 +209,12 @@ def prepare_abs_maf(df: pd.DataFrame) -> pd.DataFrame:
 
 def prepare_segtab(df: pd.DataFrame, sex: str, normal_ploidy: int) -> pd.DataFrame:
     out = df.copy()
+    # A total-copy-ratio segtab names the total-CN columns without the "total" qualifier
+    # and carries no allelic calls; normalize the names so total-CN lookups (modal_total_cn)
+    # resolve. Guard against clobbering a canonical column an allelic segtab already has.
+    tcr_to_canonical = {"modal_cn": "modal_total_cn", "expected_cn": "expected_total_cn"}
+    out = out.rename(columns={s: d for s, d in tcr_to_canonical.items()
+                              if s in out.columns and d not in out.columns})
     out = to_numeric(
         out,
         ["Start.bp", "End.bp", "rescaled.cn.a1", "rescaled.cn.a2", "rescaled_total_cn", "modal.a1", "modal.a2", "modal_total_cn"],
@@ -251,15 +270,23 @@ def map_variants_to_segments(variants: pd.DataFrame, seg: pd.DataFrame) -> pd.Da
         variant_rows = vv.index.to_numpy()[valid]
         matched_seg_rows = seg_rows[idx[valid]]
 
+        # A total-copy-ratio segtab has no allelic call columns; fall back to NaN for
+        # those so total mode degrades to total-CN CCF instead of raising. The CCF
+        # posterior only needs the total copy number (q_hat) and chromosomal ploidy.
+        def seg_value(name):
+            if name in seg.columns:
+                return seg.loc[matched_seg_rows, name].to_numpy()
+            return np.full(matched_seg_rows.shape[0], np.nan)
+
         out.loc[variant_rows, "T.seg.ix"] = seg.loc[matched_seg_rows, "_seg_idx1"].to_numpy()
         out.loc[variant_rows, "A1.ix"] = seg.loc[matched_seg_rows, "_seg_idx1"].to_numpy()
         out.loc[variant_rows, "A2.ix"] = seg.loc[matched_seg_rows, "_seg_idx1"].to_numpy()
-        out.loc[variant_rows, "local_cn_a1"] = seg.loc[matched_seg_rows, "rescaled.cn.a1"].to_numpy()
-        out.loc[variant_rows, "local_cn_a2"] = seg.loc[matched_seg_rows, "rescaled.cn.a2"].to_numpy()
-        out.loc[variant_rows, "HS_q_hat_1"] = seg.loc[matched_seg_rows, "modal.a1"].to_numpy()
-        out.loc[variant_rows, "HS_q_hat_2"] = seg.loc[matched_seg_rows, "modal.a2"].to_numpy()
-        out.loc[variant_rows, "total_q_hat"] = seg.loc[matched_seg_rows, "modal_total_cn"].to_numpy()
-        out.loc[variant_rows, "q_hat"] = seg.loc[matched_seg_rows, "modal_total_cn"].to_numpy()
+        out.loc[variant_rows, "local_cn_a1"] = seg_value("rescaled.cn.a1")
+        out.loc[variant_rows, "local_cn_a2"] = seg_value("rescaled.cn.a2")
+        out.loc[variant_rows, "HS_q_hat_1"] = seg_value("modal.a1")
+        out.loc[variant_rows, "HS_q_hat_2"] = seg_value("modal.a2")
+        out.loc[variant_rows, "total_q_hat"] = seg_value("modal_total_cn")
+        out.loc[variant_rows, "q_hat"] = seg_value("modal_total_cn")
         out.loc[variant_rows, "normal_allele_count"] = seg.loc[matched_seg_rows, "_chr_ploidy"].to_numpy()
 
     return out
@@ -420,8 +447,13 @@ def compare_to_absolute(inferred: pd.DataFrame, abs_maf: pd.DataFrame) -> None:
     if inferred.empty or abs_maf.empty:
         return
 
+    # A total-mode ABS_MAF carries no allelic columns; only compare what it has.
+    compare_cols = [c for c in [
+        "ccf_hat", "ccf_CI95_low", "ccf_CI95_high", "local_cn_a1", "local_cn_a2",
+        "detection_power", "detection_power_for_single_read",
+    ] if c in abs_maf.columns]
     merged = inferred.merge(
-        abs_maf[["_variant_key", "ccf_hat", "ccf_CI95_low", "ccf_CI95_high", "local_cn_a1", "local_cn_a2", "detection_power", "detection_power_for_single_read"]],
+        abs_maf[["_variant_key"] + compare_cols],
         on="_variant_key",
         suffixes=("_infer", "_abs"),
         how="inner",
@@ -449,10 +481,7 @@ def compare_to_absolute(inferred: pd.DataFrame, abs_maf: pd.DataFrame) -> None:
         )
 
     message(f"Concordance check on {merged.shape[0]} overlapping variants.")
-    for col in [
-        "ccf_hat", "ccf_CI95_low", "ccf_CI95_high", "local_cn_a1", "local_cn_a2",
-        "detection_power", "detection_power_for_single_read",
-    ]:
+    for col in compare_cols:
         summarize(col)
 
 
@@ -477,7 +506,8 @@ def calculate_ccf(args):
     # Update local allelic CN in ABS_MAF from the (possibly corrected) segtab.
     # The segtab may have been updated by --allelic_split_focals in
     # map_to_absolute_copy_number, making the original ABSOLUTE local_cn_a1/a2 stale.
-    if not abs_maf.empty:
+    # Only applies in allelic mode, where both segtab and ABS_MAF carry allelic columns.
+    if not abs_maf.empty and "rescaled.cn.a1" in seg.columns and "local_cn_a1" in abs_maf.columns:
         abs_maf_remapped = map_variants_to_segments(abs_maf, seg)
         remapped_mask = abs_maf_remapped["T.seg.ix"].notna()
         stale_a1 = remapped_mask & (abs_maf_remapped["local_cn_a1"] != abs_maf["local_cn_a1"])
@@ -489,7 +519,7 @@ def calculate_ccf(args):
             abs_maf.loc[remapped_mask, "local_cn_a2"] = abs_maf_remapped.loc[remapped_mask, "local_cn_a2"]
 
     sample_name = infer_sample_name(args=args, seg=seg, caller_df=caller_df, abs_maf=abs_maf)
-    output_maf = os.path.join(args.outdir, f"{sample_name}.ABS_MAF.completed.txt")
+    output_maf = os.path.join(args.outdir, f"{sample_name}.ABS_MAF.{args.copy_num_type}.completed.txt")
     os.makedirs(args.outdir, exist_ok=True)
 
     if caller_df.empty:
@@ -502,7 +532,13 @@ def calculate_ccf(args):
 
     message(f"Loaded {caller_df.shape[0]} caller variants.")
     if abs_maf.empty:
-        message("ABS_MAF not provided; will infer values for all caller variants.")
+        message(
+            "WARNING: no ABSOLUTE ABS_MAF provided; inferring CCF de novo for all caller "
+            "variants from the supplied total copy number (no allelic multiplicity "
+            "resolution). If the segtab was produced without ABSOLUTE, its copy number "
+            "assumes the segment-length-weighted mean copy number equals ploidy "
+            "(sum(W * CN) = ploidy), which can miss whole-genome doubling."
+        )
     else:
         message(f"Loaded {abs_maf.shape[0]} ABS_MAF variants.")
 

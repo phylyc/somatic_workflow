@@ -1,32 +1,34 @@
 version development
 
-import "sequencing_run.wdl" as seqrun
-import "sample.wdl" as s
+# Public entry point. This workflow owns all preprocessing — resource/argument/
+# runtime construction, input validation, and patient assembly — then delegates the
+# compute pipeline to MultiSampleSomaticWorkflowRun. Splitting it this way keeps the
+# user-facing input surface clean on Terra.
+#
+# Terra lists workflow inputs required-first, then alphabetically by the
+# `Workflow.callAlias.var` key, and womtool exposes only ONE level of call nesting.
+# Both are leveraged here: the four setup calls are made directly from this workflow,
+# so their knobs are the only nested inputs Terra surfaces; everything inside the
+# delegated run is two levels down and therefore hidden. The `z1_`..`z4_` alias
+# prefixes sort after the lowercase top-level inputs, fixing the displayed order:
+#
+#   1. MultiSampleSomaticWorkflow.*   curated user inputs
+#   2. z1_Files.*                     WorkflowResources (reference files)
+#   3. z2_Cache.*                     DefinePatient cache-injection fields
+#   4. z3_Parameters.*                WorkflowArguments (run_*, scatter, ...)
+#   5. z4_RuntimeParameters.*         RuntimeCollection (mem_*, time_*, ...)
+#
+# The setup is defined here only; MultiSampleSomaticWorkflowRun receives the finished
+# structs and patient and contains no preprocessing of its own.
+
+import "multi-sample_somatic_workflow.run.wdl" as mssw_run
 import "patient.wdl" as p
-import "patient.define.wdl" as p_def
-import "patient.merge.wdl" as p_merge
-import "patient.update_samples.wdl" as p_update_s
 import "patient.out.wdl" as p_out
+import "patient.define.wdl" as p_def
 import "workflow_arguments.wdl" as wfargs
 import "workflow_resources.wdl" as wfres
 import "runtime_collection.wdl" as rtc
-
-import "collect_callable_loci.wdl" as ccl
-import "collect_read_counts.wdl" as crc
-import "collect_allelic_counts.wdl" as cac
-import "harmonize_samples.wdl" as hs
-import "calculate_contamination.wdl" as cc
-import "genotype_variants.wdl" as gv
-import "model_segments.wdl" as ms
-import "call_variants.wdl" as cv
-import "filter_variants.wdl" as fv
-import "annotate_variants.wdl" as av
 import "tasks.wdl"
-import "filter_segments.wdl" as fs
-import "absolute.wdl" as abs
-import "absolute_extract.wdl" as abs_extract
-import "phylogicndt.wdl" as phylogicndt
-import "call_ancestry.wdl" as can
 
 
 workflow MultiSampleSomaticWorkflow {
@@ -80,30 +82,74 @@ workflow MultiSampleSomaticWorkflow {
 #                                                                             #
 ###############################################################################
 
+
+    if (!defined(input_resources)) {
+        call wfres.DefineWorkflowResources as z1_Files
+    }
+    WorkflowResources resources = select_first([input_resources, z1_Files.resources])
+
     if (!defined(input_runtime_collection)) {
-        call rtc.DefineRuntimeCollection as RuntimeParameters {
+        call rtc.DefineRuntimeCollection as z4_RuntimeParameters {
             input:
                 num_bams = length(bams),
         }
     }
-    RuntimeCollection runtime_collection = select_first([input_runtime_collection, RuntimeParameters.rtc])
-
-    if (!defined(input_resources)) {
-        call wfres.DefineWorkflowResources as Files
-    }
-    WorkflowResources resources = select_first([input_resources, Files.resources])
+    RuntimeCollection runtime_collection = select_first([input_runtime_collection, z4_RuntimeParameters.rtc])
 
     if (!defined(input_args)) {
-        call wfargs.DefineWorkflowArguments as Parameters {
+        call wfargs.DefineWorkflowArguments as z3_Parameters {
             input:
                 resources = resources,
                 runtime_collection = runtime_collection,
         }
     }
-    WorkflowArguments args = select_first([input_args, Parameters.arguments])
+    WorkflowArguments args = select_first([input_args, z3_Parameters.arguments])
 
-    if (!defined(input_patient)) {
-        # Only necessary if bams contig order does not match reference contig 
+    # Pre-flight gate: validate the raw inputs before any expensive task. ParseInput
+    # exits non-zero (failing the workflow) on a mis-shaped input or an unmet implicit
+    # requirement. Patient assembly and the delegated run are both guarded by
+    # `ParseInput.validated`, which makes them depend on this task so that nothing
+    # heavy starts until validation passes.
+    call tasks.ParseInput {
+        input:
+            script = args.script_validate_inputs,
+            n_bams = length(bams),
+            n_bais = length(bais),
+            sample_names = sample_names,
+            normal_sample_names = normal_sample_names,
+            is_paired_end = is_paired_end,
+            use_for_tCR = use_sample_for_tCR,
+            use_for_aCR = use_sample_for_aCR,
+            timepoints = timepoints,
+            target_intervals = target_intervals,
+            annotated_target_intervals = annotated_target_intervals,
+            cnv_panel_of_normals = cnv_panel_of_normals,
+            has_common_germline_alleles = defined(args.files.common_germline_alleles),
+            has_common_germline_alleles_idx = defined(args.files.common_germline_alleles_idx),
+            has_realignment_image = defined(args.files.realignment_bwa_mem_index_image),
+            has_germline_resource = defined(args.files.germline_resource),
+            has_snv_panel_of_normals = defined(args.files.snv_panel_of_normals),
+            has_germline_resource_v4_1 = defined(args.files.germline_resource_v4_1),
+            has_snv_panel_of_normals_v4_1 = defined(args.files.snv_panel_of_normals_v4_1),
+            has_funcotator_sources = defined(args.files.funcotator_data_sources_tar_gz),
+            has_sex = defined(sex),
+            run_collect_total_read_counts = args.run_collect_total_read_counts,
+            run_model_segments = args.run_model_segments,
+            run_collect_allelic_read_counts = args.run_collect_allelic_read_counts,
+            run_contamination_model = args.run_contamination_model,
+            run_realignment_filter = args.run_realignment_filter,
+            run_variant_calling_mutect1 = args.run_variant_calling_mutect1,
+            run_variant_calling = args.run_variant_calling,
+            run_variant_annotation = args.run_variant_annotation,
+            run_clonal_decomposition = args.run_clonal_decomposition,
+            deep = args.run_input_validation_deep,
+            bams = if args.run_input_validation_deep then bams else [],
+            ref_dict = args.files.ref_dict,
+            runtime_params = runtime_collection.parse_input,
+    }
+
+    if (!defined(input_patient) && ParseInput.validated) {
+        # Only necessary if bams contig order does not match reference contig
         if (args.run_reorder_bam_contigs) {
             scatter (pair in zip(bams, bais)) {
                 call tasks.ReorderSam as ReorderSam {
@@ -119,7 +165,7 @@ workflow MultiSampleSomaticWorkflow {
             Array[File] reordered_bams = select_all(ReorderSam.reordered_bam)
             Array[File] reordered_bais = select_all(ReorderSam.reordered_bai)
         }
-        call p_def.DefinePatient as Cache {
+        call p_def.DefinePatient as z2_Cache {
             input:
                 name = patient_id,
                 sex = sex,
@@ -139,644 +185,39 @@ workflow MultiSampleSomaticWorkflow {
         }
     }
 
-    # TODO: add parse_input task to check for validity, then add "after parse_input" to all calls
-
-    Patient patient = select_first([input_patient, Cache.patient])
-
-    scatter (sample in patient.samples) {
-        File? cached_called_copy_ratio_segmentation = sample.called_copy_ratio_segmentation
-        File? cached_af_model_parameters = sample.af_model_parameters
-        File? cached_absolute_rdata = sample.absolute_acr_rdata
-    }
-    Boolean skip_to_clonal_decomposition = (
-        (
-            (length(select_all(cached_called_copy_ratio_segmentation)) > 0)
-            && (length(select_all(cached_af_model_parameters)) > 0)
-        ) || (length(select_all(cached_absolute_rdata)) > 0)
-    )
-
-    if (!skip_to_clonal_decomposition) {
+    Patient patient = select_first([input_patient, z2_Cache.patient])
 
 
 ###############################################################################
 #                                                                             #
-#                             COVERAGE WORKFLOW                               #
+#                                  RUN                                        #
 #                                                                             #
 ###############################################################################
 
 
-    Patient coverage_workflow_patient = patient
-
-    scatter (sample in coverage_workflow_patient.samples) {
-        scatter (sequencing_run in sample.sequencing_runs) {
-            if (args.run_collect_callable_loci && (size(sequencing_run.callable_loci) == 0)) {
-                call ccl.CollectCallableLoci {
-                    input:
-                        ref_fasta = args.files.ref_fasta,
-                        ref_fasta_index = args.files.ref_fasta_index,
-                        ref_dict = args.files.ref_dict,
-                        sample_name = sample.name,
-                        bam = sequencing_run.bam,
-                        bai = sequencing_run.bai,
-                        is_paired_end = sequencing_run.is_paired_end,
-                        runtime_collection = runtime_collection,
-                }
-            }
-
-            if (args.run_collect_total_read_counts && (size(sequencing_run.total_read_counts) == 0) && (size(sequencing_run.denoised_total_copy_ratios) == 0)) {
-                call crc.CollectReadCounts {
-                    input:
-                        ref_fasta = args.files.ref_fasta,
-                        ref_fasta_index = args.files.ref_fasta_index,
-                        ref_dict = args.files.ref_dict,
-                        sample_name = sample.name,
-                        bam = sequencing_run.bam,
-                        bai = sequencing_run.bai,
-                        interval_list = sequencing_run.target_intervals,
-                        annotated_interval_list = sequencing_run.annotated_target_intervals,
-                        read_count_panel_of_normals = sequencing_run.cnv_panel_of_normals,
-                        is_paired_end = sequencing_run.is_paired_end,
-                        sex_genotype = coverage_workflow_patient.sex,
-                        max_soft_clipped_bases = args.collect_read_counts_max_soft_clipped_bases,
-                        runtime_collection = runtime_collection,
-                }
-            }
-
-            if (args.run_collect_allelic_read_counts && (size(sequencing_run.snppanel_allelic_pileup_summaries) == 0)) {
-                call cac.CollectAllelicCounts {
-                    input:
-                        ref_dict = args.files.ref_dict,
-                        bam = sequencing_run.bam,
-                        bai = sequencing_run.bai,
-                        is_paired_end = sequencing_run.is_paired_end,
-                        sample_name = sample.name + ".snppanel",
-                        interval_list = sequencing_run.target_intervals,
-                        scattered_interval_list = args.files.scattered_intervals_for_pileups,
-                        variants = args.files.common_germline_alleles,
-                        variants_idx = args.files.common_germline_alleles_idx,
-                        getpileupsummaries_extra_args = args.getpileupsummaries_extra_args,
-                        minimum_population_allele_frequency = args.min_snppanel_pop_af,
-                        maximum_population_allele_frequency = args.max_snppanel_pop_af,
-                        minimum_read_depth = args.min_snppanel_read_depth,
-                        padding = args.het_to_interval_mapping_max_distance,
-                        runtime_collection = runtime_collection,
-                }
-            }
-
-            call seqrun.UpdateSequencingRun as SeqAddCoverage {
-                input:
-                    sequencing_run = sequencing_run,
-                    callable_loci = CollectCallableLoci.bed,
-                    total_read_counts = CollectReadCounts.read_counts,
-                    denoised_total_copy_ratios = CollectReadCounts.denoised_copy_ratios,
-                    snppanel_allelic_pileup_summaries = CollectAllelicCounts.pileup_summaries,
-            }
-        }
-    }
-
-    # todo: infer sex genotype
-
-    call p_update_s.UpdateSamples as PatientAddCoverage {
-        input:
-            patient = coverage_workflow_patient,
-            sequencing_runs = SeqAddCoverage.updated_sequencing_run,
-    }
-
-    call hs.HarmonizeSamples {
-        input:
-            ref_dict = args.files.ref_dict,
-            harmonize_copy_ratios_script = args.script_harmonize_copy_ratios,
-            merge_pileups_script = args.script_merge_pileups,
-            samples = PatientAddCoverage.updated_patient.samples,
-            harmonize_min_target_length = args.harmonize_min_target_length,
-            pileups_min_read_depth = args.min_snppanel_read_depth,
-            compress_output = false,
-            runtime_collection = runtime_collection,
-    }
-
-    call p_update_s.UpdateSamples as ConsensusPatient {
-        input:
-            patient = PatientAddCoverage.updated_patient,
-            harmonized_callable_loci = HarmonizeSamples.harmonized_callable_loci,
-            harmonized_denoised_total_copy_ratios = HarmonizeSamples.harmonized_denoised_copy_ratios,
-            harmonized_snppanel_allelic_pileup_summaries = HarmonizeSamples.merged_allelic_counts,
-            allelic_pileup_summaries = HarmonizeSamples.merged_allelic_counts,  # Will be overwritten later
-    }
-
-    if (defined(HarmonizeSamples.merged_allelic_counts) && args.run_contamination_model) {
-        scatter (sample in ConsensusPatient.updated_patient.samples) {
-            if (size(sample.contamination_table) == 0) {
-                if (sample.is_tumor && defined(ConsensusPatient.updated_patient.matched_normal_sample)) {
-                    Sample cov_matched_normal_sample = select_first([ConsensusPatient.updated_patient.matched_normal_sample])
-                    File? matched_normal_pileups = cov_matched_normal_sample.harmonized_snppanel_allelic_pileup_summaries
-                }
-
-                call cc.CalculateContamination {
-                    input:
-                        tumor_pileups = sample.harmonized_snppanel_allelic_pileup_summaries,
-                        normal_pileups = matched_normal_pileups,
-                        runtime_collection = runtime_collection,
-                }
-            }
-
-            File contam_table = select_first([CalculateContamination.contamination_table, sample.contamination_table])
-        }
-
-        call p_update_s.UpdateSamples as AddContaminationToSamples {
-            input:
-                patient = ConsensusPatient.updated_patient,
-                contamination_table = contam_table,
-        }
-
-        # Perform a first-pass single-sample segmentation to detect segments that
-        # need to be filtered.
-        call ms.ModelSegments as PreFirstPassSegmentation {
-            input:
-                patient = AddContaminationToSamples.updated_patient,
-                args = args,
-                runtime_collection = runtime_collection,
-                pre_select_hets = false,
-                gvcf = args.files.common_germline_alleles,
-                gvcf_idx = args.files.common_germline_alleles_idx,
-        }
-
-        if (args.filter_segments_min_probes > 1) {
-            # Remove copy ratio observations that are outliers which induce artificial
-            # segmentation boundaries.
-            call fs.FilterSegments {
-                input:
-                    patient = PreFirstPassSegmentation.updated_patient,
-                    args = args,
-                    runtime_collection = runtime_collection,
-            }
-
-            # Perform a second-pass single-sample segmentation to get prior allelic
-            # copy ratio segmentations for genotyping.
-            call ms.ModelSegments as FirstPassSegmentation {
-                input:
-                    patient = FilterSegments.updated_patient,
-                    args = args,
-                    runtime_collection = runtime_collection,
-                    pre_select_hets = false,
-                    gvcf = args.files.common_germline_alleles,
-                    gvcf_idx = args.files.common_germline_alleles_idx,
-            }
-        }
-    }
-
-    Patient coverage_workflow_updated_patient = select_first([FirstPassSegmentation.updated_patient, PreFirstPassSegmentation.updated_patient, ConsensusPatient.updated_patient])
-
-
-###############################################################################
-#                                                                             #
-#                               SNV WORKFLOW                                  #
-#                                                                             #
-###############################################################################
-
-
-    Patient snv_patient = coverage_workflow_updated_patient
-
-    if (args.run_variant_calling) {
-        call cv.CallVariants {
+    # --- Delegate the pipeline; its internals are bound here, so Terra hides them.
+    if (ParseInput.validated) {
+        call mssw_run.MultiSampleSomaticWorkflowRun as run {
             input:
                 patient = patient,
                 args = args,
-                runtime_collection = runtime_collection,
-        }
-
-        # So that the coverage workflow can run in parallel to calling SNVs
-        call p_merge.MergePatients as AddSNVCallsToPatient {
-            input:
-                patient = snv_patient,
-                other = CallVariants.updated_patient
-        }
-    }
-
-    if (args.run_variant_filter) {
-        call fv.FilterVariants {
-            input:
-                patient = select_first([AddSNVCallsToPatient.updated_patient, snv_patient]),
-                args = args,
-                runtime_collection = runtime_collection,
-        }
-
-        if (args.keep_germline && defined(FilterVariants.updated_patient.germline_vcf)) {
-            # Collect allelic pileups for all putative germline sites that were
-            # not yet collected via the coverage workflow, then merge them.
-            # This allows for more sensitive aCR segmentation.
-            # Only collect SNPs since Indels or MNVs are too likely misclassified.
-            call tasks.SelectVariants as SelectGermlineNotInResource {
-                input:
-                    ref_fasta = args.files.ref_fasta,
-                    ref_fasta_index = args.files.ref_fasta_index,
-                    ref_dict = args.files.ref_dict,
-                    vcf = select_first([FilterVariants.updated_patient.germline_vcf]),
-                    vcf_idx = select_first([FilterVariants.updated_patient.germline_vcf_idx]),
-                    interval_blacklist = args.files.common_germline_alleles,
-                    interval_blacklist_idx = args.files.common_germline_alleles_idx,
-                    compress_output = args.compress_output,
-                    select_variants_extra_args = "--select-type-to-include SNP",
-                    runtime_params = runtime_collection.select_variants
-            }
-
-            if (SelectGermlineNotInResource.num_selected_variants > 0) {
-                scatter (sample in FilterVariants.updated_patient.samples) {
-                    String bam_names = sample.bam_name
-                    String these_sample_names = sample.name
-                    File? allelic_pileups = sample.allelic_pileup_summaries
-                }
-                call cac.VcfToPileupVariants as GermlineVariantsNotInResource {
-                    input:
-                        vcf = SelectGermlineNotInResource.selected_vcf,
-                        vcf_idx = SelectGermlineNotInResource.selected_vcf_idx,
-                        sample_names = bam_names,
-                        compress_output = args.compress_output,
-                        runtime_params = runtime_collection.vcf_to_pileup_variants,
-                }
-
-                call hs.MergeAllelicCounts as MergeGermlineAllelicCounts {
-                    input:
-                        ref_dict = args.files.ref_dict,
-                        script = args.script_merge_pileups,
-                        sample_names = flatten([these_sample_names, these_sample_names]),
-                        allelic_counts = select_all(flatten([allelic_pileups, GermlineVariantsNotInResource.pileups])),
-                        compress_output = args.compress_output,
-                        runtime_params = runtime_collection.merge_allelic_counts,
-                }
-
-                # sort output to match order of sample_names since glob doesn't guarantee order
-                scatter (sample in FilterVariants.updated_patient.samples) {
-                    scatter (allelic_count in MergeGermlineAllelicCounts.merged_allelic_counts) {
-                        String this_sample_name = basename(basename(allelic_count, ".gz"), ".pileup")
-                        if (sample.name == this_sample_name) {
-                            File this_allelic_counts = allelic_count
-                        }
-                    }
-                    Array[File] this_sample_allelic_counts = select_all(this_allelic_counts)
-                }
-                Array[File] sorted_allelic_counts = flatten(this_sample_allelic_counts)
-
-                call p_update_s.UpdateSamples as ExtendAllelicPileups {
-                    input:
-                        patient = FilterVariants.updated_patient,
-                        allelic_pileup_summaries = sorted_allelic_counts,
-                }
-
-                call p.UpdatePatient as AddGermlineAlleles {
-                    input:
-                        patient = ExtendAllelicPileups.updated_patient,
-                        rare_germline_alleles = GermlineVariantsNotInResource.variants,
-                        rare_germline_alleles_idx = GermlineVariantsNotInResource.variants_idx
-                }
-            }
-        }
-
-        Patient filtered_snv_patient = select_first([AddGermlineAlleles.updated_patient, FilterVariants.updated_patient])
-
-        if (args.run_variant_annotation) {
-            # The sample scatter needs to be outside of the call to AnnotateVariants
-            # since cromwell shits the bed for piping optional inputs into a nested scatter.
-            scatter (sample in filtered_snv_patient.samples) {
-                if (defined(filtered_snv_patient.somatic_vcf) && (size(sample.annotated_somatic_variants) == 0)) {
-                    if (sample.is_tumor && defined(filtered_snv_patient.matched_normal_sample)) {
-                        Sample cnv_matched_normal_sample = select_first([filtered_snv_patient.matched_normal_sample])
-                        String? matched_normal_sample_name = cnv_matched_normal_sample.name
-                        String? matched_normal_bam_name = cnv_matched_normal_sample.bam_name
-                    }
-
-                    call av.AnnotateVariants {
-                        input:
-                            vcf = select_first([filtered_snv_patient.somatic_vcf]),
-                            vcf_idx = select_first([filtered_snv_patient.somatic_vcf_idx]),
-                            num_variants = filtered_snv_patient.num_somatic_variants,
-                            individual_id = filtered_snv_patient.name,
-                            tumor_sample_name = sample.name,
-                            tumor_bam_name = sample.bam_name,
-                            normal_sample_name = matched_normal_sample_name,
-                            normal_bam_name = matched_normal_bam_name,
-                            args = args,
-                            runtime_collection = runtime_collection,
-                    }
-                }
-                File annot_som_var = select_first([AnnotateVariants.annotated_variants, sample.annotated_somatic_variants])
-                File? annot_som_var_idx = if defined(AnnotateVariants.annotated_variants_idx) then AnnotateVariants.annotated_variants_idx else sample.annotated_somatic_variants_idx
-            }
-            if (length(select_all(annot_som_var)) > 0) {
-                Array[File] annotated_variants_idx = select_all(annot_som_var_idx)
-            }
-
-            ## Postpone to below, so CNV workflow can run in parallel to Funcotator.
-            #call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
-            #    input:
-            #        patient = filtered_snv_patient,
-            #        annotated_somatic_variants = annot_som_var,
-            #        annotated_somatic_variants_idx = annotated_variants_idx,
-            #}
-        }
-    }
-
-    Patient snv_upated_patient = select_first([
-        # AddAnnotatedVariantsToSamples.updated_patient,
-        filtered_snv_patient,
-        AddSNVCallsToPatient.updated_patient,
-        snv_patient
-    ])
-
-
-###############################################################################
-#                                                                             #
-#                               CNV WORKFLOW                                  #
-#                                                                             #
-###############################################################################
-
-
-    Patient cnv_patient = snv_upated_patient
-
-    # ModelSegments requires the allelic counts to be pulled down at the same
-    # set of loci for all samples. GetPileupSummaries does not guarantee this,
-    # however, GenotypeVariants enforces this. Estimating the contamination is
-    # helpful for genotyping.
-
-    scatter (sample in cnv_patient.samples) {
-        String gt_sample_names = sample.name
-        File? pileups = sample.allelic_pileup_summaries
-        File? contaminations = sample.contamination_table
-        if (length(select_all([sample.called_copy_ratio_segmentation, sample.af_segmentation_table])) > 1) {
-            File? af_segmentations = select_first([sample.called_copy_ratio_segmentation, sample.af_segmentation_table])
-        }
-        File? af_model_params = sample.af_model_parameters
-    }
-    Array[File] gt_pileups = select_all(pileups)
-    if (length(select_all(contaminations)) > 0) {
-        Array[File] contamination_tables = select_all(contaminations)
-    }
-    if (length(select_all(af_segmentations)) > 0) {
-        Array[File] segmentation_tables = select_all(af_segmentations)
-    }
-    if (length(select_all(af_model_params)) > 0) {
-        Array[File] af_pre_model_parameters = select_all(af_model_params)
-    }
-
-    if (cnv_patient.has_normal) {
-        scatter (normal_sample in cnv_patient.normal_samples) {
-            String? n_sample_name = normal_sample.name
-        }
-        Array[String] gt_normal_sample_names = select_all(n_sample_name)
-    }
-
-    if (length(gt_pileups) > 0) {
-        call gv.GenotypeVariants {
-            input:
-                script = args.script_genotype_variants,
-                patient_id = cnv_patient.name,
-                sex = cnv_patient.sex,
-                sample_names = gt_sample_names,
-                normal_sample_names = gt_normal_sample_names,
-                pileups = gt_pileups,
-                contamination_tables = contamination_tables,
-                segmentation_tables = segmentation_tables,
-                af_model_parameters = af_pre_model_parameters,
-                common_germline_alleles = args.files.common_germline_alleles,
-                common_germline_alleles_idx = args.files.common_germline_alleles_idx,
-                rare_germline_alleles = cnv_patient.rare_germline_alleles,
-                rare_germline_alleles_idx = cnv_patient.rare_germline_alleles_idx,
-                compress_output = args.compress_output,
-                min_read_depth = args.min_snppanel_read_depth,
-                normal_to_tumor_weight = args.genotype_variants_normal_to_tumor_weight,
-                min_genotype_likelihood = args.genotype_variants_min_genotype_likelihood,
-                outlier_prior = args.genotype_variants_outlier_prior,
-                overdispersion = args.genotype_variants_overdispersion,
-                ref_bias = args.genotype_variants_ref_bias,
-                phasing_log_ratio_cap = args.genotype_variants_phasing_log_ratio_cap,
-                phasing_sample_llr_threshold = args.genotype_variants_phasing_sample_llr_threshold,
-                phasing_consensus_fdr = args.genotype_variants_phasing_consensus_fdr,
-                phasing_max_num_contig_segs = args.genotype_variants_phasing_max_num_contig_segs,
-                select_hets = false,
-                save_sample_genotype_likelihoods = true,
-                runtime_collection = runtime_collection,
-        }
-
-        call p_update_s.UpdateSamples as AddPileupsToSamples {
-            input:
-                patient = cnv_patient,
-                allelic_pileup_summaries = GenotypeVariants.sample_genotype_likelihoods,  # Careful: This is not technically in a pileup format!
-        }
-
-        call p.UpdatePatient as AddGVCFtoPatient {
-            input:
-                patient = AddPileupsToSamples.updated_patient,
-                gvcf = GenotypeVariants.vcf,
-                gvcf_idx = GenotypeVariants.vcf_idx,
-                snp_ref_counts = GenotypeVariants.ref_counts,
-                snp_alt_counts = GenotypeVariants.alt_counts,
-                snp_other_alt_counts = GenotypeVariants.other_alt_counts,
-                snp_sample_correlation = GenotypeVariants.sample_correlation,
-                snp_sample_correlation_min = GenotypeVariants.sample_correlation_min
-        }
-    }
-    if (args.run_ancestry_calling && defined(AddGVCFtoPatient.updated_patient)) {
-        call can.CallAncestry {
-            input:
-                patient = select_first([AddGVCFtoPatient.updated_patient, cnv_patient]),
-                genome_build = args.genome_build,
-                runtime_collection = runtime_collection
-        }
-
-        call p.UpdatePatient as AddAncestryCallsToPatient {
-            input:
-                patient = select_first([AddGVCFtoPatient.updated_patient, cnv_patient]),
-                ancestry_pred = CallAncestry.ancestry_pred,
-                ancestry_prob = CallAncestry.ancestry_prob,
-                background_pca_table = CallAncestry.background_pca_table,
-                pca_plot = CallAncestry.pca_plot
-        }
-    }
-
-    if (args.run_model_segments) {
-        call ms.ModelSegments {
-            input:
-                patient = select_first([AddAncestryCallsToPatient.updated_patient, cnv_patient]),
-                args = args,
+                resources = resources,
                 runtime_collection = runtime_collection,
         }
     }
 
-    # todo: FuncotateSegments
-
-    # Only update here so Funcotator can run in parallel to CNV workflow.
-    call p_update_s.UpdateSamples as AddAnnotatedVariantsToSamples {
-        input:
-            patient = select_first([ModelSegments.updated_patient, AddAncestryCallsToPatient.updated_patient, cnv_patient]),
-            annotated_somatic_variants = annot_som_var,
-            annotated_somatic_variants_idx = annotated_variants_idx,
-    }
-
-    Patient cnv_updated_patient = AddAnnotatedVariantsToSamples.updated_patient
-
 
 ###############################################################################
 #                                                                             #
-#                             CLONAL WORKFLOW                                 #
+#                                OUTPUT                                       #
 #                                                                             #
 ###############################################################################
 
 
-    } # skip_to_clonal_decomposition
-
-    Patient clonal_patient = select_first([cnv_updated_patient, patient])
-
-    if (args.run_clonal_decomposition) {
-        scatter (sample in clonal_patient.samples) {
-            if (defined(sample.called_copy_ratio_segmentation) && defined(sample.af_model_parameters) && !defined(sample.absolute_acr_rdata) && !defined(sample.absolute_acr_plot)) {
-                call abs.Absolute {
-                    input:
-                        acs_conversion_script = args.script_acs_conversion,
-                        sample_name = sample.name,
-                        copy_ratio_segmentation = select_first([sample.called_copy_ratio_segmentation]),
-                        af_model_parameters = select_first([sample.af_model_parameters]),
-                        annotated_variants = sample.annotated_somatic_variants,
-                        purity = sample.purity,
-                        ploidy = sample.ploidy,
-                        sex = clonal_patient.sex,
-                        min_hets = args.absolute_min_hets,
-                        min_probes = args.absolute_min_probes,
-                        maf90_threshold = args.absolute_maf90_threshold,
-                        genome_build = args.genome_build,
-                        runtime_collection = runtime_collection
-                }
-            }
-
-            File acs_cr_segmentation = select_first([Absolute.acs_copy_ratio_segmentation, sample.acs_copy_ratio_segmentation])
-            Float acs_cr_skew = select_first([Absolute.acs_copy_ratio_skew, sample.acs_copy_ratio_skew])
-            File? snv_maf = if defined(Absolute.snv_maf) then Absolute.snv_maf else sample.absolute_snv_maf
-            File? indel_maf = if defined(Absolute.indel_maf) then Absolute.indel_maf else sample.absolute_indel_maf
-            File acr_rdata = select_first([Absolute.acr_rdata, sample.absolute_acr_rdata])
-            File acr_plot = select_first([Absolute.acr_plot, sample.absolute_acr_plot])
-
-            if (defined(sample.absolute_solution)) {
-                call abs_extract.AbsoluteExtract {
-                    input:
-                        map_to_absolute_copy_number_script = args.script_map_to_absolute_copy_number,
-                        calculate_cancer_cell_fraction_script = args.script_calculate_cancer_cell_fraction,
-                        sample_name = sample.name,
-                        sex = clonal_patient.sex,
-                        rdata = acr_rdata,
-                        called_solution = select_first([sample.absolute_solution]),
-                        analyst_id = args.analyst_id,
-                        copy_ratio_type = "allelic",
-                        acs_copy_ratio_segmentation = acs_cr_segmentation,
-                        acs_copy_ratio_skew = acs_cr_skew,
-                        snv_maf = snv_maf,
-                        indel_maf = indel_maf,
-                        gvcf = clonal_patient.gvcf,
-                        genome_build = args.genome_build,
-                        runtime_collection = runtime_collection
-                }
-            }
-        }
-
-        if (length(select_all(snv_maf)) > 0) {
-            Array[File] abs_snv_maf = select_all(snv_maf)
-        }
-        if (length(select_all(indel_maf)) > 0) {
-            Array[File] abs_indel_maf = select_all(indel_maf)
-        }
-        if (length(select_all(AbsoluteExtract.absolute_maf)) > 0) {
-            Array[File] abs_maf = select_all(AbsoluteExtract.absolute_maf)
-        }
-        if (length(select_all(AbsoluteExtract.absolute_segtab)) > 0) {
-            Array[File] abs_segtab = select_all(AbsoluteExtract.absolute_segtab)
-        }
-        if (length(select_all(AbsoluteExtract.absolute_maf_postprocessed)) > 0) {
-            Array[File] abs_maf_postprocessed = select_all(AbsoluteExtract.absolute_maf_postprocessed)
-        }
-        if (length(select_all(AbsoluteExtract.absolute_segtab_postprocessed)) > 0) {
-            Array[File] abs_segtab_postprocessed = select_all(AbsoluteExtract.absolute_segtab_postprocessed)
-        }
-        if (length(select_all(AbsoluteExtract.absolute_segtab_igv_postprocessed)) > 0) {
-            Array[File] abs_segtab_igv_postprocessed = select_all(AbsoluteExtract.absolute_segtab_igv_postprocessed)
-        }
-        if (length(select_all(AbsoluteExtract.absolute_table)) > 0) {
-            Array[File] abs_table = select_all(AbsoluteExtract.absolute_table)
-        }
-        if (length(select_all(AbsoluteExtract.absolute_purity)) > 0) {
-            Array[Float] abs_purity = select_all(AbsoluteExtract.absolute_purity)
-        }
-        if (length(select_all(AbsoluteExtract.absolute_ploidy)) > 0) {
-            Array[Float] abs_ploidy = select_all(AbsoluteExtract.absolute_ploidy)
-        }
-
-        call p_update_s.UpdateSamples as AddAbsoluteResultsToSamples {
-            input:
-                patient = clonal_patient,
-                acs_copy_ratio_segmentation = acs_cr_segmentation,
-                acs_copy_ratio_skew = acs_cr_skew,
-                absolute_acr_rdata = acr_rdata,
-                absolute_acr_plot = acr_plot,
-                absolute_snv_maf = abs_snv_maf,
-                absolute_indel_maf = abs_indel_maf,
-                absolute_maf_postprocessed = abs_maf_postprocessed,
-                absolute_segtab_postprocessed = abs_segtab_postprocessed,
-                absolute_segtab_igv_postprocessed = abs_segtab_igv_postprocessed,
-                absolute_maf = abs_maf,
-                absolute_segtab = abs_segtab,
-                absolute_table = abs_table,
-                purity = abs_purity,
-                ploidy = abs_ploidy,
-        }
-
-        # Only run PhylogicNDT if there are MAFs with ccf annotation
-        if (length(select_first([abs_maf, []])) > 0) {
-            scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
-                if (defined(sample.absolute_maf_postprocessed) && defined(sample.purity) && (sample.purity > 0)) {
-                    String? phylogic_sample_name = sample.name
-                    File? sample_absolute_maf = sample.absolute_maf_postprocessed
-                    File? sample_absolute_segtab = sample.absolute_segtab_postprocessed
-                    Float? sample_purity = sample.purity
-                    Int? sample_timepoint = sample.timepoint
-                }
-            }
-            if (args.phylogic_use_segtab && length(select_all(sample_absolute_segtab)) > 0) {
-                Array[File]? phylogic_absolute_segtabs = select_all(sample_absolute_segtab)
-            }
-            if (length(select_all(sample_timepoint)) > 0) {
-                Array[Int]? phylogic_timepoints = select_all(sample_timepoint)
-            }
-
-            if (length(select_all(phylogic_sample_name)) > 0) {
-                call phylogicndt.PhylogicNDT {
-                    input:
-                        patient_id = AddAbsoluteResultsToSamples.updated_patient.name,
-                        sample_names = select_all(phylogic_sample_name),
-                        absolute_mafs = select_all(sample_absolute_maf),
-                        absolute_segtabs = phylogic_absolute_segtabs,
-                        absolute_purities = select_all(sample_purity),
-                        timepoints = phylogic_timepoints,
-                        use_indels = args.phylogic_use_indels,
-                        impute_missing_snvs = args.phylogic_impute_missing_snvs,
-                        min_coverage = args.phylogic_min_coverage,
-                        driver_genes_file = args.files.phylogic_driver_genes_file,
-                        focal_cnv_intervals = args.files.phylogic_focal_cnv_intervals,
-                        genome_build = args.genome_build,
-                        runtime_collection = runtime_collection
-                }
-            }
-        }
-    }
-
-    # TODO: add mutational signature decomposition
-    # TODO: calculate TMB
-    
-    Patient clonal_updated_patient = select_first([AddAbsoluteResultsToSamples.updated_patient, clonal_patient])
-
-
-###############################################################################
-#                                                                             #
-#                                  OUTPUT                                     #
-#                                                                             #
-###############################################################################
-
-    Patient out_patient = clonal_updated_patient
+    # `run` is gated on ParseInput.validated, so its outputs are optional; the gate
+    # only fails by aborting the workflow, so when we reach here `run` has produced a
+    # patient. Coerce it once to a non-optional Patient for member access below.
+    Patient out_patient = select_first([run.output_patient])
 
     call p_out.Output {
         input:
@@ -806,26 +247,37 @@ workflow MultiSampleSomaticWorkflow {
         Array[File]? cr_model_parameters = Output.cr_model_parameters
         Array[File]? called_copy_ratio_segmentation = Output.called_copy_ratio_segmentation
         Array[File]? cr_plot = Output.cr_plot
-        Array[File]? acs_copy_ratio_segmentation = Output.acs_copy_ratio_segmentation
-        Array[Float]? acs_copy_ratio_skew = Output.acs_copy_ratio_skew
         Array[File]? annotated_somatic_variants = Output.annotated_somatic_variants
         Array[File?]? annotated_somatic_variants_idx = Output.annotated_somatic_variants_idx
-        Array[File]? absolute_acr_rdata = Output.absolute_acr_rdata
-        Array[File]? absolute_acr_plot = Output.absolute_acr_plot
+        Array[File]? acs_copy_ratio_segmentation = Output.acs_copy_ratio_segmentation
+        Array[Float]? acs_copy_ratio_skew = Output.acs_copy_ratio_skew
+
         Array[File]? absolute_snv_maf = Output.absolute_snv_maf
         Array[File]? absolute_indel_maf = Output.absolute_indel_maf
-        Array[Int]? absolute_solution = Output.absolute_solution
-        Array[File]? absolute_maf = Output.absolute_maf
-        Array[File]? absolute_segtab = Output.absolute_segtab
-        Array[File]? absolute_segtab_igv = Output.absolute_segtab_igv
-        Array[File]? absolute_table = Output.absolute_table
-        Array[Float]? purity = Output.purity
-        Array[Float]? ploidy = Output.ploidy
 
-        Array[File]? first_pass_cr_segmentations = FirstPassSegmentation.called_copy_ratio_segmentations
-        Array[File]? first_pass_cr_plots = FirstPassSegmentation.cr_plots
-        Array[File]? first_pass_af_model_parameters = FirstPassSegmentation.af_model_final_parameters
-        Array[File]? first_pass_cr_model_parameters = FirstPassSegmentation.cr_model_final_parameters
+        Array[File]? absolute_acr_rdata = Output.absolute_acr_rdata
+        Array[File]? absolute_acr_plot = Output.absolute_acr_plot
+        Array[Int]? absolute_acr_solution = Output.absolute_acr_solution
+        Array[File]? absolute_acr_maf = Output.absolute_acr_maf
+        Array[File]? absolute_acr_segtab = Output.absolute_acr_segtab
+        Array[File]? absolute_acr_segtab_igv = Output.absolute_acr_segtab_igv
+        Array[File]? absolute_acr_table = Output.absolute_acr_table
+        Array[Float]? absolute_acr_purity = Output.absolute_acr_purity
+        Array[Float]? absolute_acr_ploidy = Output.absolute_acr_ploidy
+
+        Array[File]? absolute_tcr_rdata = Output.absolute_tcr_rdata
+        Array[File]? absolute_tcr_plot = Output.absolute_tcr_plot
+        Array[Int]? absolute_tcr_solution = Output.absolute_tcr_solution
+        Array[File]? absolute_tcr_maf = Output.absolute_tcr_maf
+        Array[File]? absolute_tcr_segtab = Output.absolute_tcr_segtab
+        Array[File]? absolute_tcr_segtab_igv = Output.absolute_tcr_segtab_igv
+        Array[File]? absolute_tcr_table = Output.absolute_tcr_table
+        Array[Float]? absolute_tcr_purity = Output.absolute_tcr_purity
+        Array[Float]? absolute_tcr_ploidy = Output.absolute_tcr_ploidy
+
+        # user-supplied purity/ploidy override, echoed back for round-tripping:
+        Array[Float]? user_purity = Output.user_purity
+        Array[Float]? user_ploidy = Output.user_ploidy
 
         # for each interval shard:
         # CACHE (as returned by the workflow)
@@ -862,20 +314,20 @@ workflow MultiSampleSomaticWorkflow {
         File? snp_sample_correlation = out_patient.snp_sample_correlation
         Float? snp_sample_correlation_min = out_patient.snp_sample_correlation_min
         File? modeled_segments = out_patient.modeled_segments
-        File? phylogic_sif_file = PhylogicNDT.sif_file
-        File? phylogic_report = PhylogicNDT.report
-        File? phylogic_ccfs_cnvs = PhylogicNDT.ccfs_cnvs
-        File? phylogic_ccfs_snvs = PhylogicNDT.ccfs_snvs
-        File? phylogic_constrained_ccf = PhylogicNDT.constrained_ccf
-        File? phylogic_cluster_ccfs = PhylogicNDT.cluster_ccfs
-        File? phylogic_build_tree_posteriors = PhylogicNDT.build_tree_posteriors
-        File? phylogic_growth_rates = PhylogicNDT.growth_rates
-        File? phylogic_growth_rate_plot = PhylogicNDT.growth_rate_plot
-        File? phylogic_timing_report = PhylogicNDT.timing_report
-        File? phylogic_timing_wgd_supporting_events = PhylogicNDT.timing_wgd_supporting_events
-        File? phylogic_timing_graph = PhylogicNDT.timing_graph
-        File? phylogic_timing_comparison = PhylogicNDT.timing_comparison
-        File? phylogic_timing_table = PhylogicNDT.timing_table
+        File? phylogic_sif_file = out_patient.phylogic_sif_file
+        File? phylogic_report = out_patient.phylogic_report
+        File? phylogic_ccfs_cnvs = out_patient.phylogic_ccfs_cnvs
+        File? phylogic_ccfs_snvs = out_patient.phylogic_ccfs_snvs
+        File? phylogic_constrained_ccf = out_patient.phylogic_constrained_ccf
+        File? phylogic_cluster_ccfs = out_patient.phylogic_cluster_ccfs
+        File? phylogic_build_tree_posteriors = out_patient.phylogic_build_tree_posteriors
+        File? phylogic_growth_rates = out_patient.phylogic_growth_rates
+        File? phylogic_growth_rate_plot = out_patient.phylogic_growth_rate_plot
+        File? phylogic_timing_report = out_patient.phylogic_timing_report
+        File? phylogic_timing_wgd_supporting_events = out_patient.phylogic_timing_wgd_supporting_events
+        File? phylogic_timing_graph = out_patient.phylogic_timing_graph
+        File? phylogic_timing_comparison = out_patient.phylogic_timing_comparison
+        File? phylogic_timing_table = out_patient.phylogic_timing_table
 
         # composite cache
         Patient output_patient = out_patient

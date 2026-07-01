@@ -44,6 +44,114 @@ task GetSampleName {
     }
 }
 
+task ParseInput {
+    # Pre-flight validation gate. Fails the workflow before any expensive task if
+    # the inputs are mis-shaped or violate an implicit downstream requirement. The
+    # heavy reference resources are tested for presence via the has_* booleans, so
+    # this task localizes nothing in the default (non-deep) mode; only the small
+    # per-run interval / panel files are localized for content checks. The deep
+    # mode additionally localizes the bams for samtools integrity + contig-order
+    # checks (see run_input_validation_deep).
+    input {
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/validate_inputs.py"
+
+        Int n_bams
+        Int n_bais
+        Array[String]? sample_names
+        Array[String]? normal_sample_names
+        Array[Boolean]? is_paired_end
+        Array[Boolean]? use_for_tCR
+        Array[Boolean]? use_for_aCR
+        Array[Int]? timepoints
+        Array[File]? target_intervals
+        Array[File]? annotated_target_intervals
+        Array[File]? cnv_panel_of_normals
+
+        Boolean has_common_germline_alleles
+        Boolean has_common_germline_alleles_idx
+        Boolean has_realignment_image
+        Boolean has_germline_resource
+        Boolean has_snv_panel_of_normals
+        Boolean has_germline_resource_v4_1
+        Boolean has_snv_panel_of_normals_v4_1
+        Boolean has_funcotator_sources
+        Boolean has_sex
+
+        Boolean run_collect_total_read_counts
+        Boolean run_model_segments
+        Boolean run_collect_allelic_read_counts
+        Boolean run_contamination_model
+        Boolean run_realignment_filter
+        Boolean run_variant_calling_mutect1
+        Boolean run_variant_calling
+        Boolean run_variant_annotation
+        Boolean run_clonal_decomposition
+
+        Boolean deep = false
+        Array[File] bams = []
+        File? ref_dict
+
+        Runtime runtime_params
+    }
+
+    # In deep mode the bams are localized for samtools, so the request must cover
+    # them; bams is empty in the default mode, leaving just the base disk.
+    Int disk = runtime_params.disk + if deep then ceil(size(bams, "GB")) + 1 else 0
+
+    command <<<
+        set -euxo pipefail
+        wget -O validate_inputs.py ~{script}
+        python validate_inputs.py \
+            --n_bams ~{n_bams} \
+            --n_bais ~{n_bais} \
+            ~{true="--sample_names '" false="" defined(sample_names)}~{default="" sep="' --sample_names '" sample_names}~{true="'" false="" defined(sample_names)} \
+            ~{true="--normal_sample_names '" false="" defined(normal_sample_names)}~{default="" sep="' --normal_sample_names '" normal_sample_names}~{true="'" false="" defined(normal_sample_names)} \
+            ~{true="--is_paired_end '" false="" defined(is_paired_end)}~{default="" sep="' --is_paired_end '" is_paired_end}~{true="'" false="" defined(is_paired_end)} \
+            ~{true="--use_for_tCR '" false="" defined(use_for_tCR)}~{default="" sep="' --use_for_tCR '" use_for_tCR}~{true="'" false="" defined(use_for_tCR)} \
+            ~{true="--use_for_aCR '" false="" defined(use_for_aCR)}~{default="" sep="' --use_for_aCR '" use_for_aCR}~{true="'" false="" defined(use_for_aCR)} \
+            ~{true="--timepoints '" false="" defined(timepoints)}~{default="" sep="' --timepoints '" timepoints}~{true="'" false="" defined(timepoints)} \
+            ~{true="--target_intervals '" false="" defined(target_intervals)}~{default="" sep="' --target_intervals '" target_intervals}~{true="'" false="" defined(target_intervals)} \
+            ~{true="--annotated_target_intervals '" false="" defined(annotated_target_intervals)}~{default="" sep="' --annotated_target_intervals '" annotated_target_intervals}~{true="'" false="" defined(annotated_target_intervals)} \
+            ~{true="--cnv_panel_of_normals '" false="" defined(cnv_panel_of_normals)}~{default="" sep="' --cnv_panel_of_normals '" cnv_panel_of_normals}~{true="'" false="" defined(cnv_panel_of_normals)} \
+            --has_common_germline_alleles ~{has_common_germline_alleles} \
+            --has_common_germline_alleles_idx ~{has_common_germline_alleles_idx} \
+            --has_realignment_image ~{has_realignment_image} \
+            --has_germline_resource ~{has_germline_resource} \
+            --has_snv_panel_of_normals ~{has_snv_panel_of_normals} \
+            --has_germline_resource_v4_1 ~{has_germline_resource_v4_1} \
+            --has_snv_panel_of_normals_v4_1 ~{has_snv_panel_of_normals_v4_1} \
+            --has_funcotator_sources ~{has_funcotator_sources} \
+            --has_sex ~{has_sex} \
+            --run_collect_total_read_counts ~{run_collect_total_read_counts} \
+            --run_model_segments ~{run_model_segments} \
+            --run_collect_allelic_read_counts ~{run_collect_allelic_read_counts} \
+            --run_contamination_model ~{run_contamination_model} \
+            --run_realignment_filter ~{run_realignment_filter} \
+            --run_variant_calling_mutect1 ~{run_variant_calling_mutect1} \
+            --run_variant_calling ~{run_variant_calling} \
+            --run_variant_annotation ~{run_variant_annotation} \
+            --run_clonal_decomposition ~{run_clonal_decomposition} \
+            ~{if deep then "--deep" else ""} \
+            ~{true="--bams '" false="" deep}~{default="" sep="' --bams '" bams}~{true="'" false="" deep} \
+            ~{if (deep && defined(ref_dict)) then "--ref_dict '" + ref_dict + "'" else ""}
+    >>>
+
+    output {
+        Boolean validated = true
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+}
+
 task AnnotateIntervals {
     input {
         File interval_list

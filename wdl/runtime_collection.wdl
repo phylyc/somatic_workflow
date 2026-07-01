@@ -4,6 +4,8 @@ import "runtimes.wdl" as rt
 
 
 struct RuntimeCollection {
+    # CODEGEN:BEGIN struct_fields
+    Runtime parse_input
     Runtime get_tumor_sample_names
     Runtime get_sample_name
     Runtime annotate_intervals
@@ -50,7 +52,7 @@ struct RuntimeCollection {
     Runtime create_cnv_panel
     Runtime create_mutect2_panel
     Runtime select_af_only_from_vcf
-    Runtime ancestry
+    # CODEGEN:END struct_fields
 }
 
 
@@ -68,7 +70,6 @@ workflow DefineRuntimeCollection {
         String python_docker = "civisanalytics/datascience-python:8.0.1"  # @sha256:3482b19792546214a6952b369472c9d4d50d60b3a38300127ce346b7bab5fd51
         String absolute_docker = "phylyc/absolute:1.6"
         String phylogicndt_docker = "phylyc/phylogicndt:1.2" # @sha256:1140b8fef6e5198008b57b5577e4a119fe96bfb0c681b17bcd1716359d4ce346
-        String ancestry_docker = "us.gcr.io/tag-public/peddy-analysis:v1"
         File? gatk_override
         Int preemptible = 1
         Int max_retries = 1
@@ -96,6 +97,10 @@ workflow DefineRuntimeCollection {
         ### Preprocessing
         #######################################################################
 
+        # ParseInput
+        Int mem_parse_input = 2048
+        Int time_parse_input = 5
+
         # GetTumorSampleNames
         Int mem_get_tumor_sample_names = 256
         Int time_get_tumor_sample_names = 1
@@ -119,10 +124,6 @@ workflow DefineRuntimeCollection {
         # gatk (picard): ReorderSam
         Int mem_reorder_sam = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 2048
         Int time_reorder_sam = 60
-
-        # peddy: Ancestry calling
-        Int mem_ancestry = 1024
-        Int time_ancestry = 10
 
         #######################################################################
         # CNV workflow
@@ -326,6 +327,19 @@ workflow DefineRuntimeCollection {
 
     Int gatk_override_size = ceil(size(gatk_override, "GB"))
     Int disk = 2 + gatk_override_size + disk_sizeGB
+
+    # CODEGEN:BEGIN runtimes
+    Runtime parse_input = {
+        "docker": gatk_docker,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_parse_input + mem_machine_overhead,
+        "command_mem": mem_parse_input,
+        "runtime_minutes": time_startup + time_parse_input,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
 
     Runtime get_tumor_sample_names = {
         "docker": ubuntu_docker,
@@ -692,6 +706,19 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
+    Runtime subset_bam_to_shard = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_subset_bam_to_shard + mem_machine_overhead,
+        "command_mem": mem_subset_bam_to_shard,
+        "runtime_minutes": time_startup + time_subset_bam_to_shard,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
     Runtime mutect1 = {
         "docker": mutect1_docker,
         "preemptible": preemptible_mutect1,
@@ -782,19 +809,6 @@ workflow DefineRuntimeCollection {
         "boot_disk_size": boot_disk_size
     }
 
-    Runtime subset_bam_to_shard = {
-        "docker": gatk_docker,
-        "jar_override": gatk_override,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu,
-        "machine_mem": mem_subset_bam_to_shard + mem_machine_overhead,
-        "command_mem": mem_subset_bam_to_shard,
-        "runtime_minutes": time_startup + time_subset_bam_to_shard,
-        "disk": disk,
-        "boot_disk_size": boot_disk_size
-    }
-
     Runtime print_reads = {
         "docker": gatk_docker,
         "jar_override": gatk_override,
@@ -856,7 +870,6 @@ workflow DefineRuntimeCollection {
         "cpu": cpu,
         "machine_mem": mem_funcotate + mem_machine_overhead,
         "command_mem": mem_funcotate,
-#        "runtime_minutes": time_startup + if run_variant_anntation_scattered then ceil(time_funcotate / scatter_count_for_variant_calling) else time_funcotate,
         "runtime_minutes": time_startup + time_funcotate,
         "disk": disk,
         "boot_disk_size": boot_disk_size
@@ -866,7 +879,7 @@ workflow DefineRuntimeCollection {
         "docker": ubuntu_docker,
         "preemptible": preemptible,
         "max_retries": max_retries,
-        'cpu': cpu,
+        "cpu": cpu,
         "machine_mem": mem_create_empty_annotations + mem_machine_overhead,
         "command_mem": mem_create_empty_annotations,
         "runtime_minutes": time_startup + time_create_empty_annotations,
@@ -911,27 +924,17 @@ workflow DefineRuntimeCollection {
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
-
-    Runtime ancestry = {
-        "docker": ancestry_docker,
-        "preemptible": preemptible,
-        "max_retries": max_retries,
-        "cpu": cpu,
-        "machine_mem": mem_ancestry + mem_machine_overhead,
-        "command_mem": mem_ancestry,
-        "runtime_minutes": time_startup + time_ancestry,
-        "disk": disk,
-        "boot_disk_size": boot_disk_size
-    }
+    # CODEGEN:END runtimes
 
     RuntimeCollection runtime_collection = {
+        # CODEGEN:BEGIN collection
+        "parse_input": parse_input,
         "get_tumor_sample_names": get_tumor_sample_names,
         "get_sample_name": get_sample_name,
         "annotate_intervals": annotate_intervals,
         "preprocess_intervals": preprocess_intervals,
         "split_intervals": split_intervals,
         "reorder_sam": reorder_sam,
-
         "collect_callable_loci": collect_callable_loci,
         "collect_read_counts": collect_read_counts,
         "denoise_read_counts": denoise_read_counts,
@@ -949,14 +952,12 @@ workflow DefineRuntimeCollection {
         "plot_modeled_segments": plot_modeled_segments,
         "filter_copy_ratios": filter_copy_ratios,
         "recount_markers": recount_markers,
-
         "model_segments_to_acs_conversion": model_segments_to_acs_conversion,
         "process_maf_for_absolute": process_maf_for_absolute,
         "absolute": absolute,
         "absolute_extract": absolute_extract,
         "absolute_extract_postprocess": absolute_extract_postprocess,
         "phylogicndt_task": phylogicndt_task,
-
         "subset_bam_to_shard": subset_bam_to_shard,
         "mutect1": mutect1,
         "merge_mutect1_forcecall_vcfs": merge_mutect1_forcecall_vcfs,
@@ -971,11 +972,10 @@ workflow DefineRuntimeCollection {
         "select_variants": select_variants,
         "funcotate": funcotate,
         "create_empty_annotation": create_empty_annotation,
-
         "create_cnv_panel": create_cnv_panel,
         "create_mutect2_panel": create_mutect2_panel,
         "select_af_only_from_vcf": select_af_only_from_vcf,
-        "ancestry": ancestry
+        # CODEGEN:END collection
     }
 
     output {

@@ -1,5 +1,15 @@
+# Somatic workflow Python dependencies (runtime + test), consolidated.
+# Install:  pip install -r requirements.txt
+#
+# numpy/pandas/scipy are the only runtime imports across the scripts
+# (scikit-learn and tqdm were listed previously but are imported nowhere).
+
+# --- runtime ---
 numpy==1.26.4
 pandas==2.2.2
 scipy==1.13.0
-scikit-learn==1.4.2
-tqdm==4.66.2
+
+# --- test / dev ---
+pytest>=8.0
+pytest-cov>=5.0
+hypothesis>=6.100

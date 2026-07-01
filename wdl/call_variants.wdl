@@ -100,6 +100,19 @@ workflow CallVariants {
             Array[File] single_scatter_mutect1_vcfs_idx = flatten(SingleScatterMutect1.mutect1_vcf_idx)
         } # ELSE
         if (length(scattered_intervals_for_variant_calling_m1) > 1) {
+            # Index of the matched normal within patient.samples; its shard-subset bam
+            # (first sequencing run) is reused as the normal for every tumor sample.
+            # Computed once, by name.
+            if (defined(patient.matched_normal_sample)) {
+                String mn_name = select_first([patient.matched_normal_sample]).name
+                scatter (idx in range(length(patient.samples))) {
+                    if (patient.samples[idx].name == mn_name) {
+                        Int mn_idx_maybe = idx
+                    }
+                }
+                Int matched_normal_idx = select_all(mn_idx_maybe)[0]
+            }
+
             scatter (interval_list in scattered_intervals_for_variant_calling_m1) {
                 # Mutect1
                 # Old GATK does not stream input files, so we have to localize them.
@@ -118,30 +131,33 @@ workflow CallVariants {
                                 bais = [seq_run.bai],
                                 runtime_params = runtime_collection.subset_bam_to_shard
                         }
-                        call seqrun.UpdateSequencingRun as SeqRunShard {
-                            input:
-                                sequencing_run = seq_run,
-                                bam = SubsetToShard.output_bam,
-                                bai = SubsetToShard.output_bai
-                        }
                     }
                 }
-                call p_update_s.UpdateSamples as PatientShard {
-                    input:
-                        patient = patient,
-                        sequencing_runs = SeqRunShard.updated_sequencing_run
+
+                # Route the shard-subset bams directly by index instead of rebuilding
+                # SequencingRun/Patient structs per shard. SubsetToShard.output_bam is
+                # Array[Array[File]] indexed [sample][run], aligned with patient.samples.
+                if (defined(matched_normal_idx)) {
+                    Int mn_idx = select_first([matched_normal_idx])
+                    Array[File] mn_shard_bams = SubsetToShard.output_bam[mn_idx]
+                    Array[File] mn_shard_bais = SubsetToShard.output_bai[mn_idx]
+                    File shard_matched_normal_bam = mn_shard_bams[0]
+                    File shard_matched_normal_bai = mn_shard_bais[0]
+                    String shard_matched_normal_name = patient.samples[mn_idx].name
                 }
 
-                scatter (sample in PatientShard.updated_patient.samples) {
-                    scatter (seq_run in sample.sequencing_runs) {
+                scatter (s_idx in range(length(patient.samples))) {
+                    Sample m1_sample = patient.samples[s_idx]
+                    Array[File] sample_shard_bams = SubsetToShard.output_bam[s_idx]
+                    Array[File] sample_shard_bais = SubsetToShard.output_bai[s_idx]
+                    scatter (r_idx in range(length(m1_sample.sequencing_runs))) {
+                        SequencingRun m1_seq_run = m1_sample.sequencing_runs[r_idx]
                         # Only supply matched normal sample for tumor samples as
                         # Mutect1 does not like the same bam for tumor and normal.
-                        if (sample.is_tumor && defined(PatientShard.updated_patient.matched_normal_sample)) {
-                            Sample matched_normal_sample = select_first([PatientShard.updated_patient.matched_normal_sample])
-                            String matched_normal_sample_name = matched_normal_sample.name
-                            SequencingRun matched_normal_sample_seq_run = select_first(matched_normal_sample.sequencing_runs)
-                            File matched_normal_bam = matched_normal_sample_seq_run.bam
-                            File matched_normal_bai = matched_normal_sample_seq_run.bai
+                        if (m1_sample.is_tumor && defined(matched_normal_idx)) {
+                            String? this_normal_name = shard_matched_normal_name
+                            File? this_normal_bam = shard_matched_normal_bam
+                            File? this_normal_bai = shard_matched_normal_bai
                         }
                         call Mutect1 as ScatteredMutect1 {
                             input:
@@ -153,15 +169,15 @@ workflow CallVariants {
                                 germline_resource_idx = args.files.germline_resource_v4_1_idx,
                                 panel_of_normals = args.files.snv_panel_of_normals_v4_1,
                                 panel_of_normals_idx = args.files.snv_panel_of_normals_v4_1_idx,
-                                contamination_table = sample.contamination_table,
+                                contamination_table = m1_sample.contamination_table,
 
                                 patient_id = patient.name,
-                                tumor_sample_name = seq_run.sample_name,
-                                tumor_bam = seq_run.bam,
-                                tumor_bai = seq_run.bai,
-                                normal_sample_name = matched_normal_sample_name,
-                                normal_bam = matched_normal_bam,
-                                normal_bai = matched_normal_bai,
+                                tumor_sample_name = m1_seq_run.sample_name,
+                                tumor_bam = sample_shard_bams[r_idx],
+                                tumor_bai = sample_shard_bais[r_idx],
+                                normal_sample_name = this_normal_name,
+                                normal_bam = this_normal_bam,
+                                normal_bai = this_normal_bai,
 
                                 initial_tumor_lod = args.mutect1_initial_tumor_lod,
                                 tumor_lod = args.mutect1_tumor_lod_to_emit,

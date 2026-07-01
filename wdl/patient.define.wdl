@@ -52,16 +52,30 @@ workflow DefinePatient {
         Array[Float]? acs_copy_ratio_skew
         Array[File]? annotated_somatic_variants
         Array[File]? annotated_somatic_variants_idx
-        Array[File]? absolute_acr_rdata
-        Array[File]? absolute_acr_plot
         Array[File]? absolute_snv_maf
         Array[File]? absolute_indel_maf
-        Array[Int]? absolute_solution
-        Array[File]? absolute_maf
-        Array[File]? absolute_segtab
-        Array[File]? absolute_table
-        Array[Float]? purity
-        Array[Float]? ploidy
+
+        Array[File]? absolute_acr_rdata
+        Array[File]? absolute_acr_plot
+        Array[Int]? absolute_acr_solution
+        Array[File]? absolute_acr_maf
+        Array[File]? absolute_acr_segtab
+        Array[File]? absolute_acr_table
+        Array[Float]? absolute_acr_purity
+        Array[Float]? absolute_acr_ploidy
+
+        Array[File]? absolute_tcr_rdata
+        Array[File]? absolute_tcr_plot
+        Array[Int]? absolute_tcr_solution
+        Array[File]? absolute_tcr_maf
+        Array[File]? absolute_tcr_segtab
+        Array[File]? absolute_tcr_table
+        Array[Float]? absolute_tcr_purity
+        Array[Float]? absolute_tcr_ploidy
+
+        # user-supplied purity/ploidy that force ABSOLUTE's alpha/tau (both or neither):
+        Array[Float]? user_purity
+        Array[Float]? user_ploidy
 
         # for the patient-level shards:
         # CACHE
@@ -131,96 +145,45 @@ workflow DefinePatient {
     }
     Array[SequencingRun] seqruns_dsr = DefineSequencingRun.sequencing_run
 
-    Array[File] ati = select_first([annotated_target_intervals, []])
-    if (length(ati) > 0) {
-        scatter (pair in zip(seqruns_dsr, ati)) {
-            call seq_run.UpdateSequencingRun as UpdateAnnotatedTargetIntervals {
-                input:
-                    sequencing_run = pair.left,
-                    annotated_target_intervals = pair.right,
-            }
-        }
-    }
-    Array[SequencingRun] seqruns_ati = select_first([UpdateAnnotatedTargetIntervals.updated_sequencing_run, seqruns_dsr])
+    # Overlay the per-sequencing-run inputs in a single pass. Each provided input array
+    # carries one entry per run (aligned by index) and sets the matching field; an absent
+    # or empty input leaves the field unchanged. cnv_panel_of_normals follows the 0-byte
+    # placeholder convention: a size-0 file means "no PoN", so the field is left undefined.
+    # INVARIANT: any provided input array has length == length(seqruns_dsr).
+    Array[File] annotated_target_intervals_arr = select_first([annotated_target_intervals, []])
+    Array[File] cnv_panel_of_normals_arr = select_first([cnv_panel_of_normals, []])
+    Array[Boolean] is_paired_end_arr = select_first([is_paired_end, []])
+    Array[Boolean] use_for_tCR_arr = select_first([use_for_tCR, []])
+    Array[Boolean] use_for_aCR_arr = select_first([use_for_aCR, []])
+    Array[String] sample_names_arr = select_first([sample_names, []])
+    Array[Int] timepoints_arr = select_first([timepoints, []])
 
-    Array[File] cpon = select_first([cnv_panel_of_normals, []])
-    if (length(cpon) > 0) {
-        scatter (pair in zip(seqruns_ati, cpon)) {
-            if (size(pair.right) > 0) {
-                # For some sequencing platforms a panel of normals may not be available.
-                # The denoise read counts task will then just use the anntated target
-                # intervals to do GC correction. The convention here is to pass
-                # a file of size 0B in place of the cnv PoN.
-                File this_cnv_panel_of_normals = pair.right
-            }
-            call seq_run.UpdateSequencingRun as UpdateCnvPanelOfNormals {
-                input:
-                    sequencing_run = pair.left,
-                    cnv_panel_of_normals = this_cnv_panel_of_normals,
+    scatter (i in range(length(seqruns_dsr))) {
+        SequencingRun seq_run_i = seqruns_dsr[i]
+        if (length(cnv_panel_of_normals_arr) > 0) {
+            if (size(cnv_panel_of_normals_arr[i]) > 0) {
+                File this_cnv_panel_of_normals = cnv_panel_of_normals_arr[i]
             }
         }
-    }
-    Array[SequencingRun] seqruns_cpn = select_first([UpdateCnvPanelOfNormals.updated_sequencing_run, seqruns_ati])
-
-    Array[Boolean] ipe = select_first([is_paired_end, []])
-    if (length(ipe) > 0) {
-        scatter (pair in zip(seqruns_cpn, ipe)) {
-            call seq_run.UpdateSequencingRun as UpdateIsPairedEnd {
-                input:
-                    sequencing_run = pair.left,
-                    is_paired_end = pair.right,
-            }
+        SequencingRun seq_run_with_metadata = object {
+            name: seq_run_i.name,
+            sample_name: if length(sample_names_arr) > 0 then sample_names_arr[i] else seq_run_i.sample_name,
+            timepoint: if length(timepoints_arr) > 0 then timepoints_arr[i] else seq_run_i.timepoint,
+            bam: seq_run_i.bam,
+            bai: seq_run_i.bai,
+            target_intervals: seq_run_i.target_intervals,
+            annotated_target_intervals: if length(annotated_target_intervals_arr) > 0 then annotated_target_intervals_arr[i] else seq_run_i.annotated_target_intervals,
+            cnv_panel_of_normals: if defined(this_cnv_panel_of_normals) then this_cnv_panel_of_normals else seq_run_i.cnv_panel_of_normals,
+            is_paired_end: if length(is_paired_end_arr) > 0 then is_paired_end_arr[i] else seq_run_i.is_paired_end,
+            use_for_tCR: if length(use_for_tCR_arr) > 0 then use_for_tCR_arr[i] else seq_run_i.use_for_tCR,
+            use_for_aCR: if length(use_for_aCR_arr) > 0 then use_for_aCR_arr[i] else seq_run_i.use_for_aCR,
+            callable_loci: seq_run_i.callable_loci,
+            total_read_counts: seq_run_i.total_read_counts,
+            denoised_total_copy_ratios: seq_run_i.denoised_total_copy_ratios,
+            snppanel_allelic_pileup_summaries: seq_run_i.snppanel_allelic_pileup_summaries,
         }
     }
-    Array[SequencingRun] seqruns_ipe = select_first([UpdateIsPairedEnd.updated_sequencing_run, seqruns_cpn])
-
-    Array[Boolean] utcr = select_first([use_for_tCR, []])
-    if (length(utcr) > 0) {
-        scatter (pair in zip(seqruns_ipe, utcr)) {
-            call seq_run.UpdateSequencingRun as UpdateUseForDCR {
-                input:
-                    sequencing_run = pair.left,
-                    use_for_tCR = pair.right,
-            }
-        }
-    }
-    Array[SequencingRun] seqruns_utcr = select_first([UpdateUseForDCR.updated_sequencing_run, seqruns_ipe])
-
-    Array[Boolean] uacr = select_first([use_for_aCR, []])
-    if (length(uacr) > 0) {
-        scatter (pair in zip(seqruns_utcr, uacr)) {
-            call seq_run.UpdateSequencingRun as UpdateUseForACR {
-                input:
-                    sequencing_run = pair.left,
-                    use_for_aCR = pair.right,
-            }
-        }
-    }
-    Array[SequencingRun] seqruns_uacr = select_first([UpdateUseForACR.updated_sequencing_run, seqruns_utcr])
-
-    Array[String] sn = select_first([sample_names, []])
-    if (length(sn) > 0) {
-        scatter (pair in zip(seqruns_uacr, sn)) {
-            call seq_run.UpdateSequencingRun as UpdateSampleName {
-                input:
-                    sequencing_run = pair.left,
-                    sample_name = pair.right,
-            }
-        }
-    }
-    Array[SequencingRun] seqruns_sn = select_first([UpdateSampleName.updated_sequencing_run, seqruns_uacr])
-
-    Array[Int] t = select_first([timepoints, []])
-    if (length(t) > 0) {
-        scatter (pair in zip(seqruns_sn, t)) {
-            call seq_run.UpdateSequencingRun as UpdateTimepoints {
-                input:
-                    sequencing_run = pair.left,
-                    timepoint = pair.right,
-            }
-        }
-    }
-    Array[SequencingRun] seqruns_t = select_first([UpdateTimepoints.updated_sequencing_run, seqruns_sn])
+    Array[SequencingRun] seqruns_with_metadata = seq_run_with_metadata
 
     # GroupBy sample name:
     # We assume that sample_names and bam_names share the same uniqueness,
@@ -228,7 +191,7 @@ workflow DefinePatient {
     # bam names should also be the same, and vice versa.
 
     Array[String] theses_sample_names = select_first([sample_names, bam_names])
-    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_t)))
+    Array[Pair[String, Array[SequencingRun]]] sample_dict = as_pairs(collect_by_key(zip(theses_sample_names, seqruns_with_metadata)))
 
     # Pick tumor and normal samples apart:
 
@@ -363,66 +326,43 @@ workflow DefinePatient {
         Array[SequencingRun] seqruns = sample.sequencing_runs
     }
 
-    Array[Array[File]] cl = select_first([callable_loci, [[]]])
-    if (length(flatten(cl)) > 0) {
-        scatter (sample_pair in zip(seqruns, cl)) {
-            scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
-                call seq_run.UpdateSequencingRun as UpdateCallableLoci {
-                    input:
-                        sequencing_run = seqrun_pair.left,
-                        callable_loci = seqrun_pair.right
-                }
-            }
-        }
-    }
-    Array[Array[SequencingRun]] cl_seqrun = select_first([UpdateCallableLoci.updated_sequencing_run, seqruns])
+    # Overlay the per-run CACHE coverage fields (callable loci, read counts, denoised
+    # copy ratios, allelic pileups) in a single nested pass over samples and their runs.
+    # Each provided input is an Array[Array[File]] aligned by [sample][run]; an absent or
+    # empty input leaves the field unchanged.
+    Array[Array[File]] callable_loci_arr = select_first([callable_loci, [[]]])
+    Array[Array[File]] total_read_counts_arr = select_first([total_read_counts, [[]]])
+    Array[Array[File]] denoised_total_copy_ratios_arr = select_first([denoised_total_copy_ratios, [[]]])
+    Array[Array[File]] snppanel_allelic_pileup_summaries_arr = select_first([snppanel_allelic_pileup_summaries, [[]]])
 
-    Array[Array[File]] trc = select_first([total_read_counts, [[]]])
-    if (length(flatten(trc)) > 0) {
-        scatter (sample_pair in zip(cl_seqrun, trc)) {
-            scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
-                call seq_run.UpdateSequencingRun as UpdateTotalReadCounts {
-                    input:
-                        sequencing_run = seqrun_pair.left,
-                        total_read_counts = seqrun_pair.right
-                }
+    scatter (sample_idx in range(length(seqruns))) {
+        scatter (run_idx in range(length(seqruns[sample_idx]))) {
+            SequencingRun existing_seq_run = seqruns[sample_idx][run_idx]
+            SequencingRun seq_run_with_coverage = object {
+                name: existing_seq_run.name,
+                sample_name: existing_seq_run.sample_name,
+                timepoint: existing_seq_run.timepoint,
+                bam: existing_seq_run.bam,
+                bai: existing_seq_run.bai,
+                target_intervals: existing_seq_run.target_intervals,
+                annotated_target_intervals: existing_seq_run.annotated_target_intervals,
+                cnv_panel_of_normals: existing_seq_run.cnv_panel_of_normals,
+                is_paired_end: existing_seq_run.is_paired_end,
+                use_for_tCR: existing_seq_run.use_for_tCR,
+                use_for_aCR: existing_seq_run.use_for_aCR,
+                callable_loci: if length(flatten(callable_loci_arr)) > 0 then callable_loci_arr[sample_idx][run_idx] else existing_seq_run.callable_loci,
+                total_read_counts: if length(flatten(total_read_counts_arr)) > 0 then total_read_counts_arr[sample_idx][run_idx] else existing_seq_run.total_read_counts,
+                denoised_total_copy_ratios: if length(flatten(denoised_total_copy_ratios_arr)) > 0 then denoised_total_copy_ratios_arr[sample_idx][run_idx] else existing_seq_run.denoised_total_copy_ratios,
+                snppanel_allelic_pileup_summaries: if length(flatten(snppanel_allelic_pileup_summaries_arr)) > 0 then snppanel_allelic_pileup_summaries_arr[sample_idx][run_idx] else existing_seq_run.snppanel_allelic_pileup_summaries,
             }
         }
     }
-    Array[Array[SequencingRun]] trc_seqrun = select_first([UpdateTotalReadCounts.updated_sequencing_run, cl_seqrun])
-
-    Array[Array[File]] dtcr = select_first([denoised_total_copy_ratios, [[]]])
-    if (length(flatten(dtcr)) > 0) {
-        scatter (sample_pair in zip(trc_seqrun, dtcr)) {
-            scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
-                call seq_run.UpdateSequencingRun as UpdateDenoisedTotalCopyRatios {
-                    input:
-                        sequencing_run = seqrun_pair.left,
-                        denoised_total_copy_ratios = seqrun_pair.right
-                }
-            }
-        }
-    }
-    Array[Array[SequencingRun]] dtcr_seqrun = select_first([UpdateDenoisedTotalCopyRatios.updated_sequencing_run, trc_seqrun])
-
-    Array[Array[File]] sap = select_first([snppanel_allelic_pileup_summaries, [[]]])
-    if (length(flatten(sap)) > 0) {
-        scatter (sample_pair in zip(dtcr_seqrun, sap)) {
-            scatter (seqrun_pair in zip(sample_pair.left, sample_pair.right)) {
-                call seq_run.UpdateSequencingRun as UpdateSnppanelAllelicPileupSummaries {
-                    input:
-                        sequencing_run = seqrun_pair.left,
-                        snppanel_allelic_pileup_summaries = seqrun_pair.right
-                }
-            }
-        }
-    }
-    Array[Array[SequencingRun]] sap_seqrun = select_first([UpdateSnppanelAllelicPileupSummaries.updated_sequencing_run, dtcr_seqrun])
+    Array[Array[SequencingRun]] seqruns_with_coverage = seq_run_with_coverage
 
     call p_update_s.UpdateSamples {
         input:
             patient = UpdateShards.updated_patient,
-            sequencing_runs = sap_seqrun,
+            sequencing_runs = seqruns_with_coverage,
             harmonized_callable_loci = harmonized_callable_loci,
             harmonized_denoised_total_copy_ratios = harmonized_denoised_total_copy_ratios,
             harmonized_snppanel_allelic_pileup_summaries = harmonized_snppanel_allelic_pileup_summaries,
@@ -439,16 +379,30 @@ workflow DefinePatient {
             acs_copy_ratio_skew = acs_copy_ratio_skew,
             annotated_somatic_variants = annotated_somatic_variants,
             annotated_somatic_variants_idx = annotated_somatic_variants_idx,
-            absolute_acr_rdata = absolute_acr_rdata,
-            absolute_acr_plot = absolute_acr_plot,
+
             absolute_snv_maf = absolute_snv_maf,
             absolute_indel_maf = absolute_indel_maf,
-            absolute_solution = absolute_solution,
-            absolute_maf = absolute_maf,
-            absolute_segtab = absolute_segtab,
-            absolute_table = absolute_table,
-            purity = purity,
-            ploidy = ploidy
+
+            absolute_acr_rdata = absolute_acr_rdata,
+            absolute_acr_plot = absolute_acr_plot,
+            absolute_acr_solution = absolute_acr_solution,
+            absolute_acr_maf = absolute_acr_maf,
+            absolute_acr_segtab = absolute_acr_segtab,
+            absolute_acr_table = absolute_acr_table,
+            absolute_acr_purity = absolute_acr_purity,
+            absolute_acr_ploidy = absolute_acr_ploidy,
+
+            absolute_tcr_rdata = absolute_tcr_rdata,
+            absolute_tcr_plot = absolute_tcr_plot,
+            absolute_tcr_solution = absolute_tcr_solution,
+            absolute_tcr_maf = absolute_tcr_maf,
+            absolute_tcr_segtab = absolute_tcr_segtab,
+            absolute_tcr_table = absolute_tcr_table,
+            absolute_tcr_purity = absolute_tcr_purity,
+            absolute_tcr_ploidy = absolute_tcr_ploidy,
+
+            user_purity = user_purity,
+            user_ploidy = user_ploidy
     }
 
     output {
