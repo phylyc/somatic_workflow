@@ -46,6 +46,10 @@ struct Patient {
     File?         snp_other_alt_counts
     File?         snp_sample_correlation
     Float?        snp_sample_correlation_min
+    String?       ancestry_pred                             # peddy | RunPeddy
+    Float?        ancestry_prob                             # peddy | RunPeddy
+    File?         ancestry_background_pca_table             # peddy | RunPeddy
+    File?         ancestry_pca_plot                         # peddy | RunPeddy
     File?         modeled_segments
     File?         phylogic_sif_file
     File?         phylogic_report
@@ -102,6 +106,10 @@ workflow UpdatePatient {
         File? snp_other_alt_counts
         File? snp_sample_correlation
         Float? snp_sample_correlation_min
+        String? ancestry_pred
+        Float? ancestry_prob
+        File? ancestry_background_pca_table
+        File? ancestry_pca_plot
         File? modeled_segments
         File? phylogic_sif_file
         File? phylogic_report
@@ -156,6 +164,10 @@ workflow UpdatePatient {
         snp_other_alt_counts: if defined(snp_other_alt_counts) then snp_other_alt_counts else patient.snp_other_alt_counts,
         snp_sample_correlation: if defined(snp_sample_correlation) then snp_sample_correlation else patient.snp_sample_correlation,
         snp_sample_correlation_min: if defined(snp_sample_correlation_min) then snp_sample_correlation_min else patient.snp_sample_correlation_min,
+        ancestry_pred: if defined(ancestry_pred) then ancestry_pred else patient.ancestry_pred,
+        ancestry_prob: if defined(ancestry_prob) then ancestry_prob else patient.ancestry_prob,
+        ancestry_background_pca_table: if defined(ancestry_background_pca_table) then ancestry_background_pca_table else patient.ancestry_background_pca_table,
+        ancestry_pca_plot: if defined(ancestry_pca_plot) then ancestry_pca_plot else patient.ancestry_pca_plot,
         modeled_segments: if defined(modeled_segments) then modeled_segments else patient.modeled_segments,
         phylogic_sif_file: if defined(phylogic_sif_file) then phylogic_sif_file else patient.phylogic_sif_file,
         phylogic_report: if defined(phylogic_report) then phylogic_report else patient.phylogic_report,

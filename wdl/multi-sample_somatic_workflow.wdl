@@ -69,6 +69,12 @@ workflow MultiSampleSomaticWorkflow {
         # tumor samples.
         Array[String]? normal_sample_names
 
+        # Used to split the genome for SNV calling so each shard on average completes
+        # in ~2-3h. The default of 500 reads is chosen for a NGS WES paired tumor-normal
+        # setting where each sample contributes ~250x read depth. Increase if more
+        # samples are supplied.
+        Int total_mean_read_depth = 500
+
         Patient? input_patient
         WorkflowArguments? input_args
         WorkflowResources? input_resources
@@ -99,6 +105,7 @@ workflow MultiSampleSomaticWorkflow {
     if (!defined(input_args)) {
         call wfargs.DefineWorkflowArguments as z3_Parameters {
             input:
+                total_mean_read_depth = total_mean_read_depth,
                 resources = resources,
                 runtime_collection = runtime_collection,
         }
@@ -313,6 +320,10 @@ workflow MultiSampleSomaticWorkflow {
         File? snp_other_alt_counts = out_patient.snp_other_alt_counts
         File? snp_sample_correlation = out_patient.snp_sample_correlation
         Float? snp_sample_correlation_min = out_patient.snp_sample_correlation_min
+        String? ancestry_pred = out_patient.ancestry_pred
+        Float? ancestry_prob = out_patient.ancestry_prob
+        File? ancestry_background_pca_table = out_patient.ancestry_background_pca_table
+        File? ancestry_pca_plot = out_patient.ancestry_pca_plot
         File? modeled_segments = out_patient.modeled_segments
         File? phylogic_sif_file = out_patient.phylogic_sif_file
         File? phylogic_report = out_patient.phylogic_report

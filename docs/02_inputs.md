@@ -10,11 +10,18 @@ The workflow uses a hierarchical biological and technical model:
 The input arguments are grouped into 
 ```wdl
 MultiSampleSomaticWorkflow # (core patient-related inputs)
-Files # (reference data resources)
-Cache # (workflow output)
-Parameters # (workflow parameters)
-RuntimeParameters
+z1_Files # (reference data resources)
+z2_Cache # (workflow output)
+z3_Parameters # (workflow parameters)
+z4_RuntimeParameters # (per-task runtime settings)
 ```
+
+> **Note on the `z1_`–`z4_` prefixes.** These groups are sub-workflow calls, and
+> the numeric prefixes are only there to force a sensible top-to-bottom ordering in
+> the Terra inputs UI. Use the prefixed names in input keys, e.g.
+> `MultiSampleSomaticWorkflow.z1_Files.ref_fasta` and
+> `MultiSampleSomaticWorkflow.z2_Cache.absolute_solution`.
+
 ### A) Core input (`MultiSampleSomaticWorkflow`)
 
 | Variable Name | Required/Recommended/Optional | Description | Type |
@@ -32,10 +39,11 @@ RuntimeParameters
 | `normal_sample_names` | Recommended | A list of sample names that should be treated as normal samples. The first listed normal is treated as the matched normal when a single matched normal is needed. If several normal samples exist, the preferred choice is typically the one with highest sequencing depth, although similarly sequenced normals often behave comparably. For tumor-only analysis, leave `normal_sample_names` empty or omit it. | Array[String] |
 | `sex` | Recommended | Patient biological sex (male, female) | String |
 | `timepoints` | Recommended | Relative collection times for samples. The workflow is invariant to overall translation and rescaling of these values, so they may be represented in different units as long as the ordering and spacing make sense. Used for phylogenetic analysis. Especially useful in cfDNA settings. | Array[String] |
+| `total_mean_read_depth` | Recommended | Total mean read depth across all bams. Used to dynamically split the genome into shards for variant calling with Mutect2 to keep overall runtime reasonable. | Int |
 
-### B) Reference data (`Files`)
+### B) Reference data (`z1_Files`)
 
-- Refer to resources.md for links to available public resources
+- Refer to [resources](10_resources.md) for links to available public resources
 
 | Variable Name | Required/Recommended/Optional | Description | Type |
 |----------------|-------------------------|----------------|----------------|
@@ -61,14 +69,13 @@ RuntimeParameters
 | `snv_panel_of_normals_v4_1_idx` | Recommended | Same as snv_panel_of_normals_idx in VCF v4.1 format (for Mutect1) | File |
 | `realignment_bwa_mem_index_image` | Optional | Only needed if realigning to a different genome (e.g. hg38) | File |
 
-### C) Workflow Parameters (`Parameters`)
+### C) Workflow Parameters (`z3_Parameters`)
 
 For defaults, please check out: <https://github.com/phylyc/somatic_workflow/blob/master/wdl/workflow_arguments.wdl>
 
 | Argument | Required/Recommended/Optional | Description / Example | Type |
 |----------------|-----------------------|------------------|----------------|
-| `absolute_genome_build` | Required | "hg19" or "hg38" | String |
-| `funcotator_reference_version` | Required | "hg19" or "hg38" | String |
+| `genome_build` | Required | "hg19" or "hg38" | String |
 | `high_mem_shards` | Optional | Indices of shards that require additional memory allocation, e.g. `[0, 5, 99, 102]` | Array[Int] |
 | `mutect2_high_mem_factor` | Optional | Multiplier applied to the default memory allocation for high_mem_shards, e.g. `2.0` will use 2x memory | Float |
 | `scatter_count_base_for_variant_calling` | Optional | Number of shards to split the BAMs into for parallelized variant calling | Int |
@@ -86,7 +93,6 @@ For defaults, please check out: <https://github.com/phylyc/somatic_workflow/blob
 | `run_variant_filter` | Optional | true or false | Boolean |
 | `run_realignment_filter` | Optional | true or false | Boolean |
 | `run_clonal_decomposition` | Optional | true or false | Boolean |
-| `total_mean_read_depth` | Recommended | 
 
 ---
 
@@ -123,16 +129,15 @@ For defaults, please check out: <https://github.com/phylyc/somatic_workflow/blob
     "WES_pon.hdf5",
     "WES_pon.hdf5"
   ],
-  "MultiSampleSomaticWorkflow.Files.ref_dict": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.dict",
-  "MultiSampleSomaticWorkflow.Files.ref_fasta": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
-  "MultiSampleSomaticWorkflow.Files.ref_fasta_index": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta.fai",
-  "MultiSampleSomaticWorkflow.Files.germline_resource": "gnomad_sites.af_only.vcf.gz",
-  "MultiSampleSomaticWorkflow.Files.germline_resource_idx": "gnomad_sites.af_only.vcf.gz.tbi",
-  "MultiSampleSomaticWorkflow.Files.common_germline_alleles": "gnomad_sites.AFgt0.05.vcf.gz",
-  "MultiSampleSomaticWorkflow.Files.common_germline_alleles_idx": "gnomad_sites.AFgt0.05.vcf.gz.tbi",
-  "MultiSampleSomaticWorkflow.Files.snv_panel_of_normals": "snv_pon.vcf.gz",
-  "MultiSampleSomaticWorkflow.Files.snv_panel_of_normals_idx": "snv_pon.vcf.gz.tbi",
-  "MultiSampleSomaticWorkflow.Files.realignment_bwa_mem_index_image": "reference.fasta.img"
+  "MultiSampleSomaticWorkflow.z1_Files.ref_dict": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.dict",
+  "MultiSampleSomaticWorkflow.z1_Files.ref_fasta": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
+  "MultiSampleSomaticWorkflow.z1_Files.ref_fasta_index": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta.fai",
+  "MultiSampleSomaticWorkflow.z1_Files.germline_resource": "gnomad_sites.af_only.vcf.gz",
+  "MultiSampleSomaticWorkflow.z1_Files.germline_resource_idx": "gnomad_sites.af_only.vcf.gz.tbi",
+  "MultiSampleSomaticWorkflow.z1_Files.common_germline_alleles": "gnomad_sites.AFgt0.05.vcf.gz",
+  "MultiSampleSomaticWorkflow.z1_Files.common_germline_alleles_idx": "gnomad_sites.AFgt0.05.vcf.gz.tbi",
+  "MultiSampleSomaticWorkflow.z1_Files.snv_panel_of_normals": "snv_pon.vcf.gz",
+  "MultiSampleSomaticWorkflow.z1_Files.snv_panel_of_normals_idx": "snv_pon.vcf.gz.tbi",
+  "MultiSampleSomaticWorkflow.z1_Files.realignment_bwa_mem_index_image": "reference.fasta.img"
 }
 ```
-

@@ -123,4 +123,6 @@ RUNTIMES = [
     RT("create_mutect2_panel", "gatk_docker", jar=True, overhead="mem_create_mutect2_panel_overhead",
        disk="disk + disk_create_mutect2_panel"),
     RT("select_af_only_from_vcf", "gatk_docker"),
+    # --- Ancestry ---
+    RT("ancestry", "ancestry_docker"),
 ]

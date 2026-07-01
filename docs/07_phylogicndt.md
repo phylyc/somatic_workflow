@@ -23,3 +23,10 @@ Key outputs include:
 - `phylogic_timing_graph` — timing DAG visualization
 - `phylogic_timing_comparison` — cross-sample timing comparison
 - `phylogic_timing_wgd_supporting_events` — events supporting whole-genome doubling timing
+
+## References
+
+- PhylogicNDT — Leshchiner I, Livitz D, Gainor JF, et al. Comprehensive analysis of tumour initiation, spatial and temporal progression under multiple lines of treatment. *bioRxiv* 508127 (2019). <https://doi.org/10.1101/508127>
+  - Implementation used: <https://github.com/phylyc/PhylogicNDT> (a fork of the original with bugfixes and runtime improvements).
+
+See [References](11_references.md) for the full bibliography.

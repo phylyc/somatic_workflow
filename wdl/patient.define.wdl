@@ -118,8 +118,8 @@ workflow DefinePatient {
         # DONE
         String? ancestry_pred
         Float? ancestry_prob
-        File? background_pca_table
-        File? pca_plot
+        File? ancestry_background_pca_table
+        File? ancestry_pca_plot
 
         File? mask_vcf
         File? mask_vcf_idx
@@ -307,8 +307,8 @@ workflow DefinePatient {
         mask_name: mask_name,
         ancestry_pred: ancestry_pred,
         ancestry_prob: ancestry_prob,
-        background_pca_table: background_pca_table,
-        pca_plot: pca_plot
+        ancestry_background_pca_table: ancestry_background_pca_table,
+        ancestry_pca_plot: ancestry_pca_plot
     }
 
     call p_update_sh.UpdateShards {

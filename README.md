@@ -11,14 +11,14 @@ Multi-sample analysis improves sensitivity by borrowing evidence across samples 
 1) **Import the workflow**:
    - The workflow is available on [Dockstore](https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/MultiSampleSomaticWorkflow:master) to import into e.g. a [Terra](https://app.terra.bio/) workspace.
    - Alternatively, clone this repository to run the workflow locally using [Cromwell](https://cromwell.readthedocs.io/en/stable/)
-2) **Prepare inputs**: Prepare an input json file. See `docs/inputs.md` for a full description of inputs and for a minimal run template. For Terra, upload the json file under the INPUTS tab on the Terra workflow page to fill out the inputs (or fill out manually).
+2) **Prepare inputs**: Prepare an input json file. See `docs/02_inputs.md` for a full description of inputs and for a minimal run template. For Terra, upload the json file under the INPUTS tab on the Terra workflow page to fill out the inputs (or fill out manually).
 3) **Run 1**: Run the full workflow - CNV calling, SNV calling and Clonal Analysis with ABSOLUTE. If running locally using Cromwell:
    ```bash
       java -jar cromwell.jar run multi-sample_somatic_workflow.wdl --inputs multi-sample_somatic_workflow.inputs.json
    ```
-4) **Manual review**: ABSOLUTE outputs multiple possible solutions (purity and ploidy estimates) per sample. These solutions can be found in the `absolute_acr_plot` output pdf. Review all solutions manually and select one per sample to pass into `Cache.absolute_solution`. See `docs/06_absolute-review-and-rerun.md` for a full guide.
+4) **Manual review**: ABSOLUTE outputs multiple possible solutions (purity and ploidy estimates) per sample. These solutions can be found in the `absolute_acr_plot` output pdf. Review all solutions manually and select one per sample to pass into `z2_Cache.absolute_acr_solution`. See `docs/06_absolute-review-and-rerun.md` for a full guide.
 5) **Populate cache inputs**: Prepare an updated version of the input json file with Cache inputs added. For Terra, upload this json under the INPUTS tab on workflow page to fill out the inputs.
-6) **Run 2**: Run the workflow again with `Cache.absolute_solution` + cached outputs to complete ABSOLUTE extraction and downstream clonal analysis.
+6) **Run 2**: Run the workflow again with `z2_Cache.absolute_acr_solution` + cached outputs to complete ABSOLUTE extraction and downstream clonal analysis.
 7) **Understanding outputs**: Refer to `docs/03_outputs.md` for a guide on reviewing and understanding outputs.
 
 **For a comprehensive understanding of the workflow:**
@@ -32,9 +32,9 @@ Multi-sample analysis improves sensitivity by borrowing evidence across samples 
 ## Common troubleshooting strategies and suggestions
 
 ### A few Mutect2 shards failed while most succeeded
-- Retry problematic shards with more memory: set `Cache.high_mem_shards` to the list of shard IDs and re-run (call-caching will reuse prior successes if enabled).
-- If needed, increase `Parameters.mutect2_high_mem_factor` (e.g., 3).
-- As a last resort, skip shards with `Cache.skip_shards` (acknowledging lost calls in those regions).
+- Retry problematic shards with more memory: set `z2_Cache.high_mem_shards` to the list of shard IDs and re-run (call-caching will reuse prior successes if enabled).
+- If needed, increase `z3_Parameters.mutect2_high_mem_factor` (e.g., 3).
+- As a last resort, skip shards with `z2_Cache.skip_shards` (acknowledging lost calls in those regions).
 
 Also see `docs/09_failure-recovery.md`
 
@@ -111,3 +111,10 @@ Runtime parameters are optimized for implementations on Google Cloud Platform (G
 - **GATK**: Version 4.6.2.0. 
 - **Cromwell**: Tested successfully on version 86.
 - **Docker**: Docker tags listed in `docker/`.
+
+## Citation
+This workflow builds on GATK (Mutect/Mutect2, copy-ratio tools, Funcotator),
+ABSOLUTE, PhylogicNDT and Peddy, among other tools. If you use it in a
+publication, please cite the relevant methods listed in
+[`docs/11_references.md`](docs/11_references.md).
+

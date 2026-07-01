@@ -14,6 +14,7 @@ This page is your starting point for understanding the workflow. If you are a ne
 - [Ancestry calling](08_ancestry-calling.md)
 - [Failure recovery](09_failure-recovery.md)
 - [Reference resources](10_resources.md)
+- [References / citations](11_references.md)
 
 ## Intended audience
 

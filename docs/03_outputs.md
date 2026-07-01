@@ -59,18 +59,20 @@
 | `phylogic_*` (report/timing/graph/growth)                    | File | PhylogicNDT outputs                            |
 | `ancestry_pred`                                              | String | Ancestry classification                      |
 | `ancestry_prob`                                              | Float | Ancestry prediction confidence                |
+| `ancestry_background_pca_table`                              | File | Peddy reference-population PCA projections (JSON) |
+| `ancestry_pca_plot`                                          | File | Peddy PCA plot (PNG)                           |
 
 
 All outputs can be provided as `Cache` input in which case the corresponding task to generate that output is skipped if possible.
 
-If `Array[File] Cache.absolute_acr_rdata` is supplied as input, the workflow skips straight to the clonal decomposition step. Use that together with `Array[Int] Cache.absolute_solution` to extract the chosen purity/ploidy mode for each sample and run phylogenetic inference. (Other required cached inputs for this to run successfully are `Array[File] Cache.acs_copy_ratio_segmentation` and `Array[Float] Cache.acs_copy_ratio_skew`). See docs/06_absolute-review-and-rerun.md for more details
+If `Array[File] z2_Cache.absolute_acr_rdata` is supplied as input, the workflow skips straight to the clonal decomposition step. Use that together with `Array[Int] z2_Cache.absolute_solution` to extract the chosen purity/ploidy mode for each sample and run phylogenetic inference. (Other required cached inputs for this to run successfully are `Array[File] z2_Cache.acs_copy_ratio_segmentation` and `Array[Float] z2_Cache.acs_copy_ratio_skew`). See docs/06_absolute-review-and-rerun.md for more details
 
 ## Output review guide
 
 The main deliverables are:
 
-- `absolute_segtab`
-- `absolute_maf`
+- `absolute_acr/tcr_segtab`
+- `absolute_acr/tcr_maf`
 - `contamination_table`
 - `gvcf`
 - `snp_sample_correlation`

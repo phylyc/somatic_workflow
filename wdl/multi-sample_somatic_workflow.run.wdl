@@ -454,6 +454,17 @@ workflow MultiSampleSomaticWorkflowRun {
                 runtime_collection = runtime_collection,
         }
 
+        if ((args.genome_build == "hg38" || args.genome_build == "hg19")) {
+            call tasks.RunPeddy {
+                input:
+                    patient_id = cnv_patient.name,
+                    gvcf = GenotypeVariants.vcf,
+                    gvcf_index = GenotypeVariants.vcf_idx,
+                    genome_build = args.genome_build,
+                    runtime_params = runtime_collection.ancestry
+            }
+        }
+
         call p_update_s.UpdateSamples as AddPileupsToSamples {
             input:
                 patient = cnv_patient,
@@ -469,7 +480,11 @@ workflow MultiSampleSomaticWorkflowRun {
                 snp_alt_counts = GenotypeVariants.alt_counts,
                 snp_other_alt_counts = GenotypeVariants.other_alt_counts,
                 snp_sample_correlation = GenotypeVariants.sample_correlation,
-                snp_sample_correlation_min = GenotypeVariants.sample_correlation_min
+                snp_sample_correlation_min = GenotypeVariants.sample_correlation_min,
+                ancestry_pred = RunPeddy.ancestry_pred,
+                ancestry_prob = RunPeddy.ancestry_prob,
+                ancestry_background_pca_table = RunPeddy.ancestry_background_pca_table,
+                ancestry_pca_plot = RunPeddy.ancestry_pca_plot
         }
     }
 

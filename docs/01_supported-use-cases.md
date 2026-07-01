@@ -16,7 +16,7 @@ Targeted panel data below roughly a few hundred genes is best treated as SNV-onl
 
 ### ULP WGS
 
-ULP WGS is somewhat supported for CNV calling. Purity/ploidy estimation is not considered supported in this mode.
+ULP WGS is supported for CNV calling if tumor purity allows. Use ABSOLUTE's tcr (total copy ratio mode) output. 
 
 ## Matched normals versus tumor-only
 
@@ -40,4 +40,4 @@ Examples:
 - WES + targeted panel: often problematic for CNV analysis
 - ULP WGS + WES for the same biospecimen: useful in some contexts, but often one modality should be excluded from specific copy-ratio calculations
 
-For SNV calling, mixed platforms can still be useful, but error-model differences matter. In such cases, consider adjusting `Parameters.mutect2_pcr_snv_qual` and related settings appropriately.
+For SNV calling, mixed platforms can still be useful, but error-model differences matter. In such cases, consider adjusting `z3_Parameters.mutect2_pcr_snv_qual` and related settings appropriately.
