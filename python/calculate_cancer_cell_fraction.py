@@ -17,6 +17,14 @@ observed_alt	normal_allele_count	A1.ix	A2.ix	T.seg.ix	Number of times codon chan
 
 CCF_GRID = np.round(np.linspace(0, 1, 101), 2)
 CCF_COLUMNS = [f"{x:.2f}".rstrip("0").rstrip(".") for x in CCF_GRID]
+MAF_BASE_COLUMNS = [
+    "Tumor_Sample_Barcode",
+    "Chromosome",
+    "Start_position",
+    "End_position",
+    "Reference_Allele",
+    "Tumor_Seq_Allele2",
+]
 
 
 def message(*args, **kwargs) -> None:
@@ -104,6 +112,11 @@ def get_chromosomal_ploidy(chrom, sex: str, normal_ploidy: int = 2) -> int:
 
 
 def sort_genomic_df(df: pd.DataFrame, chr_col="Chromosome", start_col="Start_position", end_col="End_position") -> pd.DataFrame:
+    missing = [col for col in [chr_col, start_col, end_col] if col not in df.columns]
+    if missing:
+        if df.empty:
+            return df.copy()
+        raise KeyError(missing[0])
     contig_order = [str(i) for i in range(1, 23)] + ["X", "Y", "MT"]
     observed = set(df[chr_col].astype(str))
     contig_order += list(sorted(observed - set(contig_order)))
@@ -143,8 +156,10 @@ def to_numeric(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
 def choose_output_columns(caller_df: pd.DataFrame, abs_maf: pd.DataFrame) -> list[str]:
     if not caller_df.empty:
         caller_cols = [c for c in caller_df.columns if not c.startswith("_")]
-    else:
+    elif len(abs_maf.columns):
         caller_cols = [c for c in abs_maf.columns if not c.startswith("_")]
+    else:
+        caller_cols = MAF_BASE_COLUMNS.copy()
     extra_cols = [c for c in ABSOLUTE_EXTRA_COLUMNS if c not in caller_cols]
     return caller_cols + extra_cols
 

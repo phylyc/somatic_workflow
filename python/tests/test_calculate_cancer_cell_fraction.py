@@ -54,6 +54,13 @@ def test_sort_genomic_df_canonical_order_stable():
 
 
 @pytest.mark.unit
+def test_sort_genomic_df_empty_missing_columns_noop():
+    out = ccf.sort_genomic_df(pd.DataFrame())
+    assert out.empty
+    assert list(out.columns) == []
+
+
+@pytest.mark.unit
 def test_normalize_maf_columns():
     df = pd.DataFrame(columns=["a(b)", "c", "d(e)f"])
     out = ccf.normalize_maf_columns(df)
@@ -110,6 +117,41 @@ def test_read_table_missing_returns_empty(tmp_path):
 @pytest.mark.io
 def test_read_optional_maf_none():
     assert ccf.read_optional_maf(None).empty
+
+
+@pytest.mark.io
+def test_calculate_ccf_all_empty_mafs_writes_header(tmp_path):
+    segtab = tmp_path / "S.segtab.allelic.completed.txt"
+    pd.DataFrame({
+        "sample": ["S"],
+        "Chromosome": ["1"],
+        "Start.bp": [1],
+        "End.bp": [100],
+        "modal_total_cn": [2],
+        "rescaled_total_cn": [2.0],
+        "rescaled.cn.a1": [1.0],
+        "rescaled.cn.a2": [1.0],
+        "modal.a1": [1],
+        "modal.a2": [1],
+    }).to_csv(segtab, sep="\t", index=False)
+    empty_abs = tmp_path / "empty_abs.maf"
+    empty_snv = tmp_path / "empty_snv.maf"
+    empty_indel = tmp_path / "empty_indel.maf"
+    for path in [empty_abs, empty_snv, empty_indel]:
+        path.write_text("")
+
+    ccf.calculate_ccf(args_ns(
+        outdir=str(tmp_path), purity=1.0, ploidy=2.0, ssnv_skew=1.0,
+        sample="S", sex="XY", absolute_maf=str(empty_abs), absolute_segtab=str(segtab),
+        snv_maf=str(empty_snv), indel_maf=str(empty_indel), normal_ploidy=2,
+        copy_num_type="allelic",
+    ))
+
+    out = pd.read_csv(tmp_path / "S.ABS_MAF.allelic.completed.txt", sep="\t", low_memory=False)
+    assert out.empty
+    assert "Chromosome" in out.columns
+    assert "Start_position" in out.columns
+    assert "ccf_hat" in out.columns
 
 
 @pytest.mark.unit

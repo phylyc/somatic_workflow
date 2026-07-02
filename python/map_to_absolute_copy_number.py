@@ -146,13 +146,47 @@ def allele_ccf(seg, delta, chr_ploidy, b, allele, nu=10, max_cn=20, clonal_ccf_t
     Extracted from map_to_cn for testability; the previously closed-over state
     (seg, delta, chr_ploidy, b) is passed in. delta/chr_ploidy/b are pandas Series.
     Returns (hat, low, high) numpy arrays of length len(seg)."""
-    hscr = seg[f"hscr.{allele}"].to_numpy()  # haplotype-specific copy number
-    seg_sigma = seg[f"sigma.{allele}"].to_numpy()
-    scale = seg_sigma * np.sqrt((nu - 2) / nu)
+    nseg = seg.shape[0]
+    hat = np.full(nseg, np.nan, dtype=float)
+    low = np.full(nseg, np.nan, dtype=float)
+    high = np.full(nseg, np.nan, dtype=float)
+
+    hscr_all = pd.to_numeric(seg[f"hscr.{allele}"], errors="coerce").to_numpy(dtype=float)  # haplotype-specific copy number
+    seg_sigma_all = pd.to_numeric(seg[f"sigma.{allele}"], errors="coerce").to_numpy(dtype=float)
+    if "sigma.tau" in seg.columns:
+        fallback_sigma = pd.to_numeric(seg["sigma.tau"], errors="coerce").to_numpy(dtype=float)
+    else:
+        fallback_sigma = np.full(nseg, np.nan, dtype=float)
+    seg_sigma_all = np.where(np.isfinite(seg_sigma_all) & (seg_sigma_all > 0), seg_sigma_all, fallback_sigma)
+    seg_sigma_all = np.where(np.isfinite(seg_sigma_all) & (seg_sigma_all > 0), seg_sigma_all, 1e-3)
+
+    d_all = delta.to_numpy(dtype=float)
+    cp_all = chr_ploidy.to_numpy(dtype=float)
+    b_all = b.to_numpy(dtype=float)
+
+    valid = (
+        np.isfinite(hscr_all)
+        & np.isfinite(seg_sigma_all)
+        & (seg_sigma_all > 0)
+        & np.isfinite(d_all)
+        & (d_all > 0)
+        & np.isfinite(cp_all)
+        & (cp_all > 0)
+        & np.isfinite(b_all)
+    )
+    if not valid.any():
+        return hat, low, high
+
+    hscr = hscr_all[valid]
+    seg_sigma = seg_sigma_all[valid]
+    d = d_all[valid]
+    cp = cp_all[valid]
+    bb = b_all[valid]
+    scale = np.maximum(seg_sigma * np.sqrt((nu - 2) / nu), 1e-3)
 
     cn_grid = np.arange(max_cn)
     # allelic copy number comb
-    comb = cn_grid[None, :] * delta.to_numpy()[:, None] * chr_ploidy.to_numpy()[:, None] + b.to_numpy()[:, None]
+    comb = cn_grid[None, :] * d[:, None] * cp[:, None] + bb[:, None]
 
     # Modal allelic CN for this allele, used as the deletion-vs-amplification
     # reference. It must be scored against this allele's own copy ratio (hscr) on
@@ -162,7 +196,7 @@ def allele_ccf(seg, delta, chr_ploidy, b, allele, nu=10, max_cn=20, clonal_ccf_t
     # clonal-gain CCFs to ~0).
     comb_max = comb.max(axis=1)
     use_out = np.where(comb_max >= 1, 1, comb_max)  # assume haploid neutral
-    mu_neutral = np.where(chr_ploidy > 0, (use_out - b) / delta / chr_ploidy, 0)
+    mu_neutral = np.where(cp > 0, (use_out - bb) / d / cp, 0)
     Wq0 = st.norm.pdf(mu_neutral[:, None], loc=cn_grid[None, :], scale=1000) + 1e-10
     Wq0 /= Wq0.sum(axis=1, keepdims=True)
     log_prior = np.log(Wq0)
@@ -174,9 +208,13 @@ def allele_ccf(seg, delta, chr_ploidy, b, allele, nu=10, max_cn=20, clonal_ccf_t
     modal_cn = 1 + int(np.nanargmax(col_sums[1:]))
 
     del_ix = hscr < comb[:, modal_cn]
-    idx = np.arange(seg.shape[0])
+    idx = np.arange(hscr.shape[0])
 
-    qc = seg[f"modal.{allele}"].astype(int).to_numpy()
+    qc = pd.to_numeric(seg.loc[valid, f"modal.{allele}"], errors="coerce").to_numpy(dtype=float)
+    if f"rescaled.cn.{allele}" in seg.columns:
+        q_fallback = np.rint(pd.to_numeric(seg.loc[valid, f"rescaled.cn.{allele}"], errors="coerce").to_numpy(dtype=float))
+        qc = np.where(np.isfinite(qc), qc, q_fallback)
+    qc = np.clip(np.where(np.isfinite(qc), np.rint(qc), 0), 0, max_cn - 1).astype(int)
     qs = qc.copy()
 
     rows = np.where(del_ix)[0]
@@ -206,14 +244,14 @@ def allele_ccf(seg, delta, chr_ploidy, b, allele, nu=10, max_cn=20, clonal_ccf_t
     ecdf = np.cumsum(p, axis=1)
 
     # The CCF is the most likely change from background to altered state:
-    hat = ccf_grid[np.argmax(p, axis=1)]  # mode
-    low = np.full(hat.shape, np.nan)
-    high = np.full(hat.shape, np.nan)
-    for i in range(hat.size):
-        low[i] = np.interp(0.025, ecdf[i], ccf_grid, left=0)
-        high[i] = np.interp(0.975, ecdf[i], ccf_grid, right=1)
-    low = np.where(low < hat, low, hat)
-    high = np.where(hat < high, high, hat)
+    hat_valid = ccf_grid[np.argmax(p, axis=1)]  # mode
+    low_valid = np.full(hat_valid.shape, np.nan)
+    high_valid = np.full(hat_valid.shape, np.nan)
+    for i in range(hat_valid.size):
+        low_valid[i] = np.interp(0.025, ecdf[i], ccf_grid, left=0)
+        high_valid[i] = np.interp(0.975, ecdf[i], ccf_grid, right=1)
+    low_valid = np.where(low_valid < hat_valid, low_valid, hat_valid)
+    high_valid = np.where(hat_valid < high_valid, high_valid, hat_valid)
 
     # Lightweight clonal collapse. ABSOLUTE assigns near-clonal segments to a clonal
     # cluster via Dirichlet-process clustering (deconstruct_SCNAs.R) and reports them
@@ -223,8 +261,12 @@ def allele_ccf(seg, delta, chr_ploidy, b, allele, nu=10, max_cn=20, clonal_ccf_t
     # segments keep their estimated fraction. (This is why per-segment CCFs do not
     # correlate perfectly with ABSOLUTE — the clonal/subclonal split differs.)
     clonal = p[:, ccf_grid >= clonal_ccf_threshold].sum(axis=1) > 0.5
-    hat = np.where(clonal, 1.0, hat)
-    high = np.where(clonal, 1.0, high)
+    hat_valid = np.where(clonal, 1.0, hat_valid)
+    high_valid = np.where(clonal, 1.0, high_valid)
+
+    hat[valid] = hat_valid
+    low[valid] = low_valid
+    high[valid] = high_valid
 
     return hat, low, high
 

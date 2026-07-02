@@ -52,6 +52,31 @@ def test_map_to_cn_characterization(tmp_path, mode):
         assert_frame_close(got, exp, atol=1e-6, rtol=1e-6)
 
 
+@pytest.mark.regression
+def test_map_to_cn_sparse_acs_f_values(tmp_path):
+    sparse_acs = tmp_path / "sparse_f.acs.seg"
+    acs = pd.read_csv(ACS_SEG, sep="\t", low_memory=False)
+    for col in ["f", "mu.minor", "mu.major", "sigma.minor", "sigma.major"]:
+        acs.loc[acs.index != 1, col] = np.nan
+    acs.to_csv(sparse_acs, sep="\t", index=False)
+
+    out = tmp_path / "out"
+    run_script("map_to_absolute_copy_number.py", [
+        "--outdir", str(out), "--purity", "0.8", "--ploidy", "2.0",
+        "--sample", "TestS", "--sex", "XY", "--acs_cr_seg", str(sparse_acs),
+        "--copy_num_type", "allelic", "--allelic_resplit_focals",
+    ])
+
+    got = pd.read_csv(out / "TestS.segtab.allelic.completed.txt", sep="\t", low_memory=False)
+    assert got.shape[0] == acs.shape[0]
+    finite_cols = [
+        "rescaled.cn.a1", "rescaled.cn.a2", "modal.a1", "modal.a2",
+        "cancer.cell.frac.a1", "cancer.cell.frac.a2",
+        "ccf_mean", "ccf_median", "ccf_mode",
+    ]
+    assert np.isfinite(got[finite_cols].to_numpy(dtype=float)).all()
+
+
 # --------------------------------------------------------------------------- #
 # extracted pure helpers
 # --------------------------------------------------------------------------- #
