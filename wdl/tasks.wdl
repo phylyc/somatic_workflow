@@ -891,8 +891,12 @@ task RunPeddy {
         printf "UNKNOWN\n" > pred.txt
         printf "0.0\n" > prob.txt
 
-        # Ensure the index input is localized next to the VCF for bcftools -r.
-        ls '~{gvcf_idx}' >/dev/null
+        # bcftools/htslib discovers an index by looking next to the VCF path it
+        # opens. Cromwell may localize gvcf and gvcf_idx from different task
+        # output directories, so put matching sidecar names in this working dir.
+        input_gvcf=$(basename '~{gvcf}')
+        ln -sf '~{gvcf}' "$input_gvcf"
+        ln -sf '~{gvcf_idx}' "$input_gvcf.tbi"
 
         # Filter the VCF to only retain autosomes
         if [[ "~{genome_build}" == "hg38" ]]; then
@@ -900,7 +904,7 @@ task RunPeddy {
         else
             regions=$(echo {1..22} | tr ' ' ',')
         fi
-        bcftools view -r "$regions" "~{gvcf}" -Oz -o "~{patient_id}.filtered.vcf.gz"
+        bcftools view -r "$regions" "$input_gvcf" -Oz -o "~{patient_id}.filtered.vcf.gz"
         bcftools index --tbi "~{patient_id}.filtered.vcf.gz"
 
         # Create dummy ped file
