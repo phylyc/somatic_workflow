@@ -105,7 +105,7 @@ workflow DefineRuntimeCollection {
         Int time_parse_input = 5
 
         # IndexFeatureFile
-        Int mem_index_feature_file = 512
+        Int mem_index_feature_file = if JUST_RUN_IM_WILLING_TO_PAY then mem_BIG_MACHINE else 4096
         Int time_index_feature_file = 1
 
         # GetTumorSampleNames
