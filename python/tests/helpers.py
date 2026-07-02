@@ -182,8 +182,20 @@ def synth_truth_segs(synth, patient, sample):
 
 def gt_class(gt):
     """Collapse a VCF GT string to {hom_ref, het, hom_alt}."""
+    gt = str(gt).split(":", 1)[0]
     a = set(str(gt).replace("|", "/").split("/"))
     return "hom_ref" if a == {"0"} else "hom_alt" if a == {"1"} else "het"
+
+
+def vcf_sample_field(row, sample_col, field="GT"):
+    """Extract one FORMAT field from a VCF sample column in a pandas row."""
+    fmt = str(row["FORMAT"]).split(":")
+    values = str(row[sample_col]).split(":")
+    try:
+        idx = fmt.index(field)
+    except ValueError:
+        idx = 0
+    return values[idx] if idx < len(values) else values[0]
 
 
 def run_genotype(synth, out, patient, sample_names, normal=None):
@@ -199,9 +211,12 @@ def run_genotype(synth, out, patient, sample_names, normal=None):
         argv += ["--normal_sample", normal]
     argv += ["--threads", "1"]
     run_script("genotype.py", argv)
-    return pd.read_csv(out / f"{patient}.germline.vcf", sep="\t", comment="#", header=None,
-                       names=["CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER",
-                              "INFO", "FORMAT", patient])
+    vcf = pd.read_csv(out / f"{patient}.germline.vcf", sep="\t", comment="#", header=None,
+                      names=["CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER",
+                             "INFO", "FORMAT", patient])
+    if not vcf.empty:
+        vcf[patient] = vcf.apply(lambda row: vcf_sample_field(row, patient, "GT"), axis=1)
+    return vcf
 
 
 def run_map_to_absolute(synth, out, patient, sample, mode="allelic", somix=False,
