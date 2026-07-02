@@ -44,6 +44,43 @@ task GetSampleName {
     }
 }
 
+task IndexFeatureFile {
+    input {
+        File vcf
+
+        Runtime runtime_params
+    }
+
+    String uncompressed_vcf = basename(vcf, ".gz")
+    Boolean is_compressed = uncompressed_vcf != basename(vcf)
+    String output_vcf_idx = basename(vcf) + if is_compressed then ".tbi" else ".idx"
+    Int diskGB = runtime_params.disk + ceil(size(vcf, "GB")) + 1
+
+    command <<<
+        set -euxo pipefail
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            IndexFeatureFile \
+            --input '~{vcf}' \
+            --output '~{output_vcf_idx}'
+    >>>
+
+    output {
+        File vcf_idx = output_vcf_idx
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + diskGB + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+}
+
 task ParseInput {
     # Pre-flight validation gate. Fails the workflow before any expensive task if
     # the inputs are mis-shaped or violate an implicit downstream requirement. The
@@ -841,7 +878,7 @@ task RunPeddy {
     input {
         String patient_id
         File gvcf
-        File gvcf_index
+        File gvcf_idx
         String genome_build
 
         Runtime runtime_params
@@ -856,35 +893,17 @@ task RunPeddy {
         else
             regions=$(echo {1..22} | tr ' ' ',')
         fi
-        bcftools view -r "$regions" "~{gvcf}" -Oz -o "~{patient_id}.filt.vcf.gz"
-        bcftools index --tbi "~{patient_id}.filt.vcf.gz"
-
-        # Add synthetic AD and DP fields required by peddy
-        zcat "~{patient_id}.filt.vcf.gz" | awk -F'\t' 'BEGIN{OFS="\t"}
-          /^##/{print;next}
-          /^#CHROM/{
-            print "##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"synthetic allele depths\">";
-            print "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"synthetic depth\">";
-            print; next}
-          {
-            $9=$9":AD:DP";
-            for(i=10;i<=NF;i++){
-              split($i,a,":"); g=a[1]; gsub(/\|/,"/",g);
-              if(g=="0/0") ad="30,0"; else if(g=="1/1") ad="0,30";
-              else if(g=="0/1"||g=="1/0") ad="15,15"; else ad="0,0";
-              $i=$i":"ad":"(ad=="0,0"?0:30);
-            }
-            print}' | bgzip > "~{patient_id}.peddy_input.vcf.gz"
-        bcftools index --tbi "~{patient_id}.peddy_input.vcf.gz"
+        bcftools view -r "$regions" "~{gvcf}" -Oz -o "~{patient_id}.filtered.vcf.gz"
+        bcftools index --tbi "~{patient_id}.filtered.vcf.gz"
 
         # Create dummy ped file
         printf "~{patient_id}\t~{patient_id}\t0\t0\t0\t-9\n" > "~{patient_id}.ped"
 
         # Run peddy
         if [ "~{genome_build}" == "hg38" ]; then
-            peddy --plot -p 4 --sites ~{genome_build} --prefix ~{patient_id} "~{patient_id}.peddy_input.vcf.gz" "~{patient_id}.ped"
+            peddy --plot -p 4 --sites ~{genome_build} --prefix ~{patient_id} "~{patient_id}.filtered.vcf.gz" "~{patient_id}.ped"
         else
-            peddy --plot -p 4 --prefix ~{patient_id} "~{patient_id}.peddy_input.vcf.gz" "~{patient_id}.ped"
+            peddy --plot -p 4 --prefix ~{patient_id} "~{patient_id}.filtered.vcf.gz" "~{patient_id}.ped"
         fi
 
         # Getting the prediction and associated probability

@@ -1,5 +1,6 @@
 """Unit / IO / stat tests for genotype.py."""
 
+import gzip
 import types
 
 import numpy as np
@@ -488,6 +489,44 @@ def test_genotype_duplicate_sample_names(synth, tmp_path):
     argv += ["--threads", "1"]
     run_script("genotype.py", argv)
     assert (out / "PXY.germline.vcf").exists()
+
+
+@pytest.mark.regression
+def test_genotype_compressed_vcf_is_bgzf(synth, tmp_path):
+    # Plain gzip .vcf.gz files cannot be indexed by tabix/bcftools. The
+    # compressed genotype VCF must therefore be BGZF while still being readable
+    # through gzip-compatible readers.
+    P = synth.files["patients"]["PXX"]["samples"]
+    out = tmp_path / "bgzf"
+    out.mkdir()
+    argv = ["--output_dir", str(out), "--patient", "PXX",
+            "--variant", synth.files["patients"]["PXX"]["reference_vcf"]]
+    for s in ["PXX-N"]:
+        argv += ["--sample", s, "--pileup", synth_wes_pileup(synth, "PXX", s),
+                 "--segments", P[s]["segments"], "--contamination", P[s]["contamination"]]
+    argv += ["--threads", "1", "--format", "GT:AD:DP:PL", "--compress_output"]
+    run_script("genotype.py", argv)
+
+    gvcf = out / "PXX.germline.vcf.gz"
+    with open(gvcf, "rb") as fh:
+        bgzf_header = fh.read(18)
+    assert bgzf_header[:4] == b"\x1f\x8b\x08\x04"  # gzip + FEXTRA
+    assert bgzf_header[12:16] == b"BC\x02\x00"      # BGZF extra subfield
+
+    with gzip.open(gvcf, "rt") as fh:
+        assert fh.readline().strip() == "##fileformat=VCFv4.2"
+        for line in fh:
+            if line.startswith("#"):
+                continue
+            fields = line.rstrip("\n").split("\t")
+            assert fields[8] == "GT:AD:DP:PL"
+            sample_fields = fields[9].split(":")
+            assert len(sample_fields) == 4
+            assert sample_fields[1].count(",") == 1
+            assert sample_fields[2].isdigit()
+            break
+        else:
+            raise AssertionError("compressed genotype VCF contains no records")
 
 
 @pytest.mark.regression

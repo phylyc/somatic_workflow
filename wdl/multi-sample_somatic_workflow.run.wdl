@@ -459,7 +459,7 @@ workflow MultiSampleSomaticWorkflowRun {
                 input:
                     patient_id = cnv_patient.name,
                     gvcf = GenotypeVariants.vcf,
-                    gvcf_index = GenotypeVariants.vcf_idx,
+                    gvcf_idx = GenotypeVariants.vcf_idx,
                     genome_build = args.genome_build,
                     runtime_params = runtime_collection.ancestry
             }

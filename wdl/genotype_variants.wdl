@@ -2,6 +2,7 @@ version development
 
 import "runtime_collection.wdl" as rtc
 import "runtimes.wdl" as rt
+import "tasks.wdl"
 
 
 workflow GenotypeVariants {
@@ -32,7 +33,7 @@ workflow GenotypeVariants {
         Float phasing_sample_llr_threshold = 0.4
         Float phasing_consensus_fdr = 0.005
         Int phasing_max_num_contig_segs = 1000
-        String format = "GT"
+        String format = "GT:AD:DP:PL"
         Boolean select_hets = false
         Boolean save_sample_genotype_likelihoods = false
 
@@ -96,6 +97,12 @@ workflow GenotypeVariants {
             runtime_params = runtime_collection.genotype_variants
     }
 
+    call tasks.IndexFeatureFile {
+        input:
+            vcf = GenotypeVariantsTask.vcf,
+            runtime_params = runtime_collection.index_feature_file
+    }
+
     # resort sample genotype likelihoods since glob doesn't guarantee order
     if (save_sample_genotype_likelihoods) {
         scatter (sample_name in sample_names) {
@@ -112,7 +119,7 @@ workflow GenotypeVariants {
 
     output {
         File vcf = GenotypeVariantsTask.vcf
-        File vcf_idx = GenotypeVariantsTask.vcf_idx
+        File vcf_idx = IndexFeatureFile.vcf_idx
         File ref_counts = GenotypeVariantsTask.ref_counts
         File alt_counts = GenotypeVariantsTask.alt_counts
         File other_alt_counts = GenotypeVariantsTask.other_alt_counts
@@ -150,7 +157,7 @@ task GenotypeVariantsTask {
         Float phasing_sample_llr_threshold = 0.4
         Float phasing_consensus_fdr = 0.005
         Int phasing_max_num_contig_segs = 1000
-        String format = "GT"
+        String format = "GT:AD:DP:PL"
         Boolean select_hets = false
         Boolean save_sample_genotype_likelihoods = false
         Boolean compress_output = false
@@ -166,7 +173,6 @@ task GenotypeVariantsTask {
     String output_sample_correlation = output_dir + "/" + patient_id + ".sample_correlation.tsv" + (if compress_output then ".gz" else "")
     String output_sample_correlation_min = patient_id + ".sample_correlation.min.txt" # read_float cannot have outdir appended
     String output_vcf = output_dir + "/" + patient_id + ".germline.vcf" + (if compress_output then ".gz" else "")
-    String output_vcf_idx = output_vcf + (if compress_output then ".tbi" else ".idx")
 
     Array[File] segmentation_tables_args = select_first([segmentation_tables, []])
     Array[File] contamination_tables_args = select_first([contamination_tables, []])
@@ -213,14 +219,10 @@ task GenotypeVariantsTask {
             ~{if save_sample_genotype_likelihoods then "--save_sample_genotype_likelihoods" else ""} \
             ~{if compress_output then "--compress_output" else ""} \
             --verbose
-
-        # tabix not in docker
-        touch '~{output_vcf_idx}'
     >>>
 
     output {
         File vcf = output_vcf
-        File vcf_idx = output_vcf_idx
         File ref_counts = output_ref_counts
         File alt_counts = output_alt_counts
         File other_alt_counts = output_other_alt_counts

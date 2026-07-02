@@ -1,6 +1,7 @@
 import argparse
 from collections import Counter, defaultdict
 from copy import copy
+import io
 from itertools import combinations
 import gzip
 import multiprocessing as mp
@@ -9,8 +10,10 @@ import os
 import pandas as pd
 import scipy.stats as st
 import scipy.special as sp
+import struct
 import time
 import warnings
+import zlib
 
 
 def message(*args, **kwargs) -> None:
@@ -76,12 +79,12 @@ def parse_args():
     parser.add_argument("--phasing_sample_llr_threshold",       type=float, default=0.4,    help="Sample-level log likelihood ratio threshold of 0|1 vs 1|0 to consider a HET for consensus phasing.")
     parser.add_argument("--phasing_consensus_fdr",              type=float, default=0.005,  help="Site-level FDR threshold for evidence of 0|1 vs 1|0 to consider for consensus phasing.")
     parser.add_argument("--phasing_max_num_contig_segs",        type=float, default=1000,   help="Maximum number of segments per chromosome to consider for forming phasing consensus.")
-    parser.add_argument("-F", "--format",                       type=str,   default="GT",   help="VCF format field. (GT: genotype; AD: allele depth; DP: total depth; PL: phred-scaled genotype likelihoods.)")
+    parser.add_argument("-F", "--format",                       type=str,   default="GT:AD:DP:PL", help="VCF format fields, colon-separated. Order does not matter. (GT: genotype; AD: allele depth; DP: total depth; PL: phred-scaled genotype likelihoods.)")
     parser.add_argument("--threads",                            type=int,   default=1,      help="Number of threads to use for parallelization over samples.")
     parser.add_argument("--select_hets",                                    default=False,  action="store_true", help="Keep only heterozygous sites.")
     parser.add_argument("--save_sample_genotype_likelihoods",               default=False,  action="store_true", help="Save genotype likelihoods to file for each sample.")
     parser.add_argument("--compress_output",                                default=False,  action="store_true", help="Compress output files.")
-    parser.add_argument("--verbose",                                        default=True,  action="store_true", help="Print information to stdout during execution.")
+    parser.add_argument("--verbose",                                        default=True,   action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
 
 
@@ -136,6 +139,82 @@ def print_args(args):
         for key, value in vars(args).items():
             print(f"  {key}: {value}")
         print()
+
+
+# BGZIP library may not be available in the environment where this script is run in,
+# so we implement our own.
+
+_BGZF_MAX_UNCOMPRESSED_BLOCK_SIZE = 65280
+_BGZF_EOF_BLOCK = (
+    b"\x1f\x8b\x08\x04\x00\x00\x00\x00\x00\xff\x06\x00BC\x02\x00"
+    b"\x1b\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+)
+
+
+class BGZipWriter(io.RawIOBase):
+    """Minimal BGZF writer for text outputs that need tabix/bcftools indexing."""
+
+    def __init__(self, file_path: str, compresslevel: int = 6):
+        super().__init__()
+        self._file = open(file_path, "wb")
+        self._buffer = bytearray()
+        self._compresslevel = compresslevel
+
+    def writable(self) -> bool:
+        return True
+
+    def write(self, data) -> int:
+        if self.closed:
+            raise ValueError("I/O operation on closed file.")
+        data = memoryview(data).tobytes()
+        self._buffer.extend(data)
+        while len(self._buffer) >= _BGZF_MAX_UNCOMPRESSED_BLOCK_SIZE:
+            self._write_block(bytes(self._buffer[:_BGZF_MAX_UNCOMPRESSED_BLOCK_SIZE]))
+            del self._buffer[:_BGZF_MAX_UNCOMPRESSED_BLOCK_SIZE]
+        return len(data)
+
+    def flush(self) -> None:
+        if self.closed or self._file.closed:
+            return None
+        if self._buffer:
+            self._write_block(bytes(self._buffer))
+            self._buffer.clear()
+        self._file.flush()
+        return None
+
+    def close(self) -> None:
+        if not self.closed:
+            self.flush()
+            self._file.write(_BGZF_EOF_BLOCK)
+            self._file.close()
+        super().close()
+
+    def _write_block(self, data: bytes) -> None:
+        compressor = zlib.compressobj(self._compresslevel, zlib.DEFLATED, -15)
+        compressed = compressor.compress(data) + compressor.flush()
+        block_size = 18 + len(compressed) + 8
+        if block_size > 65536:
+            midpoint = len(data) // 2
+            self._write_block(data[:midpoint])
+            self._write_block(data[midpoint:])
+            return None
+        header = (
+            b"\x1f\x8b\x08\x04\x00\x00\x00\x00\x00\xff\x06\x00BC\x02\x00"
+            + struct.pack("<H", block_size - 1)
+        )
+        trailer = struct.pack("<II", zlib.crc32(data) & 0xffffffff, len(data) & 0xffffffff)
+        self._file.write(header + compressed + trailer)
+        return None
+
+
+def bgzip_open(file_path: str, mode: str = "wt", compresslevel: int = 6):
+    """Open a BGZF-compressed file using a gzip-compatible text interface."""
+    if "r" in mode or "+" in mode or "a" in mode:
+        raise ValueError("bgzip_open only supports write modes")
+    writer = BGZipWriter(file_path=file_path, compresslevel=compresslevel)
+    if "b" in mode:
+        return writer
+    return io.TextIOWrapper(io.BufferedWriter(writer), encoding="utf-8", newline="")
 
 
 class Pileup(object):
@@ -1637,7 +1716,7 @@ class GenotypeData(object):
             df["sample"] = df[vcf_format.split(":")].apply(lambda row: ":".join([str(f) for f in row]), axis=1)
             df = df.dropna()
 
-        open_func = gzip.open if args.compress_output else open
+        open_func = bgzip_open if args.compress_output else open
         with open_func(file, "wt") as vcf:
             vcf.write("##fileformat=VCFv4.2\n")
             vcf.write("##FILTER=<ID=PASS,Description=\"All filters passed\">\n")
@@ -1646,8 +1725,6 @@ class GenotypeData(object):
                 vcf.write("##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allelic depths for the ref and alt alleles in the order listed\">\n")
             if "DP" in vcf_format:
                 vcf.write("##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Approximate read depth; some reads may have been filtered\">\n")
-            if "GQ" in vcf_format:
-                vcf.write("##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype Quality\">\n")
             vcf.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
             if "PL" in vcf_format:
                 vcf.write("##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification\">\n")

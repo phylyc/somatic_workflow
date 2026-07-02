@@ -6,6 +6,7 @@ import "runtimes.wdl" as rt
 struct RuntimeCollection {
     # CODEGEN:BEGIN struct_fields
     Runtime parse_input
+    Runtime index_feature_file
     Runtime get_tumor_sample_names
     Runtime get_sample_name
     Runtime annotate_intervals
@@ -102,6 +103,10 @@ workflow DefineRuntimeCollection {
         # ParseInput
         Int mem_parse_input = 2048
         Int time_parse_input = 5
+
+        # IndexFeatureFile
+        Int mem_index_feature_file = 512
+        Int time_index_feature_file = 1
 
         # GetTumorSampleNames
         Int mem_get_tumor_sample_names = 256
@@ -343,6 +348,19 @@ workflow DefineRuntimeCollection {
         "machine_mem": mem_parse_input + mem_machine_overhead,
         "command_mem": mem_parse_input,
         "runtime_minutes": time_startup + time_parse_input,
+        "disk": disk,
+        "boot_disk_size": boot_disk_size
+    }
+
+    Runtime index_feature_file = {
+        "docker": gatk_docker,
+        "jar_override": gatk_override,
+        "preemptible": preemptible,
+        "max_retries": max_retries,
+        "cpu": cpu,
+        "machine_mem": mem_index_feature_file + mem_machine_overhead,
+        "command_mem": mem_index_feature_file,
+        "runtime_minutes": time_startup + time_index_feature_file,
         "disk": disk,
         "boot_disk_size": boot_disk_size
     }
@@ -947,6 +965,7 @@ workflow DefineRuntimeCollection {
     RuntimeCollection runtime_collection = {
         # CODEGEN:BEGIN collection
         "parse_input": parse_input,
+        "index_feature_file": index_feature_file,
         "get_tumor_sample_names": get_tumor_sample_names,
         "get_sample_name": get_sample_name,
         "annotate_intervals": annotate_intervals,

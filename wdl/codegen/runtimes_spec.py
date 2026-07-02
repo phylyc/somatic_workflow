@@ -57,6 +57,7 @@ class RT:
 RUNTIMES = [
     # --- Preprocessing ---
     RT("parse_input", "gatk_docker"),
+    RT("index_feature_file", "gatk_docker", jar=True),
     RT("get_tumor_sample_names", "ubuntu_docker", jar=True),
     RT("get_sample_name", "gatk_docker", jar=True),
     RT("annotate_intervals", "gatk_docker", jar=True),
