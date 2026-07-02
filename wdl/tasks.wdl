@@ -885,7 +885,14 @@ task RunPeddy {
     }
 
     command <<<
-        set -e
+        set -euo pipefail
+
+        # Defaults used when peddy has no usable ancestry signal or fails.
+        printf "UNKNOWN\n" > pred.txt
+        printf "0.0\n" > prob.txt
+
+        # Ensure the index input is localized next to the VCF for bcftools -r.
+        ls '~{gvcf_idx}' >/dev/null
 
         # Filter the VCF to only retain autosomes
         if [[ "~{genome_build}" == "hg38" ]]; then
@@ -899,23 +906,58 @@ task RunPeddy {
         # Create dummy ped file
         printf "~{patient_id}\t~{patient_id}\t0\t0\t0\t-9\n" > "~{patient_id}.ped"
 
-        # Run peddy
+        # Run peddy. Some valid workflow inputs can still be unusable for peddy
+        # (e.g. no overlap with peddy sites, no callable sites, or all sites too
+        # shallow for its internal depth checks). Keep the workflow alive and use
+        # the default UNKNOWN/0.0 values in those cases.
+        set +e
         if [ "~{genome_build}" == "hg38" ]; then
             peddy --plot -p 4 --sites ~{genome_build} --prefix ~{patient_id} "~{patient_id}.filtered.vcf.gz" "~{patient_id}.ped"
         else
             peddy --plot -p 4 --prefix ~{patient_id} "~{patient_id}.filtered.vcf.gz" "~{patient_id}.ped"
         fi
+        peddy_status=$?
+        set -e
 
-        # Getting the prediction and associated probability
-        awk -F',' 'NR==2 {print $12}' "~{patient_id}.het_check.csv" > pred.txt
-        awk -F',' 'NR==2 {print $13}' "~{patient_id}.het_check.csv" > prob.txt
+        if [ "$peddy_status" -eq 0 ] && [ -s "~{patient_id}.het_check.csv" ]; then
+            # Only overwrite defaults if peddy produced a usable ancestry row.
+            awk -F',' '
+                NR == 1 {
+                    for (i = 1; i <= NF; i++) {
+                        col[$i] = i
+                    }
+                    next
+                }
+                NR == 2 {
+                    pred_i = col["ancestry-prediction"]
+                    prob_i = col["ancestry-prob"]
+                    sampled_i = col["sampled_sites"]
+                    if (sampled_i && ($sampled_i + 0) <= 0) {
+                        exit
+                    }
+                    if (pred_i && prob_i && $pred_i != "" && $prob_i ~ /^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$/) {
+                        print $pred_i "\t" $prob_i
+                    }
+                    exit
+                }
+            ' "~{patient_id}.het_check.csv" > peddy_prediction.tsv
+
+            if [ -s peddy_prediction.tsv ]; then
+                cut -f1 peddy_prediction.tsv > pred.txt
+                cut -f2 peddy_prediction.tsv > prob.txt
+            else
+                rm -f "~{patient_id}.background_pca.json" "~{patient_id}.pca_check.png"
+            fi
+        else
+            rm -f "~{patient_id}.background_pca.json" "~{patient_id}.pca_check.png"
+        fi
     >>>
 
     output {
         String ancestry_pred = read_string("pred.txt")
         Float ancestry_prob = read_float("prob.txt")
-        File ancestry_background_pca_table = "~{patient_id}.background_pca.json"
-        File ancestry_pca_plot = "~{patient_id}.pca_check.png"
+        File? ancestry_background_pca_table = "~{patient_id}.background_pca.json"
+        File? ancestry_pca_plot = "~{patient_id}.pca_check.png"
     }
 
     runtime {
