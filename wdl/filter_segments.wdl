@@ -27,12 +27,6 @@ workflow FilterSegments {
             }
         }
 
-        call s.UpdateSample as AddFilteredCopyRatios {
-            input:
-                sample = sample,
-                harmonized_denoised_total_copy_ratios = FilterCopyRatios.filtered_denoised_copy_ratios
-        }
-
         String sample_dcr_names = sample.name
         File? sample_dcr = FilterCopyRatios.filtered_denoised_copy_ratios
     }
@@ -49,8 +43,10 @@ workflow FilterSegments {
                 runtime_params = runtime_collection.harmonize_copy_ratios
         }
 
-        # sort output to match order of sample_names since glob doesn't guarantee order
-        scatter (sample in AddFilteredCopyRatios.updated_sample) {
+        # sort output to match order of sample_names since glob doesn't guarantee order;
+        # iterate patient.samples for names (the filtered copy ratios are overlaid onto the
+        # patient via UpdateCopyRatios below)
+        scatter (sample in patient.samples) {
             scatter (h_dcr in HarmonizeCopyRatios.harmonized_denoised_copy_ratios) {
                 String this_dcr_sample_name = basename(basename(basename(basename(h_dcr, ".hdf5"), ".tsv"), ".denoised_CR"), ".harmonized")
                 if (sample.name == this_dcr_sample_name) {

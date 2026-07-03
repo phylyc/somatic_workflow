@@ -1,5 +1,10 @@
 #!/bin/bash
 
+set -e
+
+"${PYTHON:-python3}" wdl/codegen/generate.py --check
+echo ""
+
 validate_wdl () {
   local wdl=$1
 #  echo "> miniwdl check:"

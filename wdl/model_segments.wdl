@@ -162,19 +162,37 @@ workflow ModelSegments {
                 runtime_params = runtime_collection.plot_modeled_segments
         }
 
-        File af_segmentation_table = select_first([SingleSampleInferCR.af_segmentation_table, sample.af_segmentation_table])
-        File af_model_parameters = select_first([SingleSampleInferCR.af_model_final_parameters, sample.af_model_parameters])
-        File cr_model_parameters = select_first([SingleSampleInferCR.cr_model_final_parameters, sample.cr_model_parameters])
+        # The af_parameters are only informative if allelic counts have been supplied to ModelSegments.
+        # If only total copy ratios had been supplied, ModelSegments will still produce af_param output
+        # but its estimates are not informed by data but by the uniform prior over the bias range, which
+        # is [0, 5], so the MEAN_BIAS will be close to 2.5.
+        if (defined(ac_list)) {
+            File? af_segmentation_table = select_first([SingleSampleInferCR.af_segmentation_table, sample.af_segmentation_table])
+            File? af_model_parameters = select_first([SingleSampleInferCR.af_model_final_parameters, sample.af_model_parameters])
+        }
+        if (defined(dcr_list)) {
+            File? cr_model_parameters = select_first([SingleSampleInferCR.cr_model_final_parameters, sample.cr_model_parameters])
+        }
         File called_copy_ratio_segmentation = select_first([CallCopyRatioSegments.called_seg_final, sample.called_copy_ratio_segmentation])
         File cr_plot = select_first([PlotModeledSegments.plot, sample.cr_plot])
+    }
+
+    if (length(select_all(af_segmentation_table)) > 0) {
+        Array[File] af_segmentation_table_ = select_all(af_segmentation_table)
+    }
+    if (length(select_all(af_model_parameters)) > 0) {
+        Array[File] af_model_parameters_ = select_all(af_model_parameters)
+    }
+    if (length(select_all(cr_model_parameters)) > 0) {
+        Array[File] cr_model_parameters_ = select_all(cr_model_parameters)
     }
 
     call p_update_s.UpdateSamples as AddSegmentationResultsToSamples {
         input:
             patient = pat_seg,
-            af_segmentation_table = af_segmentation_table,
-            af_model_parameters = af_model_parameters,
-            cr_model_parameters = cr_model_parameters,
+            af_segmentation_table = af_segmentation_table_,
+            af_model_parameters = af_model_parameters_,
+            cr_model_parameters = cr_model_parameters_,
             called_copy_ratio_segmentation =  called_copy_ratio_segmentation,
             cr_plot = cr_plot
     }
@@ -184,15 +202,13 @@ workflow ModelSegments {
 
         File? modeled_segments = MultiSampleModelSegments.multi_sample_segments
         Array[File]? hets = select_all(SingleSampleInferCR.hets)
-        Array[File]? af_model_begin_parameters = select_all(SingleSampleInferCR.af_model_begin_parameters)
-        Array[File]? cr_model_begin_parameters = select_all(SingleSampleInferCR.cr_model_begin_parameters)
-        Array[File]? af_model_final_parameters = af_model_parameters
-        Array[File]? cr_model_final_parameters = cr_model_parameters
+        Array[File]? af_model_final_parameters = af_model_parameters_
+        Array[File]? cr_model_final_parameters = cr_model_parameters_
         Array[File]? igv_af = select_all(SingleSampleInferCR.igv_af)
         Array[File]? igv_cr = select_all(SingleSampleInferCR.igv_cr)
         Array[File]? seg_begin = select_all(SingleSampleInferCR.seg_begin)
         Array[File]? called_copy_ratio_segmentations = called_copy_ratio_segmentation
-        Array[File]? af_segmentation_tables = af_segmentation_table
+        Array[File]? af_segmentation_tables = af_segmentation_table_
         Array[File]? cr_plots = cr_plot
     }
 }
@@ -287,7 +303,11 @@ task ModelSegmentsTask {
         Runtime runtime_params
     }
 
-    Int num_samples = if defined(denoised_copy_ratios) then length(select_first([denoised_copy_ratios])) else length(select_first([allelic_counts]))
+    Array[File] denoised_copy_ratios_args = select_first([denoised_copy_ratios, []])
+    Array[File] allelic_counts_args = select_first([allelic_counts, []])
+    Boolean has_denoised_copy_ratios_args = length(denoised_copy_ratios_args) > 0
+    Boolean has_allelic_counts_args = length(allelic_counts_args) > 0
+    Int num_samples = if has_denoised_copy_ratios_args then length(denoised_copy_ratios_args) else length(allelic_counts_args)
 
     String output_dir = "."
     String output_segments = prefix + ".segments"
@@ -307,8 +327,8 @@ task ModelSegmentsTask {
         gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
             ModelSegments \
             ~{"--segments '" + segments + "'"} \
-            ~{true="--denoised-copy-ratios '" false="" defined(denoised_copy_ratios)}~{default="" sep="' --denoised-copy-ratios '" denoised_copy_ratios}~{true="'" false="" defined(denoised_copy_ratios)} \
-            ~{true="--allelic-counts '" false="" defined(allelic_counts)}~{default="" sep="' --allelic-counts '" allelic_counts}~{true="'" false="" defined(allelic_counts)} \
+            ~{true="--denoised-copy-ratios '" false="" has_denoised_copy_ratios_args}~{default="" sep="' --denoised-copy-ratios '" denoised_copy_ratios_args}~{true="'" false="" has_denoised_copy_ratios_args} \
+            ~{true="--allelic-counts '" false="" has_allelic_counts_args}~{default="" sep="' --allelic-counts '" allelic_counts_args}~{true="'" false="" has_allelic_counts_args} \
             ~{"--normal-allelic-counts '" + normal_allelic_counts + "'"} \
             ~{"--output-prefix '" + prefix + "'"} \
             --genotyping-base-error-rate ~{genotyping_base_error_rate} \

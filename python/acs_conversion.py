@@ -14,18 +14,32 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="ModelSegmentsToAllelicCapSegConversion",
         description="""
-            Convert GATK ModelSegments output to AllelicCapSeg output. 
+            Convert a GATK ModelSegments segmentation (modelFinal.seg) into AllelicCapSeg
+            (ACS) format for ABSOLUTE. Per segment it emits total copy ratio scaled by
+            chromosomal ploidy (tau = chr_ploidy * 2^LOG2_COPY_RATIO_POSTERIOR_50), the
+            minor allele fraction f in [0, 0.5] (from MINOR_ALLELE_FRACTION_POSTERIOR_50;
+            snapped to 0.5 when MINOR_ALLELE_FRACTION_POSTERIOR_90 > --maf90_threshold),
+            the allelic copy ratios mu.minor = f*tau and mu.major = (1-f)*tau with
+            propagated sigmas, and a CNLOH label. Sex is handled per karyotype: a contig
+            with chromosomal ploidy 0 (e.g. chrY in a female) carries no copy-ratio signal
+            and its tau/f are NaN; haploid male X/Y are scaled by ploidy 1. Segments below
+            --min_hets / --min_probes are dropped.
+
+            A companion '<prefix>.acs.seg.skew' file is written for ABSOLUTE: skew =
+            2 / (1 + MEAN_BIAS) from the allele-fraction parameters when --af_parameters is
+            given, otherwise the sentinel -1.0 (meaning "no skew / disabled" in
+            total-copy-ratio mode).
         """,
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.usage = "acs_conversion.py --seg <seg> --af_parameters <af_parameters> --output_dir <output_dir> [--min_hets <min_hets>] [--min_probes <min_probes>] [--maf90_threshold <maf90_threshold>] [--sex <sex>] [--verbose]"
-    parser.add_argument("--seg",            type=str,   required=True,  help="Path to the GATK ModelSegments modelFinal.seg output file.")
-    parser.add_argument("--af_parameters",  type=str,   required=True,  help="Path to the GATK ModelSegments modelFinal.af.param output file.")
     parser.add_argument("--output_dir",     type=str,   required=True,  help="Path to the output directory.")
+    parser.add_argument("--seg",            type=str,   required=True,  help="Path to the GATK ModelSegments modelFinal.seg output file.")
+    parser.add_argument("--af_parameters",  type=str,                   help="Path to the GATK ModelSegments modelFinal.af.param output file.")
     parser.add_argument("--min_hets",       type=int,   default=0,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
     parser.add_argument("--min_probes",     type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
-    parser.add_argument("--maf90_threshold",type=float, default=0.49,   help="Threshold of 90% quantile for setting minor allele fraction to 0.5.")
+    parser.add_argument("--maf90_threshold",type=float, default=0.49,   help="Threshold of 90%% quantile for setting minor allele fraction to 0.5.")
     parser.add_argument("--sex",            type=str,   default="XXY",  help="Genotype sex of the patient for ploidy priors on X and Y chromosomes: {Female, Male, female, male, XX, XY, XXY, XYY, XXX, etc.}")
     parser.add_argument("--normal_ploidy",  type=int,   required=False, default=2, help="Normal/germline ploidy of that organism.")
     parser.add_argument("--verbose",        default=False,  action="store_true", help="Print information to stdout during execution.")
@@ -60,7 +74,6 @@ def convert_model_segments_to_alleliccapseg(args):
 
     # get the input file names
     model_seg = args.seg
-    af_param = args.af_parameters
 
     # get the output file names
     prefix = os.path.basename(model_seg).removesuffix(".gz").removesuffix(".seg")
@@ -69,7 +82,6 @@ def convert_model_segments_to_alleliccapseg(args):
 
     # read the input files
     model_segments_seg_pd = pd.read_csv(model_seg, sep="\t", comment="@", na_values="NA")
-    model_segments_af_param_pd = pd.read_csv(af_param, sep="\t", comment="@")
 
     # define AllelicCapSeg columns
     alleliccapseg_seg_columns = [
@@ -188,6 +200,15 @@ def convert_model_segments_to_alleliccapseg(args):
     sigma_log2_tau = (model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_90"].to_numpy() - model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_10"].to_numpy()) / 2.563
     var_log_tau = np.log(2)**2 * sigma_log2_tau**2
     alleliccapseg_seg_pd["sigma.tau"] = chr_ploidy * np.exp(np.log(2) * model_segments_seg_pd["LOG2_COPY_RATIO_POSTERIOR_50"] + var_log_tau / 2) * np.sqrt(np.exp(var_log_tau) - 1)
+
+    # A chromosome that is absent (ploidy 0, e.g. Y in an XX sample) has an *unobserved*,
+    # not zero, total copy ratio. Set tau (and its error) to NaN so these segments are
+    # dropped downstream instead of being fit as spurious homozygous deletions. Haploid
+    # X/Y in a male keep their real ploidy=1 tau; only ploidy == 0 is masked. (mu/sigma
+    # for the minor/major alleles inherit the NaN since they are derived from tau below.)
+    alleliccapseg_seg_pd.loc[chr_ploidy == 0, "tau"] = np.nan
+    alleliccapseg_seg_pd.loc[chr_ploidy == 0, "sigma.tau"] = np.nan
+
     sigma_f = (model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_90"].to_numpy() - model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_10"].to_numpy()) / 2.563
     sigma_f = np.where(np.isnan(sigma_f), 1e-3, sigma_f)
     alleliccapseg_seg_pd["mu.minor"] = alleliccapseg_seg_pd["f"] * alleliccapseg_seg_pd["tau"]
@@ -200,14 +221,6 @@ def convert_model_segments_to_alleliccapseg(args):
     # three states ("0 is flanked on both sides, 1 is one side, 2 is no cn.loh").
     alleliccapseg_seg_pd["SegLabelCNLOH"] = label_cnloh(alleliccapseg_seg_pd)
 
-    # ABSOLUTE requires the value of the "skew" parameter lambda from the AllelicCapSeg
-    # allele-fraction model. This parameter allows the model to account for reference bias
-    # of the form f -> f / (f + (1 - f) * lambda).
-    # We try to transform the relevant parameter in the corrected model back to a "skew",
-    # but this operation is ill-defined. For WGS, the reference bias is typically negligible.
-    model_segments_reference_bias = model_segments_af_param_pd[model_segments_af_param_pd["PARAMETER_NAME"] == "MEAN_BIAS"]["POSTERIOR_50"]
-    alleliccapseg_skew = 2. / (1. + model_segments_reference_bias)
-
     W = alleliccapseg_seg_pd["length"] / alleliccapseg_seg_pd["length"].sum()
 
     good_rows = alleliccapseg_seg_pd["n_hets"] >= args.min_hets
@@ -219,7 +232,27 @@ def convert_model_segments_to_alleliccapseg(args):
     alleliccapseg_seg_pd = alleliccapseg_seg_pd.loc[good_rows]
 
     alleliccapseg_seg_pd.to_csv(output_filename, sep="\t", index=False, na_rep="NaN")
-    np.savetxt(output_skew_filename, alleliccapseg_skew)
+
+    if args.af_parameters is not None:
+        # The af_parameters are only informative if allelic counts have been supplied to ModelSegments.
+        # If only total copy ratios had been supplied, ModelSegments will still produce af_param output
+        # but its estimates are not informed by data but by ModelSegments MCMC over the bias prior range
+        # which is [0, 5], so the MEAN_BIAS will likely be close to 2.5.
+        af_param = args.af_parameters
+        model_segments_af_param_pd = pd.read_csv(af_param, sep="\t", comment="@")
+        # ABSOLUTE requires the value of the "skew" parameter from the AllelicCapSeg
+        # allele-fraction model. This parameter allows the model to account for reference bias
+        # of the form f -> f / (f + (1 - f) * MEAN_BIAS).
+        # We try to transform the relevant parameter in the corrected model back to a "skew",
+        # but this operation is ill-defined. For WGS, the reference bias is typically negligible.
+        model_segments_reference_bias = model_segments_af_param_pd[model_segments_af_param_pd["PARAMETER_NAME"] == "MEAN_BIAS"]["POSTERIOR_50"]
+        alleliccapseg_skew = 2. / (1. + model_segments_reference_bias)
+        np.savetxt(output_skew_filename, alleliccapseg_skew)
+    else:
+        # tCR mode: no allele-fraction model was supplied, so there is no meaningful
+        # skew. Write -1 as a 1-D array (np.savetxt rejects 0-D scalars) as a sentinel
+        # for "no skew" (interpreted downstream / by ABSOLUTE as skew = 1 / disabled).
+        np.savetxt(output_skew_filename, [-1.0])
 
 
 if __name__ == "__main__":

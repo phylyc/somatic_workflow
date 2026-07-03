@@ -73,7 +73,9 @@ workflow CalculateContamination {
 
     # todo: assert tumor_bam and tumor_bai or tumor_pileups is defined.
 
-    Int scatter_count = if defined(scattered_interval_list) then length(select_first([scattered_interval_list])) else 1
+    Array[File] scattered_interval_list_args = select_first([scattered_interval_list, []])
+    Boolean has_scattered_interval_list_args = length(scattered_interval_list_args) > 0
+    Int scatter_count = if has_scattered_interval_list_args then length(scattered_interval_list_args) else 1
 
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:

@@ -7,7 +7,7 @@ workflow Absolute {
     input {
         String sample_name
         File copy_ratio_segmentation
-        File af_model_parameters
+        File? af_model_parameters
         File? annotated_variants
         Float? purity
         Float? ploidy
@@ -60,18 +60,20 @@ workflow Absolute {
             runtime_params = runtime_collection.absolute
     }
 
-    # TODO: fix Absolute package for tCR
-#    call AbsoluteTask as AbsoluteTCRTask {
-#        input:
-#            sample_name = sample_name,
-#            seg_file = ModelSegmentsToACSConversion.acs_converted_seg,
-#            skew = ModelSegmentsToACSConversion.skew,
-#            snv_maf = ProcessMAFforAbsolute.snv_maf,
-#            indel_maf = ProcessMAFforAbsolute.indel_maf,
-#            copy_number_type = "total",
-#            sex = sex,
-#            runtime_params = runtime_collection.absolute
-#    }
+    call AbsoluteTask as AbsoluteTCRTask {
+        input:
+            sample_name = sample_name,
+            seg_file = ModelSegmentsToACSConversion.acs_converted_seg,
+            skew = ModelSegmentsToACSConversion.skew,
+            snv_maf = ProcessMAFforAbsolute.snv_maf,
+            indel_maf = ProcessMAFforAbsolute.indel_maf,
+            copy_ratio_type = "total",
+            purity = purity,
+            ploidy = ploidy,
+            sex = sex,
+            genome_build = genome_build,
+            runtime_params = runtime_collection.absolute
+    }
 
     output {
         File acs_copy_ratio_segmentation = ModelSegmentsToACSConversion.acs_converted_seg
@@ -80,8 +82,8 @@ workflow Absolute {
         File? indel_maf = ProcessMAFforAbsolute.indel_maf
         File acr_plot = AbsoluteACRTask.plot
         File acr_rdata = AbsoluteACRTask.rdata
-#        File? tcr_plot = AbsoluteTCRTask.plot
-#        File? tcr_rdata = AbsoluteTCRTask.rdata
+        File tcr_plot = AbsoluteTCRTask.plot
+        File tcr_rdata = AbsoluteTCRTask.rdata
     }
 }
 
@@ -90,7 +92,7 @@ task ModelSegmentsToACSConversion {
         String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
 
         File seg_final
-        File af_model_parameters
+        File? af_model_parameters
         String? sex
 
         Int min_hets = 10
@@ -111,7 +113,7 @@ task ModelSegmentsToACSConversion {
         python acs_conversion.py \
             --output_dir ~{output_dir} \
             --seg '~{seg_final}' \
-            --af_parameters '~{af_model_parameters}' \
+            ~{"--af_parameters '" + af_model_parameters + "'"} \
             --min_hets ~{min_hets} \
             --min_probes ~{min_probes} \
             --maf90_threshold ~{maf90_threshold} \
@@ -204,7 +206,7 @@ task AbsoluteTask {
     input {
         String sample_name
         File seg_file
-        Float skew
+        Float? skew
         File? snv_maf
         File? indel_maf
         Float? purity
@@ -218,11 +220,11 @@ task AbsoluteTask {
     }
 
     String output_dir = "."
-    String output_plot = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_plot.pdf"
-    String output_rdata = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE.RData"
-    String output_mode_res = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_mode.res.Rds"
-    String output_mode_tab = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_mode.tab.Rds"
-    String output_ssnv_mode_tab = output_dir + "/" + sample_name + "." + copy_ratio_type + ".ABSOLUTE_SSNV.mode.res.Rds"
+    String output_plot = output_dir + "/" + sample_name + ".ABSOLUTE." + copy_ratio_type + "_plot.pdf"
+    String output_rdata = output_dir + "/" + sample_name + ".ABSOLUTE." + copy_ratio_type + ".RData"
+    String output_mode_res = output_dir + "/" + sample_name + ".ABSOLUTE." + copy_ratio_type + "_mode.res.Rds"
+    String output_mode_tab = output_dir + "/" + sample_name + ".ABSOLUTE." + copy_ratio_type + "_mode.tab.Rds"
+    String output_ssnv_mode_tab = output_dir + "/" + sample_name + ".ABSOLUTE." + copy_ratio_type + "_SSNV.mode.res.Rds"
 
     command <<<
         set +e
@@ -233,6 +235,8 @@ task AbsoluteTask {
 
         num_segments=$(( $(wc -l < '~{seg_file}') - 1 ))
 
+        # The ploidy (tau) input is intentionally gated on purity > 0 as well: ABSOLUTE's
+        # --alpha and --tau must be forced together or not at all, so purity is the switch.
         if [ $num_segments -gt 0 ] ; then
             Rscript /opt/absolute/library/scripts/run_absolute.R \
                 --results_dir '~{output_dir}' \
@@ -242,9 +246,9 @@ task AbsoluteTask {
                 ~{"--indel_maf '" + indel_maf + "'"} \
                 ~{if (defined(purity) && (purity > 0)) then "--alpha " + purity else ""} \
                 ~{if (defined(ploidy) && (purity > 0)) then "--tau " + ploidy else ""} \
+                ~{if (defined(skew) && (skew > 0)) then "--ssnv_skew " + skew else ""} \
                 ~{"--gender  " + sex} \
                 ~{"--platform " + platform} \
-                --ssnv_skew ~{skew} \
                 --copy_num_type ~{copy_ratio_type} \
                 ~{"--genome_build '" + genome_build + "'"} \
                 --pkg_dir "/opt/absolute"

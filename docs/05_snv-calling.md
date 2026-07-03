@@ -66,14 +66,29 @@ If a matched normal is available, it improves filtering and interpretation. If n
 
 These are the main SNV-related settings that users may wish to change:
 
-- `Parameters.hard_filter_min_total_depth`
-- `Parameters.hard_filter_min_total_alt_count`
-- `Parameters.min_read_depth`
-- `Parameters.mutect2_pcr_indel_qual`
-- `Parameters.mutect2_pcr_snv_qual`
+- `z3_Parameters.hard_filter_min_total_depth`
+- `z3_Parameters.hard_filter_min_total_alt_count`
+- `z3_Parameters.min_read_depth`
+- `z3_Parameters.mutect2_pcr_indel_qual`
+- `z3_Parameters.mutect2_pcr_snv_qual`
 
 Most other settings should be treated as advanced.
 
 ## Important caveats for mixed platforms
 
 When combining data from different platforms, SNV calling can still be informative, but platform-specific error behavior matters. In those settings, `mutect2_pcr_snv_qual` may need to be adapted to the effective mixed-platform error profile.
+
+## References
+
+SNV calling, filtering and annotation are implemented with GATK. The underlying
+methods and reference resources:
+
+- Mutect — Cibulskis K, Lawrence M, Carter S, et al. *Nat Biotechnol* 31, 213–219 (2013). <https://doi.org/10.1038/nbt.2514>
+- Mutect2 — Benjamin D, Sato T, Cibulskis K, Getz G, Stewart C, Lichtenstein L. *bioRxiv* 861054 (2019). <https://doi.org/10.1101/861054>
+- GATK (incl. Funcotator annotation) — <https://github.com/broadinstitute/gatk>
+- BWA-MEM (realignment-artifact filter) — Li H. *arXiv*:1303.3997 (2013). <https://arxiv.org/abs/1303.3997>
+- gnomAD (germline resource) — Karczewski KJ, et al. *Nature* 581, 434–443 (2020). <https://doi.org/10.1038/s41586-020-2308-7>
+- COSMIC (example force-call resource) — Tate JG, et al. *Nucleic Acids Res* 47(D1):D941–D947 (2019). <https://doi.org/10.1093/nar/gky1015>
+
+See [References](11_references.md) for the full bibliography.
+

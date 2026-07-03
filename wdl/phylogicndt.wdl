@@ -90,6 +90,7 @@ task PhylogicNDTTask {
         Boolean use_indels = false
         Boolean impute_missing_snvs = false
         Int min_coverage = 8
+        Int n_iter = 250
         Float Pi_k_r = 3.0
         Float Pi_k_mu = 3.0
         File? driver_genes_file
@@ -102,16 +103,25 @@ task PhylogicNDTTask {
     String sif = patient_id + ".sif"
     String timing_sif = patient_id + ".sif.timing.txt"
 
+    Array[String] sample_names_args = select_first([sample_names, []])
+    Array[File] absolute_segtabs_args = select_first([absolute_segtabs, []])
+    Array[Int] timepoints_args = select_first([timepoints, []])
+    Array[Float] tumor_mutation_burdens_args = select_first([tumor_mutation_burdens, []])
+    Boolean has_sample_names_args = length(sample_names_args) > 0
+    Boolean has_absolute_segtabs_args = length(absolute_segtabs_args) > 0
+    Boolean has_timepoints_args = length(timepoints_args) > 0
+    Boolean has_tumor_mutation_burdens_args = length(tumor_mutation_burdens_args) > 0
+
     command <<<
         set +e
         python /build/PhylogicNDT/create_patient_sif.py \
             --patient_id '~{patient_id}' \
-            ~{if defined(sample_names) then "--sample_names '" else ""}~{default="" sep="' '" sample_names}~{if defined(sample_names) then "'" else ""} \
+            ~{if has_sample_names_args then "--sample_names '" else ""}~{default="" sep="' '" sample_names_args}~{if has_sample_names_args then "'" else ""} \
             --absolute_mafs '~{sep="' '" absolute_mafs}' \
-            ~{if defined(absolute_segtabs) then "--absolute_segtabs '" else ""}~{default="" sep="' '" absolute_segtabs}~{if defined(absolute_segtabs) then "'" else ""} \
+            ~{if has_absolute_segtabs_args then "--absolute_segtabs '" else ""}~{default="" sep="' '" absolute_segtabs_args}~{if has_absolute_segtabs_args then "'" else ""} \
             --absolute_purities ~{sep=" " absolute_purities} \
-            ~{if defined(timepoints) then "--timepoints " else ""}~{default="" sep=" " timepoints} \
-            ~{if defined(tumor_mutation_burdens) then "--tumor_mutation_burdens " else ""}~{default="" sep=" " tumor_mutation_burdens} \
+            ~{if has_timepoints_args then "--timepoints " else ""}~{default="" sep=" " timepoints_args} \
+            ~{if has_tumor_mutation_burdens_args then "--tumor_mutation_burdens " else ""}~{default="" sep=" " tumor_mutation_burdens_args} \
             --outfile '~{sif}'
 
         python /build/PhylogicNDT/PhylogicNDT.py Cluster \
@@ -123,6 +133,7 @@ task PhylogicNDTTask {
             ~{if use_indels then "--use_indels" else ""} \
             ~{if impute_missing_snvs then "--impute" else ""} \
             ~{if run_with_BuildTree then "--run_with_BuildTree" else ""} \
+            --n_iter ~{n_iter} \
             --Pi_k_r ~{Pi_k_r} \
             --Pi_k_mu ~{Pi_k_mu} \
             --min_coverage ~{min_coverage}

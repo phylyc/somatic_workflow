@@ -11,7 +11,7 @@ workflow AbsoluteExtract {
         File rdata
         Int called_solution
         String analyst_id
-        String? copy_ratio_type
+        String copy_ratio_type = "allelic"
 
         File acs_copy_ratio_segmentation
         Float acs_copy_ratio_skew
@@ -42,34 +42,42 @@ workflow AbsoluteExtract {
             runtime_params = runtime_collection.absolute_extract
     }
 
-    call Postprocess {
-        input:
-            cnv_script = map_to_absolute_copy_number_script,
-            snv_script = calculate_cancer_cell_fraction_script,
-            sample_name = sample_name,
-            sex = sex,
-            maf = AbsoluteExtractTask.abs_maf,
-            seg = AbsoluteExtractTask.segtab,
-            seg_igv = AbsoluteExtractTask.segtab_igv,
-            copy_ratio_segmentation = acs_copy_ratio_segmentation,
-            acs_copy_ratio_skew = acs_copy_ratio_skew,
-            snv_maf = snv_maf,
-            indel_maf = indel_maf,
-            purity = AbsoluteExtractTask.purity,
-            ploidy = AbsoluteExtractTask.ploidy,
-            runtime_params = runtime_collection.absolute_extract_postprocess
+    # Postprocessing (segment rescue + allelic re-split + CCF recomputation) only
+    # applies to allelic copy-ratio output. In total copy-ratio mode ABSOLUTE drops no
+    # segments and the segtab already carries total copy number and CCF, and the
+    # allelic-split assumptions the rescue makes do not hold genome-wide — so skip it
+    # and pass ABSOLUTE's output through unchanged.
+    Boolean is_allelic = copy_ratio_type == "allelic"
+
+    if (is_allelic) {
+        call Postprocess {
+            input:
+                cnv_script = map_to_absolute_copy_number_script,
+                snv_script = calculate_cancer_cell_fraction_script,
+                sample_name = sample_name,
+                sex = sex,
+                maf = AbsoluteExtractTask.abs_maf,
+                seg = AbsoluteExtractTask.segtab,
+                seg_igv = AbsoluteExtractTask.segtab_igv,
+                copy_ratio_segmentation = acs_copy_ratio_segmentation,
+                acs_copy_ratio_skew = acs_copy_ratio_skew,
+                snv_maf = snv_maf,
+                indel_maf = indel_maf,
+                purity = AbsoluteExtractTask.purity,
+                ploidy = AbsoluteExtractTask.ploidy,
+                copy_ratio_type = copy_ratio_type,
+                runtime_params = runtime_collection.absolute_extract_postprocess
+        }
     }
 
     output {
         File absolute_table = AbsoluteExtractTask.table
         Float absolute_purity = AbsoluteExtractTask.purity
         Float absolute_ploidy = AbsoluteExtractTask.ploidy
-        File absolute_maf = AbsoluteExtractTask.abs_maf
-        File absolute_segtab = AbsoluteExtractTask.segtab
-        File absolute_maf_postprocessed = Postprocess.abs_maf
-        File absolute_segtab_postprocessed = Postprocess.segtab
-        File absolute_segtab_igv_postprocessed = Postprocess.segtab_igv
-        File absolute_rescued_intervals = Postprocess.rescued_intervals
+        File absolute_maf = select_first([Postprocess.abs_maf, AbsoluteExtractTask.abs_maf])
+        File absolute_segtab = select_first([Postprocess.segtab, AbsoluteExtractTask.segtab])
+        File absolute_segtab_igv = select_first([Postprocess.segtab_igv, AbsoluteExtractTask.segtab_igv])
+        File? absolute_rescued_intervals = Postprocess.rescued_intervals
     }
 }
 
@@ -94,14 +102,14 @@ task AbsoluteExtractTask {
         Runtime runtime_params
     }
 
-    String sample_name = basename(rdata, "." + copy_ratio_type + ".ABSOLUTE.RData")
+    String sample_name = basename(rdata, ".ABSOLUTE." + copy_ratio_type + ".RData")
     String output_dir = "."
-    String output_table = output_dir + "/reviewed/" + sample_name + "." + analyst_id + ".ABSOLUTE.table.txt"
-    String output_abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".ABS_MAF.txt"
-    String output_segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab.txt"
-    String output_segtab_igv = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".IGV.seg.txt"
-    String output_called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + analyst_id + ".called.RData"
-    String output_gene_corrected_cn = output_dir + "/reviewed/" + sample_name + ".gene_corrected_CN.txt"
+    String output_table = output_dir + "/reviewed/" + sample_name + "." + analyst_id + ".ABSOLUTE.table." + copy_ratio_type + ".txt"
+    String output_abs_maf = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".ABS_MAF." + copy_ratio_type + ".txt"
+    String output_segtab = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".segtab." + copy_ratio_type + ".txt"
+    String output_segtab_igv = output_dir + "/reviewed/SEG_MAF/" + sample_name + ".IGV.seg." + copy_ratio_type + ".txt"
+    String output_called_rdata = output_dir + "/reviewed/samples/" + sample_name + ".ABSOLUTE." + copy_ratio_type + "." + analyst_id + ".called.RData"
+    String output_gene_corrected_cn = output_dir + "/reviewed/" + sample_name + ".gene_corrected_CN." + copy_ratio_type + ".txt"
 
     command <<<
         set -euxo pipefail
@@ -140,12 +148,12 @@ task AbsoluteExtractTask {
                 --tau ~{organism_normal_ploidy} \
                 ~{"--gender " + sex} \
                 ~{"--platform " + platform} \
-                --ssnv_skew ~{acs_copy_ratio_skew} \
+                ~{if (defined(acs_copy_ratio_skew) && (acs_copy_ratio_skew > 0)) then "--ssnv_skew " + acs_copy_ratio_skew else ""} \
                 --copy_num_type ~{copy_ratio_type} \
                 ~{"--genome_build '" + genome_build + "'"} \
                 --pkg_dir "/opt/absolute"
 
-            this_rdata="~{output_dir}/~{sample_name}.force-call/~{sample_name}.allelic.ABSOLUTE.RData"
+            this_rdata="~{output_dir}/~{sample_name}.force-call/~{sample_name}.ABSOLUTE.~{copy_ratio_type}.RData"
             this_called_solution=1
 
         else
@@ -210,17 +218,18 @@ task Postprocess {
         File? indel_maf
         Float purity
         Float ploidy
+        String copy_ratio_type = "allelic"
 
         Int organism_normal_ploidy = 2
 
         Runtime runtime_params
     }
 
-    String this_sample_name = if defined(sample_name) then sample_name else basename(seg, ".segtab.txt")
-    String output_maf = this_sample_name + ".ABS_MAF.completed.txt"
-    String output_segtab = this_sample_name + ".segtab.completed.txt"
-    String output_segtab_igv = this_sample_name + ".IGV.seg.completed.txt"
-    String output_rescued_intervals = this_sample_name + ".rescued_intervals.txt"
+    String this_sample_name = if defined(sample_name) then sample_name else basename(seg, ".segtab." + copy_ratio_type + ".txt")
+    String output_maf = this_sample_name + ".ABS_MAF." + copy_ratio_type + ".completed.txt"
+    String output_segtab = this_sample_name + ".segtab." + copy_ratio_type + ".completed.txt"
+    String output_segtab_igv = this_sample_name + ".IGV.seg." + copy_ratio_type + ".completed.txt"
+    String output_rescued_intervals = this_sample_name + ".rescued_intervals." + copy_ratio_type + ".txt"
 
     command <<<
         set -euxo pipefail
@@ -241,6 +250,8 @@ task Postprocess {
             --purity ~{purity} \
             --ploidy ~{ploidy} \
             --normal_ploidy ~{organism_normal_ploidy} \
+            --copy_num_type ~{copy_ratio_type} \
+            --allelic_resplit_focals \
             --outdir "."
 
         if [[ "~{defined(snv_maf)}" == "true" || "~{defined(indel_maf)}" == "true" ]] ; then
@@ -250,12 +261,13 @@ task Postprocess {
                 ~{"--sex " + sex} \
                 --absolute_maf '~{maf}' \
                 --absolute_segtab '~{output_segtab}' \
-                ~{"--ssnv_skew " + acs_copy_ratio_skew} \
+                ~{if (defined(acs_copy_ratio_skew) && (acs_copy_ratio_skew > 0)) then "--ssnv_skew " + acs_copy_ratio_skew else ""} \
                 ~{"--snv_maf '" + snv_maf + "'"} \
                 ~{"--indel_maf '" + indel_maf + "'"} \
                 --purity ~{purity} \
                 --ploidy ~{ploidy} \
                 --normal_ploidy ~{organism_normal_ploidy} \
+                --copy_num_type ~{copy_ratio_type} \
                 --outdir '.'
         fi
     >>>

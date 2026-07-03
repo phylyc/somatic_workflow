@@ -20,7 +20,19 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="HarmonizeCopyRatios",
         description="""
-            This script harmonizes all intervals across all samples of a given patient.
+            Harmonize the per-sample copy-ratio interval sets of a patient onto ONE common
+            interval grid so the samples can be compared locus-by-locus. The input intervals
+            are decomposed into a shared set of non-overlapping intervals; each sample's value
+            on an output interval is aggregated (per --agg_col/--agg_func) from the input
+            interval(s) covering it. Every output sample is written on the SAME interval set.
+
+            --interval_set_rule INTERSECTION keeps only intervals present in ALL samples
+            (samples with disjoint targets -> empty output); UNION keeps every interval.
+            Intervals shorter than --min_target_length are dropped, and abutting intervals
+            with equal values (within --merge_abutting_tolerance) are merged. With
+            --normal_sample and --filter_germline_calls, intervals called as a CNV (+/-) in
+            the matched normal are removed (requires a CALL column). Handles all-empty input
+            gracefully (empty output, no error).
         """,
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -424,7 +436,9 @@ class Harmonizer(object):
 
     def _harmonize(self):
         print("Harmonizing copy ratio intervals:") if self.verbose else None
-        cr = pd.concat(self.copy_ratios, ignore_index=True)
+        # All inputs empty (or none): load_data only keeps non-empty frames, so the
+        # list can be empty here — guard before concat, which rejects an empty list.
+        cr = pd.concat(self.copy_ratios, ignore_index=True) if self.copy_ratios else pd.DataFrame()
         if cr.empty:
             print("  No loci found to harmonize in any of the input files.") if self.verbose else None
             return pd.DataFrame(columns=[self.contig_col, self.start_col, self.end_col, self.sample_col] + self.agg_col)

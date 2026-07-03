@@ -15,10 +15,14 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="MergePileups",
         description="""
-            Merge multiple allelic pileup files into one file per sample. Pileups with the same sample name (e.g. from different sequencing runs) 
-            are merged by summing ref_count, alt_count, other_alt_count and taking the maximum allele_frequency.
-            The input files are expected to be in the format of GATK's GetPileupSummaries output.
-            The output files will be in the same format.
+            Merge multiple allelic pileup files into one file per sample. Pileups sharing
+            an assigned sample name (e.g. different sequencing runs of the same sample) are
+            merged per locus, keyed on (contig, position) — input row order does not matter.
+            ref_count, alt_count and other_alt_count are SUMMED across runs; allele_frequency
+            is the POPULATION allele frequency from the SNP panel and is carried through as
+            the max across runs (it is NOT recomputed from the merged read counts). With
+            --min_read_depth, loci whose MERGED total depth is below the threshold are dropped.
+            Inputs and outputs are in GATK GetPileupSummaries format.
         """,
         epilog="",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter

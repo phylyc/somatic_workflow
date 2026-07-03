@@ -31,7 +31,7 @@ struct WorkflowArguments {
     Boolean run_variant_annotation_scattered
     Boolean run_model_segments
     Boolean run_clonal_decomposition
-    Boolean run_ancestry_calling
+    Boolean run_input_validation_deep
 
     Boolean keep_germline
     Boolean compress_output
@@ -75,6 +75,7 @@ struct WorkflowArguments {
     String script_map_to_absolute_copy_number
     String script_merge_pileups
     String script_pileup_to_allelic_counts
+    String script_validate_inputs
 
     Int absolute_min_hets
     Int absolute_min_probes
@@ -171,7 +172,11 @@ workflow DefineWorkflowArguments {
         Boolean run_variant_annotation_scattered = false
         Boolean run_model_segments = true
         Boolean run_clonal_decomposition = true
-        Boolean run_ancestry_calling = true
+        # Deep input validation localizes the bams to run samtools quickcheck and to
+        # verify each bam's contig order matches the reference .dict (a mismatch
+        # reliably trips up GATK downstream). Off by default to keep the gate cheap;
+        # enable it to catch contig-order problems before the run.
+        Boolean run_input_validation_deep = false
 
         Boolean keep_germline = true
         Boolean compress_output = true
@@ -216,6 +221,7 @@ workflow DefineWorkflowArguments {
         String script_map_to_absolute_copy_number =     "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
         String script_merge_pileups =                   "https://github.com/phylyc/somatic_workflow/raw/master/python/merge_pileups.py"
         String script_pileup_to_allelic_counts =        "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
+        String script_validate_inputs =                 "https://github.com/phylyc/somatic_workflow/raw/master/python/validate_inputs.py"
 
         Int absolute_min_hets = 0
         Int absolute_min_probes = 3
@@ -409,7 +415,7 @@ workflow DefineWorkflowArguments {
         run_variant_annotation_scattered: run_variant_annotation_scattered,
         run_model_segments: run_model_segments,
         run_clonal_decomposition: run_clonal_decomposition,
-        run_ancestry_calling: run_ancestry_calling,
+        run_input_validation_deep: run_input_validation_deep,
 
         keep_germline: keep_germline,
         compress_output: compress_output,
@@ -451,6 +457,7 @@ workflow DefineWorkflowArguments {
         script_map_to_absolute_copy_number: script_map_to_absolute_copy_number,
         script_merge_pileups: script_merge_pileups,
         script_pileup_to_allelic_counts: script_pileup_to_allelic_counts,
+        script_validate_inputs: script_validate_inputs,
 
         absolute_min_hets: absolute_min_hets,
         absolute_min_probes: absolute_min_probes,

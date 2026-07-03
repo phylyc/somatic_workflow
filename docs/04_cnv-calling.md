@@ -65,3 +65,15 @@ Practical guidance:
 - avoid combining WES and narrow targeted panels for CNV analysis
 - in mixed-modality settings, consider excluding less informative runs using `use_sample_for_tCR`
 - treat mixed-platform CNV results conservatively unless interval overlap is substantial
+
+## References
+
+Copy-ratio collection, denoising and segmentation are implemented with GATK. The
+underlying methods:
+
+- Tangent normalization — Gao GF, Oh C, Saksena G, et al. *Bioinformatics* 38(20):4677–4686 (2022). <https://doi.org/10.1093/bioinformatics/btac586>
+- Kernel change-point segmentation (ModelSegments) — Celisse A, Marot G, Pierre-Jean M, Rigaill G. 2016, hal-01413230v2. <https://hal.science/hal-01413230v2>
+- GATK — <https://github.com/broadinstitute/gatk>
+
+See [References](11_references.md) for the full bibliography.
+

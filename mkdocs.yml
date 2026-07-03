@@ -1,0 +1,58 @@
+site_name: Multi-Sample Somatic Workflow
+site_description: Documentation for the MultiSampleSomaticWorkflow (MSSW) GATK4+ pipeline
+repo_url: https://github.com/phylyc/somatic_workflow
+repo_name: phylyc/somatic_workflow
+edit_uri: edit/master/docs/
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.action.edit
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.details
+  - tables
+
+nav:
+  - Home: index.md
+  - Getting started: 00_getting-started.md
+  - Supported use cases: 01_supported-use-cases.md
+  - Inputs: 02_inputs.md
+  - Outputs: 03_outputs.md
+  - CNV calling: 04_cnv-calling.md
+  - SNV calling: 05_snv-calling.md
+  - ABSOLUTE review and rerun: 06_absolute-review-and-rerun.md
+  - PhylogicNDT: 07_phylogicndt.md
+  - Ancestry calling: 08_ancestry-calling.md
+  - Failure recovery: 09_failure-recovery.md
+  - Reference resources: 10_resources.md
+  - References: 11_references.md
+

@@ -1,6 +1,7 @@
 import argparse
 from collections import Counter, defaultdict
 from copy import copy
+import io
 from itertools import combinations
 import gzip
 import multiprocessing as mp
@@ -9,8 +10,10 @@ import os
 import pandas as pd
 import scipy.stats as st
 import scipy.special as sp
+import struct
 import time
 import warnings
+import zlib
 
 
 def message(*args, **kwargs) -> None:
@@ -22,21 +25,31 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="Genotyper",
         description="""
-            Genotyper is a script that calculates genotype likelihoods from allelic counts, 
-            while accounting for potential sample contamination, reference bias, and  
-            segment-specific minor allele fractions. It leverages allelic pileup data 
-            (from GATK GetPileupSummaries), allelic segmentation data (from GATK CalculateContamination
-            or GATK ModelSegments), and contamination estimates (from GATK CalculateContamination), 
-            to compute genotype likelihoods under a beta-binomial model. The script 
-            computes variant genotype correlations across samples as a consistency check.
+            Genotyper infers a patient's germline SNP genotypes JOINTLY from the allelic
+            pileups of all the patient's samples. Because the genotype is germline, each
+            site's call (0/0, 0/1, 1/1) is a property of the patient and is shared across
+            that patient's samples — it should not depend on which subset of samples is
+            supplied. Only biallelic SNVs from the --variant candidate list are genotyped
+            (multiallelic / indel / spanning candidates are skipped). The population allele
+            frequency carried in --variant is used as a per-site prior, so a common SNP
+            yields a higher variant-genotype likelihood than a rare one with the same reads.
+
+            It leverages allelic pileup data (from GATK GetPileupSummaries), allelic
+            segmentation (from GATK CalculateContamination or ModelSegments), and
+            contamination estimates (from GATK CalculateContamination) under a beta-binomial
+            model that accounts for contamination, reference bias, and segment-specific
+            minor allele fractions. Heterozygous sites are phased (0|1 vs 1|0) per
+            copy-ratio segment from allelic imbalance (not statistical haplotype phasing),
+            so the phase is recoverable only up to a per-segment global flip. Genotype
+            correlations across samples serve as a same-individual consistency check.
 
             Outputs include:
-                1) A VCF with genotype information for each patient,
-                2) Allelic count matrices for each allele,
-                3) Sample correlation matrix, and
-                4) (Optionally) sample pileups annotated with genotype likelihoods.
+                1) A single per-patient germline VCF with one (possibly phased) genotype per site,
+                2) Per-sample allelic count matrices (ref / alt / other_alt),
+                3) A sample correlation matrix, and
+                4) (Optionally) per-sample pileups annotated with genotype likelihoods.
 
-            Additional options allow filtering based on allele frequency, read depth, and 
+            Additional options allow filtering based on allele frequency, read depth, and
             error rate thresholds, as well as output formatting and parallelization.
         """,
         epilog="",
@@ -57,21 +70,21 @@ def parse_args():
     parser.add_argument("-D", "--min_read_depth",               type=int,   default=10,     help="Minimum read depth per sample to consider site for genotyping.")
     parser.add_argument("--min_allele_frequency",               type=float, default=0,      help="Minimum population allele frequency to consider a site.")
     parser.add_argument("-p", "--min_genotype_likelihood",      type=float, default=0.995,  help="Probability threshold for calling and retaining genotypes.")
-    parser.add_argument("-s", "--overdispersion",               type=float, default=10,     help="")
-    parser.add_argument("-l", "--ref_bias",                     type=float, default=1.05,   help="")
-    parser.add_argument("--min_error_rate",                     type=float, default=1e-3,   help="")
-    parser.add_argument("--max_error_rate",                     type=float, default=1e-2,   help="")
+    parser.add_argument("-s", "--overdispersion",               type=float, default=10,     help="Beta-binomial overdispersion (concentration) of the heterozygous allele-fraction model; higher values concentrate the expected fraction more tightly around the minor allele fraction.")
+    parser.add_argument("-l", "--ref_bias",                     type=float, default=1.05,   help="Reference-allele mapping bias lambda in f_obs = f / (f + (1 - f) * lambda); > 1 means the reference allele is over-represented.")
+    parser.add_argument("--min_error_rate",                     type=float, default=1e-3,   help="Lower bound on the per-site sequencing error rate (estimated from other_alt counts).")
+    parser.add_argument("--max_error_rate",                     type=float, default=1e-2,   help="Upper bound on the per-site sequencing error rate (estimated from other_alt counts).")
     parser.add_argument("--outlier_prior",                      type=float, default=1e-3,   help="Prior probability for a variant to be an outlier.")
     parser.add_argument("--phasing_log_ratio_cap",              type=float, default=10,     help="Maximum absolute log odds ratio to avoid outlier HETs dominating the phasing signal.")
     parser.add_argument("--phasing_sample_llr_threshold",       type=float, default=0.4,    help="Sample-level log likelihood ratio threshold of 0|1 vs 1|0 to consider a HET for consensus phasing.")
     parser.add_argument("--phasing_consensus_fdr",              type=float, default=0.005,  help="Site-level FDR threshold for evidence of 0|1 vs 1|0 to consider for consensus phasing.")
     parser.add_argument("--phasing_max_num_contig_segs",        type=float, default=1000,   help="Maximum number of segments per chromosome to consider for forming phasing consensus.")
-    parser.add_argument("-F", "--format",                       type=str,   default="GT",   help="VCF format field. (GT: genotype; AD: allele depth; DP: total depth; PL: phred-scaled genotype likelihoods.)")
+    parser.add_argument("-F", "--format",                       type=str,   default="GT:AD:DP:PL", help="VCF format fields, colon-separated. Order does not matter. (GT: genotype; AD: allele depth; DP: total depth; PL: phred-scaled genotype likelihoods.)")
     parser.add_argument("--threads",                            type=int,   default=1,      help="Number of threads to use for parallelization over samples.")
     parser.add_argument("--select_hets",                                    default=False,  action="store_true", help="Keep only heterozygous sites.")
     parser.add_argument("--save_sample_genotype_likelihoods",               default=False,  action="store_true", help="Save genotype likelihoods to file for each sample.")
     parser.add_argument("--compress_output",                                default=False,  action="store_true", help="Compress output files.")
-    parser.add_argument("--verbose",                                        default=True,  action="store_true", help="Print information to stdout during execution.")
+    parser.add_argument("--verbose",                                        default=True,   action="store_true", help="Print information to stdout during execution.")
     return parser.parse_args()
 
 
@@ -126,6 +139,82 @@ def print_args(args):
         for key, value in vars(args).items():
             print(f"  {key}: {value}")
         print()
+
+
+# BGZIP library may not be available in the environment where this script is run in,
+# so we implement our own.
+
+_BGZF_MAX_UNCOMPRESSED_BLOCK_SIZE = 65280
+_BGZF_EOF_BLOCK = (
+    b"\x1f\x8b\x08\x04\x00\x00\x00\x00\x00\xff\x06\x00BC\x02\x00"
+    b"\x1b\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+)
+
+
+class BGZipWriter(io.RawIOBase):
+    """Minimal BGZF writer for text outputs that need tabix/bcftools indexing."""
+
+    def __init__(self, file_path: str, compresslevel: int = 6):
+        super().__init__()
+        self._file = open(file_path, "wb")
+        self._buffer = bytearray()
+        self._compresslevel = compresslevel
+
+    def writable(self) -> bool:
+        return True
+
+    def write(self, data) -> int:
+        if self.closed:
+            raise ValueError("I/O operation on closed file.")
+        data = memoryview(data).tobytes()
+        self._buffer.extend(data)
+        while len(self._buffer) >= _BGZF_MAX_UNCOMPRESSED_BLOCK_SIZE:
+            self._write_block(bytes(self._buffer[:_BGZF_MAX_UNCOMPRESSED_BLOCK_SIZE]))
+            del self._buffer[:_BGZF_MAX_UNCOMPRESSED_BLOCK_SIZE]
+        return len(data)
+
+    def flush(self) -> None:
+        if self.closed or self._file.closed:
+            return None
+        if self._buffer:
+            self._write_block(bytes(self._buffer))
+            self._buffer.clear()
+        self._file.flush()
+        return None
+
+    def close(self) -> None:
+        if not self.closed:
+            self.flush()
+            self._file.write(_BGZF_EOF_BLOCK)
+            self._file.close()
+        super().close()
+
+    def _write_block(self, data: bytes) -> None:
+        compressor = zlib.compressobj(self._compresslevel, zlib.DEFLATED, -15)
+        compressed = compressor.compress(data) + compressor.flush()
+        block_size = 18 + len(compressed) + 8
+        if block_size > 65536:
+            midpoint = len(data) // 2
+            self._write_block(data[:midpoint])
+            self._write_block(data[midpoint:])
+            return None
+        header = (
+            b"\x1f\x8b\x08\x04\x00\x00\x00\x00\x00\xff\x06\x00BC\x02\x00"
+            + struct.pack("<H", block_size - 1)
+        )
+        trailer = struct.pack("<II", zlib.crc32(data) & 0xffffffff, len(data) & 0xffffffff)
+        self._file.write(header + compressed + trailer)
+        return None
+
+
+def bgzip_open(file_path: str, mode: str = "wt", compresslevel: int = 6):
+    """Open a BGZF-compressed file using a gzip-compatible text interface."""
+    if "r" in mode or "+" in mode or "a" in mode:
+        raise ValueError("bgzip_open only supports write modes")
+    writer = BGZipWriter(file_path=file_path, compresslevel=compresslevel)
+    if "b" in mode:
+        return writer
+    return io.TextIOWrapper(io.BufferedWriter(writer), encoding="utf-8", newline="")
 
 
 class Pileup(object):
@@ -547,7 +636,7 @@ def join_vcfs(vcfs: list["VCF"], verbose=False):
         joint = copy(vcfs[0])
         df = pd.concat([vcf.df.reset_index() for vcf in vcfs])
         n_input_vars = df.shape[0]
-        df.drop_duplicates(subset=["contig", "position"], keep="first")
+        df = df.drop_duplicates(subset=["contig", "position"], keep="first")
         n_kept_vars = df.shape[0]
         if n_kept_vars < n_input_vars:
             print(f"    Dropping {n_input_vars - n_kept_vars} duplicate loci from multiple variant inputs. {n_kept_vars} loci remaining total.") if verbose else None
@@ -753,6 +842,12 @@ class Genotyper(object):
         popaf = pileup["allele_frequency"]  # population allele frequency from SNP panel
 
         def bias(_f):
+            # NOTE: this intentionally uses self.ref_bias (the global CLI default), NOT the
+            # per-segment `ref_bias` argument threaded in from ModelSegments MEAN_BIAS. In past
+            # experiments, applying the per-sample/per-segment reference bias was strongly
+            # DETRIMENTAL to genotype-call quality, so it is deliberately disabled here.
+            # DEV: revisit only with a careful GT-quality validation before re-enabling the
+            # per-segment `ref_bias` (would be `_f / (_f + (1 - _f) * ref_bias)`).
             return _f / (_f + (1 - _f) * self.ref_bias)
 
         f_aa = contamination * popaf + (1 - contamination) * error / 3  # errors spread across the three wrong bases
@@ -838,7 +933,7 @@ class Genotyper(object):
                 mask = ndarray != 1
                 if np.sum(mask) == 0:
                     return -np.inf
-                return np.average(ndarray[mask], weights=weights[mask])
+                return np.sum(ndarray[mask] * weights[mask])
 
             joint_log_likelihood = {}
             for gt in self.genotypes:
@@ -1621,7 +1716,7 @@ class GenotypeData(object):
             df["sample"] = df[vcf_format.split(":")].apply(lambda row: ":".join([str(f) for f in row]), axis=1)
             df = df.dropna()
 
-        open_func = gzip.open if args.compress_output else open
+        open_func = bgzip_open if args.compress_output else open
         with open_func(file, "wt") as vcf:
             vcf.write("##fileformat=VCFv4.2\n")
             vcf.write("##FILTER=<ID=PASS,Description=\"All filters passed\">\n")
@@ -1630,8 +1725,6 @@ class GenotypeData(object):
                 vcf.write("##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allelic depths for the ref and alt alleles in the order listed\">\n")
             if "DP" in vcf_format:
                 vcf.write("##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Approximate read depth; some reads may have been filtered\">\n")
-            if "GQ" in vcf_format:
-                vcf.write("##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype Quality\">\n")
             vcf.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
             if "PL" in vcf_format:
                 vcf.write("##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification\">\n")

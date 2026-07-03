@@ -44,6 +44,175 @@ task GetSampleName {
     }
 }
 
+task IndexFeatureFile {
+    input {
+        File vcf
+
+        Runtime runtime_params
+    }
+
+    String uncompressed_vcf = basename(vcf, ".gz")
+    Boolean is_compressed = uncompressed_vcf != basename(vcf)
+    String output_vcf_idx = basename(vcf) + if is_compressed then ".tbi" else ".idx"
+    Int diskGB = runtime_params.disk + ceil(size(vcf, "GB")) + 1
+
+    command <<<
+        set -euxo pipefail
+        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
+        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
+            IndexFeatureFile \
+            --input '~{vcf}' \
+            --output '~{output_vcf_idx}'
+    >>>
+
+    output {
+        File vcf_idx = output_vcf_idx
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + diskGB + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+}
+
+task ParseInput {
+    # Pre-flight validation gate. Fails the workflow before any expensive task if
+    # the inputs are mis-shaped or violate an implicit downstream requirement. The
+    # heavy reference resources are tested for presence via the has_* booleans, so
+    # this task localizes nothing in the default (non-deep) mode; only the small
+    # per-run interval / panel files are localized for content checks. The deep
+    # mode additionally localizes the bams for samtools integrity + contig-order
+    # checks (see run_input_validation_deep).
+    input {
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/validate_inputs.py"
+
+        Int n_bams
+        Int n_bais
+        Array[String]? sample_names
+        Array[String]? normal_sample_names
+        Array[Boolean]? is_paired_end
+        Array[Boolean]? use_for_tCR
+        Array[Boolean]? use_for_aCR
+        Array[Int]? timepoints
+        Array[File]? target_intervals
+        Array[File]? annotated_target_intervals
+        Array[File]? cnv_panel_of_normals
+
+        Boolean has_common_germline_alleles
+        Boolean has_common_germline_alleles_idx
+        Boolean has_realignment_image
+        Boolean has_germline_resource
+        Boolean has_snv_panel_of_normals
+        Boolean has_germline_resource_v4_1
+        Boolean has_snv_panel_of_normals_v4_1
+        Boolean has_funcotator_sources
+        Boolean has_sex
+
+        Boolean run_collect_total_read_counts
+        Boolean run_model_segments
+        Boolean run_collect_allelic_read_counts
+        Boolean run_contamination_model
+        Boolean run_realignment_filter
+        Boolean run_variant_calling_mutect1
+        Boolean run_variant_calling
+        Boolean run_variant_annotation
+        Boolean run_clonal_decomposition
+
+        Boolean deep = false
+        Array[File] bams = []
+        File? ref_dict
+
+        Runtime runtime_params
+    }
+
+    # In deep mode the bams are localized for samtools, so the request must cover
+    # them; bams is empty in the default mode, leaving just the base disk.
+    Int disk = runtime_params.disk + if deep then ceil(size(bams, "GB")) + 1 else 0
+
+    # Terra may pass an empty optional array as defined([]). Normalize optional
+    # arrays and gate command-line expansion on non-empty values so repeated
+    # argparse flags are omitted instead of receiving a single empty string.
+    Array[String] sample_names_args = select_first([sample_names, []])
+    Array[String] normal_sample_names_args = select_first([normal_sample_names, []])
+    Array[Boolean] is_paired_end_args = select_first([is_paired_end, []])
+    Array[Boolean] use_for_tCR_args = select_first([use_for_tCR, []])
+    Array[Boolean] use_for_aCR_args = select_first([use_for_aCR, []])
+    Array[Int] timepoints_args = select_first([timepoints, []])
+    Array[File] target_intervals_args = select_first([target_intervals, []])
+    Array[File] annotated_target_intervals_args = select_first([annotated_target_intervals, []])
+    Array[File] cnv_panel_of_normals_args = select_first([cnv_panel_of_normals, []])
+
+    Boolean has_sample_names_args = length(sample_names_args) > 0
+    Boolean has_normal_sample_names_args = length(normal_sample_names_args) > 0
+    Boolean has_is_paired_end_args = length(is_paired_end_args) > 0
+    Boolean has_use_for_tCR_args = length(use_for_tCR_args) > 0
+    Boolean has_use_for_aCR_args = length(use_for_aCR_args) > 0
+    Boolean has_timepoints_args = length(timepoints_args) > 0
+    Boolean has_target_intervals_args = length(target_intervals_args) > 0
+    Boolean has_annotated_target_intervals_args = length(annotated_target_intervals_args) > 0
+    Boolean has_cnv_panel_of_normals_args = length(cnv_panel_of_normals_args) > 0
+    Boolean has_bams_args = length(bams) > 0
+
+    command <<<
+        set -euxo pipefail
+        wget -O validate_inputs.py ~{script}
+        python validate_inputs.py \
+            --n_bams ~{n_bams} \
+            --n_bais ~{n_bais} \
+            ~{true="--sample_names '" false="" has_sample_names_args}~{default="" sep="' --sample_names '" sample_names_args}~{true="'" false="" has_sample_names_args} \
+            ~{true="--normal_sample_names '" false="" has_normal_sample_names_args}~{default="" sep="' --normal_sample_names '" normal_sample_names_args}~{true="'" false="" has_normal_sample_names_args} \
+            ~{true="--is_paired_end '" false="" has_is_paired_end_args}~{default="" sep="' --is_paired_end '" is_paired_end_args}~{true="'" false="" has_is_paired_end_args} \
+            ~{true="--use_for_tCR '" false="" has_use_for_tCR_args}~{default="" sep="' --use_for_tCR '" use_for_tCR_args}~{true="'" false="" has_use_for_tCR_args} \
+            ~{true="--use_for_aCR '" false="" has_use_for_aCR_args}~{default="" sep="' --use_for_aCR '" use_for_aCR_args}~{true="'" false="" has_use_for_aCR_args} \
+            ~{true="--timepoints '" false="" has_timepoints_args}~{default="" sep="' --timepoints '" timepoints_args}~{true="'" false="" has_timepoints_args} \
+            ~{true="--target_intervals '" false="" has_target_intervals_args}~{default="" sep="' --target_intervals '" target_intervals_args}~{true="'" false="" has_target_intervals_args} \
+            ~{true="--annotated_target_intervals '" false="" has_annotated_target_intervals_args}~{default="" sep="' --annotated_target_intervals '" annotated_target_intervals_args}~{true="'" false="" has_annotated_target_intervals_args} \
+            ~{true="--cnv_panel_of_normals '" false="" has_cnv_panel_of_normals_args}~{default="" sep="' --cnv_panel_of_normals '" cnv_panel_of_normals_args}~{true="'" false="" has_cnv_panel_of_normals_args} \
+            --has_common_germline_alleles ~{has_common_germline_alleles} \
+            --has_common_germline_alleles_idx ~{has_common_germline_alleles_idx} \
+            --has_realignment_image ~{has_realignment_image} \
+            --has_germline_resource ~{has_germline_resource} \
+            --has_snv_panel_of_normals ~{has_snv_panel_of_normals} \
+            --has_germline_resource_v4_1 ~{has_germline_resource_v4_1} \
+            --has_snv_panel_of_normals_v4_1 ~{has_snv_panel_of_normals_v4_1} \
+            --has_funcotator_sources ~{has_funcotator_sources} \
+            --has_sex ~{has_sex} \
+            --run_collect_total_read_counts ~{run_collect_total_read_counts} \
+            --run_model_segments ~{run_model_segments} \
+            --run_collect_allelic_read_counts ~{run_collect_allelic_read_counts} \
+            --run_contamination_model ~{run_contamination_model} \
+            --run_realignment_filter ~{run_realignment_filter} \
+            --run_variant_calling_mutect1 ~{run_variant_calling_mutect1} \
+            --run_variant_calling ~{run_variant_calling} \
+            --run_variant_annotation ~{run_variant_annotation} \
+            --run_clonal_decomposition ~{run_clonal_decomposition} \
+            ~{if deep then "--deep" else ""} \
+            ~{true="--bams '" false="" deep && has_bams_args}~{default="" sep="' --bams '" bams}~{true="'" false="" deep && has_bams_args} \
+            ~{if (deep && defined(ref_dict)) then "--ref_dict '" + ref_dict + "'" else ""}
+    >>>
+
+    output {
+        Boolean validated = true
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
+    }
+}
+
 task AnnotateIntervals {
     input {
         File interval_list
@@ -119,6 +288,8 @@ task PreprocessIntervals {
     }
 
     String preprocessed_intervals = "preprocessed.interval_list"
+    Array[File] interval_lists_args = select_first([interval_lists, []])
+    Boolean has_interval_lists_args = length(interval_lists_args) > 0
 
     command <<<
         set -e
@@ -128,7 +299,7 @@ task PreprocessIntervals {
             -R '~{ref_fasta}' \
             ~{"-L '" + interval_list + "'"} \
             ~{"-XL '" + interval_blacklist + "'"} \
-            ~{true="-L '" false="" defined(interval_lists)}~{default="" sep="' -L '" interval_lists}~{true="'" false="" defined(interval_lists)} \
+            ~{true="-L '" false="" has_interval_lists_args}~{default="" sep="' -L '" interval_lists_args}~{true="'" false="" has_interval_lists_args} \
             --bin-length ~{bin_length} \
             --padding ~{padding} \
             --interval-merging-rule OVERLAPPING_ONLY \
@@ -700,5 +871,107 @@ task ReorderSam {
         # ref_dict: {localization_optional: true} 
         # bam: {localization_optional: true}
         # bai: {localization_optional: true}
+    }
+}
+
+task RunPeddy {
+    input {
+        String patient_id
+        File gvcf
+        File gvcf_idx
+        String genome_build
+
+        Runtime runtime_params
+    }
+
+    command <<<
+        set -euo pipefail
+
+        # Defaults used when peddy has no usable ancestry signal or fails.
+        printf "UNKNOWN\n" > pred.txt
+        printf "0.0\n" > prob.txt
+
+        # bcftools/htslib discovers an index by looking next to the VCF path it
+        # opens. Cromwell may localize gvcf and gvcf_idx from different task
+        # output directories, so put matching sidecar names in this working dir.
+        input_gvcf=$(basename '~{gvcf}')
+        ln -sf '~{gvcf}' "$input_gvcf"
+        ln -sf '~{gvcf_idx}' "$input_gvcf.tbi"
+
+        # Filter the VCF to only retain autosomes
+        if [[ "~{genome_build}" == "hg38" ]]; then
+            regions=$(echo chr{1..22} | tr ' ' ',')
+        else
+            regions=$(echo {1..22} | tr ' ' ',')
+        fi
+        bcftools view -r "$regions" "$input_gvcf" -Oz -o "~{patient_id}.filtered.vcf.gz"
+        bcftools index --tbi "~{patient_id}.filtered.vcf.gz"
+
+        # Create dummy ped file
+        printf "~{patient_id}\t~{patient_id}\t0\t0\t0\t-9\n" > "~{patient_id}.ped"
+
+        # Run peddy. Some valid workflow inputs can still be unusable for peddy
+        # (e.g. no overlap with peddy sites, no callable sites, or all sites too
+        # shallow for its internal depth checks). Keep the workflow alive and use
+        # the default UNKNOWN/0.0 values in those cases.
+        set +e
+        if [ "~{genome_build}" == "hg38" ]; then
+            peddy --plot -p 4 --sites ~{genome_build} --prefix ~{patient_id} "~{patient_id}.filtered.vcf.gz" "~{patient_id}.ped"
+        else
+            peddy --plot -p 4 --prefix ~{patient_id} "~{patient_id}.filtered.vcf.gz" "~{patient_id}.ped"
+        fi
+        peddy_status=$?
+        set -e
+
+        if [ "$peddy_status" -eq 0 ] && [ -s "~{patient_id}.het_check.csv" ]; then
+            # Only overwrite defaults if peddy produced a usable ancestry row.
+            awk -F',' '
+                NR == 1 {
+                    for (i = 1; i <= NF; i++) {
+                        col[$i] = i
+                    }
+                    next
+                }
+                NR == 2 {
+                    pred_i = col["ancestry-prediction"]
+                    prob_i = col["ancestry-prob"]
+                    sampled_i = col["sampled_sites"]
+                    if (sampled_i && ($sampled_i + 0) <= 0) {
+                        exit
+                    }
+                    if (pred_i && prob_i && $pred_i != "" && $prob_i ~ /^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$/) {
+                        print $pred_i "\t" $prob_i
+                    }
+                    exit
+                }
+            ' "~{patient_id}.het_check.csv" > peddy_prediction.tsv
+
+            if [ -s peddy_prediction.tsv ]; then
+                cut -f1 peddy_prediction.tsv > pred.txt
+                cut -f2 peddy_prediction.tsv > prob.txt
+            else
+                rm -f "~{patient_id}.background_pca.json" "~{patient_id}.pca_check.png"
+            fi
+        else
+            rm -f "~{patient_id}.background_pca.json" "~{patient_id}.pca_check.png"
+        fi
+    >>>
+
+    output {
+        String ancestry_pred = read_string("pred.txt")
+        Float ancestry_prob = read_float("prob.txt")
+        File? ancestry_background_pca_table = "~{patient_id}.background_pca.json"
+        File? ancestry_pca_plot = "~{patient_id}.pca_check.png"
+    }
+
+    runtime {
+        docker: runtime_params.docker
+        bootDiskSizeGb: runtime_params.boot_disk_size
+        memory: runtime_params.machine_mem + " MB"
+        runtime_minutes: runtime_params.runtime_minutes
+        disks: "local-disk " + runtime_params.disk + " HDD"
+        preemptible: runtime_params.preemptible
+        maxRetries: runtime_params.max_retries
+        cpu: runtime_params.cpu
     }
 }

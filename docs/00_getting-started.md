@@ -2,7 +2,7 @@
 
 This page is your starting point for understanding the workflow. If you are a new user, please review the documentation in the following order:
 
-- [README.md](../README.md)
+- [README.md](https://github.com/phylyc/somatic_workflow/blob/master/README.md)
 - [Getting started](00_getting-started.md)
 - [Supported use cases](01_supported-use-cases.md)
 - [Inputs](02_inputs.md)
@@ -14,6 +14,7 @@ This page is your starting point for understanding the workflow. If you are a ne
 - [Ancestry calling](08_ancestry-calling.md)
 - [Failure recovery](09_failure-recovery.md)
 - [Reference resources](10_resources.md)
+- [References / citations](11_references.md)
 
 ## Intended audience
 
