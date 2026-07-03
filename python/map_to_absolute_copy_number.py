@@ -1001,9 +1001,9 @@ def map_to_cn(args):
         ccf_low = pd.Series(ccf_low, index=seg.index).round(2)
         ccf_hi = pd.Series(ccf_hi, index=seg.index).round(2)
         if allele == "a1":
-            ccf_hat.loc[seg["is_parental_haploid"]] = 1
-            ccf_low.loc[seg["is_parental_haploid"]] = 1
-            ccf_hi.loc[seg["is_parental_haploid"]] = 1
+            ccf_hat.loc[seg["is_parental_haploid"]] = 0
+            ccf_low.loc[seg["is_parental_haploid"]] = 0
+            ccf_hi.loc[seg["is_parental_haploid"]] = 0
         is_subclonal = ((seg[f"rescaled.cn.{allele}"] != 1) & (0 < ccf_hat) & (ccf_hat < 1)).astype(int)
 
         _df = pd.concat([ccf_hat.to_frame("ccf"), seg[f"cancer.cell.frac.{allele}"]], axis=1)
