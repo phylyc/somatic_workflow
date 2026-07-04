@@ -32,7 +32,7 @@ Multi-sample analysis improves sensitivity by borrowing evidence across samples 
 
 ## Quickstart
 1) **Import the workflow**:
-   - The workflow is available on [Dockstore](https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/MultiSampleSomaticWorkflow:master) to import into e.g. a [Terra](https://app.terra.bio/) workspace.
+   - The workflow is available on [Dockstore](https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/MultiSampleSomaticWorkflow:v2.0.0) to import into e.g. a [Terra](https://app.terra.bio/) workspace.
    - Alternatively, clone this repository to run the workflow locally using [Cromwell](https://cromwell.readthedocs.io/en/stable/)
 2) **Prepare inputs**: Prepare an input json file. See `docs/02_inputs.md` for a full description of inputs and for a minimal run template. For Terra, upload the json file under the INPUTS tab on the Terra workflow page to fill out the inputs (or fill out manually).
 3) **Run 1**: Run the full workflow - CNV calling, SNV calling and Clonal Analysis with ABSOLUTE. If running locally using Cromwell:

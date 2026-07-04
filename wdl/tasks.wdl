@@ -90,7 +90,7 @@ task ParseInput {
     # mode additionally localizes the bams for samtools integrity + contig-order
     # checks (see run_input_validation_deep).
     input {
-        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/validate_inputs.py"
+        String script = "https://github.com/phylyc/somatic_workflow/raw/v2.0.0/python/validate_inputs.py"
 
         Int n_bams
         Int n_bais

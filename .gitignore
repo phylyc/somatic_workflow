@@ -1,5 +1,6 @@
 .idea
-local_validate_wdls.sh
+cromwell-executions
+cromwell-workflow-logs
 **.DS_Store**
 AGENTS.md
 wdl/codegen/__pycache__/

@@ -215,7 +215,7 @@ workflow ModelSegments {
 
 task PileupToAllelicCounts {
     input {
-        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/pileup_to_allelic_counts.py"
+        String script = "https://github.com/phylyc/somatic_workflow/raw/v2.0.0/python/pileup_to_allelic_counts.py"
 
         File ref_dict
         String bam_name

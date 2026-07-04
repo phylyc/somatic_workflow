@@ -29,5 +29,5 @@ and clonal analysis.
 ## Useful links
 
 - Source repository: [phylyc/somatic_workflow](https://github.com/phylyc/somatic_workflow)
-- Import via [Dockstore](https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/MultiSampleSomaticWorkflow:master)
+- Import via [Dockstore](https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/MultiSampleSomaticWorkflow:v2.0.0)
 

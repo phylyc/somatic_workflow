@@ -39,8 +39,8 @@ Key outputs from this part of the workflow include:
 ## Panel of normals
 Recommended: Use **CreateSNVPanelOfNormals** workflow to create `snv_panel_of_normals` and `snv_panel_of_normals_idx`. This is needed for the SNV workflow
 
-    -   Dockstore: <https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/CreateSNVPanelOfNormals:master?tab=info>
-    -   WDL: <https://github.com/phylyc/somatic_workflow/blob/master/wdl/resources/create_snv_pon.wdl>
+    -   Dockstore: <https://dockstore.org/workflows/github.com/phylyc/somatic_workflow/CreateSNVPanelOfNormals:v2.0.0?tab=info>
+    -   WDL: <https://github.com/phylyc/somatic_workflow/blob/v2.0.0/wdl/resources/create_snv_pon.wdl>
 
 ## Force calling and filtering
 

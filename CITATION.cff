@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use this workflow, please cite it using the metadata below. Please also cite the underlying methods listed in docs/11_references.md."
+title: "MultiSampleSomaticWorkflow (MSSW): a GATK4+ WDL pipeline for somatic variant, copy-number, and clonal analysis"
+type: software
+authors:
+  - family-names: "Hähnel"
+    given-names: "Philipp"
+    orcid: "https://orcid.org/0000-0001-9584-9135"
+    affiliation: "Mass General Brigham"
+abstract: >-
+  The MultiSampleSomaticWorkflow (MSSW) is a WDL pipeline for somatic analysis of
+  tissue or liquid biopsy samples from cancer patients. It assumes DNA data and
+  supports WES, WGS, and panel sequencing. Built on GATK4, it covers preprocessing,
+  single nucleotide variant (SNV) calling, copy number variation (CNV) calling, and
+  clonal analysis (ABSOLUTE, PhylogicNDT).
+version: "2.0.0"
+date-released: "2026-07-04"
+license: "BSD-3-Clause"
+repository-code: "https://github.com/phylyc/somatic_workflow"
+url: "https://phylyc.github.io/somatic_workflow/"
+keywords:
+  - bioinformatics
+  - somatic-variant-calling
+  - copy-number-variation
+  - WDL
+  - GATK4
+  - cancer-genomics
+  - WES
+  - WGS
