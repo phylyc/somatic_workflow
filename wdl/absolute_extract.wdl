@@ -19,8 +19,8 @@ workflow AbsoluteExtract {
         File? indel_maf
         File? gvcf
         String? genome_build
-        String map_to_absolute_copy_number_script = "https://github.com/phylyc/somatic_workflow/raw/v2.0.0/python/map_to_absolute_copy_number.py"
-        String calculate_cancer_cell_fraction_script = "https://github.com/phylyc/somatic_workflow/raw/v2.0.0/python/calculate_cancer_cell_fraction.py"
+        String map_to_absolute_copy_number_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
+        String calculate_cancer_cell_fraction_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/calculate_cancer_cell_fraction.py"
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
     }
@@ -204,8 +204,8 @@ task AbsoluteExtractTask {
 
 task Postprocess {
     input {
-        String cnv_script = "https://github.com/phylyc/somatic_workflow/raw/v2.0.0/python/map_to_absolute_copy_number.py"
-        String snv_script = "https://github.com/phylyc/somatic_workflow/raw/v2.0.0/python/calculate_cancer_cell_fraction.py"
+        String cnv_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/map_to_absolute_copy_number.py"
+        String snv_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/calculate_cancer_cell_fraction.py"
 
         String? sample_name
         String? sex

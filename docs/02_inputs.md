@@ -72,7 +72,7 @@ z4_RuntimeParameters # (per-task runtime settings)
 
 ### C) Workflow Parameters (`z3_Parameters`)
 
-For defaults, please check out: <https://github.com/phylyc/somatic_workflow/blob/v2.0.0/wdl/workflow_arguments.wdl>
+For defaults, please check out: <https://github.com/phylyc/somatic_workflow/blob/master/wdl/workflow_arguments.wdl>
 
 | Argument | Required/Recommended/Optional | Description / Example | Type |
 |----------------|-----------------------|------------------|----------------|

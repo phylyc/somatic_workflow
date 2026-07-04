@@ -7,7 +7,7 @@ import "tasks.wdl"
 
 workflow GenotypeVariants {
     input {
-        String script = "https://github.com/phylyc/somatic_workflow/raw/v2.0.0/python/genotype.py"
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
 
         String patient_id
         String? sex
@@ -131,7 +131,7 @@ workflow GenotypeVariants {
 
 task GenotypeVariantsTask {
     input {
-        String script = "https://github.com/phylyc/somatic_workflow/raw/v2.0.0/python/genotype.py"
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/genotype.py"
 
         String patient_id
         String? sex

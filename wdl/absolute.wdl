@@ -13,7 +13,7 @@ workflow Absolute {
         Float? ploidy
         String? sex
 
-        String acs_conversion_script = "https://github.com/phylyc/somatic_workflow/raw/v2.0.0/python/acs_conversion.py"
+        String acs_conversion_script = "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
         Int min_hets = 0
         Int min_probes = 2
         Float maf90_threshold = 0.485
@@ -89,7 +89,7 @@ workflow Absolute {
 
 task ModelSegmentsToACSConversion {
     input {
-        String script = "https://github.com/phylyc/somatic_workflow/raw/v2.0.0/python/acs_conversion.py"
+        String script = "https://github.com/phylyc/somatic_workflow/raw/master/python/acs_conversion.py"
 
         File seg_final
         File? af_model_parameters
