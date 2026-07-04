@@ -383,3 +383,92 @@ def test_map_to_absolute_denovo_runs_and_flags_homozygous_del(synth, tmp_path):
     seg = run_map_to_absolute(synth, tmp_path / "dn", "PXX", "PXX-T1")
     assert len(seg) > 0
     assert seg["rescaled_total_cn"].min() < 0.5
+
+
+# --------------------------------------------------------------------------- #
+# Regression: rescue of haploid sex chromosomes in a mixed-ploidy genome.
+#
+# ABSOLUTE's allelic mode drops any contig without an allelic copy ratio -- the
+# whole haploid X/Y of a male sample (no hets) plus allelic-less focal segments --
+# so map_to_absolute must rescue them de novo from the total copy ratio. The
+# total-CN comb's zero-copy intercept scales with chr_ploidy (it is chr_ploidy
+# germline copies' worth of stromal signal). If that intercept is left contig-
+# independent, the genome-wide alpha offset -- calibrated on the diploid autosomes
+# that dominate the weight -- drags the haploid contigs below zero copies, so a
+# copy-NEUTRAL male X/Y is mis-called as a CLONAL homozygous deletion (CN 0,
+# CCF 1) that PhylogicNDT then reports as a clonal loss of X and Y.
+#
+# The synthetic cohort does not exercise this: emit.write_absolute_segtab keeps
+# every cp>0 contig, so X/Y arrive with allelic calls and are passed through, never
+# rescued. These build the mixed-ploidy rescue case (diploid autosomes dominate the
+# weight; haploid X/Y at the 1-copy level with no hets) explicitly. Pre-fix both
+# assert-blocks below fail with modal_total_cn 0 / HZ 1.
+# --------------------------------------------------------------------------- #
+def _male_mixed_ploidy_acs(path):
+    acs = pd.DataFrame(
+        [["1", 1, 1_400_000_001, 30000, 1_400_000_000, 9000, 0.5, 2.00, 0.05, 1.0, 0.04, 1.0, 0.04, 2],
+         ["2", 1, 1_400_000_001, 30000, 1_400_000_000, 9000, 0.5, 2.00, 0.05, 1.0, 0.04, 1.0, 0.04, 2],
+         ["X", 1,   155_000_001,  5000,   155_000_000,    0, np.nan, 1.02, 0.03, np.nan, np.nan, np.nan, np.nan, 2],
+         ["Y", 1,    57_000_001,   500,    57_000_000,    0, np.nan, 0.99, 0.03, np.nan, np.nan, np.nan, np.nan, 2]],
+        columns=["Chromosome", "Start.bp", "End.bp", "n_probes", "length", "n_hets",
+                 "f", "tau", "sigma.tau", "mu.minor", "sigma.minor", "mu.major",
+                 "sigma.major", "SegLabelCNLOH"])
+    acs.to_csv(path, sep="\t", index=False)
+    return path
+
+
+def _assert_haploid_neutral(seg, chrom):
+    r = _seg_at(seg, chrom, 1)
+    assert r is not None, f"chr{chrom} missing from rescued output"
+    assert round(r["modal_total_cn"]) == 1, (
+        f"copy-neutral male chr{chrom} should rescue to total CN 1, got {r['modal_total_cn']}")
+    assert int(r["HZ"]) == 0, f"chr{chrom} wrongly flagged homozygous deletion"
+    assert int(r["LOH"]) == 0
+    assert round(r["modal.a1"]) == 0 and round(r["modal.a2"]) == 1
+    # the germline-absent minor allele carries no somatic event
+    assert float(r["cancer.cell.frac.a1"]) == 0.0
+
+
+@pytest.mark.regression
+def test_map_rescued_neutral_male_sex_chromosomes_are_haploid_not_homdel(tmp_path):
+    """De-novo rescue: a copy-neutral male X/Y maps to total CN 1 (a1=0, a2=1),
+    never a homozygous deletion."""
+    acs = _male_mixed_ploidy_acs(tmp_path / "male.acs.seg")
+    out = tmp_path / "denovo"
+    run_script("map_to_absolute_copy_number.py", [
+        "--outdir", str(out), "--purity", "0.3", "--ploidy", "2.0",
+        "--sample", "MaleT", "--sex", "XY",
+        "--acs_cr_seg", str(acs), "--copy_num_type", "allelic"])
+    seg = pd.read_csv(out / "MaleT.segtab.allelic.completed.txt", sep="\t")
+    assert round(_seg_at(seg, "1", 1)["modal_total_cn"]) == 2  # diploid autosome recovered
+    _assert_haploid_neutral(seg, "X")
+    _assert_haploid_neutral(seg, "Y")
+
+
+@pytest.mark.regression
+def test_map_absolute_present_still_rescues_dropped_sex_chromosomes(tmp_path):
+    """Production path: ABSOLUTE (allelic) drops X/Y, so they arrive only via the
+    ACS seg and must be rescued to CN 1 while the autosomes pass through ABSOLUTE."""
+    acs = _male_mixed_ploidy_acs(tmp_path / "male.acs.seg")
+    # A valid ABSOLUTE-format segtab for the autosomes only: produce a completed
+    # segtab, then drop X/Y from it to mimic ABSOLUTE's allelic mode dropping the
+    # haploid (allelic-less) contigs.
+    seed = tmp_path / "seed"
+    run_script("map_to_absolute_copy_number.py", [
+        "--outdir", str(seed), "--purity", "0.3", "--ploidy", "2.0",
+        "--sample", "MaleT", "--sex", "XY",
+        "--acs_cr_seg", str(acs), "--copy_num_type", "allelic"])
+    abs_auto = pd.read_csv(seed / "MaleT.segtab.allelic.completed.txt", sep="\t")
+    abs_auto = abs_auto[~abs_auto["Chromosome"].astype(str).isin(["X", "Y"])]
+    assert not abs_auto.empty and not {"X", "Y"} & set(abs_auto["Chromosome"].astype(str))
+    abs_path = tmp_path / "absolute.autosomes_only.segtab.txt"
+    abs_auto.to_csv(abs_path, sep="\t", index=False)
+
+    out = tmp_path / "rescued"
+    run_script("map_to_absolute_copy_number.py", [
+        "--outdir", str(out), "--purity", "0.3", "--ploidy", "2.0",
+        "--sample", "MaleT", "--sex", "XY", "--acs_cr_seg", str(acs),
+        "--absolute_segtab", str(abs_path), "--copy_num_type", "allelic"])
+    seg = pd.read_csv(out / "MaleT.segtab.allelic.completed.txt", sep="\t")
+    _assert_haploid_neutral(seg, "X")
+    _assert_haploid_neutral(seg, "Y")

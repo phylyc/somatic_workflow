@@ -775,10 +775,23 @@ def map_to_cn(args):
     seg["length"] = seg["End.bp"] - seg["Start.bp"]
     seg["W"] = seg["length"] / seg["length"].sum()
 
-    # correct offset: Find alpha for
-    # CN = (tau - b - alpha) / delta / c
-    # sum(w * CN) = ploidy
-    num = np.where(chr_ploidy > 0, seg["W"] * (seg["tau"] - b) / delta / chr_ploidy, 0)
+    # Affine map from total copy ratio (tau) to total copy number:
+    #     tau = total_b + chr_ploidy * delta * CN
+    # The zero-copy intercept scales with the contig's germline ploidy: it is
+    # chr_ploidy copies' worth of stromal signal, i.e. total_b = chr_ploidy * b.
+    # (b, defined above, is the per-germline-copy intercept and is reused for the
+    # allelic comb; the *total*-CN map must multiply it by chr_ploidy.) Note D is
+    # proportional to chr_ploidy, so b itself is contig-independent -- if total_b
+    # were left as b the intercept would not scale with ploidy, inflating autosomal
+    # CN ~normal_ploidy-fold. The alpha offset below then absorbs that systematic
+    # shift and drives the haploid sex chromosomes below zero copies (spurious
+    # clonal homozygous deletions of X/Y in male samples).
+    total_b = chr_ploidy * b
+
+    # correct offset: find alpha (a flat shift of tau) so the segment levels sit on
+    # the comb, i.e. CN = (tau - alpha - total_b) / delta / chr_ploidy with
+    # sum(w * CN) = ploidy.
+    num = np.where(chr_ploidy > 0, seg["W"] * (seg["tau"] - total_b) / delta / chr_ploidy, 0)
     den = np.where(chr_ploidy > 0, seg["W"] / delta / chr_ploidy, 0)
     alpha = (np.sum(num) - args.ploidy) / np.sum(den)
 
@@ -787,7 +800,7 @@ def map_to_cn(args):
     seg["tau"] = seg["tau"].clip(lower=0)
 
     # rescale copy number
-    seg["CN"] = np.where(chr_ploidy > 0, (seg["tau"] - b).clip(lower=0) / delta / chr_ploidy, 0)
+    seg["CN"] = np.where(chr_ploidy > 0, (seg["tau"] - total_b).clip(lower=0) / delta / chr_ploidy, 0)
     seg["CN.sigma"] = np.where(chr_ploidy > 0, seg["sigma.tau"] / delta / chr_ploidy, 0)
     seg["corrected_CN"] = seg.apply(lambda row: map_to_cluster(row["CN"], row["CN.sigma"]), axis=1)
 
