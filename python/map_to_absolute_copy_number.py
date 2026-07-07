@@ -685,7 +685,7 @@ def map_to_cn(args):
     try:
         abs_seg = pd.read_csv(f"{args.absolute_segtab}", sep="\t", comment="#", low_memory=False)
     except Exception as e:
-        message(e)
+        message("Caught exception:", e)
         message("Using empty dataframe instead.")
         abs_seg = pd.DataFrame(None, columns=list(abs_dtypes.keys()))
 

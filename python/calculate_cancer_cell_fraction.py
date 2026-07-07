@@ -134,7 +134,7 @@ def read_table(path: str, comment="#") -> pd.DataFrame:
     try:
         return pd.read_csv(path, sep="\t", comment=comment, low_memory=False)
     except Exception as e:
-        message(e)
+        message("Caught exception:", e)
         message("Using empty dataframe instead.")
         return pd.DataFrame()
 
@@ -336,13 +336,19 @@ def calc_ccf_posterior_ll_grid(alt, ref, alpha, q, normal_allele_count, ssnv_ske
 def calc_ccf_dens(mut_df: pd.DataFrame, alpha: float, ssnv_skew: float, rho: float, epsilon: float) -> np.ndarray:
     ccf_ll = np.full((mut_df.shape[0], CCF_GRID.size), np.nan)
     for i, row in enumerate(mut_df.itertuples(index=False)):
-        if row.q_hat == 0:
+        if pd.isna(row.q_hat):
             continue
+        # An observed somatic variant implies at least one tumor copy at the locus, so a
+        # modal total copy number of 0 (e.g. local_cn_a1 = 0 and local_cn_a2 < 0.5, which
+        # rounds q_hat down to 0) is a copy-number rounding artifact, not a homozygous
+        # deletion of the mutated allele. Floor the copy number at 1 so the variant still
+        # gets a CCF posterior instead of being dropped with an empty grid.
+        q = max(float(row.q_hat), 1.0)
         ccf_ll[i, :] = calc_ccf_posterior_ll_grid(
             alt=int(row.t_alt_count),
             ref=int(row.t_ref_count),
             alpha=alpha,
-            q=float(row.q_hat),
+            q=q,
             normal_allele_count=float(row.normal_allele_count),
             ssnv_skew=ssnv_skew,
             rho=rho,
@@ -374,11 +380,16 @@ def calc_ccf_95ci(ccf_dens: np.ndarray) -> pd.DataFrame:
         ecdf = np.cumsum(ccf_dens[i, :])
         ccf_ci95[i, :] = np.interp([0.025, 0.975], ecdf, CCF_GRID)
 
-    nix1 = np.isnan(ccf_ci95[:, 0])
+    # Only rows with an actual posterior (finite ccf_hat) get boundary defaults; rows
+    # with no CCF posterior (e.g. missing copy number) stay all-NaN so ccf_hat,
+    # ccf_CI95_low, and ccf_CI95_high are reported consistently as NaN rather than as a
+    # spurious [0, 1] interval paired with an NaN point estimate.
+    computed = ~np.isnan(ccf_hat)
+    nix1 = computed & np.isnan(ccf_ci95[:, 0])
     ccf_ci95[nix1, 0] = CCF_GRID.min()
-    nix2 = np.isnan(ccf_ci95[:, 1])
+    nix2 = computed & np.isnan(ccf_ci95[:, 1])
     ccf_ci95[nix2, 1] = CCF_GRID.max()
-    ix = ccf_ci95[:, 1] > CCF_GRID[-2]
+    ix = computed & (ccf_ci95[:, 1] > CCF_GRID[-2])
     ccf_ci95[ix, 1] = 1.0
 
     return pd.DataFrame({
@@ -436,6 +447,9 @@ def mode_ssnv_power_calc(mut_df: pd.DataFrame, alpha: float, ssnv_skew: float, r
     qt = mut_df["q_hat"].to_numpy(dtype=float)
     total_q = mut_df["total_q_hat"].to_numpy(dtype=float)
     qt[np.isnan(qt)] = total_q[np.isnan(qt)]
+    # Floor a rounded-to-zero copy number at 1, matching calc_ccf_dens: an observed
+    # variant implies >=1 tumor copy, so the locus is not truly deleted.
+    qt[np.isfinite(qt) & (qt < 1.0)] = 1.0
     nc = mut_df["normal_allele_count"].to_numpy(dtype=float)
     delta = alpha / (nc * (1 - alpha) + alpha * qt)
 

@@ -291,10 +291,33 @@ def test_calc_ccf_dens_rows_normalize():
 
 
 @pytest.mark.stat
-def test_calc_ccf_dens_qhat_zero_is_nan():
-    dens = ccf.calc_ccf_dens(_mut(10, 10, q=0.0), alpha=1.0, ssnv_skew=1.0,
+def test_calc_ccf_dens_qhat_zero_floors_to_one():
+    # An observed variant on a segment whose modal total CN rounds to 0 must still get a
+    # CCF posterior: the copy number is floored at 1 rather than dropped with an empty grid.
+    kw = dict(alpha=1.0, ssnv_skew=1.0, rho=100, epsilon=1e-3)
+    dens0 = ccf.calc_ccf_dens(_mut(10, 10, q=0.0), **kw)
+    dens1 = ccf.calc_ccf_dens(_mut(10, 10, q=1.0), **kw)
+    assert not np.all(np.isnan(dens0[0]))
+    assert np.nansum(dens0[0]) == pytest.approx(1.0, rel=1e-6)
+    np.testing.assert_allclose(dens0[0], dens1[0], equal_nan=True)
+
+
+@pytest.mark.stat
+def test_calc_ccf_dens_qhat_nan_is_nan():
+    # No copy number at all (e.g. total-CR segtab lacking total CN) leaves an empty grid.
+    dens = ccf.calc_ccf_dens(_mut(10, 10, q=np.nan), alpha=1.0, ssnv_skew=1.0,
                              rho=100, epsilon=1e-3)
     assert np.all(np.isnan(dens[0]))
+
+
+@pytest.mark.stat
+def test_calc_ccf_95ci_all_nan_row_stays_nan():
+    # A row with no posterior must report ccf_hat/low/high all as NaN, not [0, 1].
+    dens = np.full((1, ccf.CCF_GRID.size), np.nan)
+    ci = ccf.calc_ccf_95ci(dens)
+    assert np.isnan(ci["ccf_hat"].iloc[0])
+    assert np.isnan(ci["ccf_CI95_low"].iloc[0])
+    assert np.isnan(ci["ccf_CI95_high"].iloc[0])
 
 
 @pytest.mark.stat
