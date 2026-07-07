@@ -41,7 +41,8 @@ def run_acs(tmp_path, rows, **kw):
     out_dir = tmp_path / "out"
     out_dir.mkdir()
     args = args_ns(
-        seg=seg, af_parameters=kw.pop("af_parameters", None),
+        seg=seg, sample_id=kw.pop("sample_id", None),
+        af_parameters=kw.pop("af_parameters", None),
         output_dir=str(out_dir), min_hets=kw.pop("min_hets", 0),
         min_probes=kw.pop("min_probes", 0),
         maf90_threshold=kw.pop("maf90_threshold", 0.49),
@@ -224,6 +225,173 @@ def test_min_hets_and_min_probes_drop_rows(tmp_path):
     out, _ = run_acs(tmp_path, rows, min_hets=5, min_probes=5)
     assert len(out) == 1
     assert out["Start.bp"].iloc[0] == 1
+
+
+# --------------------------------------------------------------------------- #
+# somix segmentation input
+# --------------------------------------------------------------------------- #
+SOMIX_COLS = ["contig", "Start.bp", "End.bp", "n_markers", "n_snps", "f_MAP",
+              "log_tCR", "sem_log_tCR", "f_hessian", "sample_id"]
+
+
+def somix_row(contig="1", start=1, end=1001, n_markers=10, n_snps=10,
+              f_map=0.42, log_tcr=0.1, sem_log_tcr=0.05, f_hessian=-1000.0,
+              sample_id="S1"):
+    return dict(zip(SOMIX_COLS, [contig, start, end, n_markers, n_snps, f_map,
+                                 log_tcr, sem_log_tcr, f_hessian, sample_id]))
+
+
+def run_acs_somix(tmp_path, rows, **kw):
+    seg = write_tsv(tmp_path / "test.somix.seg", pd.DataFrame(rows, columns=SOMIX_COLS))
+    out_dir = tmp_path / "out"
+    out_dir.mkdir(exist_ok=True)
+    sample_id = kw.pop("sample_id", None)
+    args = args_ns(
+        seg=seg, sample_id=sample_id,
+        af_parameters=kw.pop("af_parameters", None),
+        output_dir=str(out_dir), min_hets=kw.pop("min_hets", 0),
+        min_probes=kw.pop("min_probes", 0),
+        maf90_threshold=kw.pop("maf90_threshold", 0.49),
+        sex=kw.pop("sex", "XXY"), normal_ploidy=kw.pop("normal_ploidy", 2),
+        verbose=False,
+    )
+    acs.convert_model_segments_to_alleliccapseg(args)
+    # --sample_id, when given, names the output after the sample; otherwise the input basename
+    prefix = sample_id if sample_id is not None else "test.somix"
+    out = pd.read_csv(out_dir / f"{prefix}.acs.seg", sep="\t")
+    return out, out_dir
+
+
+@pytest.mark.stat
+def test_somix_tau_and_sigma_tau(tmp_path):
+    # tau = chr_ploidy * exp(log_tCR); log-normal error propagation for sigma.tau
+    log_tcr, sem = 0.2, 0.05
+    out, _ = run_acs_somix(tmp_path, [somix_row(log_tcr=log_tcr, sem_log_tcr=sem)])
+    ploidy = 2
+    assert out["tau"].iloc[0] == pytest.approx(ploidy * np.exp(log_tcr))
+    expected_sigma = ploidy * np.exp(log_tcr + sem ** 2 / 2) * np.sqrt(np.exp(sem ** 2) - 1)
+    assert out["sigma.tau"].iloc[0] == pytest.approx(expected_sigma, rel=1e-9)
+
+
+@pytest.mark.stat
+def test_somix_f_passthrough_when_clearly_imbalanced(tmp_path):
+    # tight posterior (large |f_hessian|) well below 0.5 -> f kept, not snapped
+    out, _ = run_acs_somix(tmp_path, [somix_row(f_map=0.30, f_hessian=-1e6)],
+                           maf90_threshold=0.49)
+    assert out["f"].iloc[0] == pytest.approx(0.30)
+
+
+@pytest.mark.stat
+def test_somix_f_snapped_to_half_when_ci90_reaches_half(tmp_path):
+    # near-balanced MAP whose CI90 upper bound reaches 0.5 -> snapped to 0.5
+    out, _ = run_acs_somix(tmp_path, [somix_row(f_map=0.47, f_hessian=-1000.0)],
+                           maf90_threshold=0.49)
+    assert out["f"].iloc[0] == pytest.approx(0.5)
+
+
+@pytest.mark.stat
+def test_somix_f_snap_gated_by_variance(tmp_path):
+    # same f_MAP: a wide posterior (small |f_hessian|) snaps to 0.5, a tight one stays
+    # imbalanced -> the CI90 gate, not f_MAP alone, decides
+    f_map = 0.45
+    wide, _ = run_acs_somix(tmp_path, [somix_row(f_map=f_map, f_hessian=-50.0)],
+                            maf90_threshold=0.49)
+    tight, _ = run_acs_somix(tmp_path, [somix_row(f_map=f_map, f_hessian=-1e6)],
+                             maf90_threshold=0.49)
+    assert wide["f"].iloc[0] == pytest.approx(0.5)
+    assert tight["f"].iloc[0] == pytest.approx(f_map)
+
+
+@pytest.mark.stat
+def test_somix_snap_uses_90th_percentile_not_two_sigma(tmp_path):
+    # f_MAP + z90*sd < threshold < f_MAP + 2*sd: the CI90 (z90 = 1.2816) gate must NOT
+    # snap, confirming a 90th-percentile bound rather than a 2-sigma bound.
+    f_map, sd = 0.44, 0.03
+    assert f_map + 1.2816 * sd < 0.49 < f_map + 2 * sd   # the test's own precondition
+    out, _ = run_acs_somix(tmp_path, [somix_row(f_map=f_map, f_hessian=-1.0 / sd ** 2)],
+                           maf90_threshold=0.49)
+    assert out["f"].iloc[0] == pytest.approx(f_map)
+
+
+@pytest.mark.stat
+def test_somix_mu_and_var_f_from_hessian(tmp_path):
+    # var_f = -1 / f_hessian feeds the minor/major sigmas
+    f_hessian = -400.0
+    out, _ = run_acs_somix(tmp_path, [somix_row(f_map=0.3, f_hessian=f_hessian)])
+    row = out.iloc[0]
+    tau, f, var_f = row["tau"], row["f"], -1.0 / f_hessian
+    assert row["mu.minor"] == pytest.approx(f * tau)
+    assert row["mu.major"] == pytest.approx((1 - f) * tau)
+    assert row["sigma.minor"] == pytest.approx(
+        np.sqrt(tau ** 2 * var_f + f ** 2 * row["sigma.tau"] ** 2), rel=1e-9)
+    assert row["sigma.major"] == pytest.approx(
+        np.sqrt(tau ** 2 * var_f + (1 - f) ** 2 * row["sigma.tau"] ** 2), rel=1e-9)
+
+
+@pytest.mark.stat
+def test_somix_sex_handling(tmp_path):
+    # male: X/Y scaled by haploid ploidy 1, f NaN on both
+    out, _ = run_acs_somix(tmp_path, [somix_row(contig="X", log_tcr=0.1),
+                                      somix_row(contig="Y", log_tcr=0.1)], sex="XY")
+    by_chr = out.set_index(out["Chromosome"].astype(str))
+    assert by_chr.loc["X", "tau"] == pytest.approx(np.exp(0.1))   # ploidy 1
+    assert np.isnan(by_chr.loc["X", "f"])
+    assert np.isnan(by_chr.loc["Y", "f"])
+
+
+@pytest.mark.stat
+def test_somix_subset_by_sample_id(tmp_path):
+    rows = [somix_row(contig="1", start=1, end=1001, sample_id="S1"),
+            somix_row(contig="1", start=1, end=1001, sample_id="S2"),
+            somix_row(contig="2", start=1, end=1001, sample_id="S2")]
+    out, _ = run_acs_somix(tmp_path, rows, sample_id="S2")
+    assert len(out) == 2
+    assert set(out["Chromosome"].astype(str)) == {"1", "2"}
+
+
+@pytest.mark.io
+def test_somix_skew_from_lambda_map(tmp_path):
+    # MEAN_BIAS is lambda_MAP for the row matching --sample_id
+    af = pd.DataFrame({"sample_id": ["S1", "S2"], "s_MAP": [70.0, 65.0],
+                       "lambda_MAP": [1.5, 1.1]})
+    af_path = write_tsv(tmp_path / "af.param", af)
+    out, out_dir = run_acs_somix(tmp_path, [somix_row(sample_id="S1")],
+                                 sample_id="S1", af_parameters=af_path)
+    skew = float(np.loadtxt(out_dir / "S1.acs.seg.skew"))   # --sample_id names the output
+    assert skew == pytest.approx(2.0 / (1.0 + 1.5))   # lambda_MAP of S1
+
+
+@pytest.mark.io
+def test_somix_skew_requires_sample_id_when_multi_row(tmp_path):
+    af = pd.DataFrame({"sample_id": ["S1", "S2"], "s_MAP": [70.0, 65.0],
+                       "lambda_MAP": [1.5, 1.1]})
+    af_path = write_tsv(tmp_path / "af.param", af)
+    with pytest.raises(Exception):
+        run_acs_somix(tmp_path, [somix_row(sample_id="S1")], af_parameters=af_path)
+
+
+@pytest.mark.unit
+def test_acs_missing_seg_errors(tmp_path):
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    base = dict(af_parameters=None, sample_id=None, output_dir=str(out_dir),
+                min_hets=0, min_probes=0, maf90_threshold=0.49, sex="XXY",
+                normal_ploidy=2, verbose=False)
+    with pytest.raises(Exception):
+        acs.convert_model_segments_to_alleliccapseg(args_ns(seg=None, **base))
+
+
+@pytest.mark.unit
+def test_acs_unknown_seg_format_errors(tmp_path):
+    # a segmentation with neither ModelSegments nor somix marker columns is rejected
+    seg = write_tsv(tmp_path / "test.seg", pd.DataFrame({"contig": ["1"], "value": [0.1]}))
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    args = args_ns(seg=seg, sample_id=None, af_parameters=None, output_dir=str(out_dir),
+                   min_hets=0, min_probes=0, maf90_threshold=0.49, sex="XXY",
+                   normal_ploidy=2, verbose=False)
+    with pytest.raises(Exception):
+        acs.convert_model_segments_to_alleliccapseg(args)
 
 
 # --------------------------------------------------------------------------- #
