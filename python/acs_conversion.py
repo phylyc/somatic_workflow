@@ -45,6 +45,7 @@ def parse_args():
     parser.add_argument("--seg",            type=str,   required=True,  help="Path to a segmentation file: either a GATK ModelSegments modelFinal.seg or a somix segmentation (auto-detected from its columns).")
     parser.add_argument("--af_parameters",  type=str,                   help="Path to the GATK ModelSegments modelFinal.af.param output file.")
     parser.add_argument("--min_hets",       type=int,   default=0,      help="Minimum number of heterozygous sites for AllelicCapSeg to call a segment.")
+    parser.add_argument("--min_hets_for_split", type=int, default=1,    help="Minimum number of heterozygous sites to allow allelic imbalance to be called.")
     parser.add_argument("--min_probes",     type=int,   default=0,      help="Minimum number of target intervals for AllelicCapSeg to call a segment.")
     parser.add_argument("--maf90_threshold",type=float, default=0.49,   help="Threshold of 90%% quantile for setting minor allele fraction to 0.5.")
     parser.add_argument("--sex",            type=str,   default="XXY",  help="Genotype sex of the patient for ploidy priors on X and Y chromosomes: {Female, Male, female, male, XX, XY, XXY, XYY, XXX, etc.}")
@@ -262,6 +263,11 @@ def convert_model_segments_to_alleliccapseg(args):
         sigma_f = (model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_90"].to_numpy() - model_segments_seg_pd["MINOR_ALLELE_FRACTION_POSTERIOR_10"].to_numpy()) / 2.563
         sigma_f = np.where(np.isnan(sigma_f), 1e-3, sigma_f)
         var_f = sigma_f ** 2
+
+    # We need a minimum number of heterozygous sites to call a segment. If there are too few, we set f = 0.5 (balanced).
+    alleliccapseg_seg_pd.loc[
+        (alleliccapseg_seg_pd["n_hets"] < args.min_hets_for_split) & ~alleliccapseg_seg_pd["f"].isna()
+        , "f"] = 0.5
 
     # ----------------------------------------------------------------------- #
     # Shared: sex handling and allelic copy ratios (independent of input type)

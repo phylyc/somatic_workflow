@@ -119,6 +119,111 @@ def test_read_optional_maf_none():
     assert ccf.read_optional_maf(None).empty
 
 
+# --------------------------------------------------------------------------- #
+# quote / comment handling
+#
+# MAF is a plain tab-delimited format: `"` is a literal data character and `#`
+# only marks a leading header block. Reading with pandas' defaults treats `"` as
+# a quote character, so a line carrying an odd number of quotes opens a quoted
+# region that swallows every following tab AND newline until the next quote.
+# That merges whole records into one field: the surviving row loses its field
+# boundaries (values shift left, tail padded with NaN) and the absorbed rows
+# disappear. Observed in production as ABS_MAF rows whose Mutect2 QC block was
+# silently all-NaN and whose CCF grid landed 72 columns early.
+# --------------------------------------------------------------------------- #
+_QUOTED_MAF = (
+    "Hugo_Symbol\tDrugBank\tref_context\tHGNC_Alias_names\tt_alt_count\tMPOS\n"
+    "AAA\tInsulin(DB00071)\tACGTACGT\tplain alias\t11\t20\n"
+    'FEV\tInsulin(DB00071)\tGGGGCCCC\tFEV (fifth Ewing variant)", "FEV, ETS"\t22\t21\n'
+    "BBB\tGentamicin(DB00798)\tTTTTAAAA\tanother alias\t33\t22\n"
+    "CCC\tUrokinase(DB00013)\tCCCCGGGG\tthird alias\t44\t23\n"
+)
+
+
+@pytest.mark.io
+def test_read_table_odd_quotes_do_not_merge_records(tmp_path):
+    path = tmp_path / "quoted.maf"
+    path.write_text(_QUOTED_MAF)
+
+    out = ccf.read_table(str(path))
+
+    assert len(out) == 4, "no record may be absorbed by an unbalanced quote"
+    assert out["t_alt_count"].tolist() == [11, 22, 33, 44]
+    assert out["MPOS"].tolist() == [20, 21, 22, 23], "QC block must survive intact"
+    for col in out.columns:
+        if out[col].dtype == object:
+            assert not out[col].astype(str).str.contains("\t", regex=False).any(), (
+                f"column {col} contains a merged field"
+            )
+
+
+@pytest.mark.io
+def test_read_table_does_not_truncate_at_inline_hash(tmp_path):
+    path = tmp_path / "hash.maf"
+    path.write_text(
+        "#version 2.4\n"
+        "Hugo_Symbol\tDescription\tt_alt_count\n"
+        "AAA\tno hash here\t11\n"
+        "BBB\tprotein #2 subunit\t22\n"
+    )
+
+    out = ccf.read_table(str(path))
+
+    assert len(out) == 2, "leading comment block must be skipped, data kept"
+    assert out["Description"].tolist() == ["no hash here", "protein #2 subunit"]
+    assert out["t_alt_count"].tolist() == [11, 22], "inline '#' must not amputate the row"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("raw,expected", [
+    ('"quoted"', "quoted"),
+    ('"""X"', '"X'),
+    ("unquoted", "unquoted"),
+    ('has ""inner"" quotes', 'has "inner" quotes'),
+    ('"', '"'),
+    ("", ""),
+])
+def test_unquote_fields(raw, expected):
+    out = ccf.unquote_fields(pd.DataFrame({"a": [raw]}))
+    assert out["a"].iloc[0] == expected
+
+
+@pytest.mark.unit
+def test_unquote_fields_leaves_non_object_columns():
+    df = pd.DataFrame({"n": [1, 2], "f": [1.5, 2.5], "s": ['"x"', "y"]})
+    out = ccf.unquote_fields(df)
+    assert out["n"].tolist() == [1, 2]
+    assert out["f"].tolist() == [1.5, 2.5]
+    assert out["s"].tolist() == ["x", "y"]
+
+
+@pytest.mark.io
+def test_write_table_is_rectangular_and_unquoted(tmp_path):
+    path = tmp_path / "out.tsv"
+    ccf.write_table(
+        pd.DataFrame({"a": ["x", "y"], "b": ["has\ttab", "has\nnewline"], "c": [1, 2]}),
+        str(path),
+    )
+
+    text = path.read_text()
+    assert '"' not in text, "output must never be quoted"
+    widths = {len(line.split("\t")) for line in text.rstrip("\n").split("\n")}
+    assert widths == {3}, f"every line must carry the same field count, got {widths}"
+
+
+@pytest.mark.io
+def test_read_table_write_table_round_trip_preserves_quoted_values(tmp_path):
+    src = tmp_path / "src.maf"
+    src.write_text(_QUOTED_MAF)
+    first = ccf.read_table(str(src))
+
+    dst = tmp_path / "dst.maf"
+    ccf.write_table(first, str(dst))
+    second = ccf.read_table(str(dst))
+
+    pd.testing.assert_frame_equal(first, second)
+
+
 @pytest.mark.io
 def test_calculate_ccf_all_empty_mafs_writes_header(tmp_path):
     segtab = tmp_path / "S.segtab.allelic.completed.txt"

@@ -44,6 +44,7 @@ def run_acs(tmp_path, rows, **kw):
         seg=seg, sample_id=kw.pop("sample_id", None),
         af_parameters=kw.pop("af_parameters", None),
         output_dir=str(out_dir), min_hets=kw.pop("min_hets", 0),
+        min_hets_for_split=kw.pop("min_hets_for_split", 1),
         min_probes=kw.pop("min_probes", 0),
         maf90_threshold=kw.pop("maf90_threshold", 0.49),
         sex=kw.pop("sex", "XXY"), normal_ploidy=kw.pop("normal_ploidy", 2),
@@ -94,6 +95,30 @@ def test_f_copied_from_maf50(tmp_path):
 def test_f_set_to_half_above_maf90_threshold(tmp_path):
     out, _ = run_acs(tmp_path, [seg_row(maf50=0.31, maf90=0.495)],
                      maf90_threshold=0.49)
+    assert out["f"].iloc[0] == pytest.approx(0.5)
+
+
+@pytest.mark.stat
+def test_f_snapped_to_half_below_min_hets_for_split(tmp_path):
+    # too few hets to support allelic imbalance -> f snapped to balanced (0.5)
+    out, _ = run_acs(tmp_path, [seg_row(n_af=2, maf50=0.31, maf90=0.40)],
+                     min_hets_for_split=5)
+    assert out["f"].iloc[0] == pytest.approx(0.5)
+
+
+@pytest.mark.stat
+def test_f_kept_at_or_above_min_hets_for_split(tmp_path):
+    # enough hets to allow imbalance -> MAP f kept
+    out, _ = run_acs(tmp_path, [seg_row(n_af=5, maf50=0.31, maf90=0.40)],
+                     min_hets_for_split=5)
+    assert out["f"].iloc[0] == pytest.approx(0.31)
+
+
+@pytest.mark.stat
+def test_somix_f_snapped_below_min_hets_for_split(tmp_path):
+    # somix path: sparse-het segment (n_snps < min_hets_for_split) snapped to 0.5
+    out, _ = run_acs_somix(tmp_path, [somix_row(n_snps=2, f_map=0.30, f_hessian=-1e6)],
+                           min_hets_for_split=5)
     assert out["f"].iloc[0] == pytest.approx(0.5)
 
 
@@ -250,6 +275,7 @@ def run_acs_somix(tmp_path, rows, **kw):
         seg=seg, sample_id=sample_id,
         af_parameters=kw.pop("af_parameters", None),
         output_dir=str(out_dir), min_hets=kw.pop("min_hets", 0),
+        min_hets_for_split=kw.pop("min_hets_for_split", 1),
         min_probes=kw.pop("min_probes", 0),
         maf90_threshold=kw.pop("maf90_threshold", 0.49),
         sex=kw.pop("sex", "XXY"), normal_ploidy=kw.pop("normal_ploidy", 2),
@@ -375,7 +401,8 @@ def test_acs_missing_seg_errors(tmp_path):
     out_dir = tmp_path / "out"
     out_dir.mkdir()
     base = dict(af_parameters=None, sample_id=None, output_dir=str(out_dir),
-                min_hets=0, min_probes=0, maf90_threshold=0.49, sex="XXY",
+                min_hets=0, min_hets_for_split=1, min_probes=0,
+                maf90_threshold=0.49, sex="XXY",
                 normal_ploidy=2, verbose=False)
     with pytest.raises(Exception):
         acs.convert_model_segments_to_alleliccapseg(args_ns(seg=None, **base))
@@ -388,7 +415,8 @@ def test_acs_unknown_seg_format_errors(tmp_path):
     out_dir = tmp_path / "out"
     out_dir.mkdir()
     args = args_ns(seg=seg, sample_id=None, af_parameters=None, output_dir=str(out_dir),
-                   min_hets=0, min_probes=0, maf90_threshold=0.49, sex="XXY",
+                   min_hets=0, min_hets_for_split=1, min_probes=0,
+                   maf90_threshold=0.49, sex="XXY",
                    normal_ploidy=2, verbose=False)
     with pytest.raises(Exception):
         acs.convert_model_segments_to_alleliccapseg(args)

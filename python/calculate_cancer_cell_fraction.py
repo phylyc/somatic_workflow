@@ -1,4 +1,6 @@
 import argparse
+import csv
+import gzip
 import os
 import time
 import warnings
@@ -130,13 +132,132 @@ def normalize_maf_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns={c: c.replace("(", ".").replace(")", ".") for c in df.columns})
 
 
+def count_leading_comment_lines(path: str, comment: str = "#") -> int:
+    """Number of leading comment lines, counted at line start only.
+
+    ``pd.read_csv(comment=...)`` truncates a line at the first occurrence of the
+    comment character *anywhere* in that line, not just at the start. MAF files
+    use ``#`` as a leading header-block marker but also carry it inside free-text
+    annotation values (gene descriptions, ClinVar terms), so passing ``comment``
+    to the parser silently amputates those rows. Count the leading block here and
+    pass ``skiprows`` instead.
+    """
+    opener = gzip.open if str(path).endswith(".gz") else open
+    n = 0
+    with opener(path, "rt", newline="") as fh:
+        for line in fh:
+            if not line.startswith(comment):
+                break
+            n += 1
+    return n
+
+
+def unquote_fields(df: pd.DataFrame) -> pd.DataFrame:
+    """Undo CSV-style field quoting *after* the row has already been split on tabs.
+
+    Reading with ``QUOTE_NONE`` keeps every tab as a delimiter, which is what stops
+    records merging, but it also leaves the quote characters a writer added around
+    values that contain a literal ``"``. Funcotator/ABSOLUTE MAFs carry such values
+    (e.g. HGNC previous/alias names), written as ``\"\"\"X\"`` for the value ``"X``.
+
+    Stripping them here is safe in a way that doing it in the parser is not: the
+    field boundaries are already fixed, so no amount of quote imbalance can swallow
+    a tab or a newline. Only a single balanced surrounding pair is removed, then
+    doubled quotes are collapsed -- exactly the inverse of ``QUOTE_MINIMAL``.
+    """
+    out = df.copy()
+    for col in out.columns:
+        if out[col].dtype != object:
+            continue
+        values = out[col]
+        is_str = values.map(lambda v: isinstance(v, str))
+        if not bool(is_str.any()):
+            continue
+        target = values.where(~is_str, values.astype(str))
+        wrapped = is_str & target.str.len().ge(2) & target.str.startswith('"') & target.str.endswith('"')
+        if bool(wrapped.any()):
+            target = target.where(~wrapped, target.str.slice(1, -1))
+        has_double = is_str & target.str.contains('""', regex=False, na=False)
+        if bool(has_double.any()):
+            target = target.where(~has_double, target.str.replace('""', '"', regex=False))
+        out[col] = values.where(~is_str, target)
+    return out
+
+
 def read_table(path: str, comment="#") -> pd.DataFrame:
+    """Read a MAF/segtab TSV without letting quote or comment handling corrupt it.
+
+    Two parser settings matter here and both default to the wrong thing for MAF:
+
+    * ``quoting=csv.QUOTE_NONE`` -- MAF is a plain tab-delimited format with no
+      quoting convention, so ``"`` is a literal data character. Funcotator writes
+      HGNC alias/previous-name values that contain quoted, comma-separated lists
+      (``... (yeast)", "origin recognition complex, subunit 6"``). Read with
+      pandas' default ``quotechar='"'``, an odd number of quotes on a line opens a
+      quoted region that swallows every following tab *and newline* until the next
+      quote. That merges whole records into one giant field: the surviving row
+      loses field boundaries (its values shift left, tail padded with NaN) and the
+      absorbed rows vanish. Observed in production output as ABS_MAF rows whose
+      CCF-grid block lands 72 columns early and whose ``individual_id`` holds a
+      posterior density value instead of a sample name.
+    * ``skiprows`` rather than ``comment`` -- see
+      :func:`count_leading_comment_lines`.
+
+    Genuinely absent or empty inputs still degrade to an empty frame because
+    several inputs are optional, but a *parse* failure is re-raised: silently
+    substituting an empty frame for a malformed file is how this class of bug
+    stays invisible.
+    """
     try:
-        return pd.read_csv(path, sep="\t", comment=comment, low_memory=False)
-    except Exception as e:
+        skiprows = count_leading_comment_lines(path, comment=comment) if comment else 0
+        return unquote_fields(
+            pd.read_csv(
+                path,
+                sep="\t",
+                skiprows=skiprows,
+                quoting=csv.QUOTE_NONE,
+                low_memory=False,
+            )
+        )
+    except (FileNotFoundError, pd.errors.EmptyDataError) as e:
         message("Caught exception:", e)
         message("Using empty dataframe instead.")
         return pd.DataFrame()
+
+
+def sanitize_delimiters(df: pd.DataFrame) -> pd.DataFrame:
+    """Replace embedded tabs/newlines in string fields with single spaces.
+
+    Guarantees the written table is a rectangular TSV that any tab-splitter can
+    read, so no downstream consumer needs quote-aware parsing. With the read path
+    fixed this should be a no-op; if it is not, the offending columns are named
+    so the upstream annotation source can be corrected.
+    """
+    out = df.copy()
+    offenders: dict[str, int] = {}
+    for col in out.columns:
+        if out[col].dtype != object:
+            continue
+        as_str = out[col].astype(str)
+        hit = as_str.str.contains(r"[\t\r\n]", regex=True, na=False)
+        n = int(hit.sum())
+        if not n:
+            continue
+        offenders[str(col)] = n
+        out.loc[hit, col] = as_str.loc[hit].str.replace(r"[\t\r\n]+", " ", regex=True)
+    if offenders:
+        message(
+            f"WARNING: replaced embedded tab/newline characters in {sum(offenders.values())} "
+            f"field(s) before writing: {offenders}"
+        )
+    return out
+
+
+def write_table(df: pd.DataFrame, path: str) -> None:
+    """Write a plain, quote-free, rectangular TSV."""
+    sanitize_delimiters(df).to_csv(
+        path, sep="\t", index=False, quoting=csv.QUOTE_NONE, escapechar=None
+    )
 
 
 def read_optional_maf(path: str | None) -> pd.DataFrame:
@@ -555,7 +676,7 @@ def calculate_ccf(args):
         output_columns = choose_output_columns(caller_df=caller_df, abs_maf=abs_maf)
         out = ensure_columns(abs_maf, output_columns)
         out = sort_genomic_df(out, chr_col="Chromosome", start_col="Start_position", end_col="End_position")
-        out.to_csv(output_maf, sep="\t", index=False)
+        write_table(out, output_maf)
         message(f"Wrote {out.shape[0]} variants to {output_maf}")
         return None
 
@@ -602,7 +723,7 @@ def calculate_ccf(args):
         else:
             out = ensure_columns(abs_maf, output_columns)
             out = sort_genomic_df(out, chr_col="Chromosome", start_col="Start_position", end_col="End_position")
-        out.to_csv(output_maf, sep="\t", index=False)
+        write_table(out, output_maf)
         message(f"Wrote {out.shape[0]} variants to {output_maf}")
         return None
 
@@ -650,7 +771,7 @@ def calculate_ccf(args):
     out["Chromosome"] = out["Chromosome"].map(normalize_chromosome)
     out = to_numeric(out, ["Start_position", "End_position"])
     out = sort_genomic_df(out, chr_col="Chromosome", start_col="Start_position", end_col="End_position")
-    out.drop(columns=[c for c in out.columns if c.startswith("_")]).to_csv(output_maf, sep="\t", index=False)
+    write_table(out.drop(columns=[c for c in out.columns if c.startswith("_")]), output_maf)
     message(f"Wrote {out.shape[0]} variants to {output_maf}")
     return None
 
