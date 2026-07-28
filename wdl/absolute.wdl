@@ -247,6 +247,7 @@ task AbsoluteTask {
                 ~{"--indel_maf '" + indel_maf + "'"} \
                 ~{if (defined(purity) && (purity > 0)) then "--alpha " + purity else ""} \
                 ~{if (defined(ploidy) && (purity > 0)) then "--tau " + ploidy else ""} \
+                ~{if (defined(ploidy)) then "--refit_alpha_tau " else ""} \
                 ~{if (defined(skew) && (skew > 0)) then "--ssnv_skew " + skew else ""} \
                 ~{"--gender  " + sex} \
                 ~{"--platform " + platform} \
