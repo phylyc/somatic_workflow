@@ -176,12 +176,22 @@ def test_read_table_does_not_truncate_at_inline_hash(tmp_path):
 
 @pytest.mark.unit
 @pytest.mark.parametrize("raw,expected", [
+    # complete QUOTE_MINIMAL encodings -- these get decoded
     ('"quoted"', "quoted"),
     ('"""X"', '"X'),
+    ('""', ""),
+    ('"a ""b"" c"', 'a "b" c'),
+    # not quoted fields -- MAF treats " as literal data, so these pass through
     ("unquoted", "unquoted"),
-    ('has ""inner"" quotes', 'has "inner" quotes'),
+    ('has ""inner"" quotes', 'has ""inner"" quotes'),
     ('"', '"'),
     ("", ""),
+    # Funcotator HGNC alias/previous-name lists: begin and end with a quote but are
+    # NOT a quoted field. Stripping the outer pair would leave 'plexin 2", "plexin-A2'.
+    ('"plexin 2", "plexin-A2"', '"plexin 2", "plexin-A2"'),
+    ('"MDS1/EVI1-like", "transcription factor MEL1"', '"MDS1/EVI1-like", "transcription factor MEL1"'),
+    # truncated alias (the &beta; entity cut at the ';') -- unbalanced, left alone
+    ('"transforming growth factor-&', '"transforming growth factor-&'),
 ])
 def test_unquote_fields(raw, expected):
     out = ccf.unquote_fields(pd.DataFrame({"a": [raw]}))

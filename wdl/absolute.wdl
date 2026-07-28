@@ -161,26 +161,108 @@ task ProcessMAFforAbsolute {
             mv '~{maf}' '~{uncompressed_maf}'
         fi
 
-        grep "^#" '~{uncompressed_maf}' > '~{output_snv_maf}'
-        grep "^#" '~{uncompressed_maf}' > '~{output_indel_maf}'
+        # Copy over only the *leading* comment block. `grep "^#"` would also pull
+        # comment-like lines out of the body, and exits 1 -- fatal under `set -e` --
+        # when the MAF has no header block at all.
+        awk '/^#/ {print; next} {exit}' '~{uncompressed_maf}' > '~{output_snv_maf}'
+        cp '~{output_snv_maf}' '~{output_indel_maf}'
 
-        python <<EOF
-import pandas as pd
+        # Quoted heredoc: the Python below is passed through verbatim, so a '$' or a
+        # backtick in it can never be expanded by the shell. WDL placeholders are
+        # still substituted, because that happens before bash sees the command.
+        python <<'EOF'
 import csv
+import pandas as pd
 
-maf = pd.read_csv('~{uncompressed_maf}', sep='\t', comment='#', quoting=csv.QUOTE_NONE)
+MAF = '~{uncompressed_maf}'
+
+
+def count_leading_comment_lines(path, comment="#"):
+    """Size of the leading comment block, counted at line start only.
+
+    pd.read_csv(comment=...) truncates a line at the comment character found
+    *anywhere* in it, not just at the start, silently amputating the rest of the
+    row. MAF uses '#' as a leading header-block marker but also carries it inside
+    free-text annotation, so count the block here and pass skiprows instead.
+    """
+    n = 0
+    with open(path, "rt", newline="") as fh:
+        for line in fh:
+            if not line.startswith(comment):
+                break
+            n += 1
+    return n
+
+
+def report_unbalanced_quotes(df):
+    """Name fields whose double quotes do not pair up.
+
+    Harmless to read here (QUOTE_NONE below), but they are the signature of a
+    truncated annotation value -- e.g. the HGNC alias "transforming growth
+    factor-&beta; receptor V" cut at the '&' -- and they break any quote-aware
+    reader downstream, so they are worth naming rather than passing on silently.
+    """
+    counts = {
+        str(col): int(df[col].astype(str).str.count('"').mod(2).eq(1).sum())
+        for col in df.columns
+        if df[col].dtype == object
+    }
+    counts = {col: n for col, n in counts.items() if n}
+    if counts:
+        print("WARNING: fields with an unbalanced double quote (truncated upstream "
+              "annotation value?):", counts)
+
+
+def sanitize_delimiters(df):
+    """Guarantee a rectangular TSV: no tabs or newlines inside a field.
+
+    The output is written unquoted, so an embedded delimiter would destroy the row
+    structure. Naming the columns keeps a bad annotation source visible.
+    """
+    out = df.copy()
+    offenders = {}
+    for col in out.columns:
+        if out[col].dtype != object:
+            continue
+        as_str = out[col].astype(str)
+        hit = as_str.str.contains(r"[\t\r\n]", regex=True, na=False)
+        n = int(hit.sum())
+        if not n:
+            continue
+        offenders[str(col)] = n
+        out.loc[hit, col] = as_str.loc[hit].str.replace(r"[\t\r\n]+", " ", regex=True)
+    if offenders:
+        print("WARNING: replaced embedded tab/newline characters before writing:", offenders)
+    return out
+
+
+# quoting=QUOTE_NONE: MAF is plain tab-delimited with no quoting convention, so a
+# double quote is literal data. Read with pandas' default quotechar, an odd number
+# of quotes on a line opens a quoted region that swallows every following tab *and
+# newline* until the next quote -- merging whole records into one field and dropping
+# every absorbed row.
+maf = pd.read_csv(
+    MAF,
+    sep="\t",
+    skiprows=count_leading_comment_lines(MAF),
+    quoting=csv.QUOTE_NONE,
+    low_memory=False,
+)
 if maf.empty:
     print("No variants found in the input MAF file.")
 else:
+    report_unbalanced_quotes(maf)
+
     cols_to_keep = [
         col
         for col in maf.columns
-        if maf[col].astype(str).map(len).max() < 1000 | maf[col].isna().all()
+        if (maf[col].astype(str).map(len).max() < 1000) or maf[col].isna().all()
     ]
     print("Removing columns:", sorted(set(maf.columns) - set(cols_to_keep)))
     print("Keeping columns:", cols_to_keep)
 
     maf = maf[cols_to_keep].rename(columns={"Start_Position": "Start_position", "End_Position": "End_position"})
+    maf = sanitize_delimiters(maf)
     maf.loc[maf["Variant_Type"].isin(["SNP", "DNP", "TNP", "MNP", "ONP"])].to_csv('~{output_snv_maf}', sep='\t', index=False, mode='a', quoting=csv.QUOTE_NONE, escapechar=None)
     maf.loc[maf["Variant_Type"].isin(["INS", "DEL"])].to_csv('~{output_indel_maf}', sep='\t', index=False, mode='a', quoting=csv.QUOTE_NONE, escapechar=None)
 EOF

@@ -2,6 +2,7 @@ import argparse
 import csv
 import gzip
 import os
+import re
 import time
 import warnings
 
@@ -152,18 +153,30 @@ def count_leading_comment_lines(path: str, comment: str = "#") -> int:
     return n
 
 
+#: A field as ``csv.QUOTE_MINIMAL`` would have written it: wrapped in quotes, with
+#: every interior quote doubled. Deliberately strict -- see :func:`unquote_fields`.
+QUOTE_MINIMAL_FIELD = re.compile(r'"(?:[^"]|"")*"')
+
+
 def unquote_fields(df: pd.DataFrame) -> pd.DataFrame:
     """Undo CSV-style field quoting *after* the row has already been split on tabs.
 
     Reading with ``QUOTE_NONE`` keeps every tab as a delimiter, which is what stops
-    records merging, but it also leaves the quote characters a writer added around
-    values that contain a literal ``"``. Funcotator/ABSOLUTE MAFs carry such values
-    (e.g. HGNC previous/alias names), written as ``\"\"\"X\"`` for the value ``"X``.
+    records merging, but it also leaves in place the quote characters a writer added
+    around a value that contains a literal ``"`` (``\"\"\"X\"`` for the value ``"X``).
+    Undoing that here is safe in a way that doing it in the parser is not: the field
+    boundaries are already fixed, so no amount of quote imbalance can swallow a tab
+    or a newline.
 
-    Stripping them here is safe in a way that doing it in the parser is not: the
-    field boundaries are already fixed, so no amount of quote imbalance can swallow
-    a tab or a newline. Only a single balanced surrounding pair is removed, then
-    doubled quotes are collapsed -- exactly the inverse of ``QUOTE_MINIMAL``.
+    The match has to be *exact*, not merely "starts and ends with a quote". MAF has
+    no quoting convention, so a quote is ordinarily literal data, and the values that
+    matter most here look deceptively like quoted fields: Funcotator writes HGNC
+    alias/previous names as quoted comma-separated lists,
+    ``"plexin 2", "plexin-A2"``. That starts and ends with a quote but is not a
+    quoted field, and stripping its outer characters yields the lopsided
+    ``plexin 2", "plexin-A2``. So a value is only unquoted when it is a complete
+    ``QUOTE_MINIMAL`` encoding -- wrapped, with every interior quote doubled -- which
+    the list form is not. Anything else is passed through untouched.
     """
     out = df.copy()
     for col in out.columns:
@@ -174,12 +187,12 @@ def unquote_fields(df: pd.DataFrame) -> pd.DataFrame:
         if not bool(is_str.any()):
             continue
         target = values.where(~is_str, values.astype(str))
-        wrapped = is_str & target.str.len().ge(2) & target.str.startswith('"') & target.str.endswith('"')
-        if bool(wrapped.any()):
-            target = target.where(~wrapped, target.str.slice(1, -1))
-        has_double = is_str & target.str.contains('""', regex=False, na=False)
-        if bool(has_double.any()):
-            target = target.where(~has_double, target.str.replace('""', '"', regex=False))
+        encoded = is_str & target.str.fullmatch(QUOTE_MINIMAL_FIELD).fillna(False)
+        if bool(encoded.any()):
+            target = target.where(
+                ~encoded,
+                target.str.slice(1, -1).str.replace('""', '"', regex=False),
+            )
         out[col] = values.where(~is_str, target)
     return out
 
