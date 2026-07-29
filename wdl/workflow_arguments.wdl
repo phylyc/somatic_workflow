@@ -85,6 +85,8 @@ struct WorkflowArguments {
     Boolean phylogic_use_indels
     Boolean phylogic_impute_missing_snvs
     Int phylogic_min_coverage
+    Int phylogic_n_iter
+    Int phylogic_n_replicates
 
     # SNV WORKFLOW
     Int min_read_depth
@@ -231,6 +233,8 @@ workflow DefineWorkflowArguments {
         Boolean phylogic_use_indels = false
         Boolean phylogic_impute_missing_snvs = false
         Int phylogic_min_coverage = 8
+        Int phylogic_n_iter = 250
+        Int phylogic_n_replicates = 1
 
         # SNV WORKFLOW
         Int min_read_depth = 4
@@ -467,6 +471,8 @@ workflow DefineWorkflowArguments {
         phylogic_use_indels: phylogic_use_indels,
         phylogic_impute_missing_snvs: phylogic_impute_missing_snvs,
         phylogic_min_coverage: phylogic_min_coverage,
+        phylogic_n_iter: phylogic_n_iter,
+        phylogic_n_replicates: phylogic_n_replicates,
 
         min_read_depth: min_read_depth,
         mutect1_initial_tumor_lod: mutect1_initial_tumor_lod,

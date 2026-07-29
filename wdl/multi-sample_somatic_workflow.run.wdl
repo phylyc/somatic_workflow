@@ -695,40 +695,86 @@ workflow MultiSampleSomaticWorkflowRun {
             }
 
             if (length(select_all(phylogic_sample_name)) > 0) {
-                call phylogicndt.PhylogicNDT {
-                    input:
-                        patient_id = AddAbsoluteResultsToSamples.updated_patient.name,
-                        sample_names = select_all(phylogic_sample_name),
-                        absolute_mafs = select_all(sample_absolute_maf),
-                        absolute_segtabs = phylogic_absolute_segtabs,
-                        absolute_purities = select_all(sample_purity),
-                        timepoints = phylogic_timepoints,
-                        use_indels = args.phylogic_use_indels,
-                        impute_missing_snvs = args.phylogic_impute_missing_snvs,
-                        min_coverage = args.phylogic_min_coverage,
-                        driver_genes_file = args.files.phylogic_driver_genes_file,
-                        focal_cnv_intervals = args.files.phylogic_focal_cnv_intervals,
-                        genome_build = args.genome_build,
-                        runtime_collection = runtime_collection
+                scatter (replicate_id in range(args.phylogic_n_replicates)) {
+                    call phylogicndt.PhylogicNDT {
+                        input:
+                            patient_id = AddAbsoluteResultsToSamples.updated_patient.name + ".REP" + replicate_id,
+                            sample_names = select_all(phylogic_sample_name),
+                            absolute_mafs = select_all(sample_absolute_maf),
+                            absolute_segtabs = phylogic_absolute_segtabs,
+                            absolute_purities = select_all(sample_purity),
+                            timepoints = phylogic_timepoints,
+                            use_indels = args.phylogic_use_indels,
+                            impute_missing_snvs = args.phylogic_impute_missing_snvs,
+                            min_coverage = args.phylogic_min_coverage,
+                            n_iter = args.phylogic_n_iter,
+                            driver_genes_file = args.files.phylogic_driver_genes_file,
+                            focal_cnv_intervals = args.files.phylogic_focal_cnv_intervals,
+                            genome_build = args.genome_build,
+                            runtime_collection = runtime_collection
+                    }
+                }
+
+                # Collect the per-replicate PhylogicNDT outputs. Each Patient.phylogic_*
+                # field holds one entry per replicate that produced that output; fields
+                # that no replicate produced stay undefined.
+                if (length(select_all(PhylogicNDT.report)) > 0) {
+                    Array[File]? phylogic_report = select_all(PhylogicNDT.report)
+                }
+                if (length(select_all(PhylogicNDT.ccfs_cnvs)) > 0) {
+                    Array[File]? phylogic_ccfs_cnvs = select_all(PhylogicNDT.ccfs_cnvs)
+                }
+                if (length(select_all(PhylogicNDT.ccfs_snvs)) > 0) {
+                    Array[File]? phylogic_ccfs_snvs = select_all(PhylogicNDT.ccfs_snvs)
+                }
+                if (length(select_all(PhylogicNDT.constrained_ccf)) > 0) {
+                    Array[File]? phylogic_constrained_ccf = select_all(PhylogicNDT.constrained_ccf)
+                }
+                if (length(select_all(PhylogicNDT.cluster_ccfs)) > 0) {
+                    Array[File]? phylogic_cluster_ccfs = select_all(PhylogicNDT.cluster_ccfs)
+                }
+                if (length(select_all(PhylogicNDT.build_tree_posteriors)) > 0) {
+                    Array[File]? phylogic_build_tree_posteriors = select_all(PhylogicNDT.build_tree_posteriors)
+                }
+                if (length(select_all(PhylogicNDT.growth_rates)) > 0) {
+                    Array[File]? phylogic_growth_rates = select_all(PhylogicNDT.growth_rates)
+                }
+                if (length(select_all(PhylogicNDT.growth_rate_plot)) > 0) {
+                    Array[File]? phylogic_growth_rate_plot = select_all(PhylogicNDT.growth_rate_plot)
+                }
+                if (length(select_all(PhylogicNDT.timing_report)) > 0) {
+                    Array[File]? phylogic_timing_report = select_all(PhylogicNDT.timing_report)
+                }
+                if (length(select_all(PhylogicNDT.timing_wgd_supporting_events)) > 0) {
+                    Array[File]? phylogic_timing_wgd_supporting_events = select_all(PhylogicNDT.timing_wgd_supporting_events)
+                }
+                if (length(select_all(PhylogicNDT.timing_graph)) > 0) {
+                    Array[File]? phylogic_timing_graph = select_all(PhylogicNDT.timing_graph)
+                }
+                if (length(select_all(PhylogicNDT.timing_comparison)) > 0) {
+                    Array[File]? phylogic_timing_comparison = select_all(PhylogicNDT.timing_comparison)
+                }
+                if (length(select_all(PhylogicNDT.timing_table)) > 0) {
+                    Array[File]? phylogic_timing_table = select_all(PhylogicNDT.timing_table)
                 }
 
                 call p.UpdatePatient as AddPhylogicToPatient {
                     input:
                         patient = AddAbsoluteResultsToSamples.updated_patient,
                         phylogic_sif_file = PhylogicNDT.sif_file,
-                        phylogic_report = PhylogicNDT.report,
-                        phylogic_ccfs_cnvs = PhylogicNDT.ccfs_cnvs,
-                        phylogic_ccfs_snvs = PhylogicNDT.ccfs_snvs,
-                        phylogic_constrained_ccf = PhylogicNDT.constrained_ccf,
-                        phylogic_cluster_ccfs = PhylogicNDT.cluster_ccfs,
-                        phylogic_build_tree_posteriors = PhylogicNDT.build_tree_posteriors,
-                        phylogic_growth_rates = PhylogicNDT.growth_rates,
-                        phylogic_growth_rate_plot = PhylogicNDT.growth_rate_plot,
-                        phylogic_timing_report = PhylogicNDT.timing_report,
-                        phylogic_timing_wgd_supporting_events = PhylogicNDT.timing_wgd_supporting_events,
-                        phylogic_timing_graph = PhylogicNDT.timing_graph,
-                        phylogic_timing_comparison = PhylogicNDT.timing_comparison,
-                        phylogic_timing_table = PhylogicNDT.timing_table,
+                        phylogic_report = phylogic_report,
+                        phylogic_ccfs_cnvs = phylogic_ccfs_cnvs,
+                        phylogic_ccfs_snvs = phylogic_ccfs_snvs,
+                        phylogic_constrained_ccf = phylogic_constrained_ccf,
+                        phylogic_cluster_ccfs = phylogic_cluster_ccfs,
+                        phylogic_build_tree_posteriors = phylogic_build_tree_posteriors,
+                        phylogic_growth_rates = phylogic_growth_rates,
+                        phylogic_growth_rate_plot = phylogic_growth_rate_plot,
+                        phylogic_timing_report = phylogic_timing_report,
+                        phylogic_timing_wgd_supporting_events = phylogic_timing_wgd_supporting_events,
+                        phylogic_timing_graph = phylogic_timing_graph,
+                        phylogic_timing_comparison = phylogic_timing_comparison,
+                        phylogic_timing_table = phylogic_timing_table,
                 }
             }
         }

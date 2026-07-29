@@ -12,6 +12,8 @@ PhylogicNDT is most useful after a successful ABSOLUTE selection/extraction step
 
 ## Outputs
 
+PhylogicNDT is run `phylogic_n_replicates` times (independent clustering and MCMC replicates, patient id suffixed with `.REP<i>`). Every `phylogic_*` field on the `Patient` is therefore an `Array[File]` holding one entry per replicate.
+
 Key outputs include:
 
 - `phylogic_report` — HTML report with tree visualizations and cluster summaries

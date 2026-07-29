@@ -56,7 +56,7 @@
 | `snp_ref_counts` / `snp_alt_counts` / `snp_other_alt_counts` | File | Allele-specific count tables                   |
 | `snp_sample_correlation`                                     | File | Cross-sample variant SNP genotype correlations |
 | `modeled_segments`                                           | File | CNV modeled segments                           |
-| `phylogic_*` (report/timing/graph/growth)                    | File | PhylogicNDT outputs                            |
+| `phylogic_*` (report/timing/graph/growth)                    | Array[File] | PhylogicNDT outputs, one entry per replicate (`phylogic_n_replicates`) |
 | `ancestry_pred`                                              | String | Ancestry classification                      |
 | `ancestry_prob`                                              | Float | Ancestry prediction confidence                |
 | `ancestry_background_pca_table`                              | File | Peddy reference-population PCA projections (JSON) |

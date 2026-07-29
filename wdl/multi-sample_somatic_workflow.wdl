@@ -325,20 +325,20 @@ workflow MultiSampleSomaticWorkflow {
         File? ancestry_background_pca_table = out_patient.ancestry_background_pca_table
         File? ancestry_pca_plot = out_patient.ancestry_pca_plot
         File? modeled_segments = out_patient.modeled_segments
-        File? phylogic_sif_file = out_patient.phylogic_sif_file
-        File? phylogic_report = out_patient.phylogic_report
-        File? phylogic_ccfs_cnvs = out_patient.phylogic_ccfs_cnvs
-        File? phylogic_ccfs_snvs = out_patient.phylogic_ccfs_snvs
-        File? phylogic_constrained_ccf = out_patient.phylogic_constrained_ccf
-        File? phylogic_cluster_ccfs = out_patient.phylogic_cluster_ccfs
-        File? phylogic_build_tree_posteriors = out_patient.phylogic_build_tree_posteriors
-        File? phylogic_growth_rates = out_patient.phylogic_growth_rates
-        File? phylogic_growth_rate_plot = out_patient.phylogic_growth_rate_plot
-        File? phylogic_timing_report = out_patient.phylogic_timing_report
-        File? phylogic_timing_wgd_supporting_events = out_patient.phylogic_timing_wgd_supporting_events
-        File? phylogic_timing_graph = out_patient.phylogic_timing_graph
-        File? phylogic_timing_comparison = out_patient.phylogic_timing_comparison
-        File? phylogic_timing_table = out_patient.phylogic_timing_table
+        Array[File]? phylogic_sif_file = out_patient.phylogic_sif_file
+        Array[File]? phylogic_report = out_patient.phylogic_report
+        Array[File]? phylogic_ccfs_cnvs = out_patient.phylogic_ccfs_cnvs
+        Array[File]? phylogic_ccfs_snvs = out_patient.phylogic_ccfs_snvs
+        Array[File]? phylogic_constrained_ccf = out_patient.phylogic_constrained_ccf
+        Array[File]? phylogic_cluster_ccfs = out_patient.phylogic_cluster_ccfs
+        Array[File]? phylogic_build_tree_posteriors = out_patient.phylogic_build_tree_posteriors
+        Array[File]? phylogic_growth_rates = out_patient.phylogic_growth_rates
+        Array[File]? phylogic_growth_rate_plot = out_patient.phylogic_growth_rate_plot
+        Array[File]? phylogic_timing_report = out_patient.phylogic_timing_report
+        Array[File]? phylogic_timing_wgd_supporting_events = out_patient.phylogic_timing_wgd_supporting_events
+        Array[File]? phylogic_timing_graph = out_patient.phylogic_timing_graph
+        Array[File]? phylogic_timing_comparison = out_patient.phylogic_timing_comparison
+        Array[File]? phylogic_timing_table = out_patient.phylogic_timing_table
 
         # composite cache
         Patient output_patient = out_patient

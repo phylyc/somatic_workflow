@@ -51,20 +51,20 @@ struct Patient {
     File?         ancestry_background_pca_table             # peddy | RunPeddy
     File?         ancestry_pca_plot                         # peddy | RunPeddy
     File?         modeled_segments
-    File?         phylogic_sif_file
-    File?         phylogic_report
-    File?         phylogic_ccfs_cnvs
-    File?         phylogic_ccfs_snvs
-    File?         phylogic_constrained_ccf
-    File?         phylogic_cluster_ccfs
-    File?         phylogic_build_tree_posteriors
-    File?         phylogic_growth_rates
-    File?         phylogic_growth_rate_plot
-    File?         phylogic_timing_report
-    File?         phylogic_timing_wgd_supporting_events
-    File?         phylogic_timing_graph
-    File?         phylogic_timing_comparison
-    File?         phylogic_timing_table
+    Array[File]?  phylogic_sif_file                         # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_report                           # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_ccfs_cnvs                        # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_ccfs_snvs                        # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_constrained_ccf                  # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_cluster_ccfs                     # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_build_tree_posteriors            # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_growth_rates                     # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_growth_rate_plot                 # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_timing_report                    # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_timing_wgd_supporting_events     # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_timing_graph                     # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_timing_comparison                # PhylogicNDT | one per replicate
+    Array[File]?  phylogic_timing_table                     # PhylogicNDT | one per replicate
 }
 
 workflow UpdatePatient {
@@ -111,20 +111,20 @@ workflow UpdatePatient {
         File? ancestry_background_pca_table
         File? ancestry_pca_plot
         File? modeled_segments
-        File? phylogic_sif_file
-        File? phylogic_report
-        File? phylogic_ccfs_cnvs
-        File? phylogic_ccfs_snvs
-        File? phylogic_constrained_ccf
-        File? phylogic_cluster_ccfs
-        File? phylogic_build_tree_posteriors
-        File? phylogic_growth_rates
-        File? phylogic_growth_rate_plot
-        File? phylogic_timing_report
-        File? phylogic_timing_wgd_supporting_events
-        File? phylogic_timing_graph
-        File? phylogic_timing_comparison
-        File? phylogic_timing_table
+        Array[File]? phylogic_sif_file
+        Array[File]? phylogic_report
+        Array[File]? phylogic_ccfs_cnvs
+        Array[File]? phylogic_ccfs_snvs
+        Array[File]? phylogic_constrained_ccf
+        Array[File]? phylogic_cluster_ccfs
+        Array[File]? phylogic_build_tree_posteriors
+        Array[File]? phylogic_growth_rates
+        Array[File]? phylogic_growth_rate_plot
+        Array[File]? phylogic_timing_report
+        Array[File]? phylogic_timing_wgd_supporting_events
+        Array[File]? phylogic_timing_graph
+        Array[File]? phylogic_timing_comparison
+        Array[File]? phylogic_timing_table
     }
 
     Patient updated = object {

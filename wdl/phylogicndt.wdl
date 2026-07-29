@@ -17,6 +17,7 @@ workflow PhylogicNDT {
         Boolean use_indels = false
         Boolean impute_missing_snvs = false
         Int min_coverage = 8
+        Int n_iter = 250
         File? driver_genes_file
         File? focal_cnv_intervals
         String? genome_build
@@ -40,6 +41,7 @@ workflow PhylogicNDT {
             use_indels = use_indels,
             impute_missing_snvs = impute_missing_snvs,
             min_coverage = min_coverage,
+            n_iter = n_iter,
             driver_genes_file = driver_genes_file,
             focal_cnv_intervals = focal_cnv_intervals,
             genome_build = genome_build,
