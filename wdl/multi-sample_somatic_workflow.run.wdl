@@ -558,7 +558,7 @@ workflow MultiSampleSomaticWorkflowRun {
             File tcr_rdata = select_first([Absolute.tcr_rdata, sample.absolute_tcr_rdata])
             File tcr_plot = select_first([Absolute.tcr_plot, sample.absolute_tcr_plot])
 
-            if (defined(sample.absolute_acr_solution)) {
+            if (defined(sample.absolute_acr_solution) && !defined(sample.absolute_acr_segtab)) {
                 call abs_extract.AbsoluteExtract as AbsoluteACRExtract {
                     input:
                         map_to_absolute_copy_number_script = args.script_map_to_absolute_copy_number,
@@ -579,7 +579,7 @@ workflow MultiSampleSomaticWorkflowRun {
                 }
             }
 
-            if (defined(sample.absolute_tcr_solution)) {
+            if (defined(sample.absolute_tcr_solution) && !defined(sample.absolute_tcr_segtab)) {
                 call abs_extract.AbsoluteExtract as AbsoluteTCRExtract {
                     input:
                         map_to_absolute_copy_number_script = args.script_map_to_absolute_copy_number,
@@ -676,24 +676,24 @@ workflow MultiSampleSomaticWorkflowRun {
                 absolute_tcr_ploidy = abs_tcr_ploidy,
         }
 
-        # Only run PhylogicNDT if there are MAFs with ccf annotation
-        if (length(select_first([abs_acr_maf, []])) > 0) {
-            scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
-                if (defined(sample.absolute_acr_maf) && defined(sample.absolute_acr_purity) && (sample.absolute_acr_purity > 0)) {
-                    String? phylogic_sample_name = sample.name
-                    File? sample_absolute_maf = sample.absolute_acr_maf
-                    File? sample_absolute_segtab = sample.absolute_acr_segtab
-                    Float? sample_purity = sample.absolute_acr_purity
-                    Int? sample_timepoint = sample.timepoint
-                }
+        scatter (sample in AddAbsoluteResultsToSamples.updated_patient.samples) {
+            if (defined(sample.absolute_acr_maf) && defined(sample.absolute_acr_purity) && (sample.absolute_acr_purity > 0)) {
+                String? phylogic_sample_name = sample.name
+                File? sample_absolute_maf = sample.absolute_acr_maf
+                File? sample_absolute_segtab = sample.absolute_acr_segtab
+                Float? sample_purity = sample.absolute_acr_purity
+                Int? sample_timepoint = sample.timepoint
             }
-            if (args.phylogic_use_segtab && length(select_all(sample_absolute_segtab)) > 0) {
-                Array[File]? phylogic_absolute_segtabs = select_all(sample_absolute_segtab)
-            }
-            if (length(select_all(sample_timepoint)) > 0) {
-                Array[Int]? phylogic_timepoints = select_all(sample_timepoint)
-            }
+        }
+        if (args.phylogic_use_segtab && length(select_all(sample_absolute_segtab)) > 0) {
+            Array[File]? phylogic_absolute_segtabs = select_all(sample_absolute_segtab)
+        }
+        if (length(select_all(sample_timepoint)) > 0) {
+            Array[Int]? phylogic_timepoints = select_all(sample_timepoint)
+        }
 
+        # Only run PhylogicNDT if there are MAFs with ccf annotation
+        if (length(select_all(sample_absolute_maf)) > 0) {
             if (length(select_all(phylogic_sample_name)) > 0) {
                 scatter (replicate_id in range(args.phylogic_n_replicates)) {
                     call phylogicndt.PhylogicNDT {
