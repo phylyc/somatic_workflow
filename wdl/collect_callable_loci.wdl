@@ -1,8 +1,7 @@
 version development
 
 import "runtime_collection.wdl" as rtc
-import "runtimes.wdl" as rt
-import "sequencing_run.define.wdl" as seqrun_def
+import "tasks.wdl"
 
 
 workflow CollectCallableLoci {
@@ -38,7 +37,7 @@ workflow CollectCallableLoci {
             time_callable_loci = time_callable_loci
     }
 
-	call CollectCallableLociTask {
+	call tasks.CollectCallableLoci as CollectCallableLociTask {
 		input:
             ref_fasta = ref_fasta,
 			ref_fasta_index = ref_fasta_index,
@@ -54,68 +53,5 @@ workflow CollectCallableLoci {
     output {
         File bed = CollectCallableLociTask.bed
         File summary = CollectCallableLociTask.summary
-    }
-}
-
-task CollectCallableLociTask {
-    input {
-        File ref_fasta
-        File ref_fasta_index
-        File ref_dict
-        File bam
-        File bai
-        String sample_name
-        Boolean is_paired_end = false
-
-        Boolean compress_output = false
-
-        Runtime runtime_params
-    }
-
-    String bed_out = sample_name + ".callable.bed"
-    String bed_out_gz = sample_name + ".callable.bed" + if compress_output then ".gz" else ""
-    String summary_out = sample_name + ".callable.summary.txt"
-
-	command <<<
-        set -e
-        export GATK_LOCAL_JAR=~{select_first([runtime_params.jar_override, "/root/gatk.jar"])}
-        gatk --java-options "-Xmx~{runtime_params.command_mem}m" \
-            CallableLoci \
-            -I '~{bam}' \
-            --read-index '~{bai}' \
-            -R '~{ref_fasta}' \
-            -O '~{bed_out}' \
-            --summary '~{summary_out}' \
-            ~{if is_paired_end then "--read-filter FirstOfPairReadFilter " else ""} \
-            ~{if is_paired_end then "--read-filter PairedReadFilter " else ""} \
-            --seconds-between-progress-updates 60
-
-        if [ "~{compress_output}" == "true" ] ; then
-            bgzip -c '~{bed_out}' > '~{bed_out_gz}'
-        fi
-	>>>
-
-	output {
-		File bed = bed_out_gz
-        File summary = summary_out
-	}
-
-    runtime {
-        docker: runtime_params.docker
-        bootDiskSizeGb: runtime_params.boot_disk_size
-        memory: runtime_params.machine_mem + " MB"
-        runtime_minutes: runtime_params.runtime_minutes
-        disks: "local-disk " + runtime_params.disk + " HDD"
-        preemptible: runtime_params.preemptible
-        maxRetries: runtime_params.max_retries
-        cpu: runtime_params.cpu
-    }
-
-    parameter_meta {
-        ref_fasta: {localization_optional: true}
-        ref_fasta_index: {localization_optional: true}
-        ref_dict: {localization_optional: true}
-        bam: {localization_optional: true}
-        bai: {localization_optional: true}
     }
 }

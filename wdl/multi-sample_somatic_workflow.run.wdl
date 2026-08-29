@@ -76,7 +76,7 @@ workflow MultiSampleSomaticWorkflowRun {
                         bam = sequencing_run.bam,
                         bai = sequencing_run.bai,
                         is_paired_end = sequencing_run.is_paired_end,
-                        runtime_collection = runtime_collection,
+                        runtime_params = runtime_collection.collect_callable_loci,
                 }
             }
 
