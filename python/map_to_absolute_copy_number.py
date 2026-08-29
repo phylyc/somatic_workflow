@@ -650,6 +650,20 @@ def map_to_cn(args):
         "amp.a1": int, "amp.a2": int,
         "rescaled.cn.a1": float, "rescaled.cn.a2": float
     }
+    allelic_columns = [
+        "bi.allelic",
+        "copy.ratio",
+        "hscr.a1", "hscr.a2",
+        "modal.a1", "modal.a2",
+        "expected.a1", "expected.a2",
+        "subclonal.a1", "subclonal.a2",
+        "cancer.cell.frac.a1", "ccf.ci95.low.a1", "ccf.ci95.high.a1",
+        "cancer.cell.frac.a2", "ccf.ci95.low.a2", "ccf.ci95.high.a2",
+        "LOH", "SC_HZ",
+        "amp.a1", "amp.a2",
+        "rescaled.cn.a1", "rescaled.cn.a2",
+    ]
+    allelic_presence_check = ["hscr.a1", "hscr.a2", "modal.a1", "modal.a2", "rescaled.cn.a1", "rescaled.cn.a2"]
     acs_dtypes = {
         "Chromosome": str, "Start.bp": int, "End.bp": int,
         "n_probes": int, "length": int, "n_hets": int,
@@ -688,6 +702,10 @@ def map_to_cn(args):
         message("Caught exception:", e)
         message("Using empty dataframe instead.")
         abs_seg = pd.DataFrame(None, columns=list(abs_dtypes.keys()))
+
+    # If modal_total_cn is absent but corrected_total_cn is available, derive it.
+    if "modal_total_cn" not in abs_seg.columns and "corrected_total_cn" in abs_seg.columns:
+        abs_seg["modal_total_cn"] = np.rint(pd.to_numeric(abs_seg["corrected_total_cn"], errors="coerce"))
 
     # Without an ABSOLUTE segtab we recompute total copy number de novo from the copy
     # ratios, purity and ploidy. The normalization below pins the segment-length-weighted
@@ -741,6 +759,8 @@ def map_to_cn(args):
     # seg["tau"] a DataFrame and breaks the downstream Series arithmetic).
     shared_columns = abs_seg.columns.intersection(cr_seg.columns)
     seg = pd.concat([abs_seg.drop(columns=shared_columns, errors="ignore"), cr_seg], axis=1).sort_index().reset_index()
+
+    has_allelic_absolute = has_absolute and all(col in seg.columns for col in allelic_presence_check)
 
     if args.sample is None:
         args.sample = seg["sample"].dropna().unique()[0]
@@ -873,10 +893,25 @@ def map_to_cn(args):
         seg[abs_seg_cols].to_csv(f"{args.outdir}/{args.sample}.segtab.{args.copy_num_type}.completed.txt", sep="\t", index=False)
         seg[["sample", "Chromosome", "Start.bp", "End.bp", "Segment_Mean", "rescaled_total_cn"]].to_csv(f"{args.outdir}/{args.sample}.IGV.seg.{args.copy_num_type}.completed.txt", sep="\t", index=False)
 
+    # If allelic output was requested from a total-only ABSOLUTE segtab, preserve its
+    # authoritative total-CN calls but make the requested output schema explicit. There
+    # is no evidence from which to invent an allelic split, so every absent allelic and
+    # allelic-CCF field is emitted as NA.
+    total_only_absolute = has_absolute and not has_allelic_absolute
+    if args.copy_num_type == "allelic" and total_only_absolute:
+        message(
+            "WARNING: allelic output requested from an ABSOLUTE segtab without allelic "
+            "calls; preserving total copy number and emitting allelic fields as NA."
+        )
+        for col in allelic_columns + extra_columns:
+            if col not in seg.columns:
+                seg[col] = np.nan
+
     # Total copy-ratio mode infers no allelic split (the assumptions do not hold genome-
     # wide) and has no ABSOLUTE allelic calls to recompute, so emit the total-CN columns
-    # and stop. Allelic mode continues to the allelic split and CCF estimation below.
-    if args.copy_num_type != "allelic":
+    # and stop. An allelic request backed only by total ABSOLUTE calls also stops after
+    # emitting the explicit NA fields above. True allelic mode continues below.
+    if args.copy_num_type != "allelic" or total_only_absolute:
         finalize_outputs(seg)
         return
 

@@ -237,7 +237,7 @@ class Harmonizer(object):
             if self.column_types:
                 df = df.astype({key: self.column_types[key] for key in self.column_names if key in self.column_types})
         except Exception as e:
-            warnings.warn(f"Exception reading file {file_path}: {e}")
+            warnings.warn(f"Exception reading file {file_path}:\n{e}")
             warnings.warn(f"Setting header to None and df to empty DataFrame.")
             header = None
             df = pd.DataFrame(columns=self.column_names)
