@@ -37,6 +37,7 @@ workflow UpdateShards {
             intervals: shard_i.intervals,
             skip: shard_i.skip,
             is_high_mem: shard_i.is_high_mem,
+            is_huge_mem: shard_i.is_huge_mem,
             raw_calls_mutect2_vcf: if length(raw_calls_mutect2_vcf_scattered_arr) > 0 then raw_calls_mutect2_vcf_scattered_arr[i] else shard_i.raw_calls_mutect2_vcf,
             raw_calls_mutect2_vcf_idx: if length(raw_calls_mutect2_vcf_idx_scattered_arr) > 0 then raw_calls_mutect2_vcf_idx_scattered_arr[i] else shard_i.raw_calls_mutect2_vcf_idx,
             raw_mutect2_stats: if length(raw_mutect2_stats_scattered_arr) > 0 then raw_mutect2_stats_scattered_arr[i] else shard_i.raw_mutect2_stats,

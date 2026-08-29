@@ -95,6 +95,7 @@ struct WorkflowArguments {
     Float mutect2_initial_tumor_lod
     Float mutect2_tumor_lod_to_emit
     Float mutect2_high_mem_factor
+    Float mutect2_huge_mem_factor
     Boolean mutect2_native_pair_hmm_use_double_precision
     Boolean mutect2_dont_use_soft_clipped_bases
     Boolean mutect2_use_linked_de_bruijn_graph
@@ -243,6 +244,7 @@ workflow DefineWorkflowArguments {
         Float mutect2_initial_tumor_lod = 2.0
         Float mutect2_tumor_lod_to_emit = 3.0
         Float mutect2_high_mem_factor = 2
+        Float mutect2_huge_mem_factor = 4
         # This is essentially a custom implementation of the mitochondiral model:
         Boolean mutect2_native_pair_hmm_use_double_precision = true
         Boolean mutect2_dont_use_soft_clipped_bases = false
@@ -480,6 +482,7 @@ workflow DefineWorkflowArguments {
         mutect2_initial_tumor_lod: mutect2_initial_tumor_lod,
         mutect2_tumor_lod_to_emit: mutect2_tumor_lod_to_emit,
         mutect2_high_mem_factor: mutect2_high_mem_factor,
+        mutect2_huge_mem_factor: mutect2_huge_mem_factor,
         mutect2_native_pair_hmm_use_double_precision: mutect2_native_pair_hmm_use_double_precision,
         mutect2_dont_use_soft_clipped_bases: mutect2_dont_use_soft_clipped_bases,
         mutect2_use_linked_de_bruijn_graph: mutect2_use_linked_de_bruijn_graph,

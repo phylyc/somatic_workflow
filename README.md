@@ -57,6 +57,7 @@ Multi-sample analysis improves sensitivity by borrowing evidence across samples 
 ### A few Mutect2 shards failed while most succeeded
 - Retry problematic shards with more memory: set `z2_Cache.high_mem_shards` to the list of shard IDs and re-run (call-caching will reuse prior successes if enabled).
 - If needed, increase `z3_Parameters.mutect2_high_mem_factor` (e.g., 3).
+- If only some high-memory shards fail again, list those IDs in `z2_Cache.huge_mem_shards`; they use `z3_Parameters.mutect2_huge_mem_factor` (4x the default memory allocation by default).
 - As a last resort, skip shards with `z2_Cache.skip_shards` (acknowledging lost calls in those regions).
 
 Also see `docs/09_failure-recovery.md`
@@ -140,4 +141,3 @@ This workflow builds on GATK (Mutect/Mutect2, copy-ratio tools, Funcotator),
 ABSOLUTE, PhylogicNDT and Peddy, among other tools. If you use it in a
 publication, please cite the relevant methods listed in
 [`docs/11_references.md`](docs/11_references.md).
-

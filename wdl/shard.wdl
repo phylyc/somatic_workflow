@@ -11,6 +11,7 @@ struct Shard {
     File    intervals
     Boolean skip
     Boolean is_high_mem
+    Boolean is_huge_mem
     File?   raw_calls_mutect2_vcf
     File?   raw_calls_mutect2_vcf_idx
     File?   raw_mutect2_stats
@@ -26,6 +27,7 @@ workflow UpdateShard {
         File? intervals
         Boolean? skip
         Boolean? is_high_mem
+        Boolean? is_huge_mem
         File? raw_calls_mutect2_vcf
         File? raw_calls_mutect2_vcf_idx
         File? raw_mutect2_stats
@@ -39,6 +41,7 @@ workflow UpdateShard {
         intervals: select_first([intervals, shard.intervals]),
         skip: select_first([skip, shard.skip]),
         is_high_mem: select_first([is_high_mem, shard.is_high_mem]),
+        is_huge_mem: select_first([is_huge_mem, shard.is_huge_mem]),
         raw_calls_mutect2_vcf: if defined(raw_calls_mutect2_vcf) then raw_calls_mutect2_vcf else shard.raw_calls_mutect2_vcf,
         raw_calls_mutect2_vcf_idx: if defined(raw_calls_mutect2_vcf_idx) then raw_calls_mutect2_vcf_idx else shard.raw_calls_mutect2_vcf_idx,
         raw_mutect2_stats: if defined(raw_mutect2_stats) then raw_mutect2_stats else shard.raw_mutect2_stats,

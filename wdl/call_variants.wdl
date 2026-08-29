@@ -214,12 +214,21 @@ workflow CallVariants {
                 + if args.make_bamout then ceil(3 * full_bams_size / length(patient.shards)) else 0
             )
 
-            if (shard.is_high_mem) {
+            if (shard.is_high_mem && !shard.is_huge_mem) {
                 call rt.UpdateRuntimeParameters as Mutect2Runtime {
                     input:
                         runtime_params = runtime_collection.mutect2,
                         machine_mem = ceil(args.mutect2_high_mem_factor * runtime_collection.mutect2.machine_mem),
                         command_mem = ceil(args.mutect2_high_mem_factor * runtime_collection.mutect2.command_mem),
+                }
+            }
+
+            if (shard.is_huge_mem) {
+                call rt.UpdateRuntimeParameters as Mutect2HugeRuntime {
+                    input:
+                        runtime_params = runtime_collection.mutect2,
+                        machine_mem = ceil(args.mutect2_huge_mem_factor * runtime_collection.mutect2.machine_mem),
+                        command_mem = ceil(args.mutect2_huge_mem_factor * runtime_collection.mutect2.command_mem),
                 }
             }
 
@@ -258,7 +267,7 @@ workflow CallVariants {
                     max_reads_per_alignment_start = args.mutect2_max_reads_per_alignment_start,
                     m2_extra_args = args.mutect2_extra_args,
                     diskGB = m2_diskGB,
-                    runtime_params = select_first([Mutect2Runtime.params, runtime_collection.mutect2]),
+                    runtime_params = select_first([Mutect2HugeRuntime.params, Mutect2Runtime.params, runtime_collection.mutect2]),
             }
 
             call sh.UpdateShard as AddMutect2Calls {

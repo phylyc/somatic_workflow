@@ -77,6 +77,70 @@ def test_map_to_cn_sparse_acs_f_values(tmp_path):
     assert np.isfinite(got[finite_cols].to_numpy(dtype=float)).all()
 
 
+@pytest.mark.regression
+def test_map_handles_absolute_total_mode_without_allelic_columns(tmp_path):
+    """ABSOLUTE total-mode segtabs have no allelic fields; allelic outputs should be NA."""
+    total_seed = pd.read_csv(SNAP / "total" / "TestS.segtab.total.completed.txt", sep="\t", low_memory=False)
+    acs_seed = pd.read_csv(ACS_SEG, sep="\t", low_memory=False)[["Chromosome", "Start.bp", "End.bp", "tau", "sigma.tau"]]
+    total_seed = total_seed.merge(acs_seed, on=["Chromosome", "Start.bp", "End.bp"], how="left")
+
+    abs_total = pd.DataFrame({
+        "sample": total_seed["sample"],
+        "Chromosome": total_seed["Chromosome"],
+        "Start.bp": total_seed["Start.bp"],
+        "End.bp": total_seed["End.bp"],
+        "n_probes": total_seed["n_probes"],
+        "length": total_seed["length"],
+        "tau": total_seed["tau"],
+        "seg_sigma": total_seed["sigma.tau"],
+        "length.1": total_seed["length"],
+        "seg_sigma.1": total_seed["sigma.tau"],
+        "seg.ix": np.arange(total_seed.shape[0]),
+        "W": total_seed["W"],
+        "copy_ratio": total_seed["total_copy_ratio"],
+        "modal_cn": total_seed["modal_total_cn"],
+        "expected_cn": total_seed["expected_total_cn"],
+        "subclonal": np.nan,
+        "cancer_cell_frac": np.nan,
+        "ccf_ci95_low": np.nan,
+        "ccf_ci95_high": np.nan,
+        "hz": total_seed.get("total_HZ", total_seed["HZ"]),
+        "rescaled_total_cn": total_seed["rescaled_total_cn"],
+        "corrected_total_cn": total_seed["corrected_total_cn"],
+        "HZ": total_seed["HZ"],
+    })
+    abs_total_path = tmp_path / "absolute.total-mode.segtab.txt"
+    abs_total.to_csv(abs_total_path, sep="\t", index=False)
+
+    out = tmp_path / "out"
+    run_script("map_to_absolute_copy_number.py", [
+        "--outdir", str(out), "--purity", "0.8", "--ploidy", "2.0",
+        "--sample", "TestS", "--sex", "XXY",
+        "--acs_cr_seg", str(ACS_SEG), "--absolute_segtab", str(abs_total_path),
+        "--copy_num_type", "allelic",
+    ])
+
+    got = pd.read_csv(out / "TestS.segtab.allelic.completed.txt", sep="\t", low_memory=False)
+
+    allelic_na_cols = [
+        "rescaled.cn.a1", "rescaled.cn.a2", "modal.a1", "modal.a2",
+        "hscr.a1", "hscr.a2", "cancer.cell.frac.a1", "cancer.cell.frac.a2",
+        "ccf.ci95.low.a1", "ccf.ci95.high.a1", "ccf.ci95.low.a2", "ccf.ci95.high.a2",
+        "LOH", "SC_HZ", "amp.a1", "amp.a2", "subclonal.a1", "subclonal.a2",
+        "ccf_mean", "ccf_median", "ccf_mode", "ccf_ci95_low", "ccf_ci95_high",
+    ]
+    for col in allelic_na_cols:
+        assert col in got.columns
+        assert got[col].isna().all(), f"expected all-NA column for total-mode ABSOLUTE input: {col}"
+
+    assert_frame_close(
+        got[["Chromosome", "Start.bp", "End.bp", "rescaled_total_cn", "corrected_total_cn"]],
+        total_seed[["Chromosome", "Start.bp", "End.bp", "rescaled_total_cn", "corrected_total_cn"]],
+        atol=1e-6,
+        rtol=1e-6,
+    )
+
+
 # --------------------------------------------------------------------------- #
 # extracted pure helpers
 # --------------------------------------------------------------------------- #

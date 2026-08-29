@@ -82,6 +82,7 @@ workflow DefinePatient {
         Array[File]? scattered_intervals_for_variant_calling
         Array[Int]? skip_shards
         Array[Int]? high_mem_shards
+        Array[Int]? huge_mem_shards
         Array[File]? raw_calls_mutect2_vcf_scattered
         Array[File]? raw_calls_mutect2_vcf_idx_scattered
         Array[File]? raw_mutect2_stats_scattered
@@ -260,11 +261,21 @@ workflow DefinePatient {
                     }
                 }
             }
+            # replace by "contain(huge_mem_shards, pair.left)" in future WDL versions
+            Array[Int] this_huge_mem_shards = select_first([huge_mem_shards, []])
+            if (length(this_huge_mem_shards) > 0) {
+                scatter (huge_mem_shard in this_huge_mem_shards) {
+                    if (pair.left == huge_mem_shard) {
+                        Boolean this_huge_mem_shard = true
+                    }
+                }
+            }
             Shard shards = object {
                 id: pair.left,
                 intervals: pair.right,
                 skip: length(select_all(select_first([this_skip_shard, []]))) > 0,
                 is_high_mem: length(select_all(select_first([this_high_mem_shard, []]))) > 0,
+                is_huge_mem: length(select_all(select_first([this_huge_mem_shard, []]))) > 0,
             }
         }
     }

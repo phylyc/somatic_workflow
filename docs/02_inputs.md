@@ -79,6 +79,8 @@ For defaults, please check out: <https://github.com/phylyc/somatic_workflow/blob
 | `genome_build` | Required | "hg19" or "hg38" | String |
 | `high_mem_shards` | Optional | Indices of shards that require additional memory allocation, e.g. `[0, 5, 99, 102]` | Array[Int] |
 | `mutect2_high_mem_factor` | Optional | Multiplier applied to the default memory allocation for high_mem_shards, e.g. `2.0` will use 2x memory | Float |
+| `huge_mem_shards` | Optional | Indices of shards that require the highest memory tier. This tier takes precedence if a shard is also listed in `high_mem_shards` | Array[Int] |
+| `mutect2_huge_mem_factor` | Optional | Multiplier applied to the default memory allocation for `huge_mem_shards`; defaults to `4.0` | Float |
 | `scatter_count_base_for_variant_calling` | Optional | Number of shards to split the BAMs into for parallelized variant calling | Int |
 | `run_reorder_bam_contigs` | Optional | true or false | Boolean |
 | `run_collect_callable_loci` | Optional | true or false | Boolean |

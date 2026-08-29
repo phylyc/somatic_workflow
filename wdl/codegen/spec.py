@@ -180,6 +180,7 @@ SHARD = [
     fixed("intervals", "File"),
     fixed("skip", "Boolean"),
     fixed("is_high_mem", "Boolean"),
+    fixed("is_huge_mem", "Boolean"),
     over("raw_calls_mutect2_vcf", "File?"),
     over("raw_calls_mutect2_vcf_idx", "File?"),
     over("raw_mutect2_stats", "File?"),
@@ -189,4 +190,3 @@ SHARD = [
 ]
 
 STRUCTS = {"SequencingRun": SEQUENCING_RUN, "Sample": SAMPLE, "Shard": SHARD, "Patient": PATIENT}
-
