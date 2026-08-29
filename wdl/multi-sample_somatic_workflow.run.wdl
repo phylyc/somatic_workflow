@@ -558,12 +558,8 @@ workflow MultiSampleSomaticWorkflowRun {
             File tcr_plot = select_first([Absolute.tcr_plot, sample.absolute_tcr_plot])
 
             if (defined(sample.absolute_acr_solution) && !defined(sample.absolute_acr_segtab)) {
-                call abs_extract.AbsoluteExtract as AbsoluteACRExtract {
+                call abs_extract.AbsoluteExtractTask as AbsoluteACRExtract {
                     input:
-                        map_to_absolute_copy_number_script = args.script_map_to_absolute_copy_number,
-                        calculate_cancer_cell_fraction_script = args.script_calculate_cancer_cell_fraction,
-                        sample_name = sample.name,
-                        sex = clonal_patient.sex,
                         rdata = acr_rdata,
                         called_solution = select_first([sample.absolute_acr_solution]),
                         analyst_id = args.analyst_id,
@@ -572,19 +568,34 @@ workflow MultiSampleSomaticWorkflowRun {
                         acs_copy_ratio_skew = acs_cr_skew,
                         snv_maf = snv_maf,
                         indel_maf = indel_maf,
-                        gvcf = clonal_patient.gvcf,
+                        sex = clonal_patient.sex,
                         genome_build = args.genome_build,
-                        runtime_collection = runtime_collection
+                        runtime_params = runtime_collection.absolute_extract
+                }
+
+                call abs_extract.Postprocess as AbsoluteACRPostprocess {
+                    input:
+                        cnv_script = args.script_map_to_absolute_copy_number,
+                        snv_script = args.script_calculate_cancer_cell_fraction,
+                        sample_name = sample.name,
+                        sex = clonal_patient.sex,
+                        maf = AbsoluteACRExtract.abs_maf,
+                        seg = AbsoluteACRExtract.segtab,
+                        seg_igv = AbsoluteACRExtract.segtab_igv,
+                        copy_ratio_segmentation = acs_cr_segmentation,
+                        acs_copy_ratio_skew = acs_cr_skew,
+                        snv_maf = snv_maf,
+                        indel_maf = indel_maf,
+                        purity = AbsoluteACRExtract.purity,
+                        ploidy = AbsoluteACRExtract.ploidy,
+                        copy_ratio_type = "allelic",
+                        runtime_params = runtime_collection.absolute_extract_postprocess
                 }
             }
 
             if (defined(sample.absolute_tcr_solution) && !defined(sample.absolute_tcr_segtab)) {
-                call abs_extract.AbsoluteExtract as AbsoluteTCRExtract {
+                call abs_extract.AbsoluteExtractTask as AbsoluteTCRExtract {
                     input:
-                        map_to_absolute_copy_number_script = args.script_map_to_absolute_copy_number,
-                        calculate_cancer_cell_fraction_script = args.script_calculate_cancer_cell_fraction,
-                        sample_name = sample.name,
-                        sex = clonal_patient.sex,
                         rdata = tcr_rdata,
                         called_solution = select_first([sample.absolute_tcr_solution]),
                         analyst_id = args.analyst_id,
@@ -593,9 +604,28 @@ workflow MultiSampleSomaticWorkflowRun {
                         acs_copy_ratio_skew = acs_cr_skew,
                         snv_maf = snv_maf,
                         indel_maf = indel_maf,
-                        gvcf = clonal_patient.gvcf,
+                        sex = clonal_patient.sex,
                         genome_build = args.genome_build,
-                        runtime_collection = runtime_collection
+                        runtime_params = runtime_collection.absolute_extract
+                }
+
+                call abs_extract.Postprocess as AbsoluteTCRPostprocess {
+                    input:
+                        cnv_script = args.script_map_to_absolute_copy_number,
+                        snv_script = args.script_calculate_cancer_cell_fraction,
+                        sample_name = sample.name,
+                        sex = clonal_patient.sex,
+                        maf = AbsoluteTCRExtract.abs_maf,
+                        seg = AbsoluteTCRExtract.segtab,
+                        seg_igv = AbsoluteTCRExtract.segtab_igv,
+                        copy_ratio_segmentation = acs_cr_segmentation,
+                        acs_copy_ratio_skew = acs_cr_skew,
+                        snv_maf = snv_maf,
+                        indel_maf = indel_maf,
+                        purity = AbsoluteTCRExtract.purity,
+                        ploidy = AbsoluteTCRExtract.ploidy,
+                        copy_ratio_type = "total",
+                        runtime_params = runtime_collection.absolute_extract_postprocess
                 }
             }
         }
@@ -609,43 +639,43 @@ workflow MultiSampleSomaticWorkflowRun {
         }
 
         # ACR
-        if (length(select_all(AbsoluteACRExtract.absolute_maf)) > 0) {
-            Array[File] abs_acr_maf = select_all(AbsoluteACRExtract.absolute_maf)
+        if (length(select_all(AbsoluteACRPostprocess.abs_maf)) > 0) {
+            Array[File] abs_acr_maf = select_all(AbsoluteACRPostprocess.abs_maf)
         }
-        if (length(select_all(AbsoluteACRExtract.absolute_segtab)) > 0) {
-            Array[File] abs_acr_segtab = select_all(AbsoluteACRExtract.absolute_segtab)
+        if (length(select_all(AbsoluteACRPostprocess.segtab)) > 0) {
+            Array[File] abs_acr_segtab = select_all(AbsoluteACRPostprocess.segtab)
         }
-        if (length(select_all(AbsoluteACRExtract.absolute_segtab_igv)) > 0) {
-            Array[File] abs_acr_segtab_igv = select_all(AbsoluteACRExtract.absolute_segtab_igv)
+        if (length(select_all(AbsoluteACRPostprocess.segtab_igv)) > 0) {
+            Array[File] abs_acr_segtab_igv = select_all(AbsoluteACRPostprocess.segtab_igv)
         }
-        if (length(select_all(AbsoluteACRExtract.absolute_table)) > 0) {
-            Array[File] abs_acr_table = select_all(AbsoluteACRExtract.absolute_table)
+        if (length(select_all(AbsoluteACRExtract.table)) > 0) {
+            Array[File] abs_acr_table = select_all(AbsoluteACRExtract.table)
         }
-        if (length(select_all(AbsoluteACRExtract.absolute_purity)) > 0) {
-            Array[Float] abs_acr_purity = select_all(AbsoluteACRExtract.absolute_purity)
+        if (length(select_all(AbsoluteACRExtract.purity)) > 0) {
+            Array[Float] abs_acr_purity = select_all(AbsoluteACRExtract.purity)
         }
-        if (length(select_all(AbsoluteACRExtract.absolute_ploidy)) > 0) {
-            Array[Float] abs_acr_ploidy = select_all(AbsoluteACRExtract.absolute_ploidy)
+        if (length(select_all(AbsoluteACRExtract.ploidy)) > 0) {
+            Array[Float] abs_acr_ploidy = select_all(AbsoluteACRExtract.ploidy)
         }
 
         # TCR
-        if (length(select_all(AbsoluteTCRExtract.absolute_maf)) > 0) {
-            Array[File] abs_tcr_maf = select_all(AbsoluteTCRExtract.absolute_maf)
+        if (length(select_all(AbsoluteTCRPostprocess.abs_maf)) > 0) {
+            Array[File] abs_tcr_maf = select_all(AbsoluteTCRPostprocess.abs_maf)
         }
-        if (length(select_all(AbsoluteTCRExtract.absolute_segtab)) > 0) {
-            Array[File] abs_tcr_segtab = select_all(AbsoluteTCRExtract.absolute_segtab)
+        if (length(select_all(AbsoluteTCRPostprocess.segtab)) > 0) {
+            Array[File] abs_tcr_segtab = select_all(AbsoluteTCRPostprocess.segtab)
         }
-        if (length(select_all(AbsoluteTCRExtract.absolute_segtab_igv)) > 0) {
-            Array[File] abs_tcr_segtab_igv = select_all(AbsoluteTCRExtract.absolute_segtab_igv)
+        if (length(select_all(AbsoluteTCRPostprocess.segtab_igv)) > 0) {
+            Array[File] abs_tcr_segtab_igv = select_all(AbsoluteTCRPostprocess.segtab_igv)
         }
-        if (length(select_all(AbsoluteTCRExtract.absolute_table)) > 0) {
-            Array[File] abs_tcr_table = select_all(AbsoluteTCRExtract.absolute_table)
+        if (length(select_all(AbsoluteTCRExtract.table)) > 0) {
+            Array[File] abs_tcr_table = select_all(AbsoluteTCRExtract.table)
         }
-        if (length(select_all(AbsoluteTCRExtract.absolute_purity)) > 0) {
-            Array[Float] abs_tcr_purity = select_all(AbsoluteTCRExtract.absolute_purity)
+        if (length(select_all(AbsoluteTCRExtract.purity)) > 0) {
+            Array[Float] abs_tcr_purity = select_all(AbsoluteTCRExtract.purity)
         }
-        if (length(select_all(AbsoluteTCRExtract.absolute_ploidy)) > 0) {
-            Array[Float] abs_tcr_ploidy = select_all(AbsoluteTCRExtract.absolute_ploidy)
+        if (length(select_all(AbsoluteTCRExtract.ploidy)) > 0) {
+            Array[Float] abs_tcr_ploidy = select_all(AbsoluteTCRExtract.ploidy)
         }
 
         call p_update_s.UpdateSamples as AddAbsoluteResultsToSamples {
@@ -695,7 +725,7 @@ workflow MultiSampleSomaticWorkflowRun {
         if (length(select_all(sample_absolute_maf)) > 0) {
             if (length(select_all(phylogic_sample_name)) > 0) {
                 scatter (replicate_id in range(args.phylogic_n_replicates)) {
-                    call phylogicndt.PhylogicNDT {
+                    call phylogicndt.PhylogicNDTTask as PhylogicNDT {
                         input:
                             patient_id = AddAbsoluteResultsToSamples.updated_patient.name + ".REP" + replicate_id,
                             sample_names = select_all(phylogic_sample_name),
@@ -710,7 +740,7 @@ workflow MultiSampleSomaticWorkflowRun {
                             driver_genes_file = args.files.phylogic_driver_genes_file,
                             focal_cnv_intervals = args.files.phylogic_focal_cnv_intervals,
                             genome_build = args.genome_build,
-                            runtime_collection = runtime_collection
+                            runtime_params = runtime_collection.phylogicndt_task
                     }
                 }
 

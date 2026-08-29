@@ -42,41 +42,36 @@ workflow AbsoluteExtract {
             runtime_params = runtime_collection.absolute_extract
     }
 
-    # Postprocessing (segment rescue + allelic re-split + CCF recomputation) only
-    # applies to allelic copy-ratio output. In total copy-ratio mode ABSOLUTE drops no
-    # segments and the segtab already carries total copy number and CCF, and the
-    # allelic-split assumptions the rescue makes do not hold genome-wide — so skip it
-    # and pass ABSOLUTE's output through unchanged.
-    Boolean is_allelic = copy_ratio_type == "allelic"
-
-    if (is_allelic) {
-        call Postprocess {
-            input:
-                cnv_script = map_to_absolute_copy_number_script,
-                snv_script = calculate_cancer_cell_fraction_script,
-                sample_name = sample_name,
-                sex = sex,
-                maf = AbsoluteExtractTask.abs_maf,
-                seg = AbsoluteExtractTask.segtab,
-                seg_igv = AbsoluteExtractTask.segtab_igv,
-                copy_ratio_segmentation = acs_copy_ratio_segmentation,
-                acs_copy_ratio_skew = acs_copy_ratio_skew,
-                snv_maf = snv_maf,
-                indel_maf = indel_maf,
-                purity = AbsoluteExtractTask.purity,
-                ploidy = AbsoluteExtractTask.ploidy,
-                copy_ratio_type = copy_ratio_type,
-                runtime_params = runtime_collection.absolute_extract_postprocess
-        }
+    # Postprocessing rescues missing segments and recomputes variant CCFs in both
+    # copy-ratio modes. map_to_absolute_copy_number emits total-CN-only output and
+    # exits before allelic splitting in total mode; calculate_cancer_cell_fraction
+    # likewise falls back to total copy number when allelic columns are absent.
+    call Postprocess {
+        input:
+            cnv_script = map_to_absolute_copy_number_script,
+            snv_script = calculate_cancer_cell_fraction_script,
+            sample_name = sample_name,
+            sex = sex,
+            maf = AbsoluteExtractTask.abs_maf,
+            seg = AbsoluteExtractTask.segtab,
+            seg_igv = AbsoluteExtractTask.segtab_igv,
+            copy_ratio_segmentation = acs_copy_ratio_segmentation,
+            acs_copy_ratio_skew = acs_copy_ratio_skew,
+            snv_maf = snv_maf,
+            indel_maf = indel_maf,
+            purity = AbsoluteExtractTask.purity,
+            ploidy = AbsoluteExtractTask.ploidy,
+            copy_ratio_type = copy_ratio_type,
+            runtime_params = runtime_collection.absolute_extract_postprocess
     }
 
     output {
         File absolute_table = AbsoluteExtractTask.table
         Float absolute_purity = AbsoluteExtractTask.purity
         Float absolute_ploidy = AbsoluteExtractTask.ploidy
-        File absolute_maf = select_first([Postprocess.abs_maf, AbsoluteExtractTask.abs_maf])
-        File absolute_segtab = select_first([Postprocess.segtab, AbsoluteExtractTask.segtab])
-        File absolute_segtab_igv = select_first([Postprocess.segtab_igv, AbsoluteExtractTask.segtab_igv])
+        File absolute_maf = Postprocess.abs_maf
+        File absolute_segtab = Postprocess.segtab
+        File absolute_segtab_igv = Postprocess.segtab_igv
         File? absolute_rescued_intervals = Postprocess.rescued_intervals
     }
 }
