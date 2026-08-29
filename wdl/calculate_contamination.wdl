@@ -49,26 +49,11 @@ workflow CalculateContamination {
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
-        String bcftools_docker = "stephb/bcftools"
-        String gatk_docker = "broadinstitute/gatk"
-        String ubuntu_docker = "ubuntu"
         File? gatk_override
         Int max_retries = 1
-        Int preemptible = 1
-        Int cpu = 1
         Int disk_sizeGB = 1
 
-        Int mem_vcf_to_pileup_variants = 512  # 64
         Int mem_get_pileup_summaries = 4096  # needs at least 2G
-        Int mem_gather_pileup_summaries = 512  # 64
-        Int mem_select_pileup_summaries = 256  # 64
-        Int mem_calculate_contamination = 8192  # depends on the common_germline_alleles resource
-        Int time_startup = 10
-        Int time_vcf_to_pileup_variants = 5
-        Int time_get_pileup_summaries = 90  # 1.5 h
-        Int time_gather_pileup_summaries = 5
-        Int time_select_pileup_summaries = 5
-        Int time_calculate_contamination = 300
     }
 
     # todo: assert tumor_bam and tumor_bai or tumor_pileups is defined.
@@ -80,25 +65,10 @@ workflow CalculateContamination {
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
             scatter_count_for_pileups = scatter_count,
-            bcftools_docker = bcftools_docker,
-            gatk_docker = gatk_docker,
-            ubuntu_docker = ubuntu_docker,
             gatk_override = gatk_override,
             max_retries = max_retries,
-            preemptible = preemptible,
-            cpu = cpu,
             disk_sizeGB = disk_sizeGB,
-            mem_vcf_to_pileup_variants = mem_vcf_to_pileup_variants,
             mem_get_pileup_summaries = mem_get_pileup_summaries,
-            mem_gather_pileup_summaries = mem_gather_pileup_summaries,
-            mem_select_pileup_summaries = mem_select_pileup_summaries,
-            mem_calculate_contamination = mem_calculate_contamination,
-            time_startup = time_startup,
-            time_vcf_to_pileup_variants = time_vcf_to_pileup_variants,
-            time_get_pileup_summaries = time_get_pileup_summaries,
-            time_gather_pileup_summaries = time_gather_pileup_summaries,
-            time_select_pileup_summaries = time_select_pileup_summaries,
-            time_calculate_contamination = time_calculate_contamination,
     }
 
     if (!defined(tumor_pileups)) {

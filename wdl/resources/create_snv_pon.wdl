@@ -104,7 +104,6 @@ workflow CreateSNVPanelOfNormals {
                 target_intervals = select_all([args.files.preprocessed_intervals]),
                 input_args = args,
                 input_resources = resources,
-                input_runtime_collection = runtime_collection,
         }
     }
 

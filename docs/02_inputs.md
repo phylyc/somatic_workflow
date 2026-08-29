@@ -97,6 +97,12 @@ For defaults, please check out: <https://github.com/phylyc/somatic_workflow/blob
 | `run_realignment_filter` | Optional | true or false | Boolean |
 | `run_clonal_decomposition` | Optional | true or false | Boolean |
 
+### D) Runtime parameters (`z4_RuntimeParameters`)
+
+The runtime input group intentionally exposes only settings that have demonstrated case-specific operational value. These include the Mutect1 and Mutect2 memory/CPU/retry controls, GetPileupSummaries, HarmonizeCopyRatios, genotype-variants, Funcotator, PhylogicNDT, panel-of-normals construction, dynamic scatter dimensions, and a small set of shared retry/disk/preemptibility controls.
+
+`JUST_RUN_IM_WILLING_TO_PAY` is an explicit user policy switch for prioritizing successful completion over compute cost; `mem_BIG_MACHINE` controls the corresponding high-memory target. Individual ABSOLUTE runtime settings, Docker images, startup and machine-overhead constants, and other stable task settings are fixed in `wdl/runtime_collection.wdl`. All `time_*` values are source-controlled rather than Terra inputs because they are used for HPC scheduler limits; an HPC deployment should adjust them in its checked-out workflow source.
+
 ---
 
 ## Minimal example JSON

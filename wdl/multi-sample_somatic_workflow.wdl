@@ -78,7 +78,6 @@ workflow MultiSampleSomaticWorkflow {
         Patient? input_patient
         WorkflowArguments? input_args
         WorkflowResources? input_resources
-        RuntimeCollection? input_runtime_collection
     }
 
 
@@ -94,13 +93,11 @@ workflow MultiSampleSomaticWorkflow {
     }
     WorkflowResources resources = select_first([input_resources, z1_Files.resources])
 
-    if (!defined(input_runtime_collection)) {
-        call rtc.DefineRuntimeCollection as z4_RuntimeParameters {
-            input:
-                num_bams = length(bams),
-        }
+    call rtc.DefineRuntimeCollection as z4_RuntimeParameters {
+        input:
+            num_bams = length(bams),
     }
-    RuntimeCollection runtime_collection = select_first([input_runtime_collection, z4_RuntimeParameters.rtc])
+    RuntimeCollection runtime_collection = z4_RuntimeParameters.rtc
 
     if (!defined(input_args)) {
         call wfargs.DefineWorkflowArguments as z3_Parameters {
@@ -344,6 +341,5 @@ workflow MultiSampleSomaticWorkflow {
         Patient output_patient = out_patient
         WorkflowArguments output_args = args
         WorkflowResources output_resources = resources
-        RuntimeCollection output_runtime_collection = runtime_collection
     }
 }

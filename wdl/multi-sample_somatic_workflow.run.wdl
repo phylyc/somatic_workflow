@@ -828,6 +828,5 @@ workflow MultiSampleSomaticWorkflowRun {
         Patient output_patient = out_patient
         WorkflowArguments output_args = args
         WorkflowResources output_resources = resources
-        RuntimeCollection output_runtime_collection = runtime_collection
     }
 }

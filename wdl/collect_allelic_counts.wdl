@@ -47,43 +47,19 @@ workflow CollectAllelicCounts {
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
-        String bcftools_docker = "stephb/bcftools"
-        String gatk_docker = "broadinstitute/gatk"
-        String ubuntu_docker = "ubuntu"
         File? gatk_override
-        Int preemptible = 1
         Int max_retries = 1
         Int disk_sizeGB = 1
 
-        Int mem_vcf_to_pileup_variants = 512  # 64
         Int mem_get_pileup_summaries = 4096  # needs at least 2G
-        Int mem_gather_pileup_summaries = 512  # 64
-        Int mem_select_pileup_summaries = 256  # 64
-        Int time_startup = 10
-        Int time_vcf_to_pileup_variants = 5
-        Int time_get_pileup_summaries = 90  # 1.5 h
-        Int time_gather_pileup_summaries = 5
-        Int time_select_pileup_summaries = 5
 	}
 
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
-            bcftools_docker = bcftools_docker,
-            gatk_docker = gatk_docker,
-            ubuntu_docker = ubuntu_docker,
             gatk_override = gatk_override,
-            preemptible = preemptible,
             max_retries = max_retries,
             disk_sizeGB = disk_sizeGB,
-            mem_vcf_to_pileup_variants = mem_vcf_to_pileup_variants,
             mem_get_pileup_summaries = mem_get_pileup_summaries,
-            mem_gather_pileup_summaries = mem_gather_pileup_summaries,
-            mem_select_pileup_summaries = mem_select_pileup_summaries,
-            time_startup = time_startup,
-            time_vcf_to_pileup_variants = time_vcf_to_pileup_variants,
-            time_get_pileup_summaries = time_get_pileup_summaries,
-            time_gather_pileup_summaries = time_gather_pileup_summaries,
-            time_select_pileup_summaries = time_select_pileup_summaries,
     }
 
     if (defined(vcf) && !defined(variants)) {

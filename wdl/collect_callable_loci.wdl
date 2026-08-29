@@ -18,23 +18,14 @@ workflow CollectCallableLoci {
         Boolean compress_output = false
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
-        String gatk_docker = "broadinstitute/gatk"
         File? gatk_override
-        Int preemptible = 1
         Int max_retries = 1
-        # memory assignments in MB
-        Int mem_callable_loci = 2048
-        Int time_callable_loci = 300
     }
 
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
-            gatk_docker = gatk_docker,
             gatk_override = gatk_override,
             max_retries = max_retries,
-            preemptible = preemptible,
-            mem_callable_loci = mem_callable_loci,
-            time_callable_loci = time_callable_loci
     }
 
 	call tasks.CollectCallableLoci as CollectCallableLociTask {

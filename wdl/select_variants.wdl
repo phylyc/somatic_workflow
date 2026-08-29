@@ -21,32 +21,16 @@ workflow SelectVariants {
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
-        String gatk_docker = "broadinstitute/gatk"
-        Int preemptible = 1
         Int max_retries = 1
-        Int cpu = 1
         Int disk_sizeGB = 1
         Int boot_disk_size = 12  # needs to be > 10
-        Int mem_machine_overhead = 512
-        Int time_startup = 10
-
-        Int mem_select_variants = 2048
-        Int time_select_variants = 5
-
     }
 
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
-            gatk_docker = gatk_docker,
-            preemptible = preemptible,
             max_retries = max_retries,
-            cpu = cpu,
             disk_sizeGB = disk_sizeGB,
             boot_disk_size = boot_disk_size,
-            mem_machine_overhead = mem_machine_overhead,
-            time_startup = time_startup,
-            mem_select_variants = mem_select_variants,
-            time_select_variants = time_select_variants
     }
 
     call tasks.SelectVariants {

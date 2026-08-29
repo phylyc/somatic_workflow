@@ -33,22 +33,12 @@ workflow CreateReadCountPanelOfNormals {
 
         RuntimeCollection runtime_collection = RuntimeParameters.rtc
 
-        String gatk_docker = "broadinstitute/gatk"
         File? gatk_override
-        Int preemptible = 1
         Int max_retries = 1
         Int disk_sizeGB = 1
 
-        # memory assignments in MB
-        Int mem_annotate_intervals = 2048
-        Int mem_collect_read_counts = 2048
         Int mem_create_cnv_panel = 16384
-
         Int disk_create_cnv_panel = 10
-
-        Int time_annotate_intervals = 60
-        Int time_collect_read_counts = 300
-        Int time_create_cnv_panel = 1200
     }
 
     # todo: assert either normal_bams or normal_bams_file is defined
@@ -62,18 +52,11 @@ workflow CreateReadCountPanelOfNormals {
 
     call rtc.DefineRuntimeCollection as RuntimeParameters {
         input:
-            gatk_docker = gatk_docker,
             gatk_override = gatk_override,
-            preemptible = preemptible,
             max_retries = max_retries,
             disk_sizeGB = disk_sizeGB,
-            mem_annotate_intervals = mem_annotate_intervals,
-            mem_collect_read_counts = mem_collect_read_counts,
             mem_create_cnv_panel = mem_create_cnv_panel,
             disk_create_cnv_panel = disk_create_cnv_panel,
-            time_annotate_intervals = time_annotate_intervals,
-            time_collect_read_counts = time_collect_read_counts,
-            time_create_cnv_panel = time_create_cnv_panel,
     }
 
     scatter (normal_bam in zip(non_optional_normal_bams, non_optional_normal_bais)) {
@@ -88,8 +71,6 @@ workflow CreateReadCountPanelOfNormals {
                 is_paired_end = is_paired_end,
                 format = "HDF5",
                 gatk_override = gatk_override,
-                gatk_docker = gatk_docker,
-                preemptible = preemptible,
                 max_retries = max_retries,
                 runtime_collection = runtime_collection,
         }
