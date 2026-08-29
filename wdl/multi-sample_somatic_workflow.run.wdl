@@ -15,7 +15,6 @@ import "workflow_arguments.wdl" as wfargs
 import "workflow_resources.wdl" as wfres
 import "runtime_collection.wdl" as rtc
 
-import "collect_callable_loci.wdl" as ccl
 import "collect_read_counts.wdl" as crc
 import "collect_allelic_counts.wdl" as cac
 import "harmonize_samples.wdl" as hs
@@ -68,7 +67,7 @@ workflow MultiSampleSomaticWorkflowRun {
     scatter (sample in coverage_workflow_patient.samples) {
         scatter (sequencing_run in sample.sequencing_runs) {
             if (args.run_collect_callable_loci && (size(sequencing_run.callable_loci) == 0)) {
-                call ccl.CollectCallableLoci {
+                call tasks.CollectCallableLoci {
                     input:
                         ref_fasta = args.files.ref_fasta,
                         ref_fasta_index = args.files.ref_fasta_index,
