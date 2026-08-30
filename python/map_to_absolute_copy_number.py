@@ -626,19 +626,6 @@ def segment_ccf(seg, delta, chr_ploidy, b, c0_by_chr, nX, nY, normal_ploidy,
 
 
 def map_to_cn(args):
-    # A negative purity is ABSOLUTE's explicit "no solution" sentinel. There is
-    # no meaningful affine copy-number map when ploidy is non-positive either.
-    # Return before reading or iterating over a potentially enormous segmentation.
-    # This is intentionally a successful no-op: the WDL Postprocess task creates
-    # all declared outputs before invoking this script, and failed ABSOLUTE samples
-    # are excluded from downstream analysis by their negative purity.
-    if args.purity < 0 or args.ploidy <= 0:
-        message(
-            "Skipping copy-number mapping because ABSOLUTE produced no valid "
-            f"solution (purity={args.purity}, ploidy={args.ploidy})."
-        )
-        return None
-
     s = args.sex.upper()
     if s in ["FEMALE"]:
         s = "XX"
@@ -646,11 +633,6 @@ def map_to_cn(args):
         s = "XY"
     elif s in ["UNKNOWN"]:
         s = "XXY"
-
-    if args.purity <= 0:
-        args.purity = 1
-    if args.ploidy <= 0:
-        args.ploidy = args.normal_ploidy
 
     nX = s.count("X")
     nY = s.count("Y")
@@ -740,6 +722,27 @@ def map_to_cn(args):
             sep="\t",
             index=False,
         )
+
+    # A negative purity is ABSOLUTE's explicit "no solution" sentinel. There is
+    # no meaningful affine copy-number map when ploidy is non-positive either.
+    # Write real header-only outputs rather than relying on the WDL's pre-created
+    # copies: cached/older task definitions may still invoke the downstream CCF
+    # script, which must be able to parse the completed segtab.
+    if args.purity < 0 or args.ploidy <= 0:
+        if args.sample is None:
+            args.sample = "sample"
+        message(
+            "Skipping copy-number mapping because ABSOLUTE produced no valid "
+            f"solution (purity={args.purity}, ploidy={args.ploidy}); "
+            "writing empty output tables."
+        )
+        write_empty_outputs()
+        return None
+
+    # Purity zero is the intentional low-purity force-call mode. It is distinct
+    # from ABSOLUTE's negative failure sentinel handled above.
+    if args.purity == 0:
+        args.purity = 1
 
     ###########################################################################
     ### LOADING DATA

@@ -85,6 +85,13 @@ def test_ensure_columns_adds_missing():
 
 
 @pytest.mark.unit
+def test_prepare_segtab_accepts_headerless_empty_input():
+    out = ccf.prepare_segtab(pd.DataFrame(), sex="XX", normal_ploidy=2)
+    assert out.empty
+    assert {"sample", "Chromosome", "Start.bp", "End.bp", "_chrom", "_seg_idx1"}.issubset(out.columns)
+
+
+@pytest.mark.unit
 def test_choose_output_columns_drops_internal_and_appends_extras():
     # note: pandas .empty is True when there are no rows, so include a row.
     caller = pd.DataFrame({"Chromosome": ["1"], "Start_position": [1],

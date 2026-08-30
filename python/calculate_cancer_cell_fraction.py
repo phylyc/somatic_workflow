@@ -358,6 +358,11 @@ def prepare_abs_maf(df: pd.DataFrame) -> pd.DataFrame:
 
 def prepare_segtab(df: pd.DataFrame, sex: str, normal_ploidy: int) -> pd.DataFrame:
     out = df.copy()
+    # A failed ABSOLUTE extraction may leave a zero-byte segtab, especially when
+    # an older cached Postprocess task invokes this script after copy-number mapping
+    # has gracefully skipped. Treat it as a valid empty segmentation instead of
+    # indexing absent coordinate columns.
+    out = ensure_columns(out, ["sample", "Chromosome", "Start.bp", "End.bp"])
     # A total-copy-ratio segtab names the total-CN columns without the "total" qualifier
     # and carries no allelic calls; normalize the names so total-CN lookups (modal_total_cn)
     # resolve. Guard against clobbering a canonical column an allelic segtab already has.

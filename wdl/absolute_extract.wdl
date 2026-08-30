@@ -216,6 +216,8 @@ task Postprocess {
         String copy_ratio_type = "allelic"
 
         Int organism_normal_ploidy = 2
+        Int min_hets = 0
+        Int min_probes = 1
 
         Runtime runtime_params
     }
@@ -245,6 +247,8 @@ task Postprocess {
             --purity ~{purity} \
             --ploidy ~{ploidy} \
             --normal_ploidy ~{organism_normal_ploidy} \
+            --min_hets ~{min_hets} \
+            --min_probes ~{min_probes} \
             --copy_num_type ~{copy_ratio_type} \
             --allelic_resplit_focals \
             --outdir "."

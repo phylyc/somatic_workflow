@@ -249,10 +249,26 @@ def test_map_cn_to_cluster_empty_comb_returns_input_without_scipy(monkeypatch):
 
 @pytest.mark.unit
 @pytest.mark.parametrize("purity,ploidy", [(-1.0, -1.0), (0.8, 0.0), (0.8, -1.0)])
-def test_map_to_cn_gracefully_skips_invalid_absolute_solution_before_io(purity, ploidy, capsys):
-    args = type("Args", (), {"purity": purity, "ploidy": ploidy})()
+def test_map_to_cn_gracefully_skips_invalid_absolute_solution_before_io(
+    purity, ploidy, tmp_path, capsys,
+):
+    args = type("Args", (), {
+        "purity": purity,
+        "ploidy": ploidy,
+        "sex": "XX",
+        "normal_ploidy": 2,
+        "outdir": str(tmp_path),
+        "sample": "TestS",
+        "copy_num_type": "allelic",
+    })()
     assert m2a.map_to_cn(args) is None
     assert "Skipping copy-number mapping" in capsys.readouterr().out
+    for filename in [
+        "TestS.segtab.allelic.completed.txt",
+        "TestS.IGV.seg.allelic.completed.txt",
+        "TestS.rescued_intervals.allelic.txt",
+    ]:
+        assert pd.read_csv(tmp_path / filename, sep="\t").empty
 
 
 @pytest.mark.stat
