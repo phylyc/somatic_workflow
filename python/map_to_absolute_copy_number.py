@@ -90,6 +90,17 @@ def map_cn_to_cluster(cn, sigma, cluster_values, is_integer, p_threshold=0.05, l
     ``log_odds_ratio`` in log-density. ``is_integer`` is the boolean mask over
     ``cluster_values`` marking the integer-valued clusters.
     """
+    # De-novo rescue has no authoritative ABSOLUTE clusters to snap to. Avoid
+    # constructing a scipy frozen distribution for every segment in that case:
+    # scipy's setup cost is substantial even when the evaluation array is empty.
+    cluster_values = np.asarray(cluster_values)
+    is_integer = np.asarray(is_integer, dtype=bool)
+    finite_clusters = np.isfinite(cluster_values)
+    cluster_values = cluster_values[finite_clusters]
+    is_integer = is_integer[finite_clusters]
+    if cluster_values.size == 0 or not np.isfinite(cn) or not np.isfinite(sigma) or sigma <= 0:
+        return cn
+
     log_p_threshold = np.log(p_threshold)
     norm = st.norm(loc=cn, scale=sigma)
     logcdf = norm.logcdf(cluster_values)
@@ -615,6 +626,19 @@ def segment_ccf(seg, delta, chr_ploidy, b, c0_by_chr, nX, nY, normal_ploidy,
 
 
 def map_to_cn(args):
+    # A negative purity is ABSOLUTE's explicit "no solution" sentinel. There is
+    # no meaningful affine copy-number map when ploidy is non-positive either.
+    # Return before reading or iterating over a potentially enormous segmentation.
+    # This is intentionally a successful no-op: the WDL Postprocess task creates
+    # all declared outputs before invoking this script, and failed ABSOLUTE samples
+    # are excluded from downstream analysis by their negative purity.
+    if args.purity < 0 or args.ploidy <= 0:
+        message(
+            "Skipping copy-number mapping because ABSOLUTE produced no valid "
+            f"solution (purity={args.purity}, ploidy={args.ploidy})."
+        )
+        return None
+
     s = args.sex.upper()
     if s in ["FEMALE"]:
         s = "XX"
@@ -692,6 +716,31 @@ def map_to_cn(args):
         "baseline_q2",
     ]
 
+    def write_empty_outputs() -> None:
+        """Write the three header-only tables expected from copy-number mapping."""
+        os.makedirs(args.outdir, exist_ok=True)
+        segtab_columns = list(abs_dtypes.keys())
+        if args.copy_num_type == "allelic":
+            segtab_columns += extra_columns
+        pd.DataFrame(columns=segtab_columns).to_csv(
+            f"{args.outdir}/{args.sample}.segtab.{args.copy_num_type}.completed.txt",
+            sep="\t",
+            index=False,
+        )
+        pd.DataFrame(columns=[
+            "sample", "Chromosome", "Start.bp", "End.bp",
+            "Segment_Mean", "rescaled_total_cn",
+        ]).to_csv(
+            f"{args.outdir}/{args.sample}.IGV.seg.{args.copy_num_type}.completed.txt",
+            sep="\t",
+            index=False,
+        )
+        pd.DataFrame(columns=["Chromosome", "Start.bp", "End.bp"]).to_csv(
+            f"{args.outdir}/{args.sample}.rescued_intervals.{args.copy_num_type}.txt",
+            sep="\t",
+            index=False,
+        )
+
     ###########################################################################
     ### LOADING DATA
     ###########################################################################
@@ -760,14 +809,45 @@ def map_to_cn(args):
     shared_columns = abs_seg.columns.intersection(cr_seg.columns)
     seg = pd.concat([abs_seg.drop(columns=shared_columns, errors="ignore"), cr_seg], axis=1).sort_index().reset_index()
 
-    has_allelic_absolute = has_absolute and all(col in seg.columns for col in allelic_presence_check)
+    if seg.empty:
+        if args.sample is None:
+            args.sample = "sample"
+        message("No segments to map; writing empty output tables.")
+        write_empty_outputs()
+        return None
 
     if args.sample is None:
         args.sample = seg["sample"].dropna().unique()[0]
 
+    # Apply evidence thresholds before the expensive clustering and CCF passes.
+    # Previously these rows were discarded only while writing outputs, so a file
+    # containing thousands of zero-probe segments still paid the full statistical
+    # inference cost. Missing counts are retained for ABSOLUTE-only intervals,
+    # matching the previous final-output behavior.
+    good_rows = (seg["n_hets"] >= args.min_hets) | seg["n_hets"].isna()
+    good_rows &= (seg["n_probes"] >= args.min_probes) | seg["n_probes"].isna()
+    n_dropped = int((~good_rows).sum())
+    if n_dropped:
+        lengths = pd.to_numeric(seg["End.bp"], errors="coerce") - pd.to_numeric(seg["Start.bp"], errors="coerce")
+        total_length = lengths.clip(lower=0).sum()
+        dropped_length = lengths.loc[~good_rows].clip(lower=0).sum()
+        pct_genomic_drop = 100 * dropped_length / total_length if total_length > 0 else 0
+        message(
+            f"Dropping {n_dropped}/{seg.shape[0]} (-{pct_genomic_drop:.6f}% of genome) "
+            f"segments before inference with min_hets < {args.min_hets} or "
+            f"min_probes < {args.min_probes}."
+        )
+        seg = seg.loc[good_rows].reset_index(drop=True)
     if seg.empty:
-        message("No segments to map.")
+        message(
+            "No informative segments remain after applying "
+            f"min_hets={args.min_hets} and min_probes={args.min_probes}; "
+            "writing empty output tables."
+        )
+        write_empty_outputs()
         return None
+
+    has_allelic_absolute = has_absolute and all(col in seg.columns for col in allelic_presence_check)
 
     ###########################################################################
     ### DEFINING UTILITY FUNCTIONS
@@ -877,13 +957,6 @@ def map_to_cn(args):
         seg = seg.reset_index()
         seg["Segment_Mean"] = np.log2(seg["rescaled_total_cn"].clip(lower=1e-2)) - np.log2(np.where(chr_ploidy > 0, args.ploidy * chr_ploidy / args.normal_ploidy, 1))
 
-        good_rows = (seg["n_hets"] >= args.min_hets) | seg["n_hets"].isna()
-        good_rows &= (seg["n_probes"] >= args.min_probes) | seg["n_probes"].isna()
-        n = seg.shape[0] - np.sum(good_rows)
-        pct_genomic_drop = seg.loc[~good_rows, "W"].sum() * 100
-        print(f"Dropping {n}/{seg.shape[0]} (-{pct_genomic_drop:.6f}% of genome) segments with min_hets < {args.min_hets} or min_probes < {args.min_probes}.")
-
-        seg = seg.loc[good_rows]
         seg["W"] = seg["length"] / seg["length"].sum()
 
         os.makedirs(args.outdir, exist_ok=True)
