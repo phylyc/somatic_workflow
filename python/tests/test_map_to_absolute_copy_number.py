@@ -78,6 +78,57 @@ def test_map_to_cn_sparse_acs_f_values(tmp_path):
 
 
 @pytest.mark.regression
+def test_map_filters_zero_probe_segments_before_inference(tmp_path):
+    acs = pd.read_csv(ACS_SEG, sep="\t", low_memory=False)
+    excluded = acs.loc[0, ["Chromosome", "Start.bp", "End.bp"]].tolist()
+    acs.loc[0, "n_probes"] = 0
+    acs_path = tmp_path / "zero_probe.acs.seg"
+    acs.to_csv(acs_path, sep="\t", index=False)
+
+    out = tmp_path / "out"
+    run_script("map_to_absolute_copy_number.py", [
+        "--outdir", str(out), "--purity", "0.8", "--ploidy", "2.0",
+        "--sample", "TestS", "--sex", "XXY", "--acs_cr_seg", str(acs_path),
+        "--copy_num_type", "allelic", "--min_probes", "1",
+    ])
+
+    got = pd.read_csv(out / "TestS.segtab.allelic.completed.txt", sep="\t", low_memory=False)
+    assert got.shape[0] == acs.shape[0] - 1
+    assert not (
+        (got["Chromosome"].astype(str) == str(excluded[0]))
+        & (got["Start.bp"] == excluded[1])
+        & (got["End.bp"] == excluded[2])
+    ).any()
+
+
+@pytest.mark.regression
+def test_map_writes_header_only_outputs_when_all_segments_are_filtered(tmp_path):
+    acs = pd.read_csv(ACS_SEG, sep="\t", low_memory=False)
+    acs["n_probes"] = 0
+    acs_path = tmp_path / "all_zero_probe.acs.seg"
+    acs.to_csv(acs_path, sep="\t", index=False)
+
+    out = tmp_path / "out"
+    run_script("map_to_absolute_copy_number.py", [
+        "--outdir", str(out), "--purity", "0.8", "--ploidy", "2.0",
+        "--sample", "TestS", "--sex", "XXY", "--acs_cr_seg", str(acs_path),
+        "--copy_num_type", "allelic", "--min_probes", "1",
+    ])
+
+    expected_columns = {
+        "TestS.segtab.allelic.completed.txt": ["sample", "Chromosome", "Start.bp", "End.bp"],
+        "TestS.IGV.seg.allelic.completed.txt": [
+            "sample", "Chromosome", "Start.bp", "End.bp", "Segment_Mean", "rescaled_total_cn",
+        ],
+        "TestS.rescued_intervals.allelic.txt": ["Chromosome", "Start.bp", "End.bp"],
+    }
+    for filename, required_columns in expected_columns.items():
+        table = pd.read_csv(out / filename, sep="\t", low_memory=False)
+        assert table.empty
+        assert set(required_columns).issubset(table.columns)
+
+
+@pytest.mark.regression
 def test_map_handles_absolute_total_mode_without_allelic_columns(tmp_path):
     """ABSOLUTE total-mode segtabs have no allelic fields; allelic outputs should be NA."""
     total_seed = pd.read_csv(SNAP / "total" / "TestS.segtab.total.completed.txt", sep="\t", low_memory=False)
@@ -183,6 +234,25 @@ def test_map_cn_to_cluster_no_valid_cluster_returns_input():
     is_int = np.modf(cv)[0] == 0
     # cn far from every cluster with tiny sigma -> nothing within tail threshold
     assert m2a.map_cn_to_cluster(100.0, 1e-6, cv, is_int) == pytest.approx(100.0)
+
+
+@pytest.mark.unit
+def test_map_cn_to_cluster_empty_comb_returns_input_without_scipy(monkeypatch):
+    """De-novo rescue has no ABSOLUTE clusters and must take the cheap identity path."""
+    monkeypatch.setattr(
+        m2a.st,
+        "norm",
+        lambda *args, **kwargs: pytest.fail("scipy distribution should not be constructed"),
+    )
+    assert m2a.map_cn_to_cluster(2.25, 0.1, np.array([]), np.array([], dtype=bool)) == 2.25
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("purity,ploidy", [(-1.0, -1.0), (0.8, 0.0), (0.8, -1.0)])
+def test_map_to_cn_gracefully_skips_invalid_absolute_solution_before_io(purity, ploidy, capsys):
+    args = type("Args", (), {"purity": purity, "ploidy": ploidy})()
+    assert m2a.map_to_cn(args) is None
+    assert "Skipping copy-number mapping" in capsys.readouterr().out
 
 
 @pytest.mark.stat
