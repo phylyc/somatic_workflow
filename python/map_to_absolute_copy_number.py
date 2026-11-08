@@ -901,6 +901,11 @@ def map_to_cn(args):
     # every contig, and the intercept scales with the contig's germline copies, as above. In total mode ABSOLUTE caps
     # the copy ratio (total_copy_ratio at 25, i.e. tens of copies), so high-level amplicons leave the line; segments of
     # at most 10 copies never reach the cap.
+    # At purity 1 the true intercept is 0 and the fit lands within about 1e-5 of it on either side, so a slightly
+    # negative intercept is clipped rather than rejected. ABSOLUTE's map is exact, so a residual above 0.01 copies means
+    # the segtab does not belong to this copy-ratio input (or ABSOLUTE changed); the fit is then not used.
+    intercept_tolerance = 1e-3
+    max_fit_residual = 0.01
     calibrated = False
     if has_absolute:
         fit_rows = (
@@ -908,20 +913,34 @@ def map_to_cn(args):
             & seg["rescaled_total_cn"].notna() & (seg["rescaled_total_cn"] > 0) & (seg["rescaled_total_cn"] <= 10)
             & seg["tau"].notna() & np.isfinite(seg["tau"])
         )
-        if fit_rows.sum() >= 3 and seg.loc[fit_rows, "rescaled_total_cn"].nunique() >= 2:
+        n_levels = seg.loc[fit_rows, "rescaled_total_cn"].nunique()
+        if fit_rows.sum() >= 3 and n_levels >= 2:
             x = seg.loc[fit_rows, "rescaled_total_cn"].to_numpy(dtype=float)
             y = seg.loc[fit_rows, "tau"].to_numpy(dtype=float)
             w = seg.loc[fit_rows, "W"].to_numpy(dtype=float)
             slope, intercept = np.polyfit(x, y, 1, w=np.sqrt(w))
-            if slope > 0 and intercept >= 0:
+            if slope > 0 and intercept > -intercept_tolerance:
+                intercept = max(intercept, 0.0)
                 residual = np.abs((y - intercept) / slope - x)
-                b = pd.Series(intercept / args.normal_ploidy, index=seg.index)
-                delta = slope / chr_ploidy
-                total_b = chr_ploidy * b
-                calibrated = True
-                message(f"Copy-ratio map fitted on {int(fit_rows.sum())} segments ABSOLUTE mapped: "
-                        f"intercept per germline copy {intercept / args.normal_ploidy:.4f}, slope per copy {slope:.4f}; "
-                        f"|CN residual| median {np.median(residual):.4f}, max {np.max(residual):.4f}.")
+                if np.max(residual) > max_fit_residual:
+                    fallback_reason = (f"ABSOLUTE's copy numbers are not affine in tau (max |CN residual| "
+                                       f"{np.max(residual):.4f} > {max_fit_residual}); is the segtab from this copy-ratio input?")
+                else:
+                    b = pd.Series(intercept / args.normal_ploidy, index=seg.index)
+                    delta = slope / chr_ploidy
+                    total_b = chr_ploidy * b
+                    calibrated = True
+                    message(f"Copy-ratio map fitted on {int(fit_rows.sum())} segments ABSOLUTE mapped: "
+                            f"intercept per germline copy {intercept / args.normal_ploidy:.4f}, slope per copy {slope:.4f}; "
+                            f"|CN residual| median {np.median(residual):.4f}, max {np.max(residual):.4f}.")
+            else:
+                fallback_reason = f"the fit gave slope {slope:.4g} and intercept {intercept:.4g}"
+        else:
+            fallback_reason = f"only {int(fit_rows.sum())} segments at {n_levels} copy-number levels to fit on"
+        if not calibrated:
+            message(f"WARNING: an ABSOLUTE segtab is present, but the copy-ratio map is not fitted on it ({fallback_reason}). "
+                    "Falling back to the map from purity and ploidy, which can sit 0.05-0.1 copies off ABSOLUTE's; "
+                    "rescued segments (male X and Y in allelic mode) inherit that offset.")
 
     if not calibrated:
         # correct offset: find alpha (a flat shift of tau) so the segment levels sit on
