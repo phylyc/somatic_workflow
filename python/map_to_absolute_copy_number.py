@@ -891,15 +891,48 @@ def map_to_cn(args):
     # clonal homozygous deletions of X/Y in male samples).
     total_b = chr_ploidy * b
 
-    # correct offset: find alpha (a flat shift of tau) so the segment levels sit on
-    # the comb, i.e. CN = (tau - alpha - total_b) / delta / chr_ploidy with
-    # sum(w * CN) = ploidy.
-    num = np.where(chr_ploidy > 0, seg["W"] * (seg["tau"] - total_b) / delta / chr_ploidy, 0)
-    den = np.where(chr_ploidy > 0, seg["W"] / delta / chr_ploidy, 0)
-    alpha = (np.sum(num) - args.ploidy) / np.sum(den)
+    # With an ABSOLUTE segtab, take the map from ABSOLUTE itself: fit
+    #     tau = normal_ploidy * b + S * CN
+    # on the segments ABSOLUTE mapped (germline-ploidy contigs, CN above its floor), weighted by length. ABSOLUTE's
+    # map is exactly affine in tau, so this recovers its intercept and slope. Deriving them from the purity and the
+    # reported ploidy instead, plus a flat shift that pins sum(W * CN) to that ploidy, put the map about 0.05-0.1
+    # copies off ABSOLUTE's (the reported ploidy differs from the tau ABSOLUTE fits with), and every rescued segment
+    # (male X and Y in allelic mode) inherited the offset. The slope per copy, S = chr_ploidy * delta, is the same on
+    # every contig, and the intercept scales with the contig's germline copies, as above. In total mode ABSOLUTE caps
+    # the copy ratio (total_copy_ratio at 25, i.e. tens of copies), so high-level amplicons leave the line; segments of
+    # at most 10 copies never reach the cap.
+    calibrated = False
+    if has_absolute:
+        fit_rows = (
+            (chr_ploidy == args.normal_ploidy)
+            & seg["rescaled_total_cn"].notna() & (seg["rescaled_total_cn"] > 0) & (seg["rescaled_total_cn"] <= 10)
+            & seg["tau"].notna() & np.isfinite(seg["tau"])
+        )
+        if fit_rows.sum() >= 3 and seg.loc[fit_rows, "rescaled_total_cn"].nunique() >= 2:
+            x = seg.loc[fit_rows, "rescaled_total_cn"].to_numpy(dtype=float)
+            y = seg.loc[fit_rows, "tau"].to_numpy(dtype=float)
+            w = seg.loc[fit_rows, "W"].to_numpy(dtype=float)
+            slope, intercept = np.polyfit(x, y, 1, w=np.sqrt(w))
+            if slope > 0 and intercept >= 0:
+                residual = np.abs((y - intercept) / slope - x)
+                b = pd.Series(intercept / args.normal_ploidy, index=seg.index)
+                delta = slope / chr_ploidy
+                total_b = chr_ploidy * b
+                calibrated = True
+                message(f"Copy-ratio map fitted on {int(fit_rows.sum())} segments ABSOLUTE mapped: "
+                        f"intercept per germline copy {intercept / args.normal_ploidy:.4f}, slope per copy {slope:.4f}; "
+                        f"|CN residual| median {np.median(residual):.4f}, max {np.max(residual):.4f}.")
 
-    message(f"Shift total copy number (tau) by {-alpha} to fit onto comb.")
-    seg["tau"] -= alpha
+    if not calibrated:
+        # correct offset: find alpha (a flat shift of tau) so the segment levels sit on
+        # the comb, i.e. CN = (tau - alpha - total_b) / delta / chr_ploidy with
+        # sum(w * CN) = ploidy.
+        num = np.where(chr_ploidy > 0, seg["W"] * (seg["tau"] - total_b) / delta / chr_ploidy, 0)
+        den = np.where(chr_ploidy > 0, seg["W"] / delta / chr_ploidy, 0)
+        alpha = (np.sum(num) - args.ploidy) / np.sum(den)
+
+        message(f"Shift total copy number (tau) by {-alpha} to fit onto comb.")
+        seg["tau"] -= alpha
     seg["tau"] = seg["tau"].clip(lower=0)
 
     # rescale copy number
